@@ -52,18 +52,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
 class HuaweiRouterDeviceTracker(
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], ScannerEntity
 ):
-    """Representation of a Huawei Router tracked device.
-
-    Naming: has_entity_name is explicitly False. The name property prepends the router
-    title (e.g. "Huawei 5G NPG3 Hub") to produce a scoped entity_id of the form
-    device_tracker.huawei_5g_npg3_hub — the router prefix disambiguates across multiple
-    routers without including the "Clients" sub-device segment, which adds length but
-    no information (every tracker from this integration is a client by definition).
-    UI grouping under the Clients sub-device is preserved independently via device_info.
-    See .notes/sub_devices_and_trackers.md for the full design rationale.
-    """
-
-    _attr_has_entity_name = False  # intentional — entity name includes router title prefix
+    """Representation of a Huawei Router tracked device."""
 
     def __init__(
         self, coordinator: HuaweiRouter5GDataUpdateCoordinator, mac: str
@@ -87,10 +76,11 @@ class HuaweiRouterDeviceTracker(
 
     @property
     def name(self) -> str:
-        """Return router-scoped name: '<entry.title> <hostname>'."""
+        """Return the name of the device."""
         host = self._host_data
-        hostname = (host.get("HostName") or self._mac) if host else self._mac
-        return f"{self.coordinator.entry.title} {hostname}"
+        if host:
+            return host.get("HostName") or self._mac
+        return self._mac
 
     @property
     def is_connected(self) -> bool:

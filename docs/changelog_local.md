@@ -2,6 +2,18 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
+## [1.0.1-dev12] - 2026-05-02
+
+### Changed
+- **Signal UI Refinement**:
+    - Renamed **LTE CQI 0** -> **LTE CQI** and promoted it to the main **Sensor** category (from Diagnostic) with `state_class: measurement` to match 5G CQI visibility.
+    - Promoted **Signal Bars** to the main **Sensor** category, ensuring the most human-readable signal metric is visible by default.
+- **SMS Entity Hygiene**:
+    - Moved 12 granular SMS storage metrics (Unread/Inbox/Capacity for Device and SIM) to the **Diagnostic** category to reduce entity fatigue.
+    - Kept primary actionable metrics (**SMS Unread**, **SMS New**, **SMS Total**, **Last SMS**) in the main entity list.
+
+---
+
 ## [1.0.1-dev10] - 2026-05-02
 
 ### Changed

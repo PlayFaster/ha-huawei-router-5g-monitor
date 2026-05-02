@@ -421,7 +421,6 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
             if data
             else None
         ),
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="cell_id",
@@ -584,12 +583,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="cqi_0",
-        name="LTE CQI 0",
+        name="LTE CQI",
         icon="mdi:numeric",
+        state_class=SensorStateClass.MEASUREMENT,
         group="signal",
         min_limit=0,
         value_fn=lambda data: _safe_int(_get_signal_value(data, "cqi0")),
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="uplink_frequency",
@@ -1062,6 +1061,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("LocalUnread")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_inbox_device",
@@ -1074,6 +1074,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("LocalInbox")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_outbox_device",
@@ -1086,6 +1087,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("LocalOutbox")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_drafts_device",
@@ -1098,6 +1100,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("LocalDraft")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_deleted_device",
@@ -1110,6 +1113,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("LocalDeleted")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_capacity_device",
@@ -1122,6 +1126,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("LocalMax")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_unread_sim",
@@ -1134,6 +1139,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("SimUnread")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_inbox_sim",
@@ -1146,6 +1152,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("SimInbox")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_outbox_sim",
@@ -1158,6 +1165,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("SimOutbox")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_drafts_sim",
@@ -1170,6 +1178,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("SimDraft")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_capacity_sim",
@@ -1182,6 +1191,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("SimMax")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_messages_sim",
@@ -1194,6 +1204,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("SimUsed")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_new",
