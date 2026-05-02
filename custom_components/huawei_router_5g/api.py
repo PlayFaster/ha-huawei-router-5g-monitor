@@ -11,124 +11,142 @@ from url_normalize import url_normalize
 _LOGGER = logging.getLogger(__name__)
 
 
+class HuaweiConnectionError(Exception):
+    """Raised when the router cannot be reached."""
+
+
+class HuaweiAuthError(Exception):
+    """Raised when login credentials are rejected."""
+
+
 class HuaweiRouter5GAPI:
     """Async wrapper for the huawei-lte-api library."""
 
-    def __init__(self, host, username, password, verify_ssl=False):
+    def __init__(
+        self,
+        host: str,
+        username: str | None,
+        password: str,
+    ) -> None:
         """Initialize the API."""
-        self.url = url_normalize(host)
+        self.url = url_normalize(host, default_scheme="http")
         self.username = username
         self.password = password
-        self.verify_ssl = verify_ssl
-        self.connection = None
-        self.client = None
-        self._client_lock = asyncio.Lock()
+        self._connection: Connection | None = None
+        self._client: Client | None = None
 
-    async def _ensure_client(self):
-        """Ensure the client is initialized."""
-        async with self._client_lock:
-            if self.connection is None:
-                self.connection = Connection(
-                    self.url,
-                    username=self.username,
-                    password=self.password,
-                    verify=self.verify_ssl,
-                )
-                self.client = Client(self.connection)
+    def _create_connection_sync(self) -> tuple[Connection, Client]:
+        """Create a new Connection and Client (blocking, runs in thread).
 
-    async def login(self):
-        """Authorize with the router."""
-        await self._ensure_client()
+        The Connection constructor triggers login automatically when
+        credentials are provided.
+        """
+        conn = Connection(
+            self.url,
+            username=self.username,
+            password=self.password,
+        )
+        return conn, Client(conn)
 
-        # The Connection object handles login if credentials are provided.
-        # But we might need to explicitly call login if session expires.
-        def _login():
-            return self.client.user.login(self.username, self.password)
-
+    async def login(self) -> None:
+        """Establish a fresh connection to the router."""
+        await self._reset_client()
         try:
-            await asyncio.to_thread(_login)
-        except Exception as e:
-            _LOGGER.debug("Login failed: %s", e)
-            raise
+            conn, client = await asyncio.to_thread(self._create_connection_sync)
+            self._connection = conn
+            self._client = client
+        except Exception as err:
+            self._connection = None
+            self._client = None
+            err_lower = str(err).lower()
+            if any(
+                k in err_lower
+                for k in ("password", "credentials", "unauthori", "wrong", "403")
+            ):
+                raise HuaweiAuthError(f"Authentication failed: {err}") from err
+            raise HuaweiConnectionError(f"Cannot connect to router: {err}") from err
 
-    async def logout(self):
-        """Logout from the router."""
-        if not self.client:
+    async def logout(self) -> None:
+        """Logout and release the connection."""
+        if self._connection is None:
             return
         try:
-            await asyncio.to_thread(self.client.user.logout)
-        except Exception as e:
-            _LOGGER.debug("Logout failed: %s", e)
+            await asyncio.to_thread(self._connection.logout)
+        except Exception as err:
+            _LOGGER.debug("Logout failed: %s", err)
+        finally:
+            await self._reset_client()
+
+    async def _reset_client(self) -> None:
+        """Clear the stored connection and client."""
+        self._connection = None
+        self._client = None
+
+    async def _ensure_client(self) -> None:
+        """Create a client if one does not exist."""
+        if self._client is None:
+            await self.login()
 
     async def get_data(self) -> dict[str, Any]:
-        """Fetch all relevant data from the router."""
+        """Fetch all available data from the router."""
         await self._ensure_client()
 
-        def _fetch():
-            data = {}
-            # Basic Device Info
-            try:
-                data["device_information"] = self.client.device.information()
-            except Exception:
-                _LOGGER.debug("Failed to fetch device_information")
+        def _fetch() -> dict[str, Any]:
+            data: dict[str, Any] = {}
+            client = self._client
 
-            try:
-                data["device_signal"] = self.client.device.signal()
-            except Exception:
-                _LOGGER.debug("Failed to fetch device_signal")
-
-            # Monitoring
-            try:
-                data["monitoring_status"] = self.client.monitoring.status()
-            except Exception:
-                _LOGGER.debug("Failed to fetch monitoring_status")
-
-            try:
-                data["traffic_statistics"] = self.client.monitoring.traffic_statistics()
-            except Exception:
-                _LOGGER.debug("Failed to fetch traffic_statistics")
-
-            try:
-                data["month_statistics"] = self.client.monitoring.month_statistics()
-            except Exception:
-                _LOGGER.debug("Failed to fetch month_statistics")
-
-            # Network
-            try:
-                data["current_plmn"] = self.client.net.current_plmn()
-            except Exception:
-                _LOGGER.debug("Failed to fetch current_plmn")
-
-            try:
-                data["net_mode"] = self.client.net.net_mode()
-            except Exception:
-                _LOGGER.debug("Failed to fetch net_mode")
-
-            # SMS
-            try:
-                data["sms_count"] = self.client.sms.sms_count()
-            except Exception:
-                _LOGGER.debug("Failed to fetch sms_count")
+            for key, fetcher in [
+                ("device_information", lambda: client.device.information()),
+                ("device_signal", lambda: client.device.signal()),
+                ("monitoring_status", lambda: client.monitoring.status()),
+                ("traffic_statistics", lambda: client.monitoring.traffic_statistics()),
+                ("month_statistics", lambda: client.monitoring.month_statistics()),
+                ("current_plmn", lambda: client.net.current_plmn()),
+                ("sms_count", lambda: client.sms.sms_count()),
+                ("mobile_dataswitch", lambda: client.dial_up.mobile_dataswitch()),
+            ]:
+                try:
+                    data[key] = fetcher()
+                except Exception:
+                    _LOGGER.debug("Failed to fetch %s", key)
 
             return data
 
-        return await asyncio.to_thread(_fetch)
+        try:
+            return await asyncio.to_thread(_fetch)
+        except Exception as err:
+            _LOGGER.error("Failed to fetch router data: %s", err)
+            await self._reset_client()
+            raise HuaweiConnectionError(f"Data fetch failed: {err}") from err
 
-    async def reboot(self):
+    async def reboot(self) -> None:
         """Reboot the router."""
         await self._ensure_client()
-        await asyncio.to_thread(self.client.device.reboot)
+        try:
+            await asyncio.to_thread(self._client.device.reboot)
+        except Exception as err:
+            _LOGGER.error("Reboot failed: %s", err)
+            await self._reset_client()
+            raise
 
-    async def clear_traffic_statistics(self):
-        """Clear traffic statistics."""
+    async def clear_traffic_statistics(self) -> None:
+        """Clear the traffic statistics counters."""
         await self._ensure_client()
-        await asyncio.to_thread(self.client.monitoring.clear_traffic)
+        try:
+            await asyncio.to_thread(self._client.monitoring.clear_traffic)
+        except Exception as err:
+            _LOGGER.error("Clear traffic failed: %s", err)
+            raise
 
-    async def set_mobile_data(self, enable: bool):
-        """Enable or disable mobile data."""
+    async def set_mobile_data(self, enable: bool) -> None:
+        """Enable or disable the mobile data connection."""
         await self._ensure_client()
 
-        def _set():
-            self.client.dial_up.set_mobile_dataswitch(1 if enable else 0)
+        def _set() -> None:
+            self._client.dial_up.set_mobile_dataswitch(1 if enable else 0)
 
-        await asyncio.to_thread(_set)
+        try:
+            await asyncio.to_thread(_set)
+        except Exception as err:
+            _LOGGER.error("Set mobile data failed: %s", err)
+            raise

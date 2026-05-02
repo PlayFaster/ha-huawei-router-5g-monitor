@@ -1,15 +1,14 @@
-"""Switch platform for Huawei Router 5G."""
+"""Switch platform for Huawei Router 5G Monitor."""
 
 import logging
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
+from homeassistant.const import CONF_HOST
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
+from .const import CONF_STOP_POLLING, DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -17,73 +16,166 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True, kw_only=True)
 class HuaweiSwitchEntityDescription(SwitchEntityDescription):
-    """Describes Huawei switch entity."""
+    """Describes a Huawei Router 5G switch entity."""
 
-    value_fn: Callable[[Any], bool | None]
-    turn_on_fn: Callable[[Any], Coroutine[Any, Any, None]]
-    turn_off_fn: Callable[[Any], Coroutine[Any, Any, None]]
+    group: str = "system"
 
 
-SWITCHES: tuple[HuaweiSwitchEntityDescription, ...] = (
-    HuaweiSwitchEntityDescription(
-        key="mobile_data",
-        name="Mobile Data",
-        entity_category=EntityCategory.CONFIG,
-        value_fn=lambda data: (
-            data.get("monitoring_status", {}).get("ConnectionStatus") == "901"
-        ),  # Simplified check
-        turn_on_fn=lambda api: api.set_mobile_data(True),
-        turn_off_fn=lambda api: api.set_mobile_data(False),
-    ),
+PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
+    key="pause_polling",
+    translation_key="pause_polling",
+    icon="mdi:pause-circle-outline",
+    entity_category=EntityCategory.CONFIG,
+    group="system",
+)
+
+MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
+    key="mobile_data",
+    translation_key="mobile_data",
+    icon="mdi:signal-4g",
+    entity_category=EntityCategory.CONFIG,
+    group="system",
 )
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the switch platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: HuaweiRouter5GDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
+    initial_pause_state = entry.options.get(CONF_STOP_POLLING, False)
+
     async_add_entities(
-        HuaweiRouterSwitch(coordinator, description) for description in SWITCHES
+        [
+            HuaweiPausePollingSwitch(
+                coordinator, entry, PAUSE_POLLING_DESCRIPTION, initial_pause_state
+            ),
+            HuaweiMobileDataSwitch(coordinator, entry, MOBILE_DATA_DESCRIPTION),
+        ]
     )
 
 
-class HuaweiRouterSwitch(
+class HuaweiSwitch(
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], SwitchEntity
 ):
-    """Representation of a Huawei Router switch."""
+    """Base class for Huawei Router 5G switches."""
 
+    _attr_has_entity_name = True
+    _attr_should_poll = False
     entity_description: HuaweiSwitchEntityDescription
 
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
+        entry,
         description: HuaweiSwitchEntityDescription,
     ) -> None:
         """Initialize the switch."""
         super().__init__(coordinator)
+        self._entry = entry
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.entry.unique_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, coordinator.entry.unique_id)},
-            "name": coordinator.entry.title,
-            "manufacturer": "Huawei",
-            "model": coordinator.model,
-            "sw_version": coordinator.sw_version,
-            "hw_version": coordinator.hw_version,
+        self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+
+    @property
+    def device_info(self):
+        """Return device information with sub-device support."""
+        host = self._entry.options[CONF_HOST]
+        group = self.entity_description.group
+
+        group_names = {
+            "system": "System",
+            "signal": "Signal",
+            "data": "Data",
+            "sms": "SMS",
         }
+        display_group = group_names.get(group, group.capitalize())
+        sub_name = f"{self._entry.title} {display_group}"
+
+        mac = self.coordinator.mac
+        sub_id_prefix = mac if mac else f"host_{host}"
+
+        info = {
+            "identifiers": {(DOMAIN, f"{sub_id_prefix}_{group}")},
+            "name": sub_name,
+            "manufacturer": "Huawei",
+            "model": self.coordinator.model,
+            "sw_version": self.coordinator.sw_version,
+            "hw_version": self.coordinator.hw_version,
+            "configuration_url": f"http://{host}",
+        }
+
+        if group != "system":
+            info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
+
+        return info
+
+
+class HuaweiPausePollingSwitch(HuaweiSwitch):
+    """Switch to pause/resume data polling with persistence across restarts."""
+
+    def __init__(
+        self,
+        coordinator: HuaweiRouter5GDataUpdateCoordinator,
+        entry,
+        description: HuaweiSwitchEntityDescription,
+        initial_state: bool,
+    ) -> None:
+        """Initialize the pause polling switch."""
+        super().__init__(coordinator, entry, description)
+        self._attr_is_on = initial_state
+
+    @property
+    def is_on(self) -> bool:
+        """Return True if polling is paused."""
+        return self._entry.options.get(CONF_STOP_POLLING, False)
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Pause polling."""
+        _LOGGER.debug("Pausing Huawei Router polling")
+        await self._async_set_state(True)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Resume polling."""
+        _LOGGER.debug("Resuming Huawei Router polling")
+        await self._async_set_state(False)
+
+    async def _async_set_state(self, state: bool) -> None:
+        """Persist pause state to ConfigEntry options and notify HA."""
+        new_options = dict(self._entry.options)
+        new_options[CONF_STOP_POLLING] = state
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
+        self.async_write_ha_state()
+
+        if not state:
+            await self.coordinator.async_request_refresh()
+
+
+class HuaweiMobileDataSwitch(HuaweiSwitch):
+    """Switch to enable or disable the mobile data connection."""
 
     @property
     def is_on(self) -> bool | None:
-        """Return true if the switch is on."""
-        # Note: ConnectionStatus might not be the best indicator for switch state.
-        # But for now it's a placeholder.
-        return self.entity_description.value_fn(self.coordinator.data)
+        """Return True if mobile data is enabled."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        mobile_sw = data.get("mobile_dataswitch") or {}
+        val = mobile_sw.get("dataswitch")
+        if val is None:
+            return None
+        return str(val) == "1"
 
-    async def async_turn_on(self, **kwargs: Any) -> None:
-        """Turn the switch on."""
-        await self.entity_description.turn_on_fn(self.coordinator.api)
-        await self.coordinator.async_request_refresh()
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable mobile data."""
+        try:
+            await self.coordinator.api.set_mobile_data(True)
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("%s: Enable mobile data failed: %s", self._entry.title, err)
 
-    async def async_turn_off(self, **kwargs: Any) -> None:
-        """Turn the switch off."""
-        await self.entity_description.turn_off_fn(self.coordinator.api)
-        await self.coordinator.async_request_refresh()
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable mobile data."""
+        try:
+            await self.coordinator.api.set_mobile_data(False)
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("%s: Disable mobile data failed: %s", self._entry.title, err)

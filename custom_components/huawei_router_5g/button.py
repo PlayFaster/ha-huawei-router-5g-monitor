@@ -1,12 +1,14 @@
-"""Button platform for Huawei Router 5G."""
+"""Button platform for Huawei Router 5G Monitor."""
 
 import logging
-from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
-from typing import Any
 
-from homeassistant.components.button import ButtonEntity, ButtonEntityDescription
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.components.button import (
+    ButtonDeviceClass,
+    ButtonEntity,
+    ButtonEntityDescription,
+)
+from homeassistant.const import CONF_HOST
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
@@ -17,63 +19,114 @@ _LOGGER = logging.getLogger(__name__)
 
 @dataclass(frozen=True, kw_only=True)
 class HuaweiButtonEntityDescription(ButtonEntityDescription):
-    """Describes Huawei button entity."""
+    """Describes a Huawei Router 5G button entity."""
 
-    press_fn: Callable[[Any], Coroutine[Any, Any, None]]
+    group: str = "system"
 
 
-BUTTONS: tuple[HuaweiButtonEntityDescription, ...] = (
-    HuaweiButtonEntityDescription(
-        key="reboot",
-        name="Reboot",
-        device_class=None,
-        entity_category=EntityCategory.CONFIG,
-        press_fn=lambda api: api.reboot(),
-    ),
-    HuaweiButtonEntityDescription(
-        key="clear_traffic_statistics",
-        name="Clear Traffic Statistics",
-        device_class=None,
-        entity_category=EntityCategory.CONFIG,
-        press_fn=lambda api: api.clear_traffic_statistics(),
-    ),
+REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
+    key="reboot",
+    translation_key="reboot",
+    icon="mdi:restart",
+    device_class=ButtonDeviceClass.RESTART,
+    group="system",
+)
+
+CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
+    key="clear_traffic",
+    translation_key="clear_traffic",
+    icon="mdi:chart-line-variant",
+    group="data",
 )
 
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the button platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: HuaweiRouter5GDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+
     async_add_entities(
-        HuaweiRouterButton(coordinator, description) for description in BUTTONS
+        [
+            HuaweiRebootButton(coordinator, entry, REBOOT_DESCRIPTION),
+            HuaweiClearTrafficButton(coordinator, entry, CLEAR_TRAFFIC_DESCRIPTION),
+        ],
+        True,
     )
 
 
-class HuaweiRouterButton(
+class HuaweiButton(
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], ButtonEntity
 ):
-    """Representation of a Huawei Router button."""
+    """Base class for Huawei Router 5G buttons."""
 
+    _attr_has_entity_name = True
     entity_description: HuaweiButtonEntityDescription
 
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
+        entry,
         description: HuaweiButtonEntityDescription,
     ) -> None:
         """Initialize the button."""
         super().__init__(coordinator)
         self.entity_description = description
-        self._attr_unique_id = f"{coordinator.entry.unique_id}_{description.key}"
-        self._attr_device_info = {
-            "identifiers": {(DOMAIN, coordinator.entry.unique_id)},
-            "name": coordinator.entry.title,
+        self._entry = entry
+        self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+
+    @property
+    def device_info(self):
+        """Return device information with sub-device support."""
+        host = self._entry.options[CONF_HOST]
+        group = self.entity_description.group
+
+        group_names = {
+            "system": "System",
+            "signal": "Signal",
+            "data": "Data",
+            "sms": "SMS",
+        }
+        display_group = group_names.get(group, group.capitalize())
+        sub_name = f"{self._entry.title} {display_group}"
+
+        mac = self.coordinator.mac
+        sub_id_prefix = mac if mac else f"host_{host}"
+
+        info = {
+            "identifiers": {(DOMAIN, f"{sub_id_prefix}_{group}")},
+            "name": sub_name,
             "manufacturer": "Huawei",
-            "model": coordinator.model,
-            "sw_version": coordinator.sw_version,
-            "hw_version": coordinator.hw_version,
+            "model": self.coordinator.model,
+            "sw_version": self.coordinator.sw_version,
+            "hw_version": self.coordinator.hw_version,
+            "configuration_url": f"http://{host}",
         }
 
+        if group != "system":
+            info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
+
+        return info
+
+
+class HuaweiRebootButton(HuaweiButton):
+    """Button to reboot the Huawei router."""
+
     async def async_press(self) -> None:
-        """Press the button."""
-        await self.entity_description.press_fn(self.coordinator.api)
-        await self.coordinator.async_request_refresh()
+        """Handle the button press — trigger a device reboot."""
+        try:
+            await self.coordinator.api.reboot()
+        except Exception as err:
+            _LOGGER.error("%s: Reboot failed: %s", self._entry.title, err)
+
+
+class HuaweiClearTrafficButton(HuaweiButton):
+    """Button to clear traffic statistics."""
+
+    async def async_press(self) -> None:
+        """Handle the button press — clear traffic counters."""
+        try:
+            await self.coordinator.api.clear_traffic_statistics()
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error(
+                "%s: Clear traffic statistics failed: %s", self._entry.title, err
+            )

@@ -1,49 +1,188 @@
-"""Tests for the ZTE Router switch."""
+"""Tests for the Huawei Router 5G switch platform."""
 
-from unittest.mock import MagicMock
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.zte_router_5g.const import CONF_STOP_POLLING, DOMAIN
-from custom_components.zte_router_5g.switch import (
+from custom_components.huawei_router_5g.const import CONF_STOP_POLLING, DOMAIN
+from custom_components.huawei_router_5g.switch import (
+    MOBILE_DATA_DESCRIPTION,
     PAUSE_POLLING_DESCRIPTION,
-    ZTEPausePollingSwitch,
+    HuaweiMobileDataSwitch,
+    HuaweiPausePollingSwitch,
     async_setup_entry,
 )
 
 
+# ---------------------------------------------------------------------------
+# HuaweiPausePollingSwitch
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
-async def test_pause_polling_switch(mock_coordinator, mock_config_entry):
-    """Test turning the pause switch on and off."""
-    # Start with False (not paused)
+async def test_pause_polling_turn_on(mock_coordinator, mock_config_entry):
+    """Test that turning on (pause) persists the flag and writes state."""
     new_options = dict(mock_config_entry.options)
     new_options[CONF_STOP_POLLING] = False
     object.__setattr__(mock_config_entry, "options", new_options)
 
-    switch = ZTEPausePollingSwitch(
+    switch = HuaweiPausePollingSwitch(
         mock_coordinator, mock_config_entry, PAUSE_POLLING_DESCRIPTION, False
     )
     switch.hass = MagicMock()
-    # Mock hass.data structure
     switch.hass.data = {DOMAIN: {mock_config_entry.entry_id: mock_coordinator}}
     switch.async_write_ha_state = MagicMock()
 
-    # 1. Turn ON (Pause)
     await switch.async_turn_on()
-    switch.hass.config_entries.async_update_entry.assert_called()
-    _args, kwargs = switch.hass.config_entries.async_update_entry.call_args
-    assert kwargs["options"][CONF_STOP_POLLING] is True
 
-    # 2. Turn OFF (Resume)
+    switch.hass.config_entries.async_update_entry.assert_called_once()
+    _, kwargs = switch.hass.config_entries.async_update_entry.call_args
+    assert kwargs["options"][CONF_STOP_POLLING] is True
+    switch.async_write_ha_state.assert_called_once()
+    mock_coordinator.async_request_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_pause_polling_turn_off(mock_coordinator, mock_config_entry):
+    """Test that turning off (resume) triggers an immediate refresh."""
+    new_options = dict(mock_config_entry.options)
+    new_options[CONF_STOP_POLLING] = True
+    object.__setattr__(mock_config_entry, "options", new_options)
+
+    switch = HuaweiPausePollingSwitch(
+        mock_coordinator, mock_config_entry, PAUSE_POLLING_DESCRIPTION, True
+    )
+    switch.hass = MagicMock()
+    switch.hass.data = {DOMAIN: {mock_config_entry.entry_id: mock_coordinator}}
+    switch.async_write_ha_state = MagicMock()
+
     await switch.async_turn_off()
-    _args, kwargs = switch.hass.config_entries.async_update_entry.call_args
+
+    _, kwargs = switch.hass.config_entries.async_update_entry.call_args
     assert kwargs["options"][CONF_STOP_POLLING] is False
     mock_coordinator.async_request_refresh.assert_called_once()
 
 
+def test_pause_polling_is_on_from_options(mock_coordinator, mock_config_entry):
+    """Test that is_on reflects the options value."""
+    new_options = dict(mock_config_entry.options)
+    new_options[CONF_STOP_POLLING] = True
+    object.__setattr__(mock_config_entry, "options", new_options)
+
+    switch = HuaweiPausePollingSwitch(
+        mock_coordinator, mock_config_entry, PAUSE_POLLING_DESCRIPTION, True
+    )
+    assert switch.is_on is True
+
+
+def test_pause_polling_device_info(mock_coordinator, mock_config_entry):
+    """Test device_info for the pause polling switch."""
+    switch = HuaweiPausePollingSwitch(
+        mock_coordinator, mock_config_entry, PAUSE_POLLING_DESCRIPTION, False
+    )
+    info = switch.device_info
+    mac = "DC:71:96:11:22:33"
+    assert info["identifiers"] == {(DOMAIN, f"{mac}_system")}
+    assert info["manufacturer"] == "Huawei"
+    assert "via_device" not in info
+
+
+# ---------------------------------------------------------------------------
+# HuaweiMobileDataSwitch
+# ---------------------------------------------------------------------------
+
+
+def test_mobile_data_is_on(mock_coordinator, mock_config_entry):
+    """Return True when dataswitch is '1'."""
+    mock_coordinator.data = {"mobile_dataswitch": {"dataswitch": "1"}}
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    assert switch.is_on is True
+
+
+def test_mobile_data_is_off(mock_coordinator, mock_config_entry):
+    """Return False when dataswitch is '0'."""
+    mock_coordinator.data = {"mobile_dataswitch": {"dataswitch": "0"}}
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    assert switch.is_on is False
+
+
+def test_mobile_data_is_none_when_absent(mock_coordinator, mock_config_entry):
+    """Return None when mobile_dataswitch key is absent."""
+    mock_coordinator.data = {}
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    assert switch.is_on is None
+
+
+def test_mobile_data_is_none_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    assert switch.is_on is None
+
+
+@pytest.mark.asyncio
+async def test_mobile_data_turn_on(mock_coordinator, mock_config_entry):
+    """Test turning mobile data on calls API and refreshes."""
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock()
+    mock_coordinator.api = mock_api
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+
+    await switch.async_turn_on()
+
+    mock_api.set_mobile_data.assert_called_once_with(True)
+    mock_coordinator.async_request_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mobile_data_turn_off(mock_coordinator, mock_config_entry):
+    """Test turning mobile data off calls API and refreshes."""
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock()
+    mock_coordinator.api = mock_api
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+
+    await switch.async_turn_off()
+
+    mock_api.set_mobile_data.assert_called_once_with(False)
+    mock_coordinator.async_request_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_mobile_data_turn_on_error(mock_coordinator, mock_config_entry):
+    """Test that API error during turn_on is handled gracefully."""
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock(side_effect=Exception("Set fail"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    await switch.async_turn_on()  # should not raise
+    mock_coordinator.async_request_refresh.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
+
+
 @pytest.mark.asyncio
 async def test_switch_setup_entry():
-    """Test platform setup."""
+    """Test that async_setup_entry creates both switches."""
     hass = MagicMock()
     entry = MagicMock()
     entry.entry_id = "test"
@@ -54,3 +193,5 @@ async def test_switch_setup_entry():
     async_add_entities = MagicMock()
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
+    entities = async_add_entities.call_args[0][0]
+    assert len(entities) == 2
