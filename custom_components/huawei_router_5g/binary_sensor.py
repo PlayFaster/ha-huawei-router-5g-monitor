@@ -7,11 +7,12 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
-from homeassistant.const import CONF_HOST, EntityCategory
+from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
+from .helpers import build_device_info
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -107,39 +108,12 @@ class HuaweiBinarySensor(
         self.entity_description = description
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
+        self._group = description.group
 
     @property
     def device_info(self):
         """Return device information with sub-device support."""
-        host = self._entry.options[CONF_HOST]
-        group = self.entity_description.group
-
-        group_names = {
-            "system": "System",
-            "signal": "Signal",
-            "data": "Data",
-            "sms": "SMS",
-        }
-        display_group = group_names.get(group, group.capitalize())
-        sub_name = f"{self._entry.title} {display_group}"
-
-        mac = self.coordinator.mac
-        sub_id_prefix = mac if mac else f"host_{host}"
-
-        info = {
-            "identifiers": {(DOMAIN, f"{sub_id_prefix}_{group}")},
-            "name": sub_name,
-            "manufacturer": "Huawei",
-            "model": self.coordinator.model,
-            "sw_version": self.coordinator.sw_version,
-            "hw_version": self.coordinator.hw_version,
-            "configuration_url": f"http://{host}",
-        }
-
-        if group != "system":
-            info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
-
-        return info
+        return build_device_info(self.coordinator, self._group)
 
 
 class HuaweiBestConnectionSensor(HuaweiBinarySensor):
@@ -238,3 +212,4 @@ class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
         status = data.get("monitoring_status") or {}
         # 901 is connected
         return status.get("ConnectionStatus") == "901"
+

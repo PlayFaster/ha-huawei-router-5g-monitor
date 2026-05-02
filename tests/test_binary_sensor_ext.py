@@ -1,14 +1,12 @@
 """Additional tests for the Huawei Router 5G binary sensor platform."""
 
-from unittest.mock import MagicMock
 
-import pytest
 
 from custom_components.huawei_router_5g.binary_sensor import (
-    WIFI_24G_STATUS_DESCRIPTION,
     WIFI_5G_STATUS_DESCRIPTION,
-    HuaweiWifi24GStatusSensor,
+    WIFI_24G_STATUS_DESCRIPTION,
     HuaweiWifi5GStatusSensor,
+    HuaweiWifi24GStatusSensor,
 )
 
 # ---------------------------------------------------------------------------

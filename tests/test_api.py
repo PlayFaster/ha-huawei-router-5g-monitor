@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from huawei_lte_api.exceptions import LoginErrorPasswordWrongException
 
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
@@ -50,7 +51,7 @@ async def test_login_auth_error():
         patch.object(
             api,
             "_create_connection_sync",
-            side_effect=Exception("Wrong password"),
+            side_effect=LoginErrorPasswordWrongException("Wrong password", "108003"),
         ),
         pytest.raises(HuaweiAuthError),
     ):

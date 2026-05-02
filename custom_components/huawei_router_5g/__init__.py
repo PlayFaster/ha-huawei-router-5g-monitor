@@ -2,6 +2,7 @@
 
 import logging
 
+import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
@@ -12,6 +13,13 @@ from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+SERVICE_SCHEMA = vol.Schema(
+    {
+        vol.Required("target"): vol.All(str, vol.Length(min=1)),
+        vol.Required("message"): vol.All(str, vol.Length(min=1, max=160)),
+    }
+)
 
 PLATFORMS = [
     Platform.SENSOR,
@@ -77,7 +85,9 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
             target = [target]
         await api.send_sms(target, message)
 
-    hass.services.async_register(DOMAIN, "send_sms", async_send_sms)
+    hass.services.async_register(
+        DOMAIN, "send_sms", async_send_sms, schema=SERVICE_SCHEMA
+    )
 
     # BACKGROUND INITIALIZATION TASK
     # Offloads the initial connection to keep HA startup instant.
@@ -102,8 +112,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
 
 async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     """Unload a config entry and release resources."""
+    import contextlib
+
+    coordinator = hass.data[DOMAIN][entry.entry_id]
+    with contextlib.suppress(Exception):
+        await coordinator.api.logout()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
+
     if unload_ok:
+        hass.services.async_remove(DOMAIN, "send_sms")
         hass.data[DOMAIN].pop(entry.entry_id)
         if not hass.data[DOMAIN]:
             hass.data.pop(DOMAIN)

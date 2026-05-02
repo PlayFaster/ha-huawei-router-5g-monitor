@@ -1,6 +1,6 @@
 """Additional tests for the Huawei Router 5G switch platform."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
@@ -26,7 +26,7 @@ async def test_pause_polling_switch(mock_coordinator, mock_config_entry):
     )
     switch.hass = MagicMock()
     switch.hass.config_entries.async_update_entry = MagicMock()
-    
+
     # Mock async_write_ha_state to avoid platform errors in unit tests
     switch.async_write_ha_state = MagicMock()
 

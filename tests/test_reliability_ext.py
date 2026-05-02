@@ -4,8 +4,16 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from huawei_lte_api.exceptions import (
+    ResponseErrorException,
+    ResponseErrorLoginRequiredException,
+)
 
-from custom_components.huawei_router_5g.api import HuaweiAuthError, HuaweiRouter5GAPI
+from custom_components.huawei_router_5g.api import (
+    HuaweiAuthError,
+    HuaweiConnectionError,
+    HuaweiRouter5GAPI,
+)
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
 )
@@ -33,7 +41,11 @@ async def test_get_data_mid_fetch_auth_error():
 
     # Success for first call, failure for second
     mock_client.device.information.return_value = {"SoftwareVersion": "1.0"}
-    mock_client.device.signal.side_effect = Exception("125002: session timeout")
+
+    # Mock a ResponseErrorException with code 125002
+    err = ResponseErrorException("125002: session timeout")
+    err.code = 125002
+    mock_client.device.signal.side_effect = err
 
     # Mock to_thread to execute the fetch loop synchronously
     with (
@@ -47,6 +59,40 @@ async def test_get_data_mid_fetch_auth_error():
 
 
 @pytest.mark.asyncio
+async def test_get_data_mid_fetch_login_required():
+    """Test that ResponseErrorLoginRequiredException raises HuaweiAuthError."""
+    api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    api._client.device.information.side_effect = ResponseErrorLoginRequiredException()
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+        pytest.raises(HuaweiAuthError),
+    ):
+        await api.get_data()
+
+    assert api._client is None
+
+
+@pytest.mark.asyncio
+async def test_get_data_critical_fetch_fail():
+    """Test that failure in device_information raises HuaweiConnectionError."""
+    api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    api._client.device.information.side_effect = Exception("Critical Fail")
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+        pytest.raises(HuaweiConnectionError, match="Critical data fetch failed"),
+    ):
+        await api.get_data()
+
+
+@pytest.mark.asyncio
 async def test_get_data_exception_logging():
     """Test that get_data uses _LOGGER.exception on hard failures."""
     api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
@@ -56,7 +102,7 @@ async def test_get_data_exception_logging():
     with (
         patch("asyncio.to_thread", new=AsyncMock(side_effect=Exception("Hard Fail"))),
         patch("custom_components.huawei_router_5g.api._LOGGER.exception") as mock_log,
-        pytest.raises(Exception),
+        pytest.raises(HuaweiConnectionError),
     ):
         await api.get_data()
 
@@ -70,7 +116,7 @@ async def test_get_data_exception_logging():
 
 @pytest.mark.asyncio
 async def test_coordinator_critical_data_guard():
-    """Test that missing device_information triggers a failure instead of partial data."""
+    """Test that missing device_information triggers a failure."""
     mock_entry = MagicMock()
     mock_entry.data = {"model": "Huawei", "mac": "AA:BB:CC"}
     mock_entry.options = {"scan_interval": 30}

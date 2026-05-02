@@ -4,11 +4,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.device_tracker import (
     HuaweiRouterDeviceTracker,
     async_setup_entry,
 )
-from custom_components.huawei_router_5g.const import DOMAIN
 
 
 def test_device_tracker_properties(mock_coordinator, mock_config_entry):

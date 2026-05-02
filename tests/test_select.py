@@ -4,12 +4,12 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.select import (
     SELECTS,
     HuaweiRouterSelect,
     async_setup_entry,
 )
-from custom_components.huawei_router_5g.const import DOMAIN
 
 
 def test_network_mode_select_current_option(mock_coordinator, mock_config_entry):

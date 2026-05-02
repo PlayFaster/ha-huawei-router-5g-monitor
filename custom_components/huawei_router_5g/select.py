@@ -6,13 +6,13 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
-from homeassistant.const import CONF_HOST
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from huawei_lte_api.enums.net import NetworkModeEnum
 
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
+from .helpers import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -23,6 +23,7 @@ class HuaweiSelectEntityDescription(SelectEntityDescription):
 
     value_fn: Callable[[Any], str | None]
     setter_fn: Callable[[Any, str], Coroutine[Any, Any, None]]
+    group: str = "system"
 
 
 SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
@@ -39,6 +40,7 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
             NetworkModeEnum.MODE_2G_ONLY.value,
         ],
         entity_category=EntityCategory.CONFIG,
+        group="system",
         value_fn=lambda data: (
             data.get("net_mode", {}).get("NetworkMode") if data else None
         ),
@@ -60,6 +62,7 @@ class HuaweiRouterSelect(
 ):
     """Representation of a Huawei Router select."""
 
+    _attr_has_entity_name = True
     entity_description: HuaweiSelectEntityDescription
 
     def __init__(
@@ -75,19 +78,7 @@ class HuaweiRouterSelect(
     @property
     def device_info(self):
         """Return device information with sub-device support."""
-        host = self.coordinator.entry.options[CONF_HOST]
-        mac = self.coordinator.mac
-        sub_id_prefix = mac if mac else f"host_{host}"
-
-        return {
-            "identifiers": {(DOMAIN, f"{sub_id_prefix}_system")},
-            "name": f"{self.coordinator.entry.title} System",
-            "manufacturer": "Huawei",
-            "model": self.coordinator.model,
-            "sw_version": self.coordinator.sw_version,
-            "hw_version": self.coordinator.hw_version,
-            "configuration_url": f"http://{host}",
-        }
+        return build_device_info(self.coordinator, self.entity_description.group)
 
     @property
     def current_option(self) -> str | None:
@@ -96,5 +87,13 @@ class HuaweiRouterSelect(
 
     async def async_select_option(self, option: str) -> None:
         """Change the selected option."""
-        await self.entity_description.setter_fn(self.coordinator.api, option)
-        await self.coordinator.async_request_refresh()
+        try:
+            await self.entity_description.setter_fn(self.coordinator.api, option)
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.exception(
+                "%s: Failed to set network mode to %s: %s",
+                self.coordinator.entry.title,
+                option,
+                err,
+            )

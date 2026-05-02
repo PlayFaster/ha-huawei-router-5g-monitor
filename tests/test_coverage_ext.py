@@ -234,9 +234,15 @@ def test_reboot_button_unique_id(mock_coordinator, mock_config_entry):
 
 def test_polling_interval_device_info_fallback(mock_coordinator, mock_config_entry):
     """Number device_info falls back to host prefix when MAC is None."""
+    from unittest.mock import MagicMock
+    my_entry = MagicMock()
+    my_entry.options = {"host": "http://192.168.8.1"}
+    my_entry.title = "My Huawei Router"
+    my_entry.unique_id = "huawei_unique_123"
     mock_coordinator.mac = None
+    mock_coordinator.entry = my_entry
     entity = HuaweiPollingInterval(
-        mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180
+        mock_coordinator, my_entry, POLLING_INTERVAL_DESCRIPTION, 180
     )
     info = entity.device_info
     assert "host_http://192.168.8.1" in str(info["identifiers"])

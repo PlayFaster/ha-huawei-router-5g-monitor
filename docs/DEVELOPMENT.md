@@ -48,15 +48,18 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Declarative Guard Bands**: Validating sensor values against realistic boundaries (e.g., -140 to -30 for RSRP) before committing them to the state machine ensures data integrity in long-term statistics.
 - **Dual Duration/Timestamp Sensors**: Providing both raw durations (disabled by default) and calculated timestamps (enabled by default) for metrics like Uptime and Connection Time, catering to both automation and UI needs.
 - **High-Fidelity Logging**: Utilizing `_LOGGER.exception()` for all critical failure paths ensures full tracebacks are available in Home Assistant logs for remote debugging, while downgrading transient session timeouts to `DEBUG` keeps logs clean for end-users.
+- **Architectural Consolidation**: Extracting highly duplicated properties like `device_info` into centralized helpers (e.g., `build_device_info`) to enforce DRY principles across 7+ platform files.
 
 ## 5. Technical Pitfalls & Fixes
 
+- **Auth Error Handling**: Relying on string matching (e.g., `"password" in str(err)`) to detect login failures is brittle and breaks if library messages change.
+  - _Fix_: Catch specific, typed exceptions from the underlying library (`LoginErrorPasswordWrongException`, etc.) to trigger auth failures.
 - **SMS List Parsing**: Different Huawei models return SMS lists in varying formats (some as lists, some as single dictionaries).
   - _Fix_: Implemented a robust parser in `helpers.py` that handles metadata offsets and varied structure.
 - **Partial Entity Failure (v1.0.1-dev4)**: Transient session timeouts mid-fetch could cause some sensors (like SMS or System Info) to become 'Unknown' while others (like Data) stayed active.
   - _Fix_: Implemented mid-fetch error detection for session codes 125002/125003 in `api.py` and a **Critical Data Guard** in the coordinator to reject partial data objects.
 - **Numeric Sanitization**: The Huawei API often returns strings with technical suffixes (e.g., "120dBm", "20MHz").
-  - _Fix_: Implemented `_safe_float` and `_safe_int` in `sensor.py` to strip these suffixes before numeric conversion.
+  - _Fix_: Implemented `parse_signal_value` helper in `helpers.py` to strip these suffixes before numeric conversion across all platforms.
 - **MAC Address Stability**: Some routers report MAC addresses with or without colons.
   - _Fix_: Normalized all MAC identifiers to a consistent lowercase, colon-less format for use in `unique_id`.
 - **Background Task Mocking**: Standard tests can fail if background tasks aren't properly awaited.

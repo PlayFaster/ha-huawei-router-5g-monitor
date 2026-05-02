@@ -11,7 +11,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import HuaweiAuthError
-from .const import CONF_SCAN_INTERVAL, CONF_STOP_POLLING
+from .const import CONF_SCAN_INTERVAL, CONF_STOP_POLLING, DEFAULT_SCAN_INTERVAL
 from .helpers import get_router_model, parse_sms_list
 
 _LOGGER = logging.getLogger(__name__)
@@ -26,7 +26,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.consecutive_failures = 0
         self.last_update_success_time = None
-        self.last_sms_index = -1
+        self.last_sms_index: int | None = None
 
         # Load hardware identity from persistent ConfigEntry data.
         self.model = entry.data.get("model", "Huawei Router")
@@ -34,7 +34,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         self.hw_version = entry.data.get("hw_version")
         self.mac = entry.data.get("mac")
 
-        scan_interval = entry.options.get(CONF_SCAN_INTERVAL, 180)
+        scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
+
 
         super().__init__(
             hass,
@@ -164,7 +165,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         max_idx = max(msg["index"] for msg in sms_list)
 
         # On first run, just set the index
-        if self.last_sms_index == -1:
+        if self.last_sms_index is None:
             self.last_sms_index = max_idx
             return
 

@@ -29,7 +29,6 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
-    build_device_info,
     get_network_type_label,
     parse_signal_value,
     parse_sms_list,
@@ -73,14 +72,6 @@ def _get_signal_value(data: dict | None, key: str) -> Any:
     if data is None:
         return None
     return data.get("device_signal", {}).get(key)
-
-
-def _get_network_type(data: dict | None) -> str | None:
-    """Map numeric network type to human-readable string."""
-    if data is None:
-        return None
-    type_code = data.get("monitoring_status", {}).get("CurrentNetworkType")
-    return get_network_type_label(type_code)
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -296,7 +287,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         name="Network Type",
         icon="mdi:signal-variant",
         group="signal",
-        value_fn=_get_network_type,
+        value_fn=lambda data: get_network_type_label(
+            data.get("monitoring_status", {}).get("CurrentNetworkType")
+        )
+        if data
+        else None,
     ),
     HuaweiSensorEntityDescription(
         key="operator",
@@ -336,7 +331,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-150,
         max_limit=-30,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "rsrp")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "rsrp")),
     ),
     HuaweiSensorEntityDescription(
         key="rsrq",
@@ -346,7 +341,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-50,
         max_limit=0,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "rsrq")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "rsrq")),
     ),
     HuaweiSensorEntityDescription(
         key="rssi",
@@ -357,7 +352,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-120,
         max_limit=-20,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "rssi")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "rssi")),
     ),
     HuaweiSensorEntityDescription(
         key="sinr",
@@ -367,7 +362,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-30,
         max_limit=50,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "sinr")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "sinr")),
     ),
     HuaweiSensorEntityDescription(
         key="signal_bars",
@@ -441,7 +436,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-30,
         max_limit=40,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "txpower")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "txpower")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -563,7 +558,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-150,
         max_limit=-30,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "nrrsrp")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrrsrp")),
     ),
     HuaweiSensorEntityDescription(
         key="nr_rsrq",
@@ -573,7 +568,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-50,
         max_limit=0,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "nrrsrq")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrrsrq")),
     ),
     HuaweiSensorEntityDescription(
         key="nr_sinr",
@@ -583,7 +578,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-30,
         max_limit=50,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "nrsinr")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrsinr")),
     ),
     HuaweiSensorEntityDescription(
         key="5g_uplink_bandwidth",
@@ -591,7 +586,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         native_unit_of_measurement="MHz",
         group="signal",
         min_limit=0,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "nrulbandwidth")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrulbandwidth")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -600,7 +595,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         native_unit_of_measurement="MHz",
         group="signal",
         min_limit=0,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "nrdlbandwidth")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrdlbandwidth")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -625,7 +620,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=-30,
         max_limit=40,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "nrtxpower")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrtxpower")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -641,7 +636,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         name="5G Block Error Rate",
         group="signal",
         min_limit=0,
-        value_fn=lambda data: _safe_float(_get_signal_value(data, "nrbler")),
+        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrbler")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -834,7 +829,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="month_download_gb",
         name="Month Download (GB)",
-        native_unit_of_measurement="GB",
+        native_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
         group="data",
         min_limit=0,
         max_limit=100000,
@@ -866,7 +862,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="month_upload_gb",
         name="Month Upload (GB)",
-        native_unit_of_measurement="GB",
+        native_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        device_class=SensorDeviceClass.DATA_SIZE,
         group="data",
         min_limit=0,
         max_limit=100000,
@@ -1237,3 +1234,4 @@ class HuaweiRouterSensor(
             info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
 
         return info
+

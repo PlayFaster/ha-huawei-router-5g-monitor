@@ -6,6 +6,12 @@ from typing import Any
 
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
+from huawei_lte_api.exceptions import (
+    LoginErrorPasswordWrongException,
+    LoginErrorUsernameWrongException,
+    ResponseErrorException,
+    ResponseErrorLoginRequiredException,
+)
 from url_normalize import url_normalize
 
 _LOGGER = logging.getLogger(__name__)
@@ -50,20 +56,21 @@ class HuaweiRouter5GAPI:
 
     async def login(self) -> None:
         """Establish a fresh connection to the router."""
-        await self._reset_client()
+        self._reset_client()
         try:
             conn, client = await asyncio.to_thread(self._create_connection_sync)
             self._connection = conn
             self._client = client
+        except (
+            LoginErrorPasswordWrongException,
+            LoginErrorUsernameWrongException,
+        ) as err:
+            self._connection = None
+            self._client = None
+            raise HuaweiAuthError(f"Authentication failed: {err}") from err
         except Exception as err:
             self._connection = None
             self._client = None
-            err_lower = str(err).lower()
-            if any(
-                k in err_lower
-                for k in ("password", "credentials", "unauthori", "wrong", "403")
-            ):
-                raise HuaweiAuthError(f"Authentication failed: {err}") from err
             raise HuaweiConnectionError(f"Cannot connect to router: {err}") from err
 
     async def logout(self) -> None:
@@ -75,9 +82,9 @@ class HuaweiRouter5GAPI:
         except Exception as err:
             _LOGGER.debug("Logout failed: %s", err)
         finally:
-            await self._reset_client()
+            self._reset_client()
 
-    async def _reset_client(self) -> None:
+    def _reset_client(self) -> None:
         """Clear the stored connection and client."""
         self._connection = None
         self._client = None
@@ -130,19 +137,39 @@ class HuaweiRouter5GAPI:
             ]:
                 try:
                     data[key] = fetcher()
-                except Exception as err:
-                    err_str = str(err)
-                    # If we hit a session/auth error mid-fetch, we MUST stop and re-login
-                    # 125002: session timeout/not logged in
-                    # 125003: token error
-                    if "125002" in err_str or "125003" in err_str:
+                except ResponseErrorLoginRequiredException as err:
+                    _LOGGER.debug(
+                        "Session expired during fetch of %s (%s). Forcing re-login.",
+                        key,
+                        err,
+                    )
+                    raise HuaweiAuthError(f"Session expired: {err}") from err
+                except ResponseErrorException as err:
+                    # 100002: Not logged in
+                    # 125002: Session timeout
+                    # 125003: Token error
+                    if str(err.code) in ("100002", "125002", "125003"):
                         _LOGGER.debug(
-                            "Session expired during fetch of %s (%s). Forcing re-login.",
+                            "Session expired during fetch of %s (%s). "
+                            "Forcing re-login.",
                             key,
-                            err_str,
+                            err,
                         )
                         raise HuaweiAuthError(f"Session expired: {err}") from err
 
+                    if key == "device_information":
+                        _LOGGER.warning("Critical fetch %s failed: %s", key, err)
+                        raise HuaweiConnectionError(
+                            f"Critical data fetch failed: {err}"
+                        ) from err
+
+                    _LOGGER.debug("Failed to fetch %s: %s", key, err)
+                except Exception as err:
+                    if key == "device_information":
+                        _LOGGER.warning("Critical fetch %s failed: %s", key, err)
+                        raise HuaweiConnectionError(
+                            f"Critical data fetch failed: {err}"
+                        ) from err
                     _LOGGER.debug("Failed to fetch %s: %s", key, err)
 
             return data
@@ -151,11 +178,11 @@ class HuaweiRouter5GAPI:
             return await asyncio.to_thread(_fetch)
         except HuaweiAuthError:
             # Propagate auth errors immediately to trigger re-login logic
-            await self._reset_client()
+            self._reset_client()
             raise
         except Exception as err:
             _LOGGER.exception("Failed to fetch router data")
-            await self._reset_client()
+            self._reset_client()
             raise HuaweiConnectionError(f"Data fetch failed: {err}") from err
 
     async def reboot(self) -> None:
@@ -165,7 +192,7 @@ class HuaweiRouter5GAPI:
             await asyncio.to_thread(self._client.device.reboot)
         except Exception:
             _LOGGER.exception("Reboot failed")
-            await self._reset_client()
+            self._reset_client()
             raise
 
     async def clear_traffic_statistics(self) -> None:
