@@ -13,7 +13,6 @@ from custom_components.huawei_router_5g.number import (
     async_setup_entry,
 )
 
-
 # ---------------------------------------------------------------------------
 # HuaweiPollingInterval — state
 # ---------------------------------------------------------------------------
@@ -169,7 +168,7 @@ async def test_number_setup_entry():
 
 @pytest.mark.asyncio
 async def test_number_setup_entry_default_interval():
-    """Test that async_setup_entry uses 180s default when CONF_SCAN_INTERVAL is absent."""
+    """Test that setup uses 180s default when SCAN_INTERVAL is absent."""
     hass = MagicMock()
     entry = MagicMock()
     entry.entry_id = "test"

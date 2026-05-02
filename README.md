@@ -6,11 +6,13 @@ This project is a modern implementation for Huawei routers, inspired by the ZTE 
 
 ## Features
 
-- High frequency polling (configurable)
-- Signal metrics (RSRP, RSRQ, RSSI, SINR)
-- Network status and operator info
-- Traffic statistics
-- SMS notifications (coming soon)
+- High frequency polling (configurable via UI slider)
+- Signal metrics (RSRP, RSRQ, RSSI, SINR) for both LTE and 5G
+- Network status, operator info, and frequencies
+- Detailed traffic and monthly statistics
+- SMS notifications and Inbox monitoring (Last SMS sensor + Events)
+- SMS sending service
+- Device tracking with dedicated "Clients" sub-device
 
 ## Installation
 
@@ -20,5 +22,4 @@ This project is a modern implementation for Huawei routers, inspired by the ZTE 
 
 ## Credits
 
-Based on the [huawei-lte-api](https://github.com/Salamek/huawei-lte-api) library.
-Inspired by [ha-zte-router-5g-monitor](https://github.com/PlayFaster/ha-zte-router-5g-monitor).
+Based on the [huawei-lte-api](https://github.com/Salamek/huawei-lte-api) library. Inspired by [ha-zte-router-5g-monitor](https://github.com/PlayFaster/ha-zte-router-5g-monitor).

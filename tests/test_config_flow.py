@@ -6,14 +6,15 @@ import pytest
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
-from custom_components.huawei_router_5g.api import HuaweiAuthError, HuaweiConnectionError
+from custom_components.huawei_router_5g.api import (
+    HuaweiAuthError,
+    HuaweiConnectionError,
+)
 from custom_components.huawei_router_5g.config_flow import (
     HuaweiRouter5GConfigFlow,
     HuaweiRouter5GOptionsFlow,
     _validate_credentials,
 )
-from custom_components.huawei_router_5g.const import DEFAULT_NAME, DOMAIN
-
 
 # ---------------------------------------------------------------------------
 # _validate_credentials
@@ -22,7 +23,7 @@ from custom_components.huawei_router_5g.const import DEFAULT_NAME, DOMAIN
 
 @pytest.mark.asyncio
 async def test_validate_credentials_success():
-    """Test that _validate_credentials logs in, fetches data, and returns device info."""
+    """Test that _validate_credentials returns device info on success."""
     with patch(
         "custom_components.huawei_router_5g.config_flow.HuaweiRouter5GAPI"
     ) as mock_api_class:

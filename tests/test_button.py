@@ -13,7 +13,6 @@ from custom_components.huawei_router_5g.button import (
 )
 from custom_components.huawei_router_5g.const import DOMAIN
 
-
 # ---------------------------------------------------------------------------
 # HuaweiRebootButton
 # ---------------------------------------------------------------------------

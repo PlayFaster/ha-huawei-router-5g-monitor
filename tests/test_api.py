@@ -10,7 +10,6 @@ from custom_components.huawei_router_5g.api import (
     HuaweiRouter5GAPI,
 )
 
-
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -33,7 +32,9 @@ async def test_login_success():
     mock_conn = MagicMock()
     mock_client = MagicMock()
 
-    with patch.object(api, "_create_connection_sync", return_value=(mock_conn, mock_client)):
+    with patch.object(
+        api, "_create_connection_sync", return_value=(mock_conn, mock_client)
+    ):
         await api.login()
 
     assert api._connection is mock_conn
@@ -133,11 +134,17 @@ async def test_get_data_success():
     mock_client.device.information.return_value = expected_data["device_information"]
     mock_client.device.signal.return_value = expected_data["device_signal"]
     mock_client.monitoring.status.return_value = expected_data["monitoring_status"]
-    mock_client.monitoring.traffic_statistics.return_value = expected_data["traffic_statistics"]
-    mock_client.monitoring.month_statistics.return_value = expected_data["month_statistics"]
+    mock_client.monitoring.traffic_statistics.return_value = expected_data[
+        "traffic_statistics"
+    ]
+    mock_client.monitoring.month_statistics.return_value = expected_data[
+        "month_statistics"
+    ]
     mock_client.net.current_plmn.return_value = expected_data["current_plmn"]
     mock_client.sms.sms_count.return_value = expected_data["sms_count"]
-    mock_client.dial_up.mobile_dataswitch.return_value = expected_data["mobile_dataswitch"]
+    mock_client.dial_up.mobile_dataswitch.return_value = expected_data[
+        "mobile_dataswitch"
+    ]
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         data = await api.get_data()

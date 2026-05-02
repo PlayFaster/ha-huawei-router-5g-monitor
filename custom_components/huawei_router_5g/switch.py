@@ -2,6 +2,7 @@
 
 import logging
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.const import CONF_HOST
@@ -37,6 +38,14 @@ MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
     group="system",
 )
 
+GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
+    key="wifi_guest_network",
+    translation_key="wifi_guest_network",
+    icon="mdi:wifi-lock",
+    entity_category=EntityCategory.CONFIG,
+    group="system",
+)
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the switch platform."""
@@ -50,6 +59,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
                 coordinator, entry, PAUSE_POLLING_DESCRIPTION, initial_pause_state
             ),
             HuaweiMobileDataSwitch(coordinator, entry, MOBILE_DATA_DESCRIPTION),
+            HuaweiGuestWifiSwitch(coordinator, entry, GUEST_WIFI_DESCRIPTION),
         ]
     )
 
@@ -179,3 +189,44 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
             await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("%s: Disable mobile data failed: %s", self._entry.title, err)
+
+
+class HuaweiGuestWifiSwitch(HuaweiSwitch):
+    """Switch to enable or disable the guest WiFi network."""
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if guest WiFi is enabled."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        status = data.get("wlan_wifi_guest_network_switch") or {}
+        val = status.get("WifiEnable")
+        if val is None:
+            return None
+        return str(val) == "1"
+
+    async def async_turn_on(self, **kwargs) -> None:
+        """Enable guest WiFi."""
+        try:
+            await self.coordinator.api.set_guest_wifi(True)
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("%s: Enable guest WiFi failed: %s", self._entry.title, err)
+
+    async def async_turn_off(self, **kwargs) -> None:
+        """Disable guest WiFi."""
+        try:
+            await self.coordinator.api.set_guest_wifi(False)
+            await self.coordinator.async_request_refresh()
+        except Exception as err:
+            _LOGGER.error("%s: Disable guest WiFi failed: %s", self._entry.title, err)
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the state attributes."""
+        data = self.coordinator.data
+        if not data:
+            return {}
+        status = data.get("wlan_wifi_guest_network_switch") or {}
+        return {"ssid": status.get("WifiSsid")}

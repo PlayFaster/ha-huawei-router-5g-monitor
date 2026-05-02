@@ -99,23 +99,62 @@ class HuaweiRouter5GAPI:
                 ("device_information", lambda: client.device.information()),
                 ("device_signal", lambda: client.device.signal()),
                 ("monitoring_status", lambda: client.monitoring.status()),
+                (
+                    "monitoring_check_notifications",
+                    lambda: client.monitoring.check_notifications(),
+                ),
                 ("traffic_statistics", lambda: client.monitoring.traffic_statistics()),
                 ("month_statistics", lambda: client.monitoring.month_statistics()),
                 ("current_plmn", lambda: client.net.current_plmn()),
+                ("net_mode", lambda: client.net.net_mode()),
                 ("sms_count", lambda: client.sms.sms_count()),
+                (
+                    "sms_list",
+                    lambda: client.sms.get_sms_list(
+                        page=1,
+                        box_type=1,  # LOCAL_INBOX
+                        read_count=20,
+                        sort_type=0,  # DATE
+                        ascending=False,
+                        unread_preferred=True,
+                    ),
+                ),
                 ("mobile_dataswitch", lambda: client.dial_up.mobile_dataswitch()),
+                ("lan_host_info", lambda: client.lan.host_info()),
+                ("wlan_host_list", lambda: client.wlan.host_list()),
+                ("wlan_wifi_feature_switch", lambda: client.wlan.wifi_feature_switch()),
+                (
+                    "wlan_wifi_guest_network_switch",
+                    lambda: client.wlan.wifi_guest_network_switch(),
+                ),
             ]:
                 try:
                     data[key] = fetcher()
-                except Exception:
-                    _LOGGER.debug("Failed to fetch %s", key)
+                except Exception as err:
+                    err_str = str(err)
+                    # If we hit a session/auth error mid-fetch, we MUST stop and re-login
+                    # 125002: session timeout/not logged in
+                    # 125003: token error
+                    if "125002" in err_str or "125003" in err_str:
+                        _LOGGER.debug(
+                            "Session expired during fetch of %s (%s). Forcing re-login.",
+                            key,
+                            err_str,
+                        )
+                        raise HuaweiAuthError(f"Session expired: {err}") from err
+
+                    _LOGGER.debug("Failed to fetch %s: %s", key, err)
 
             return data
 
         try:
             return await asyncio.to_thread(_fetch)
+        except HuaweiAuthError:
+            # Propagate auth errors immediately to trigger re-login logic
+            await self._reset_client()
+            raise
         except Exception as err:
-            _LOGGER.error("Failed to fetch router data: %s", err)
+            _LOGGER.exception("Failed to fetch router data")
             await self._reset_client()
             raise HuaweiConnectionError(f"Data fetch failed: {err}") from err
 
@@ -124,8 +163,8 @@ class HuaweiRouter5GAPI:
         await self._ensure_client()
         try:
             await asyncio.to_thread(self._client.device.reboot)
-        except Exception as err:
-            _LOGGER.error("Reboot failed: %s", err)
+        except Exception:
+            _LOGGER.exception("Reboot failed")
             await self._reset_client()
             raise
 
@@ -134,8 +173,8 @@ class HuaweiRouter5GAPI:
         await self._ensure_client()
         try:
             await asyncio.to_thread(self._client.monitoring.clear_traffic)
-        except Exception as err:
-            _LOGGER.error("Clear traffic failed: %s", err)
+        except Exception:
+            _LOGGER.exception("Clear traffic failed")
             raise
 
     async def set_mobile_data(self, enable: bool) -> None:
@@ -147,6 +186,57 @@ class HuaweiRouter5GAPI:
 
         try:
             await asyncio.to_thread(_set)
-        except Exception as err:
-            _LOGGER.error("Set mobile data failed: %s", err)
+        except Exception:
+            _LOGGER.exception("Set mobile data failed")
+            raise
+
+    async def set_net_mode(self, mode: str) -> None:
+        """Set the preferred network mode."""
+        await self._ensure_client()
+
+        from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
+
+        def _set() -> None:
+            self._client.net.set_net_mode(
+                mode, LTEBandEnum.ALL.value, NetworkBandEnum.ALL.value
+            )
+
+        try:
+            await asyncio.to_thread(_set)
+        except Exception:
+            _LOGGER.exception("Set net mode failed")
+            raise
+
+    async def set_guest_wifi(self, enable: bool) -> None:
+        """Enable or disable the guest WiFi network."""
+        await self._ensure_client()
+
+        try:
+            await asyncio.to_thread(
+                self._client.wlan.wifi_guest_network_switch, 1 if enable else 0
+            )
+        except Exception:
+            _LOGGER.exception("Set guest WiFi failed")
+            raise
+
+    async def send_sms(self, phone_numbers: list[str], message: str) -> None:
+        """Send an SMS message to one or more numbers."""
+        await self._ensure_client()
+
+        try:
+            await asyncio.to_thread(
+                self._client.sms.send_sms, phone_numbers=phone_numbers, message=message
+            )
+        except Exception:
+            _LOGGER.exception("Send SMS failed")
+            raise
+
+    async def delete_sms(self, index: int) -> None:
+        """Delete an SMS message by index."""
+        await self._ensure_client()
+
+        try:
+            await asyncio.to_thread(self._client.sms.delete_sms, index=index)
+        except Exception:
+            _LOGGER.exception("Delete SMS failed")
             raise

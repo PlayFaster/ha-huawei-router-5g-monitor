@@ -8,4 +8,5 @@ CONF_NAME = "name"
 NAME = "Huawei Router 5G Monitor"
 
 CONF_SCAN_INTERVAL = "scan_interval"
+DEFAULT_SCAN_INTERVAL = 180
 CONF_STOP_POLLING = "stop_polling"

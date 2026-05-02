@@ -13,7 +13,6 @@ from custom_components.huawei_router_5g.binary_sensor import (
 )
 from custom_components.huawei_router_5g.const import DOMAIN
 
-
 # ---------------------------------------------------------------------------
 # HuaweiBestConnectionSensor
 # ---------------------------------------------------------------------------
@@ -148,4 +147,4 @@ async def test_binary_sensor_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 2
+    assert len(entities) == 6

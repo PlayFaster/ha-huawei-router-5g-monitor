@@ -1,12 +1,10 @@
 """Extended coverage tests — edge cases and branches not covered by other suites."""
 
-import asyncio
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
 from custom_components.huawei_router_5g.api import (
-    HuaweiAuthError,
     HuaweiConnectionError,
     HuaweiRouter5GAPI,
 )
@@ -33,7 +31,6 @@ from custom_components.huawei_router_5g.switch import (
     MOBILE_DATA_DESCRIPTION,
     HuaweiMobileDataSwitch,
 )
-
 
 # ---------------------------------------------------------------------------
 # helpers — parse_signal_value edge cases
@@ -136,9 +133,7 @@ def test_sensor_month_total(mock_coordinator, mock_config_entry):
 
 def test_sensor_month_upload_gb(mock_coordinator, mock_config_entry):
     """Test month_upload_gb converts bytes to GB."""
-    mock_coordinator.data = {
-        "month_statistics": {"CurrentMonthUpload": "1073741824"}
-    }
+    mock_coordinator.data = {"month_statistics": {"CurrentMonthUpload": "1073741824"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "month_upload_gb")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 1.0

@@ -12,9 +12,6 @@ from custom_components.huawei_router_5g.sensor import (
     async_setup_entry,
 )
 
-from .conftest import SAMPLE_ROUTER_DATA
-
-
 # ---------------------------------------------------------------------------
 # System sensors
 # ---------------------------------------------------------------------------
@@ -172,9 +169,7 @@ def test_sensor_download_rate(mock_coordinator, mock_config_entry):
 
 def test_sensor_total_download(mock_coordinator, mock_config_entry):
     """Test total download byte count."""
-    mock_coordinator.data = {
-        "traffic_statistics": {"TotalDownload": "5368709120"}
-    }
+    mock_coordinator.data = {"traffic_statistics": {"TotalDownload": "5368709120"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "total_download")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 5368709120
@@ -203,9 +198,7 @@ def test_sensor_total_data_none_when_missing(mock_coordinator, mock_config_entry
 
 def test_sensor_month_download(mock_coordinator, mock_config_entry):
     """Test monthly download byte count."""
-    mock_coordinator.data = {
-        "month_statistics": {"CurrentMonthDownload": "2147483648"}
-    }
+    mock_coordinator.data = {"month_statistics": {"CurrentMonthDownload": "2147483648"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "month_download")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 2147483648
@@ -213,9 +206,7 @@ def test_sensor_month_download(mock_coordinator, mock_config_entry):
 
 def test_sensor_month_download_gb(mock_coordinator, mock_config_entry):
     """Test monthly download GB conversion (2GB → 2.0)."""
-    mock_coordinator.data = {
-        "month_statistics": {"CurrentMonthDownload": "2147483648"}
-    }
+    mock_coordinator.data = {"month_statistics": {"CurrentMonthDownload": "2147483648"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "month_download_gb")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 2.0
@@ -228,9 +219,7 @@ def test_sensor_month_download_gb(mock_coordinator, mock_config_entry):
 
 def test_sensor_sms_unread(mock_coordinator, mock_config_entry):
     """Test total unread SMS sums local and SIM unread."""
-    mock_coordinator.data = {
-        "sms_count": {"LocalUnread": "2", "SimUnread": "1"}
-    }
+    mock_coordinator.data = {"sms_count": {"LocalUnread": "2", "SimUnread": "1"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "sms_unread")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 3

@@ -66,11 +66,23 @@ async def test_setup_entry_creates_system_device(mock_hass, mock_config_entry):
     ):
         await async_setup_entry(mock_hass, mock_config_entry)
 
-    mock_dev_reg.async_get_or_create.assert_called_once()
-    _, kwargs = mock_dev_reg.async_get_or_create.call_args
-    identifiers = kwargs["identifiers"]
+    assert mock_dev_reg.async_get_or_create.call_count == 2
+
     mac = "DC:71:96:11:22:33"
-    assert (DOMAIN, f"{mac}_system") in identifiers
+    calls = mock_dev_reg.async_get_or_create.call_args_list
+
+    # Check System device call
+    system_call = next(
+        c for c in calls if (DOMAIN, f"{mac}_system") in c.kwargs["identifiers"]
+    )
+    assert system_call.kwargs["name"] == f"{mock_config_entry.title} System"
+
+    # Check Clients device call
+    clients_call = next(
+        c for c in calls if (DOMAIN, f"{mac}_clients") in c.kwargs["identifiers"]
+    )
+    assert clients_call.kwargs["name"] == f"{mock_config_entry.title} Clients"
+    assert clients_call.kwargs["via_device"] == (DOMAIN, f"{mac}_system")
 
 
 # ---------------------------------------------------------------------------
@@ -182,7 +194,7 @@ async def test_async_update_data_paused_first_run_returns_empty(
 
 @pytest.mark.asyncio
 async def test_async_update_data_resilience(mock_hass, mock_config_entry):
-    """Test that up to 3 consecutive failures hold cached data; 4th raises UpdateFailed."""
+    """Test that up to 3 failures hold cached data; 4th raises UpdateFailed."""
     with (
         patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_cls,
         patch("homeassistant.helpers.device_registry.async_get"),
@@ -194,7 +206,7 @@ async def test_async_update_data_resilience(mock_hass, mock_config_entry):
         coordinator = mock_hass.data[DOMAIN][mock_config_entry.entry_id]
         coordinator.data = {"old": "data"}
 
-        # Failures 1–3: return cached data
+        # Failures 1-3: return cached data
         for n in range(1, 4):
             data = await coordinator._async_update_data()
             assert data == {"old": "data"}

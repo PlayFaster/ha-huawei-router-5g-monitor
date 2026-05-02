@@ -17,8 +17,10 @@ PLATFORMS = [
     Platform.SENSOR,
     Platform.BUTTON,
     Platform.BINARY_SENSOR,
-    Platform.NUMBER,
     Platform.SWITCH,
+    Platform.SELECT,
+    Platform.DEVICE_TRACKER,
+    Platform.NUMBER,
 ]
 
 
@@ -54,8 +56,28 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
         configuration_url=f"http://{host}",
     )
 
+    device_registry.async_get_or_create(
+        config_entry_id=entry.entry_id,
+        identifiers={(DOMAIN, f"{sub_id_prefix}_clients")},
+        name=f"{entry.title} Clients",
+        manufacturer="Huawei",
+        model=entry.data.get("model", "Huawei Router"),
+        via_device=(DOMAIN, f"{sub_id_prefix}_system"),
+    )
+
     # Forward platforms immediately so entities appear in HA at startup.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
+
+    # Register services
+    async def async_send_sms(service_call) -> None:
+        """Service to send an SMS."""
+        target = service_call.data["target"]
+        message = service_call.data["message"]
+        if isinstance(target, str):
+            target = [target]
+        await api.send_sms(target, message)
+
+    hass.services.async_register(DOMAIN, "send_sms", async_send_sms)
 
     # BACKGROUND INITIALIZATION TASK
     # Offloads the initial connection to keep HA startup instant.

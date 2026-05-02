@@ -45,7 +45,7 @@ def parse_signal_value(val: Any) -> float | None:
     """Parse a signal value string to float, stripping unit suffixes.
 
     Handles values like '-95dBm', '-12dB', '6dB', or plain '6'.
-    Returns None for empty, None, or unparseable values.
+    Returns None for empty, None, or unparsable values.
     """
     if val in (None, "", "N/A", "--"):
         return None
@@ -67,3 +67,53 @@ def get_network_type_label(code: str | None) -> str | None:
     if code is None:
         return None
     return _NETWORK_TYPE_MAP.get(str(code), f"Unknown ({code})")
+
+
+def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:
+    """Parse get_sms_list response into a list of message dicts.
+
+    Handles different response structures from different router models.
+    """
+    if not data:
+        return []
+
+    messages_container = data.get("Messages")
+    if not messages_container:
+        return []
+
+    messages_raw = messages_container.get("Message")
+    if not messages_raw:
+        return []
+
+    # Some routers return a list where the first element is metadata and the
+    # actual messages start at index 1. Others return the list directly.
+    # If it's a list, and the first element looks like metadata (e.g. an int
+    # or a string representing a count), we skip it if there's a second element.
+    if isinstance(messages_raw, list):
+        if len(messages_raw) > 1 and not isinstance(messages_raw[0], dict):
+            messages_raw = messages_raw[1:]
+        elif (
+            len(messages_raw) > 1
+            and isinstance(messages_raw[0], dict)
+            and "Index" not in messages_raw[0]
+            and "Content" not in messages_raw[0]
+        ):
+            # First element is a dict but doesn't look like a message
+            messages_raw = messages_raw[1:]
+    elif isinstance(messages_raw, dict):
+        # Single message returned as a dict
+        messages_raw = [messages_raw]
+    else:
+        return []
+
+    return [
+        {
+            "index": int(msg.get("Index", 0)),
+            "phone": msg.get("Phone", ""),
+            "content": msg.get("Content", ""),
+            "date": msg.get("Date", ""),
+            "read": str(msg.get("Smstat", "0")) == "1",
+        }
+        for msg in messages_raw
+        if isinstance(msg, dict) and "Index" in msg
+    ]

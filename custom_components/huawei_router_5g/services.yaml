@@ -1,0 +1,15 @@
+send_sms:
+  description: Send an SMS message via the router.
+  fields:
+    target:
+      description: The phone number(s) to send the SMS to.
+      example: "+353871234567"
+      required: true
+      selector:
+        text:
+    message:
+      description: The message content.
+      example: "Hello from Home Assistant!"
+      required: true
+      selector:
+        text:
