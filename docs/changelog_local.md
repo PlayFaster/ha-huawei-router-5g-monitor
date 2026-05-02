@@ -4,6 +4,19 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.1-dev5] - 2026-05-02
+
+### Added
+- **Reliability Test Suite**: Implemented `tests/test_reliability_ext.py` to specifically target and verify the complex error handling and resilience logic.
+    - Added tests for mid-fetch session expiration and automatic re-authentication.
+    - Added tests for the **Critical Data Guard** to ensure partial responses are correctly rejected.
+    - Verified `_LOGGER.exception()` tracebacks in critical failure paths.
+
+### Changed
+- **Codebase Maintenance**: Performed project-wide linting and formatting (Ruff, Prettier) to ensure 100% adherence to "PlayFaster" idiomatic standards.
+
+---
+
 ## [1.0.1-dev4] - 2026-05-02
 
 ### Added
@@ -18,11 +31,11 @@ This document tracks technical shifts, architectural decisions, and detailed imp
     - Added a **Critical Data Guard** in the coordinator to reject fetches missing essential keys like `device_information`, preventing "partial success" objects from clearing sensors.
     - Integrated authentication failures into the 3-strike resilience logic to hold last known good data during transient session drops.
 
----
 
 ## [1.0.1-dev3] - 2026-05-02
 
 ### Added
+
 - **Declarative Guard Bands**: Implemented comprehensive min/max limits for over 80 numeric sensors. Centralized validation in `native_value` to return `None` (Unavailable) for out-of-bounds data, protecting Home Assistant's long-term statistics.
 - **Robust SMS Parsing**: Implemented a resilient parser in `helpers.py` that handles varied router responses (single dictionary vs. multi-message list) and metadata offsets.
 - **SMS Event Firing**: Added `huawei_router_5g_sms_event` firing in the coordinator when new messages are detected at the top of the inbox.
@@ -30,11 +43,13 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 - **Numeric Sanitization**: Added `_safe_float` and `_safe_int` helpers to strip technical suffixes ('dBm', 'MHz', 'mbps') from API strings before conversion.
 
 ### Changed
+
 - **Sub-device Reorganization**: Finalized grouping into 5 logical sub-devices: **System, Signal, Data, SMS, and Clients**.
 - **Data Categories**: Relocated rapidly changing signal metrics (RSRP, RSRQ, SINR, RSSI) from the 'Diagnostic' to the 'Sensor' category.
 - **Unit Normalization**: Ensured all data volume sensors use `UnitOfInformation.BYTES` and signal metrics use `dBm`/`dB`.
 
 ### Fixed
+
 - **SMS Null Handling**: Fixed `AttributeError` for the `last_sms` sensor by adding coordinator data null checks.
 - **Registry Stability**: Normalized all MAC identifiers to a consistent lowercase, colon-less format for stable `unique_id` generation.
 - **Linting & Formatting**: Resolved all Ruff violations and formatted codebase with Prettier.
@@ -44,17 +59,19 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ## [1.0.1-dev2] - 2026-05-02
 
 ### Added
+
 - **Entity Engine Implementation**: Defined over 80 sensors using the declarative `HuaweiSensorEntityDescription` pattern.
 - **Multi-Platform Support**:
-    - **Binary Sensor**: Connectivity, WiFi status, and SMS storage full flags.
-    - **Button**: Reboot and Clear Traffic Statistics actions.
-    - **Number**: Persistent UI slider for Polling Interval (30s - 3600s) with debounced application.
-    - **Select**: Network Mode selection (Auto, 4G Only, 5G Only, etc.).
-    - **Switch**: Pause Polling, Mobile Data toggle, and Guest WiFi control.
-    - **Device Tracker**: Dynamic discovery and tracking of LAN/WLAN clients.
+  - **Binary Sensor**: Connectivity, WiFi status, and SMS storage full flags.
+  - **Button**: Reboot and Clear Traffic Statistics actions.
+  - **Number**: Persistent UI slider for Polling Interval (30s - 3600s) with debounced application.
+  - **Select**: Network Mode selection (Auto, 4G Only, 5G Only, etc.).
+  - **Switch**: Pause Polling, Mobile Data toggle, and Guest WiFi control.
+  - **Device Tracker**: Dynamic discovery and tracking of LAN/WLAN clients.
 - **Sub-Device Chaining**: Implemented `via_device` linking to ensure all sub-devices (Signal, Data, etc.) correctly parent to the System root device.
 
 ### Changed
+
 - **Duration Sensors**: Implemented dual sensors for durations (raw seconds as DURATION and calculated TIMESTAMP) for Uptime and Connection Time.
 
 ---
@@ -62,6 +79,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ## [1.0.1-dev1] - 2026-05-02
 
 ### Added
+
 - **Core Architecture**: Implemented `HuaweiRouter5GDataUpdateCoordinator` with "3-strike" failure counter to mask transient network glitches.
 - **API Integration**: Created `HuaweiRouterAPI` async wrapper for the `huawei-lte-api` library.
 - **Flat Identity Pattern**: Implemented hardware metadata persistence (Model, MAC, Version) in `ConfigEntry.data` during initial setup.
@@ -73,9 +91,11 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ## [1.0.0] - 2026-05-02
 
 ### Initial Release
+
 - Baseline project structure following "PlayFaster" v1.2 architectural standards.
 
 ---
 
 ### Format
+
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).

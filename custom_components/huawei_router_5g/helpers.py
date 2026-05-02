@@ -1,6 +1,13 @@
 """Shared helpers for the Huawei Router 5G Monitor integration."""
 
+import logging
 from typing import Any
+
+from homeassistant.helpers.device_registry import DeviceInfo
+
+from .const import DOMAIN
+
+_LOGGER = logging.getLogger(__name__)
 
 # Huawei CurrentNetworkType code → human-readable label
 _NETWORK_TYPE_MAP: dict[str, str] = {
@@ -14,21 +21,41 @@ _NETWORK_TYPE_MAP: dict[str, str] = {
     "7": "HSPA",
     "8": "TD-SCDMA",
     "9": "HSPA+",
-    "10": "EV-DO rev.0",
-    "11": "EV-DO rev.A",
-    "12": "EV-DO rev.B",
+    "10": "EVDO rev. 0",
+    "11": "EVDO rev. A",
+    "12": "EVDO rev. B",
     "13": "1xRTT",
+    "14": "UMB",
+    "15": "1xEVDV",
+    "16": "3xRTT",
     "17": "HSPA+ 64QAM",
     "18": "HSPA+ MIMO",
     "19": "LTE",
+    "21": "IS95A",
+    "22": "IS95B",
+    "23": "CDMA1x",
+    "24": "EVDO rev. 0",
+    "25": "EVDO rev. A",
+    "26": "EVDO rev. B",
+    "27": "Hybrid CDMA1x",
+    "28": "Hybrid EVDO rev. 0",
+    "29": "Hybrid EVDO rev. A",
+    "30": "Hybrid EVDO rev. B",
+    "31": "eHRPD rev. 0",
+    "32": "eHRPD rev. A",
+    "33": "eHRPD rev. B",
+    "34": "Hybrid eHRPD rev. 0",
+    "35": "Hybrid eHRPD rev. A",
+    "36": "Hybrid eHRPD rev. B",
     "41": "LTE-A",
     "51": "5G NR NSA",
     "52": "5G NR SA",
     "71": "LTE + 5G NR",
+    "101": "5G",
 }
 
 # Network type codes that indicate active 5G NR connectivity
-NR_NETWORK_TYPES: frozenset[str] = frozenset({"51", "52", "71"})
+NR_NETWORK_TYPES: frozenset[str] = frozenset({"51", "52", "71", "101"})
 
 
 def get_router_model(device_info: dict | None) -> str:
@@ -52,8 +79,9 @@ def parse_signal_value(val: Any) -> float | None:
     if isinstance(val, (int, float)):
         return float(val)
     s = str(val).strip()
-    for suffix in ("dBm", "dB", "MHz", "kHz", "Mbps", "bps"):
-        if s.endswith(suffix):
+    s_lower = s.lower()
+    for suffix in ("dbm", "db", "mhz", "khz", "ghz", "mbps", "bps", "s", "b"):
+        if s_lower.endswith(suffix):
             s = s[: -len(suffix)].strip()
             break
     try:
@@ -69,6 +97,41 @@ def get_network_type_label(code: str | None) -> str | None:
     return _NETWORK_TYPE_MAP.get(str(code), f"Unknown ({code})")
 
 
+def build_device_info(coordinator, group: str) -> DeviceInfo:
+    """Build standardized DeviceInfo dict for platforms."""
+    group_names = {
+        "system": "System",
+        "signal": "Signal",
+        "data": "Data",
+        "sms": "SMS",
+        "clients": "Clients",
+    }
+    display_group = group_names.get(group, group.capitalize())
+    sub_name = f"{coordinator.entry.title} {display_group}"
+
+    mac = coordinator.mac
+    # Fallback to host from options if MAC is missing (should be rare)
+    from homeassistant.const import CONF_HOST
+
+    host = coordinator.entry.options.get(CONF_HOST, "")
+    sub_id_prefix = mac if mac else f"host_{host}"
+
+    info = DeviceInfo(
+        identifiers={(DOMAIN, f"{sub_id_prefix}_{group}")},
+        name=sub_name,
+        manufacturer="Huawei",
+        model=coordinator.model,
+        sw_version=coordinator.sw_version,
+        hw_version=coordinator.hw_version,
+        configuration_url=coordinator.api.url,
+    )
+
+    if group != "system":
+        info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
+
+    return info
+
+
 def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:
     """Parse get_sms_list response into a list of message dicts.
 
@@ -81,14 +144,16 @@ def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:
     if not messages_container:
         return []
 
+    if not isinstance(messages_container, dict):
+        _LOGGER.debug("Unexpected SMS container type: %s", type(messages_container))
+        return []
+
     messages_raw = messages_container.get("Message")
     if not messages_raw:
         return []
 
     # Some routers return a list where the first element is metadata and the
     # actual messages start at index 1. Others return the list directly.
-    # If it's a list, and the first element looks like metadata (e.g. an int
-    # or a string representing a count), we skip it if there's a second element.
     if isinstance(messages_raw, list):
         if len(messages_raw) > 1 and not isinstance(messages_raw[0], dict):
             messages_raw = messages_raw[1:]

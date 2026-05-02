@@ -28,30 +28,19 @@ from homeassistant.util import dt as dt_util
 
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import parse_sms_list
+from .helpers import (
+    build_device_info,
+    get_network_type_label,
+    parse_signal_value,
+    parse_sms_list,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
 
-def _safe_float(val: Any) -> float | None:
-    """Safely convert value to float or return None."""
-    if val in [None, ""]:
-        return None
-    try:
-        # Strip common units
-        s_val = str(val).lower().strip()
-        for unit in ["dbm", "db", "mhz", "khz", "ghz", "s", "b", "mbps", "bps"]:
-            if s_val.endswith(unit):
-                s_val = s_val[: -len(unit)].strip()
-                break
-        return float(s_val)
-    except (ValueError, TypeError):
-        return None
-
-
 def _safe_int(val: Any) -> int | None:
     """Safely convert value to int or return None."""
-    f_val = _safe_float(val)
+    f_val = parse_signal_value(val)
     return int(f_val) if f_val is not None else None
 
 
@@ -75,7 +64,7 @@ def format_ipv6(value: Any) -> Any:
 
 def format_freq_mhz(value: Any) -> float | None:
     """Format frequency in MHz (input is in tenths of MHz)."""
-    f_val = _safe_float(value)
+    f_val = parse_signal_value(value)
     return f_val / 10 if f_val is not None else None
 
 
@@ -91,51 +80,7 @@ def _get_network_type(data: dict | None) -> str | None:
     if data is None:
         return None
     type_code = data.get("monitoring_status", {}).get("CurrentNetworkType")
-    if type_code is None:
-        return None
-
-    # Mapping based on common Huawei LTE API values
-    mapping = {
-        "0": "No Service",
-        "1": "GSM",
-        "2": "GPRS",
-        "3": "EDGE",
-        "4": "WCDMA",
-        "5": "HSDPA",
-        "6": "HSUPA",
-        "7": "HSPA",
-        "8": "TD-SCDMA",
-        "9": "HSPA+",
-        "10": "EVDO rev. 0",
-        "11": "EVDO rev. A",
-        "12": "EVDO rev. B",
-        "13": "1xRTT",
-        "14": "UMB",
-        "15": "1xEVDV",
-        "16": "3xRTT",
-        "17": "HSPA+ 64QAM",
-        "18": "HSPA+ MIMO",
-        "19": "LTE",
-        "21": "IS95A",
-        "22": "IS95B",
-        "23": "CDMA1x",
-        "24": "EVDO rev. 0",
-        "25": "EVDO rev. A",
-        "26": "EVDO rev. B",
-        "27": "Hybrid CDMA1x",
-        "28": "Hybrid EVDO rev. 0",
-        "29": "Hybrid EVDO rev. A",
-        "30": "Hybrid EVDO rev. B",
-        "31": "eHRPD rev. 0",
-        "32": "eHRPD rev. A",
-        "33": "eHRPD rev. B",
-        "34": "Hybrid eHRPD rev. 0",
-        "35": "Hybrid eHRPD rev. A",
-        "36": "Hybrid eHRPD rev. B",
-        "41": "LTE CA",
-        "101": "5G",
-    }
-    return mapping.get(str(type_code), str(type_code))
+    return get_network_type_label(type_code)
 
 
 @dataclass(frozen=True, kw_only=True)

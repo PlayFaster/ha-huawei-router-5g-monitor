@@ -10,7 +10,7 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import HuaweiAuthError, HuaweiConnectionError
+from .api import HuaweiAuthError
 from .const import CONF_SCAN_INTERVAL, CONF_STOP_POLLING
 from .helpers import get_router_model, parse_sms_list
 
@@ -61,7 +61,9 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 # Critical Data Guard: If essential keys are missing, treat as a fetch failure
                 # rather than a partial success that would clear sensors.
                 if not data or "device_information" not in data:
-                    raise UpdateFailed("Critical data missing from fetch (e.g. device_info)")
+                    raise UpdateFailed(
+                        "Critical data missing from fetch (e.g. device_info)"
+                    )
 
                 dev_info = data.get("device_information") or {}
                 new_model = get_router_model(dev_info)
@@ -114,7 +116,9 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 _LOGGER.warning(
                     "%s: Fetch failed due to %s (failure %d/3), holding last known values.",
                     self.entry.title,
-                    "session timeout" if isinstance(err, HuaweiAuthError) else "timeout",
+                    "session timeout"
+                    if isinstance(err, HuaweiAuthError)
+                    else "timeout",
                     self.consecutive_failures,
                 )
                 return self.data
