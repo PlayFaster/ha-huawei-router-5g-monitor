@@ -50,6 +50,8 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **High-Fidelity Logging**: Utilizing `_LOGGER.exception()` for all critical failure paths ensures full tracebacks are available in Home Assistant logs for remote debugging, while downgrading transient session timeouts to `DEBUG` keeps logs clean for end-users.
 - **Architectural Consolidation**: Extracting highly duplicated properties like `device_info` into centralized helpers (e.g., `build_device_info`) to enforce DRY principles across 7+ platform files.
 - **Seamless Session Recovery**: Implementing immediate retry logic in the `DataUpdateCoordinator` to handle fixed router session TTLs, ensuring continuous data flow and clean logs during re-authentication events.
+- **Long-Term Statistics Alignment**: Consistent use of `state_class` (`MEASUREMENT`, `TOTAL`, `TOTAL_INCREASING`) across volume, duration, and signal metrics to ensure high-quality historical data and compatibility with Home Assistant's Energy and Statistics dashboards.
+- **Abstracted Select Mappings**: Utilizing internal mapping dictionaries in `select.py` to decouple technical API codes from user-friendly UI labels, ensuring a professional configuration experience without exposing protocol-level strings.
 
 ## 5. Technical Pitfalls & Fixes
 
@@ -72,6 +74,8 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
 - **Async Wrapper**: While `huawei-lte-api` is primarily synchronous, this integration wraps all calls in `hass.async_add_executor_job` or uses the library's async capabilities where available to ensure the HA event loop is never blocked.
 - **XML/SOAP API**: The integration handles the heavy lifting of XML parsing and session token management required by Huawei's API.
+- **Windows Testing**: The Home Assistant test suite (via `pytest-asyncio`) uses the `ProactorEventLoop` by default on Windows, which utilizes internal sockets that can be blocked by `pytest-socket`.
+  - _Standard_: Use `WindowsSelectorEventLoopPolicy` and monkeypatch `pytest-socket.disable_socket` in `conftest.py` to ensure local tests pass without disabling security guards entirely.
 
 ## 7. Technical Debt & Future Work
 

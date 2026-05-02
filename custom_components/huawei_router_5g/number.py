@@ -132,4 +132,3 @@ class HuaweiPollingInterval(
     def device_info(self):
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self._group)
-

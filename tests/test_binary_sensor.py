@@ -84,7 +84,7 @@ def test_best_connection_device_info(mock_coordinator, mock_config_entry):
 
 def test_sms_storage_full_true(mock_coordinator, mock_config_entry):
     """Return True when SmsStorageFull flag is '1'."""
-    mock_coordinator.data = {"monitoring_status": {"SmsStorageFull": "1"}}
+    mock_coordinator.data = {"monitoring_check_notifications": {"SmsStorageFull": "1"}}
     sensor = HuaweiSmsStorageFullSensor(
         mock_coordinator, mock_config_entry, SMS_STORAGE_FULL_DESCRIPTION
     )
@@ -93,7 +93,7 @@ def test_sms_storage_full_true(mock_coordinator, mock_config_entry):
 
 def test_sms_storage_full_false(mock_coordinator, mock_config_entry):
     """Return False when SmsStorageFull flag is '0'."""
-    mock_coordinator.data = {"monitoring_status": {"SmsStorageFull": "0"}}
+    mock_coordinator.data = {"monitoring_check_notifications": {"SmsStorageFull": "0"}}
     sensor = HuaweiSmsStorageFullSensor(
         mock_coordinator, mock_config_entry, SMS_STORAGE_FULL_DESCRIPTION
     )

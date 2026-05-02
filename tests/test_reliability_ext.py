@@ -43,8 +43,7 @@ async def test_get_data_mid_fetch_auth_error():
     mock_client.device.information.return_value = {"SoftwareVersion": "1.0"}
 
     # Mock a ResponseErrorException with code 125002
-    err = ResponseErrorException("125002: session timeout")
-    err.code = 125002
+    err = ResponseErrorException(message="session timeout", code=125002)
     mock_client.device.signal.side_effect = err
 
     # Mock to_thread to execute the fetch loop synchronously
@@ -65,7 +64,9 @@ async def test_get_data_mid_fetch_login_required():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    api._client.device.information.side_effect = ResponseErrorLoginRequiredException()
+    api._client.device.information.side_effect = ResponseErrorLoginRequiredException(
+        message="login required", code=100002
+    )
 
     with (
         patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),

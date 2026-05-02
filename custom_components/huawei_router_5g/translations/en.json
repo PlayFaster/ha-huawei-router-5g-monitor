@@ -89,7 +89,8 @@
     },
     "switch": {
       "pause_polling": { "name": "Pause Polling" },
-      "mobile_data": { "name": "Mobile Data" }
+      "mobile_data": { "name": "Mobile Data" },
+      "wifi_guest_network": { "name": "Wi-Fi Guest Network" }
     },
     "number": {
       "polling_interval": { "name": "Polling Interval" }

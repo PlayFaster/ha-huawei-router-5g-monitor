@@ -8,7 +8,6 @@ from typing import Any
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from huawei_lte_api.enums.net import NetworkModeEnum
 
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
@@ -26,25 +25,37 @@ class HuaweiSelectEntityDescription(SelectEntityDescription):
     group: str = "system"
 
 
+NETWORK_MODE_MAPPING = {
+    "Auto": "00",
+    "4G/3G/2G Auto": "030201",
+    "4G/3G Auto": "0302",
+    "4G/2G Auto": "0301",
+    "4G Only": "03",
+    "3G/2G Auto": "0201",
+    "3G Only": "02",
+    "2G Only": "01",
+}
+NETWORK_MODE_INV_MAPPING = {v: k for k, v in NETWORK_MODE_MAPPING.items()}
+
+
 SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
     HuaweiSelectEntityDescription(
         key="network_mode",
         name="Preferred Network Mode",
-        options=[
-            NetworkModeEnum.MODE_AUTO.value,
-            NetworkModeEnum.MODE_4G_3G_AUTO.value,
-            NetworkModeEnum.MODE_4G_2G_AUTO.value,
-            NetworkModeEnum.MODE_4G_ONLY.value,
-            NetworkModeEnum.MODE_3G_2G_AUTO.value,
-            NetworkModeEnum.MODE_3G_ONLY.value,
-            NetworkModeEnum.MODE_2G_ONLY.value,
-        ],
+        icon="mdi:settings-transfer",
+        options=list(NETWORK_MODE_MAPPING.keys()),
         entity_category=EntityCategory.CONFIG,
         group="system",
         value_fn=lambda data: (
-            data.get("net_mode", {}).get("NetworkMode") if data else None
+            NETWORK_MODE_INV_MAPPING.get(
+                str(data.get("net_mode", {}).get("NetworkMode"))
+            )
+            if data
+            else None
         ),
-        setter_fn=lambda api, mode: api.set_net_mode(mode),
+        setter_fn=lambda api, mode_label: api.set_net_mode(
+            NETWORK_MODE_MAPPING.get(mode_label, "00")
+        ),
     ),
 )
 

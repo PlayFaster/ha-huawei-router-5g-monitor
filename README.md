@@ -80,13 +80,13 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 
 This integration provides **101+ entities** grouped into five logical devices: **System**, **Signal**, **Data**, **SMS**, and **Clients**.
 
-| Type                | Count | Primary Functions                                              |
-| :------------------ | :---- | :------------------------------------------------------------- |
-| **Sensors**         | 80+   | Signal strength, data usage, uptime, SMS counts, device info  |
-| **Binary Sensors**  | 5     | WiFi status, mobile connection, 5G NR active, SMS storage full |
-| **Switches**        | 3     | Pause Polling, Mobile Data, Guest WiFi                         |
-| **Controls**        | 5     | Reboot, Clear Traffic, Polling Interval, Network Mode, Send SMS service |
-| **Device Trackers** | 1+    | Dynamically discovered per connected LAN/WLAN client           |
+| Type | Count | Primary Functions |
+| :-- | :-- | :-- |
+| **Sensors** | 80+ | Signal strength, data usage, uptime, SMS counts, device info |
+| **Binary Sensors** | 5 | WiFi status, mobile connection, 5G NR active, SMS storage full |
+| **Switches** | 3 | Pause Polling, Mobile Data, Guest WiFi |
+| **Controls** | 5 | Reboot, Clear Traffic, Polling Interval, Network Mode, Send SMS service |
+| **Device Trackers** | 1+ | Dynamically discovered per connected LAN/WLAN client |
 
 > [!TIP]
 >
@@ -110,13 +110,13 @@ This integration provides **101+ entities** grouped into five logical devices: *
 
 ![Integration](.github/images/huawei_5g_integration_screen.png)
 
-|                          Signal Data                           |                          Signal Diagnostics                           |
-| :------------------------------------------------------------: | :-------------------------------------------------------------------: |
-| ![Sensors](.github/images/huawei_5g_sensor_screen_mini.png)   | ![Diagnostics](.github/images/huawei_5g_diagnostic_screen_mini.png)  |
+| Signal Data | Signal Diagnostics |
+| :-: | :-: |
+| ![Sensors](.github/images/huawei_5g_sensor_screen_mini.png) | ![Diagnostics](.github/images/huawei_5g_diagnostic_screen_mini.png) |
 
-|                           System                             |                          Data                            |                       SMS Management                       |
-| :----------------------------------------------------------: | :------------------------------------------------------: | :--------------------------------------------------------: |
-| ![System](.github/images/huawei_5g_system_screen_mini.png)  | ![Data](.github/images/huawei_5g_data_screen_mini.png)  | ![SMS](.github/images/huawei_5g_sms_screen_mini.png)      |
+| System | Data | SMS Management |
+| :-: | :-: | :-: |
+| ![System](.github/images/huawei_5g_system_screen_mini.png) | ![Data](.github/images/huawei_5g_data_screen_mini.png) | ![SMS](.github/images/huawei_5g_sms_screen_mini.png) |
 
 ---
 

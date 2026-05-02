@@ -14,16 +14,16 @@ from custom_components.huawei_router_5g.select import (
 
 def test_network_mode_select_current_option(mock_coordinator, mock_config_entry):
     """Test current option mapping."""
-    # Mapping for '00' is '00' (raw value is returned by value_fn)
+    # Mapping for '00' is 'Auto'
     mock_coordinator.data = {"net_mode": {"NetworkMode": "00"}}
     select = HuaweiRouterSelect(
         mock_coordinator, SELECTS[0]
     )
-    assert select.current_option == "00"
+    assert select.current_option == "Auto"
 
-    # Mapping for '03' is '03'
+    # Mapping for '03' is '4G Only'
     mock_coordinator.data = {"net_mode": {"NetworkMode": "03"}}
-    assert select.current_option == "03"
+    assert select.current_option == "4G Only"
 
 
 def test_network_mode_select_none_when_missing(mock_coordinator, mock_config_entry):
@@ -43,7 +43,7 @@ async def test_network_mode_select_option(mock_coordinator, mock_config_entry):
     )
     mock_coordinator.api.set_net_mode = AsyncMock()
 
-    await select.async_select_option("03")
+    await select.async_select_option("4G Only")
     mock_coordinator.api.set_net_mode.assert_called_once_with("03")
 
 

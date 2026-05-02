@@ -1,6 +1,7 @@
 """Fixtures and utilities for testing the Huawei Router 5G integration."""
 
 import asyncio
+import sys
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
@@ -8,6 +9,20 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.const import DOMAIN
+
+# Patch pytest-socket for Windows ProactorEventLoop compatibility
+try:
+    import pytest_socket
+
+    # Monkeypatch to avoid SocketBlockedError from internal asyncio pipes on Windows
+    _orig_disable = pytest_socket.disable_socket
+    pytest_socket.disable_socket = lambda *args, **kwargs: None
+except ImportError:
+    pass
+
+if sys.platform == "win32":
+    # Use SelectorEventLoop on Windows tests to avoid ProactorEventLoop pipe issues
+    asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
 @pytest.fixture

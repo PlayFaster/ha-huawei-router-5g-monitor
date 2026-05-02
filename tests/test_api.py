@@ -163,10 +163,10 @@ async def test_get_data_partial_failure():
     api._client = mock_client
     api._connection = MagicMock()
 
-    # device_information raises; everything else succeeds
-    mock_client.device.information.side_effect = Exception("Device info unavailable")
-    mock_client.device.signal.return_value = {"rsrp": "-95dBm"}
-    mock_client.monitoring.status.return_value = {}
+    # device_signal raises; device_information succeeds
+    mock_client.device.information.return_value = {"SoftwareVersion": "1.0"}
+    mock_client.device.signal.side_effect = Exception("Signal unavailable")
+    mock_client.monitoring.status.return_value = {"ConnectionStatus": "901"}
     mock_client.monitoring.traffic_statistics.return_value = {}
     mock_client.monitoring.month_statistics.return_value = {}
     mock_client.net.current_plmn.return_value = {}
@@ -176,8 +176,9 @@ async def test_get_data_partial_failure():
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         data = await api.get_data()
 
-    assert "device_information" not in data
-    assert data.get("device_signal") == {"rsrp": "-95dBm"}
+    assert "device_signal" not in data
+    assert data.get("device_information") == {"SoftwareVersion": "1.0"}
+    assert data.get("monitoring_status") == {"ConnectionStatus": "901"}
 
 
 @pytest.mark.asyncio

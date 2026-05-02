@@ -12,7 +12,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import build_device_info, parse_signal_value
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -35,6 +35,7 @@ SMS_STORAGE_FULL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     translation_key="sms_storage_full",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
     group="sms",
 )
 
@@ -121,14 +122,20 @@ class HuaweiBestConnectionSensor(HuaweiBinarySensor):
 
     @property
     def is_on(self) -> bool:
-        """Return True if 5G NR band is active."""
+        """Return True if 5G NR is active."""
         data = self.coordinator.data
         if not data:
             return False
         signal = data.get("device_signal") or {}
         nr_band = signal.get("sc_band", "")
+        nr_rsrp = parse_signal_value(signal.get("nrrsrp"))
+
         # 5G NR is active when a non-empty NR band is reported
-        return bool(nr_band and nr_band not in ("", "N/A", "0"))
+        # OR when a valid 5G RSRP signal is being received
+        is_active = bool(nr_band and nr_band not in ("", "N/A", "0"))
+        has_signal = nr_rsrp is not None and nr_rsrp < 0
+
+        return is_active or has_signal
 
     @property
     def icon(self) -> str:
@@ -145,7 +152,7 @@ class HuaweiSmsStorageFullSensor(HuaweiBinarySensor):
         data = self.coordinator.data
         if not data:
             return None
-        status = data.get("monitoring_status") or {}
+        status = data.get("monitoring_check_notifications") or {}
         flag = status.get("SmsStorageFull")
         if flag is None:
             return None
@@ -212,4 +219,3 @@ class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
         status = data.get("monitoring_status") or {}
         # 901 is connected
         return status.get("ConnectionStatus") == "901"
-

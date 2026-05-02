@@ -17,24 +17,24 @@ We use a **Declarative Validation** approach. Limits are defined directly within
 
 ## Validated Signal Limits
 
-| Metric Category | Metric Name               | Min  | Max             | Action if Out of Bounds |
-| :-------------- | :------------------------ | :--- | :-------------- | :---------------------- |
-| **LTE Signal**  | RSRP                      | -150 | -30             | Set to `Unavailable`    |
-|                 | RSRQ                      | -50  | 0               | Set to `Unavailable`    |
-|                 | RSSI                      | -120 | -20             | Set to `Unavailable`    |
-|                 | SINR                      | -30  | 50              | Set to `Unavailable`    |
-|                 | Transmit Power            | -30  | 40              | Set to `Unavailable`    |
-| **5G Signal**   | RSRP                      | -150 | -30             | Set to `Unavailable`    |
-|                 | RSRQ                      | -50  | 0               | Set to `Unavailable`    |
-|                 | SINR                      | -30  | 50              | Set to `Unavailable`    |
-|                 | Transmit Power            | -30  | 40              | Set to `Unavailable`    |
-| **Diagnostics** | Signal Bars               | 0    | 5               | Set to `Unavailable`    |
-|                 | Battery                   | 0    | 100             | Set to `Unavailable`    |
-|                 | WiFi Users                | 0    | 255             | Set to `Unavailable`    |
-|                 | Uptime / Connection Time  | 0    | None            | Set to `Unavailable`    |
-| **Data Usage**  | Total / Monthly / Day Use | 0    | 100TB           | Set to `Unavailable`    |
-| **Data Rates**  | Download / Upload Rates   | 0    | 1.25GB/s (10Gb) | Set to `Unavailable`    |
-| **SMS**         | All Message Counts        | 0    | 10000           | Set to `Unavailable`    |
+| Metric Category | Metric Name | Min | Max | Action if Out of Bounds |
+| :-- | :-- | :-- | :-- | :-- |
+| **LTE Signal** | RSRP | -150 | -30 | Set to `Unavailable` |
+|  | RSRQ | -50 | 0 | Set to `Unavailable` |
+|  | RSSI | -120 | -20 | Set to `Unavailable` |
+|  | SINR | -30 | 50 | Set to `Unavailable` |
+|  | Transmit Power | -30 | 40 | Set to `Unavailable` |
+| **5G Signal** | RSRP | -150 | -30 | Set to `Unavailable` |
+|  | RSRQ | -50 | 0 | Set to `Unavailable` |
+|  | SINR | -30 | 50 | Set to `Unavailable` |
+|  | Transmit Power | -30 | 40 | Set to `Unavailable` |
+| **Diagnostics** | Signal Bars | 0 | 5 | Set to `Unavailable` |
+|  | Battery | 0 | 100 | Set to `Unavailable` |
+|  | WiFi Users | 0 | 255 | Set to `Unavailable` |
+|  | Uptime / Connection Time | 0 | None | Set to `Unavailable` |
+| **Data Usage** | Total / Monthly / Day Use | 0 | 100TB | Set to `Unavailable` |
+| **Data Rates** | Download / Upload Rates | 0 | 1.25GB/s (10Gb) | Set to `Unavailable` |
+| **SMS** | All Message Counts | 0 | 10000 | Set to `Unavailable` |
 
 ---
 
