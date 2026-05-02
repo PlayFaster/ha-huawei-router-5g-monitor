@@ -2,6 +2,23 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
+## [1.0.1-dev8] - 2026-05-02
+
+### Added
+- **Immediate Session Retry**: Implemented a seamless retry mechanism in the coordinator. If a session expires mid-fetch, the integration now immediately re-authenticates and retries the fetch within the same cycle, eliminating periodic "session timeout" warnings and data delays.
+
+### Changed
+- **Entity Metadata & Icons**:
+  - Moved **Operator** entity to the **Diagnostic** category.
+  - Set **Signal Bars** as a **Measurement** sensor for better historical tracking.
+  - Corrected scaling for **Secondary Frequency** sensors (divided by 1000 to match primary MHz scaling).
+  - Updated icons for over 35 entities, including new directional icons for 5G bandwidth and messaging icons for SMS Outboxes to ensure proper display in the HA UI.
+
+### Fixed
+- **Frequency Scaling**: Resolved issue where secondary LTE frequency sensors were reporting values 100x higher than valid MHz ranges.
+
+---
+
 ## [1.0.1-dev7] - 2026-05-02
 
 ### Changed

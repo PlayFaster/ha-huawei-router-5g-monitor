@@ -133,6 +133,31 @@ async def test_coordinator_critical_data_guard():
 
 
 @pytest.mark.asyncio
+async def test_coordinator_seamless_retry():
+    """Test that coordinator retries once on HuaweiAuthError."""
+    mock_entry = MagicMock()
+    mock_entry.data = {"model": "Huawei", "mac": "AA:BB:CC"}
+    mock_entry.options = {"scan_interval": 30}
+    mock_api = MagicMock()
+
+    # Fail first, succeed second
+    mock_api.get_data = AsyncMock(
+        side_effect=[
+            HuaweiAuthError("Expired"),
+            {"device_information": {"DeviceName": "Huawei"}},
+        ]
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(MagicMock(), mock_entry, mock_api)
+
+    result = await coordinator._async_update_data()
+
+    assert result["device_information"]["DeviceName"] == "Huawei"
+    assert coordinator.consecutive_failures == 0
+    assert mock_api.get_data.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_coordinator_auth_error_resilience():
     """Test that HuaweiAuthError triggers 3-strike resilience."""
     mock_entry = MagicMock()

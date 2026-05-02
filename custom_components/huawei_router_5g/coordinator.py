@@ -36,7 +36,6 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         scan_interval = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)
 
-
         super().__init__(
             hass,
             _LOGGER,
@@ -57,10 +56,18 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         try:
             async with asyncio.timeout(30):
-                data = await self.api.get_data()
+                try:
+                    data = await self.api.get_data()
+                except HuaweiAuthError:
+                    _LOGGER.debug(
+                        "%s: Session expired mid-fetch, retrying once.",
+                        self.entry.title,
+                    )
+                    data = await self.api.get_data()
 
-                # Critical Data Guard: If essential keys are missing, treat as a fetch failure
-                # rather than a partial success that would clear sensors.
+                # Critical Data Guard: If essential keys are missing, treat as a
+                # fetch failure rather than a partial success that would
+                # clear sensors.
                 if not data or "device_information" not in data:
                     raise UpdateFailed(
                         "Critical data missing from fetch (e.g. device_info)"
@@ -115,7 +122,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             self.consecutive_failures += 1
             if self.data is not None and self.consecutive_failures <= 3:
                 _LOGGER.warning(
-                    "%s: Fetch failed due to %s (failure %d/3), holding last known values.",
+                    "%s: Fetch failed due to %s (failure %d/3), "
+                    "holding last known values.",
                     self.entry.title,
                     "session timeout"
                     if isinstance(err, HuaweiAuthError)
