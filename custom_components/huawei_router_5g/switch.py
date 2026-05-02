@@ -24,7 +24,6 @@ class HuaweiSwitchEntityDescription(SwitchEntityDescription):
 
 PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="pause_polling",
-    name="Pause Polling",
     translation_key="pause_polling",
     icon="mdi:pause-circle-outline",
     entity_category=EntityCategory.CONFIG,
@@ -33,7 +32,6 @@ PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
 
 MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="mobile_data",
-    name="Mobile Data",
     translation_key="mobile_data",
     icon="mdi:signal-4g",
     entity_category=EntityCategory.CONFIG,
@@ -42,7 +40,6 @@ MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
 
 GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="wifi_guest_network",
-    name="Wi-Fi Guest Network",
     translation_key="wifi_guest_network",
     icon="mdi:wifi-lock",
     entity_category=EntityCategory.CONFIG,

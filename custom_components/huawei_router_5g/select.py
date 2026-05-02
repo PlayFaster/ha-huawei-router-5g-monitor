@@ -41,7 +41,7 @@ NETWORK_MODE_INV_MAPPING = {v: k for k, v in NETWORK_MODE_MAPPING.items()}
 SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
     HuaweiSelectEntityDescription(
         key="network_mode",
-        name="Preferred Network Mode",
+        translation_key="network_mode",
         icon="mdi:settings-transfer",
         options=list(NETWORK_MODE_MAPPING.keys()),
         entity_category=EntityCategory.CONFIG,

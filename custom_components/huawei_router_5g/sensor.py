@@ -104,7 +104,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- System Sub-device ---
     HuaweiSensorEntityDescription(
         key="model_name",
-        name="Model Name",
+        translation_key="model_name",
         icon="mdi:router-wireless",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -114,7 +114,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sw_version",
-        name="Software Version",
+        translation_key="sw_version",
         icon="mdi:information-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -124,7 +124,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="last_updated",
-        name="Last Updated",
+        translation_key="last_updated",
         icon="mdi:update",
         device_class=SensorDeviceClass.TIMESTAMP,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -133,7 +133,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wan_ip",
-        name="WAN IP Address",
+        translation_key="wan_ip",
         icon="mdi:ip-network",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -143,7 +143,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wan_ipv6",
-        name="WAN IPv6 Address",
+        translation_key="wan_ipv6",
         icon="mdi:ip-network-outline",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -155,7 +155,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="uptime",
-        name="Uptime Duration",
+        translation_key="uptime",
         native_unit_of_measurement=UnitOfTime.SECONDS,
         device_class=SensorDeviceClass.DURATION,
         icon="mdi:clock-outline",
@@ -171,7 +171,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="uptime_timestamp",
-        name="Uptime",
+        translation_key="uptime_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-check-outline",
         entity_registry_enabled_default=False,
@@ -184,7 +184,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_duration",
-        name="Connection Duration",
+        translation_key="current_connection_duration",
         native_unit_of_measurement=UnitOfTime.SECONDS,
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -200,7 +200,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_timestamp",
-        name="Connection Uptime",
+        translation_key="current_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:link-variant",
         entity_registry_enabled_default=False,
@@ -213,7 +213,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_connection_time",
-        name="Total Duration",
+        translation_key="total_connection_time",
         native_unit_of_measurement=UnitOfTime.SECONDS,
         device_class=SensorDeviceClass.DURATION,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -229,7 +229,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_connection_timestamp",
-        name="Total Uptime",
+        translation_key="total_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:calendar-clock",
         entity_registry_enabled_default=False,
@@ -242,7 +242,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="battery",
-        name="Battery",
+        translation_key="battery",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.BATTERY,
         state_class=SensorStateClass.MEASUREMENT,
@@ -259,7 +259,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wifi_users",
-        name="WiFi Users Connected",
+        translation_key="wifi_users",
         icon="mdi:wifi-check",
         state_class=SensorStateClass.MEASUREMENT,
         group="system",
@@ -274,7 +274,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="primary_dns",
-        name="Primary DNS Server",
+        translation_key="primary_dns",
         icon="mdi:dns",
         group="system",
         value_fn=lambda data: (
@@ -284,7 +284,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="secondary_dns",
-        name="Secondary DNS Server",
+        translation_key="secondary_dns",
         icon="mdi:dns",
         group="system",
         value_fn=lambda data: (
@@ -295,7 +295,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- Signal Sub-device ---
     HuaweiSensorEntityDescription(
         key="network_type",
-        name="Network Type",
+        translation_key="network_type",
         icon="mdi:signal-variant",
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -309,7 +309,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="preferred_network_mode",
-        name="Preferred Network Mode",
+        translation_key="preferred_network_mode",
         icon="mdi:settings-transfer",
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -330,7 +330,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="operator",
-        name="Operator",
+        translation_key="operator",
         icon="mdi:antenna",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="signal",
@@ -340,7 +340,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="plmn",
-        name="Operator Code",
+        translation_key="plmn",
         icon="mdi:barcode",
         group="signal",
         value_fn=lambda data: (
@@ -350,7 +350,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="operator_search_mode",
-        name="Operator Search Mode",
+        translation_key="operator_search_mode",
         icon="mdi:magnify",
         group="signal",
         value_fn=lambda data: (
@@ -364,7 +364,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rsrp",
-        name="LTE RSRP",
+        translation_key="rsrp",
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
@@ -376,7 +376,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rsrq",
-        name="LTE RSRQ",
+        translation_key="rsrq",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:signal-variant",
@@ -387,7 +387,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rssi",
-        name="LTE RSSI",
+        translation_key="rssi",
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
@@ -399,7 +399,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sinr",
-        name="LTE SINR",
+        translation_key="sinr",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:signal-variant",
@@ -410,7 +410,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="signal_bars",
-        name="Signal Bars",
+        translation_key="signal_bars",
         icon="mdi:signal-cellular-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -424,7 +424,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="cell_id",
-        name="LTE Cell ID",
+        translation_key="cell_id",
         icon="mdi:identifier",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "cell_id"),
@@ -432,7 +432,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="pci",
-        name="LTE PCI",
+        translation_key="pci",
         icon="mdi:identifier",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "pci"),
@@ -440,7 +440,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="tac",
-        name="LTE TAC",
+        translation_key="tac",
         icon="mdi:identifier",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "tac"),
@@ -448,7 +448,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="band",
-        name="LTE Band",
+        translation_key="band",
         icon="mdi:radio-tower",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "band"),
@@ -456,7 +456,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="lte_ca",
-        name="LTE Carrier Aggregation",
+        translation_key="lte_ca",
         icon="mdi:plus-network",
         group="signal",
         entity_registry_enabled_default=False,
@@ -467,7 +467,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="mode",
-        name="LTE Mode",
+        translation_key="mode",
         icon="mdi:signal-variant",
         group="signal",
         value_fn=lambda data: {"0": "2G", "2": "3G", "7": "4G"}.get(
@@ -477,7 +477,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="transmit_power",
-        name="LTE Transmit Power",
+        translation_key="transmit_power",
         icon="mdi:transmission-tower",
         group="signal",
         entity_registry_enabled_default=False,
@@ -488,7 +488,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="uplink_mcs",
-        name="LTE Uplink MCS",
+        translation_key="uplink_mcs",
         icon="mdi:numeric",
         group="signal",
         entity_registry_enabled_default=False,
@@ -498,7 +498,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="downlink_mcs",
-        name="LTE Downlink MCS",
+        translation_key="downlink_mcs",
         icon="mdi:numeric",
         group="signal",
         entity_registry_enabled_default=False,
@@ -508,7 +508,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="earfcn",
-        name="LTE EARFCN",
+        translation_key="earfcn",
         icon="mdi:numeric",
         group="signal",
         entity_registry_enabled_default=False,
@@ -518,7 +518,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rrc_status",
-        name="LTE RRC Status",
+        translation_key="rrc_status",
         icon="mdi:state-machine",
         group="signal",
         value_fn=lambda data: (
@@ -532,7 +532,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="ims",
-        name="IMS Status",
+        translation_key="ims",
         icon="mdi:phone-voip",
         group="signal",
         value_fn=lambda data: (
@@ -546,7 +546,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="lte_uplink_frequency",
-        name="LTE Uplink Frequency",
+        translation_key="lte_uplink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
         group="signal",
@@ -556,7 +556,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="lte_downlink_frequency",
-        name="LTE Downlink Frequency",
+        translation_key="lte_downlink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
         group="signal",
@@ -566,7 +566,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="transmission_mode",
-        name="LTE Transmission Mode",
+        translation_key="transmission_mode",
         icon="mdi:transit-connection-variant",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "transmode"),
@@ -574,7 +574,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="enodeb_id",
-        name="eNodeB ID",
+        translation_key="enodeb_id",
         icon="mdi:identifier",
         group="signal",
         min_limit=0,
@@ -583,7 +583,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="cqi_0",
-        name="LTE CQI",
+        translation_key="cqi_0",
         icon="mdi:numeric",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -592,7 +592,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="uplink_frequency",
-        name="LTE Uplink Frequency (Secondary)",
+        translation_key="uplink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
         group="signal",
@@ -605,7 +605,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="downlink_frequency",
-        name="LTE Downlink Frequency (Secondary)",
+        translation_key="downlink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
         group="signal",
@@ -619,7 +619,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # 5G Entities
     HuaweiSensorEntityDescription(
         key="nr5g_band",
-        name="5G NR Band",
+        translation_key="nr5g_band",
         icon="mdi:radio-tower",
         group="signal",
         value_fn=lambda data: v if (v := _get_signal_value(data, "sc_band")) else None,
@@ -627,7 +627,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="nr_rsrp",
-        name="5G RSRP",
+        translation_key="nr_rsrp",
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         device_class=SensorDeviceClass.SIGNAL_STRENGTH,
         state_class=SensorStateClass.MEASUREMENT,
@@ -639,7 +639,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="nr_rsrq",
-        name="5G RSRQ",
+        translation_key="nr_rsrq",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:signal-5g",
@@ -650,7 +650,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="nr_sinr",
-        name="5G SINR",
+        translation_key="nr_sinr",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:signal-5g",
@@ -661,7 +661,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_uplink_bandwidth",
-        name="5G Uplink Bandwidth",
+        translation_key="5g_uplink_bandwidth",
         native_unit_of_measurement="MHz",
         icon="mdi:transfer-up",
         group="signal",
@@ -673,7 +673,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_downlink_bandwidth",
-        name="5G Downlink Bandwidth",
+        translation_key="5g_downlink_bandwidth",
         native_unit_of_measurement="MHz",
         icon="mdi:transfer-down",
         group="signal",
@@ -685,7 +685,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_uplink_mcs",
-        name="5G Uplink MCS",
+        translation_key="5g_uplink_mcs",
         icon="mdi:numeric",
         group="signal",
         entity_registry_enabled_default=False,
@@ -695,7 +695,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_downlink_mcs",
-        name="5G Downlink MCS",
+        translation_key="5g_downlink_mcs",
         icon="mdi:numeric",
         group="signal",
         entity_registry_enabled_default=False,
@@ -705,7 +705,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_transmit_power",
-        name="5G Transmit Power",
+        translation_key="5g_transmit_power",
         icon="mdi:transmission-tower",
         group="signal",
         entity_registry_enabled_default=False,
@@ -716,7 +716,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_earfcn",
-        name="5G EARFCN",
+        translation_key="5g_earfcn",
         icon="mdi:numeric",
         group="signal",
         min_limit=0,
@@ -725,7 +725,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_block_error_rate",
-        name="5G Block Error Rate",
+        translation_key="5g_block_error_rate",
         icon="mdi:chart-bell-curve",
         group="signal",
         min_limit=0,
@@ -734,7 +734,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_rank",
-        name="5G Rank",
+        translation_key="5g_rank",
         icon="mdi:numeric",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -744,7 +744,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_cqi_0",
-        name="5G CQI",
+        translation_key="5g_cqi_0",
         icon="mdi:numeric",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -755,7 +755,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- Data Sub-device ---
     HuaweiSensorEntityDescription(
         key="total_download",
-        name="Total Download",
+        translation_key="total_download",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -771,7 +771,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_upload",
-        name="Total Upload",
+        translation_key="total_upload",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -787,7 +787,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_data",
-        name="Total Data",
+        translation_key="total_data",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -808,7 +808,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_download_rate",
-        name="Download Rate",
+        translation_key="current_download_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -824,7 +824,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_upload_rate",
-        name="Upload Rate",
+        translation_key="current_upload_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -840,7 +840,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="max_download_rate",
-        name="Max Download Rate",
+        translation_key="max_download_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -856,7 +856,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="max_upload_rate",
-        name="Max Upload Rate",
+        translation_key="max_upload_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         device_class=SensorDeviceClass.DATA_RATE,
         state_class=SensorStateClass.MEASUREMENT,
@@ -872,7 +872,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_upload",
-        name="Connection Upload",
+        translation_key="current_connection_upload",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -888,7 +888,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_download",
-        name="Connection Download",
+        translation_key="current_connection_download",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL_INCREASING,
@@ -904,7 +904,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_day_used",
-        name="Day Used",
+        translation_key="current_day_used",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL,
@@ -920,7 +920,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_download",
-        name="Month Download",
+        translation_key="month_download",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL,
@@ -936,7 +936,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_download_gb",
-        name="Month Download (GB)",
+        translation_key="month_download_gb",
         native_unit_of_measurement=UnitOfInformation.GIGABYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL,
@@ -956,7 +956,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_upload",
-        name="Month Upload",
+        translation_key="month_upload",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL,
@@ -972,7 +972,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_upload_gb",
-        name="Month Upload (GB)",
+        translation_key="month_upload_gb",
         native_unit_of_measurement=UnitOfInformation.GIGABYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL,
@@ -992,7 +992,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_total",
-        name="Month Total",
+        translation_key="month_total",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
         state_class=SensorStateClass.TOTAL,
@@ -1020,7 +1020,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- SMS Sub-device ---
     HuaweiSensorEntityDescription(
         key="sms_unread",
-        name="SMS Unread",
+        translation_key="sms_unread",
         icon="mdi:message-alert",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1035,7 +1035,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_total",
-        name="SMS Total (Device)",
+        translation_key="sms_total",
         icon="mdi:message-text",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1052,7 +1052,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_unread_device",
-        name="SMS Unread (Device)",
+        translation_key="sms_unread_device",
         icon="mdi:message-alert",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1065,7 +1065,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_inbox_device",
-        name="SMS Inbox (Device)",
+        translation_key="sms_inbox_device",
         icon="mdi:message-text",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1078,7 +1078,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_outbox_device",
-        name="SMS Outbox (Device)",
+        translation_key="sms_outbox_device",
         icon="mdi:message-alert-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1091,7 +1091,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_drafts_device",
-        name="SMS Drafts (Device)",
+        translation_key="sms_drafts_device",
         icon="mdi:message-draw",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1104,7 +1104,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_deleted_device",
-        name="SMS Deleted (Device)",
+        translation_key="sms_deleted_device",
         icon="mdi:message-minus",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1117,7 +1117,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_capacity_device",
-        name="SMS Capacity (Device)",
+        translation_key="sms_capacity_device",
         icon="mdi:message-settings",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1130,7 +1130,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_unread_sim",
-        name="SMS Unread (SIM)",
+        translation_key="sms_unread_sim",
         icon="mdi:message-alert-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1143,7 +1143,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_inbox_sim",
-        name="SMS Inbox (SIM)",
+        translation_key="sms_inbox_sim",
         icon="mdi:message-text-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1156,7 +1156,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_outbox_sim",
-        name="SMS Outbox (SIM)",
+        translation_key="sms_outbox_sim",
         icon="mdi:message-alert-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1169,7 +1169,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_drafts_sim",
-        name="SMS Drafts (SIM)",
+        translation_key="sms_drafts_sim",
         icon="mdi:email-edit-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1182,7 +1182,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_capacity_sim",
-        name="SMS Capacity (SIM)",
+        translation_key="sms_capacity_sim",
         icon="mdi:message-settings-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1195,7 +1195,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_messages_sim",
-        name="SMS Messages (SIM)",
+        translation_key="sms_messages_sim",
         icon="mdi:message-text-outline",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1208,7 +1208,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_new",
-        name="SMS New",
+        translation_key="sms_new",
         icon="mdi:message-plus",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1220,7 +1220,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="last_sms",
-        name="Last SMS",
+        translation_key="last_sms",
         icon="mdi:message-text-clock",
         group="sms",
         value_fn=lambda data: None,  # Handled by property

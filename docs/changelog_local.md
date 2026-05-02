@@ -2,6 +2,21 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
+## [1.0.1-dev13] - 2026-05-02
+
+### Added
+- **Full Translation Coverage (Option C)**:
+    - Expanded `strings.json` and `en.json` to include 100% of the integration's entities (101 total).
+    - Achieved compatibility with IQS Gold-tier naming standards.
+
+### Changed
+- **Entity Naming Refactor**:
+    - Removed all hardcoded `name` parameters from `sensor.py`, `binary_sensor.py`, `select.py`, and `switch.py`.
+    - Implemented `translation_key` across all platforms to enable native Home Assistant translation and dynamic naming.
+    - Standardized `sms_total` as "SMS Total (Device)" in translations.
+
+---
+
 ## [1.0.1-dev12] - 2026-05-02
 
 ### Changed

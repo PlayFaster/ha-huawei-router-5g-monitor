@@ -41,7 +41,7 @@ SMS_STORAGE_FULL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 WIFI_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="wifi_status",
-    name="WiFi Status",
+    translation_key="wifi_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
     group="system",
@@ -49,7 +49,7 @@ WIFI_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 WIFI_24G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="wifi24g_status",
-    name="WiFi 2.4GHz Status",
+    translation_key="wifi24g_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
     group="system",
@@ -57,7 +57,7 @@ WIFI_24G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 WIFI_5G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="wifi5g_status",
-    name="WiFi 5GHz Status",
+    translation_key="wifi5g_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
     group="system",
@@ -65,7 +65,7 @@ WIFI_5G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 MOBILE_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="mobile_connection",
-    name="Mobile Connection",
+    translation_key="mobile_connection",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
     group="signal",
