@@ -13,8 +13,8 @@ The integration follows the standard Home Assistant Custom Component pattern, op
 - **`api.py`**: Async wrapper for `huawei-lte-api`. Handles authentication (including session/token management), XML parsing, and safe execution of blocking library calls in the HA executor.
 - **`coordinator.py`**: Specialized `DataUpdateCoordinator` implementation. Centralizes polling logic to ensure efficient data retrieval across multiple API endpoints (Signal, Traffic, SMS, LAN Clients). Includes the "3-strike" glitch protection rule.
 - **`__init__.py`**: Manages the integration lifecycle (setup/unload). Implements background initialization to ensure a 0ms impact on Home Assistant startup time.
-- **`sensor.py`**: Defines 80+ entities using declarative `value_fn` callbacks. Handles complex unit conversions (e.g., Duration to ISO Timestamp) and applies guard bands.
-- **`binary_sensor.py`**: Maps boolean states such as connection status and unread SMS presence.
+- **`sensor.py`**: Defines 100+ entities using declarative `value_fn` callbacks. Handles complex unit conversions (e.g., Duration to ISO Timestamp) and applies guard bands.
+- **`binary_sensor.py`**: Maps boolean states such as connection status, LTE carrier aggregation, and unread SMS presence.
 - **`switch.py`**: Implements "Pause Polling" to stop API calls without disabling the integration.
 - **`button.py`**: Triggers stateless actions such as Reboot and Clear SMS.
 - **`number.py`**: Provides UI control over the refresh interval with persistent storage in `ConfigEntry` options.
@@ -58,6 +58,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Long-Term Statistics Alignment**: Consistent use of `state_class` (`MEASUREMENT`, `TOTAL`, `TOTAL_INCREASING`) across volume, duration, and signal metrics to ensure high-quality historical data and compatibility with Home Assistant's Energy and Statistics dashboards.
 - **Abstracted Select Mappings**: Utilizing internal mapping dictionaries in `select.py` to decouple technical API codes from user-friendly UI labels, ensuring a professional configuration experience without exposing protocol-level strings.
 - **Entity Category Optimization**: Strategically utilizing `EntityCategory.DIAGNOSTIC` for granular infrastructure metrics (e.g., secondary frequency bands, per-bank SMS capacity) while keeping actionable or highly readable metrics (e.g., Signal Bars, SMS Unread) in the primary entity list to balance depth with UI cleanliness.
+- **Multi-Stage Quality Gate Pattern**: The `best_connection` binary sensor demonstrates deriving a stable composite quality indicator from multiple metrics rather than a single API field. A 3-stage AND gate (NR band assignment → LTE anchor health → 5G leg health) using OR-of-thresholds within each stage prevents false negatives when individual metrics are borderline. This pattern is robust to the H165-383's `network_type` reporting `"LTE"` even in active NSA 5G mode, and to `sc_band` returning null. Documented in `docs/best_connection_logic.md`.
 
 ## 5. Technical Pitfalls & Fixes
 
@@ -73,6 +74,8 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Implemented `parse_signal_value` helper in `helpers.py` to strip these suffixes before numeric conversion across all platforms.
 - **MAC Address Stability**: Some routers report MAC addresses with or without colons.
   - _Fix_: Normalized all MAC identifiers to a consistent lowercase, colon-less format for use in `unique_id`.
+- **Numeric vs. Multi-Carrier Ambiguity (v1.0.1-dev16)**: Standard numeric parsers like `parse_signal_value` are designed to extract the *first* number found. This is dangerous for multi-carrier strings (e.g., `DL:500 UL:18500`) as it causes "partial-parsing" where only the first value is captured and the rest is discarded.
+  - _Fix_: Implemented complexity detection in `helpers.py`. If a string contains colons or multiple segments, the parser bypasses numeric conversion entirely and returns the full raw string, preserving technical fidelity.
 - **Background Task Mocking**: Standard tests can fail if background tasks aren't properly awaited.
   - _Fix_: Ensured all tests use `hass.async_block_till_done()` after setup to catch initialization tasks.
 - **SMS API Parameter Constraints (v1.0.1-dev15)**: Modern 5G firmware is highly sensitive to the XML payload sent to `get_sms_list`. Including optional parameters like `sort_type` or `unread_preferred` can cause the router to reject the request with a "System Error" (110001) or return empty results.
@@ -83,6 +86,12 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Explicitly import and utilize the library's Enum definitions for all box selection logic.
 - **Invalid API Key Mismatch**: Technical storage metrics (e.g., `LocalInbox`, `SimInbox`) are often used in documentation but do not exist in the actual `sms_count` response for many models.
   - _Fix_: Corrected mappings to sum physical counters: `Inbox = Read + Unread`, `Outbox = Outbox + Sent`.
+- **LTE Frequency Scaling Error (v1.0.1-dev18)**: The `lteulfreq` and `ltedlfreq` API fields are in **10ths of MHz** (e.g., raw 19700 = 1970 MHz), not 100ths. The initial `/100` divisor produced values 10× too small (e.g., 197 MHz instead of 1970 MHz).
+  - _Fix_: Changed the `format_freq_mhz` helper divisor from `/100` to `/10`.
+- **LTE Bandwidth Field Misidentification (v1.0.1-dev18)**: The `ulfrequency` and `dlfrequency` API fields are **carrier frequency fields in kHz** (e.g., 1970000 kHz = 1970 MHz), not bandwidth fields. Mapping them to bandwidth sensors produced 1970/2160 MHz instead of the correct 20 MHz. The correct bandwidth fields are `ulbandwidth` and `dlbandwidth`, which return the channel width directly in MHz (no scaling required), matching the pattern already used by the 5G bandwidth sensors (`nrulbandwidth`/`nrdlbandwidth`). The repurposed kHz fields are now correctly used by the new LTE Uplink/Downlink Frequency (Secondary) sensors.
+  - _Fix_: Changed bandwidth sensors to read `ulbandwidth`/`dlbandwidth` with no scaling. Added secondary frequency sensors reading `ulfrequency`/`dlfrequency` via `format_khz_to_mhz` (÷1000).
+- **LTE CA and 5G NR Band API Fields Absent (v1.0.1-dev18)**: On the H165-383 router, the dedicated `lte_ca` and `sc_band` API fields return null, causing both entities to permanently report "unknown". The required data is present but embedded in the composite `band` string (e.g., `"20MHz@500(B1) + 15MHz@1875(B3) + 10MHz@152690(N28)"`).
+  - _Fix_: Replaced both with band-string parsers. `nr5g_band` (sensor) extracts the `(NXX)` label from the last carrier segment. `lte_ca` was also converted from a string-valued sensor ("enabled"/"disabled") to a proper **binary sensor** (ON/OFF) — the underlying value is inherently boolean (`"+" in band`), and `binary_sensor` is the correct HA platform for this state.
 
 ## 6. Environment Constraints
 

@@ -16,9 +16,7 @@ def test_network_mode_select_current_option(mock_coordinator, mock_config_entry)
     """Test current option mapping."""
     # Mapping for '00' is 'Auto'
     mock_coordinator.data = {"net_mode": {"NetworkMode": "00"}}
-    select = HuaweiRouterSelect(
-        mock_coordinator, SELECTS[0]
-    )
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
     assert select.current_option == "Auto"
 
     # Mapping for '03' is '4G Only'
@@ -29,18 +27,14 @@ def test_network_mode_select_current_option(mock_coordinator, mock_config_entry)
 def test_network_mode_select_none_when_missing(mock_coordinator, mock_config_entry):
     """Test current option when data is missing."""
     mock_coordinator.data = {}
-    select = HuaweiRouterSelect(
-        mock_coordinator, SELECTS[0]
-    )
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
     assert select.current_option is None
 
 
 @pytest.mark.asyncio
 async def test_network_mode_select_option(mock_coordinator, mock_config_entry):
     """Test selecting an option."""
-    select = HuaweiRouterSelect(
-        mock_coordinator, SELECTS[0]
-    )
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
     mock_coordinator.api.set_net_mode = AsyncMock()
 
     await select.async_select_option("4G Only")

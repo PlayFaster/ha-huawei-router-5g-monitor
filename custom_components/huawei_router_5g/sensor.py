@@ -29,7 +29,8 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
-    _safe_float,
+    _parse_complex_float,
+    _parse_complex_int,
     _safe_int,
     get_network_type_label,
     parse_signal_value,
@@ -60,13 +61,13 @@ def format_ipv6(value: Any) -> Any:
 
 
 def format_freq_mhz(value: Any) -> float | None:
-    """Format frequency in MHz (input is in tenths of MHz)."""
+    """Convert frequency to MHz (input is in 10ths of MHz, i.e. lteulfreq/ltedlfreq)."""
     f_val = parse_signal_value(value)
     return f_val / 10 if f_val is not None else None
 
 
-def format_freq_secondary_mhz(value: Any) -> float | None:
-    """Format secondary frequency in MHz (input is in thousandths of MHz)."""
+def format_khz_to_mhz(value: Any) -> float | None:
+    """Convert frequency from kHz to MHz (used for ulfrequency/dlfrequency fields)."""
     f_val = parse_signal_value(value)
     return f_val / 1000 if f_val is not None else None
 
@@ -76,6 +77,20 @@ def _get_signal_value(data: dict | None, key: str) -> Any:
     if data is None:
         return None
     return data.get("device_signal", {}).get(key)
+
+
+def _parse_nr_band_from_band(band: str | None) -> str | None:
+    """Parse 5G NR band label from composite band string, e.g. returns 'N28'."""
+    if not band or not isinstance(band, str):
+        return None
+    for segment in band.split("+"):
+        seg = segment.strip()
+        if "(N" in seg:
+            start = seg.rfind("(N") + 1
+            end = seg.rfind(")")
+            if start > 0 and end > start:
+                return seg[start:end]
+    return None
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -172,7 +187,6 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="uptime_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:clock-check-outline",
-        entity_registry_enabled_default=False,
         group="system",
         value_fn=lambda data: (
             _get_timestamp(data.get("device_information", {}).get("uptime"))
@@ -201,7 +215,6 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="current_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:link-variant",
-        entity_registry_enabled_default=False,
         group="system",
         value_fn=lambda data: (
             _get_timestamp(data.get("traffic_statistics", {}).get("CurrentConnectTime"))
@@ -230,7 +243,6 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="total_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         icon="mdi:calendar-clock",
-        entity_registry_enabled_default=False,
         group="system",
         value_fn=lambda data: (
             _get_timestamp(data.get("traffic_statistics", {}).get("TotalConnectTime"))
@@ -453,17 +465,6 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
-        key="lte_ca",
-        translation_key="lte_ca",
-        icon="mdi:plus-network",
-        group="signal",
-        entity_registry_enabled_default=False,
-        value_fn=lambda data: (
-            "enabled" if str(_get_signal_value(data, "lte_ca")) == "1" else "disabled"
-        ),
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    HuaweiSensorEntityDescription(
         key="mode",
         translation_key="mode",
         icon="mdi:signal-variant",
@@ -478,10 +479,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="transmit_power",
         icon="mdi:transmission-tower",
         group="signal",
-        entity_registry_enabled_default=False,
-        min_limit=-30,
-        max_limit=40,
-        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "txpower")),
+        value_fn=lambda data: _parse_complex_float(_get_signal_value(data, "txpower")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -489,9 +487,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="uplink_mcs",
         icon="mdi:numeric",
         group="signal",
-        entity_registry_enabled_default=False,
-        min_limit=0,
-        value_fn=lambda data: _safe_int(_get_signal_value(data, "ul_mcs")),
+        value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "ul_mcs")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -499,9 +495,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="downlink_mcs",
         icon="mdi:numeric",
         group="signal",
-        entity_registry_enabled_default=False,
-        min_limit=0,
-        value_fn=lambda data: _safe_int(_get_signal_value(data, "dl_mcs")),
+        value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "dl_mcs")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -509,9 +503,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="earfcn",
         icon="mdi:numeric",
         group="signal",
-        entity_registry_enabled_default=False,
-        min_limit=0,
-        value_fn=lambda data: _safe_int(_get_signal_value(data, "earfcn")),
+        value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "earfcn")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -547,6 +539,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="lte_uplink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
         value_fn=lambda data: format_freq_mhz(_get_signal_value(data, "lteulfreq")),
@@ -557,10 +550,37 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="lte_downlink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
         value_fn=lambda data: format_freq_mhz(_get_signal_value(data, "ltedlfreq")),
         entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    HuaweiSensorEntityDescription(
+        key="lte_uplink_bandwidth",
+        translation_key="lte_uplink_bandwidth",
+        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
+        device_class=SensorDeviceClass.FREQUENCY,
+        icon="mdi:transfer-up",
+        group="signal",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        min_limit=0,
+        value_fn=lambda data: parse_signal_value(
+            _get_signal_value(data, "ulbandwidth")
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="lte_downlink_bandwidth",
+        translation_key="lte_downlink_bandwidth",
+        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
+        device_class=SensorDeviceClass.FREQUENCY,
+        icon="mdi:transfer-down",
+        group="signal",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        min_limit=0,
+        value_fn=lambda data: parse_signal_value(
+            _get_signal_value(data, "dlbandwidth")
+        ),
     ),
     HuaweiSensorEntityDescription(
         key="transmission_mode",
@@ -593,12 +613,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="uplink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        icon="mdi:radio-tower",
         group="signal",
-        entity_registry_enabled_default=False,
         min_limit=0,
-        value_fn=lambda data: format_freq_secondary_mhz(
-            _get_signal_value(data, "ulfrequency")
-        ),
+        value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "ulfrequency")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -606,12 +624,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="downlink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        icon="mdi:radio-tower",
         group="signal",
-        entity_registry_enabled_default=False,
         min_limit=0,
-        value_fn=lambda data: format_freq_secondary_mhz(
-            _get_signal_value(data, "dlfrequency")
-        ),
+        value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "dlfrequency")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # 5G Entities
@@ -620,7 +636,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="nr5g_band",
         icon="mdi:radio-tower",
         group="signal",
-        value_fn=lambda data: v if (v := _get_signal_value(data, "sc_band")) else None,
+        value_fn=lambda data: _parse_nr_band_from_band(_get_signal_value(data, "band")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -686,9 +702,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="5g_uplink_mcs",
         icon="mdi:numeric",
         group="signal",
-        entity_registry_enabled_default=False,
-        min_limit=0,
-        value_fn=lambda data: _safe_int(_get_signal_value(data, "nrulmcs")),
+        value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "nrulmcs")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -696,9 +710,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="5g_downlink_mcs",
         icon="mdi:numeric",
         group="signal",
-        entity_registry_enabled_default=False,
-        min_limit=0,
-        value_fn=lambda data: _safe_int(_get_signal_value(data, "nrdlmcs")),
+        value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "nrdlmcs")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -706,10 +718,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="5g_transmit_power",
         icon="mdi:transmission-tower",
         group="signal",
-        entity_registry_enabled_default=False,
-        min_limit=-30,
-        max_limit=40,
-        value_fn=lambda data: parse_signal_value(_get_signal_value(data, "nrtxpower")),
+        value_fn=lambda data: _parse_complex_float(
+            _get_signal_value(data, "nrtxpower")
+        ),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -717,8 +728,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="5g_earfcn",
         icon="mdi:numeric",
         group="signal",
-        min_limit=0,
-        value_fn=lambda data: _safe_int(_get_signal_value(data, "nrearfcn")),
+        value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "nrearfcn")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -844,6 +854,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:arrow-down-bold-outline",
         group="data",
+        entity_registry_enabled_default=False,
         min_limit=0,
         max_limit=1250000000,
         value_fn=lambda data: (
@@ -860,6 +871,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:arrow-up-bold-outline",
         group="data",
+        entity_registry_enabled_default=False,
         min_limit=0,
         max_limit=1250000000,
         value_fn=lambda data: (
@@ -1040,10 +1052,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         min_limit=0,
         max_limit=10000,
         value_fn=lambda data: (
-            (_safe_int(data.get("sms_count", {}).get("LocalUnread")) or 0)
-            + (_safe_int(data.get("sms_count", {}).get("LocalRead")) or 0)
+            (_safe_int(data.get("sms_count", {}).get("LocalInbox")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("LocalOutbox")) or 0)
-            + (_safe_int(data.get("sms_count", {}).get("LocalSent")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("LocalDraft")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("SimUsed")) or 0)
             if data and data.get("sms_count")
@@ -1059,10 +1069,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         min_limit=0,
         max_limit=10000,
         value_fn=lambda data: (
-            (_safe_int(data.get("sms_count", {}).get("LocalUnread")) or 0)
-            + (_safe_int(data.get("sms_count", {}).get("LocalRead")) or 0)
+            (_safe_int(data.get("sms_count", {}).get("LocalInbox")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("LocalOutbox")) or 0)
-            + (_safe_int(data.get("sms_count", {}).get("LocalSent")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("LocalDraft")) or 0)
             if data and data.get("sms_count")
             else None
@@ -1091,10 +1099,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         min_limit=0,
         max_limit=10000,
         value_fn=lambda data: (
-            (_safe_int(data.get("sms_count", {}).get("LocalUnread")) or 0)
-            + (_safe_int(data.get("sms_count", {}).get("LocalRead")) or 0)
-            if data and data.get("sms_count")
-            else None
+            _safe_int(data.get("sms_count", {}).get("LocalInbox")) if data else None
         ),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -1172,10 +1177,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         min_limit=0,
         max_limit=10000,
         value_fn=lambda data: (
-            (_safe_int(data.get("sms_count", {}).get("SimUnread")) or 0)
-            + (_safe_int(data.get("sms_count", {}).get("SimRead")) or 0)
-            if data and data.get("sms_count")
-            else None
+            _safe_int(data.get("sms_count", {}).get("SimInbox")) if data else None
         ),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),

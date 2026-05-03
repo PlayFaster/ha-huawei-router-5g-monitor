@@ -13,7 +13,7 @@ from homeassistant.const import UnitOfTime
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL, DOMAIN
+from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
 

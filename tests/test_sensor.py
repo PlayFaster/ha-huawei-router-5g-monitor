@@ -226,18 +226,43 @@ def test_sensor_sms_unread(mock_coordinator, mock_config_entry):
 
 
 def test_sensor_sms_total(mock_coordinator, mock_config_entry):
-    """Test total SMS sums local read/unread/sent/draft."""
+    """Test total SMS sums local inbox/outbox/draft."""
     mock_coordinator.data = {
         "sms_count": {
-            "LocalUnread": "2",
-            "LocalRead": "8",
-            "LocalSent": "3",
+            "LocalInbox": "10",
+            "LocalOutbox": "3",
             "LocalDraft": "1",
         }
     }
     desc = next(d for d in SENSOR_TYPES if d.key == "sms_total")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 14
+
+
+def test_sensor_lte_bandwidth(mock_coordinator, mock_config_entry):
+    """Test LTE bandwidth parsing."""
+    mock_coordinator.data = {"device_signal": {"dlbandwidth": "20.0 MHz", "ulbandwidth": "15.0 MHz"}}
+    
+    desc_dl = next(d for d in SENSOR_TYPES if d.key == "downlink_bandwidth")
+    sensor_dl = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_dl)
+    assert sensor_dl.native_value == 20.0
+    
+    desc_ul = next(d for d in SENSOR_TYPES if d.key == "uplink_bandwidth")
+    sensor_ul = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_ul)
+    assert sensor_ul.native_value == 15.0
+
+
+def test_sensor_lte_frequency(mock_coordinator, mock_config_entry):
+    """Test LTE frequency parsing."""
+    mock_coordinator.data = {"device_signal": {"dlfrequency": "21600", "ulfrequency": "19700"}}
+    
+    desc_dl = next(d for d in SENSOR_TYPES if d.key == "downlink_frequency")
+    sensor_dl = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_dl)
+    assert sensor_dl.native_value == 21.6
+    
+    desc_ul = next(d for d in SENSOR_TYPES if d.key == "uplink_frequency")
+    sensor_ul = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_ul)
+    assert sensor_ul.native_value == 19.7
 
 
 def test_sensor_sms_total_attributes(mock_coordinator, mock_config_entry):

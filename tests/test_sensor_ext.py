@@ -20,6 +20,7 @@ def test_safe_float():
     assert parse_signal_value("unknown") is None
     assert parse_signal_value(None) is None
 
+
 def test_sensor_guard_bands(mock_coordinator, mock_config_entry):
     """Test that guard bands correctly filter values."""
     desc = HuaweiSensorEntityDescription(
@@ -27,7 +28,7 @@ def test_sensor_guard_bands(mock_coordinator, mock_config_entry):
         name="Test Sensor",
         min_limit=-100,
         max_limit=100,
-        value_fn=lambda data: data.get("val")
+        value_fn=lambda data: data.get("val"),
     )
 
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
@@ -48,9 +49,11 @@ def test_sensor_guard_bands(mock_coordinator, mock_config_entry):
     mock_coordinator.data = {"val": "not_a_number"}
     assert sensor.native_value == "not_a_number"
 
+
 def test_sensor_timestamp_rounding(mock_coordinator, mock_config_entry):
     """Test timestamp rounding logic."""
     from datetime import datetime, timedelta
+
     # 12:00:00 UTC
     now = datetime(2026, 5, 2, 12, 0, 0, tzinfo=UTC)
 

@@ -72,7 +72,6 @@
       "pci": { "name": "LTE PCI" },
       "tac": { "name": "LTE TAC" },
       "band": { "name": "LTE Band" },
-      "lte_ca": { "name": "LTE Carrier Aggregation" },
       "mode": { "name": "LTE Mode" },
       "transmit_power": { "name": "LTE Transmit Power" },
       "uplink_mcs": { "name": "LTE Uplink MCS" },
@@ -85,6 +84,8 @@
       "transmission_mode": { "name": "LTE Transmission Mode" },
       "enodeb_id": { "name": "eNodeB ID" },
       "cqi_0": { "name": "LTE CQI" },
+      "lte_uplink_bandwidth": { "name": "LTE Uplink Bandwidth" },
+      "lte_downlink_bandwidth": { "name": "LTE Downlink Bandwidth" },
       "uplink_frequency": { "name": "LTE Uplink Frequency (Secondary)" },
       "downlink_frequency": { "name": "LTE Downlink Frequency (Secondary)" },
       "nr5g_band": { "name": "5G NR Band" },
@@ -138,12 +139,13 @@
       "clear_traffic": { "name": "Clear Traffic Statistics" }
     },
     "binary_sensor": {
-      "best_connection": { "name": "5G NR Active" },
+      "best_connection": { "name": "Best Connection" },
       "sms_storage_full": { "name": "SMS Storage Full" },
       "wifi_status": { "name": "WiFi Status" },
       "wifi24g_status": { "name": "WiFi 2.4GHz Status" },
       "wifi5g_status": { "name": "WiFi 5GHz Status" },
-      "mobile_connection": { "name": "Mobile Connection" }
+      "mobile_connection": { "name": "Mobile Connection" },
+      "lte_ca": { "name": "LTE Carrier Aggregation" }
     },
     "switch": {
       "pause_polling": { "name": "Pause Polling" },

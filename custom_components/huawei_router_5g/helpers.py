@@ -101,6 +101,35 @@ def _safe_float(val: Any) -> float | None:
     return parse_signal_value(val)
 
 
+def _parse_complex_int(val: Any) -> Any:
+    """Parse as int if simple number, otherwise return raw string."""
+    if val in (None, "", "N/A", "--"):
+        return None
+    s_val = str(val).strip()
+    # If it contains colons or multiple numbers, it's complex - return raw
+    if ":" in s_val or len(s_val.split()) > 1:
+        return s_val
+    try:
+        f_val = parse_signal_value(s_val)
+        if f_val is not None:
+            return int(f_val)
+    except (ValueError, TypeError):
+        pass
+    return s_val
+
+
+def _parse_complex_float(val: Any) -> Any:
+    """Parse as float if simple number, otherwise return raw string."""
+    if val in (None, "", "N/A", "--"):
+        return None
+    s_val = str(val).strip()
+    # If it contains colons or multiple numbers, it's complex - return raw
+    if ":" in s_val or len(s_val.split()) > 1:
+        return s_val
+    f_val = parse_signal_value(s_val)
+    return f_val if f_val is not None else s_val
+
+
 def get_network_type_label(code: str | None) -> str | None:
     """Map a Huawei CurrentNetworkType code to a human-readable label."""
     if code is None:

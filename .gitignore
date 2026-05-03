@@ -51,3 +51,4 @@ loc_only/
 *.gptcache
 .geminignore
 .aiexclude
+.aider*

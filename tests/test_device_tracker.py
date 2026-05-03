@@ -4,7 +4,6 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.device_tracker import (
     HuaweiRouterDeviceTracker,
     async_setup_entry,
@@ -13,9 +12,7 @@ from custom_components.huawei_router_5g.device_tracker import (
 
 def test_device_tracker_properties(mock_coordinator, mock_config_entry):
     """Test client tracking properties."""
-    tracker = HuaweiRouterDeviceTracker(
-        mock_coordinator, "AA:BB:CC:DD:EE:01"
-    )
+    tracker = HuaweiRouterDeviceTracker(mock_coordinator, "AA:BB:CC:DD:EE:01")
 
     mock_coordinator.data = {
         "lan_host_info": {
@@ -42,9 +39,7 @@ def test_device_tracker_properties(mock_coordinator, mock_config_entry):
 
 def test_device_tracker_update_state(mock_coordinator, mock_config_entry):
     """Test updating client state from coordinator data."""
-    tracker = HuaweiRouterDeviceTracker(
-        mock_coordinator, "AA:BB:CC:DD:EE:01"
-    )
+    tracker = HuaweiRouterDeviceTracker(mock_coordinator, "AA:BB:CC:DD:EE:01")
 
     # Simulate coordinator data update where client becomes inactive
     mock_coordinator.data = {
@@ -75,7 +70,9 @@ async def test_device_tracker_setup_entry():
     coordinator = MagicMock()
     coordinator.entry = entry
     coordinator.data = {
-        "lan_host_info": {"Hosts": {"Host": [{"MacAddress": "AA:BB:CC:DD:EE:01", "Active": "1"}]}},
+        "lan_host_info": {
+            "Hosts": {"Host": [{"MacAddress": "AA:BB:CC:DD:EE:01", "Active": "1"}]}
+        },
         "wlan_host_list": {"Hosts": {"Host": []}},
     }
     entry.runtime_data = coordinator

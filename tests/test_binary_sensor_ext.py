@@ -1,7 +1,5 @@
 """Additional tests for the Huawei Router 5G binary sensor platform."""
 
-
-
 from custom_components.huawei_router_5g.binary_sensor import (
     WIFI_5G_STATUS_DESCRIPTION,
     WIFI_24G_STATUS_DESCRIPTION,

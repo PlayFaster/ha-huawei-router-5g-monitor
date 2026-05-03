@@ -9,7 +9,6 @@ from homeassistant.components.select import SelectEntity, SelectEntityDescriptio
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
 

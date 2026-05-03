@@ -8,7 +8,7 @@ from homeassistant.components.switch import SwitchEntity, SwitchEntityDescriptio
 from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_STOP_POLLING, DOMAIN
+from .const import CONF_STOP_POLLING
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
 

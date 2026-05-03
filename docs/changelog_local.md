@@ -2,20 +2,57 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
+## [1.0.1-dev18] - 2026-05-03
+
+### Added
+
+- **LTE Uplink/Downlink Frequency (Secondary) sensors**: New diagnostic sensors (`uplink_frequency`, `downlink_frequency`) reading the `ulfrequency`/`dlfrequency` API fields (raw kHz, scaled ÷1000 to MHz). These expose the same carrier frequency as the primary sensors via a different API path, useful for cross-validation.
+
+### Fixed
+
+- **LTE Frequency sensors 10× too low**: `LTE Uplink Frequency` and `LTE Downlink Frequency` were reporting 197 MHz / 216 MHz instead of the correct ~1970 MHz / ~2160 MHz. Root cause: the `lteulfreq`/`ltedlfreq` fields are in 10ths of MHz; the `format_freq_mhz` helper was dividing by 100 instead of 10.
+- **LTE Bandwidth sensors reporting frequency instead of bandwidth**: `LTE Uplink Bandwidth` and `LTE Downlink Bandwidth` were showing ~1970 MHz / ~2160 MHz instead of the correct 20 MHz. Root cause: sensors were reading the `ulfrequency`/`dlfrequency` fields (carrier frequency in kHz) rather than the correct `ulbandwidth`/`dlbandwidth` fields (channel width in MHz, no scaling required).
+- **LTE Carrier Aggregation always "unknown"**: The `lte_ca` API field returns null on the H165-383. Sensor now derives CA status from the composite `band` string by detecting `+` separators between carrier entries.
+- **5G NR Band always "unknown"**: The `sc_band` API field returns null on the H165-383. Sensor now parses the NR band label (e.g., `N28`) from the `(NXX)` segment in the composite `band` string.
+
+### Changed
+
+- **LTE Carrier Aggregation converted to binary sensor**: Moved `lte_ca` from a string-valued sensor ("enabled"/"disabled") to a proper `binary_sensor` (ON/OFF). The underlying value is inherently boolean (`"+" in band`), and a binary sensor is the correct HA platform for this. Remains disabled by default and in the Diagnostic category.
+- **Max Download Rate / Max Upload Rate disabled by default**: These sensors are permanently "unknown" on the H165-383 as the firmware does not populate `MaxDownloadRate`/`MaxUploadRate` in the traffic statistics response. Disabled by default to avoid persistent unknown entities in the UI.
+
+---
+
+## [1.0.1-dev16] - 2026-05-03
+
+### Added
+- **Complex Signal Metric Support**: Implemented robust parsing for technical diagnostic sensors that frequently return multi-valued strings (e.g., multi-carrier MCS or per-channel Transmit Power).
+    - New `_parse_complex_int` and `_parse_complex_float` helpers preserve the full raw string when complexity (colons or spaces) is detected, preventing "Unknown" states.
+    - Impacted entities: LTE/5G Downlink MCS, Uplink MCS, EARFCN, and Transmit Power.
+
+### Changed
+- **Guard Band Optimization**: Removed `min_limit` and `max_limit` constraints from 8 technical diagnostic sensors to ensure multi-carrier strings are not accidentally filtered or "partial-parsed" by the numeric validation engine.
+
+### Fixed
+- **LTE Carrier Aggregation Logic**: Corrected the `lte_ca` sensor to properly return `None` (Unavailable) when data is missing from the API response, rather than defaulting to "disabled".
+
+---
+
 ## [1.0.1-dev15] - 2026-05-03
 
 ### Added
+
 - **Dynamic SMS Box Selection**: Integration now automatically detects whether messages are stored in the Device Inbox or SIM Inbox by checking `sms_count` results before fetching the list. This ensures "Last Msg" works regardless of storage configuration.
 - **Aggregate SMS Sensor**: Created `Total Msg` as a primary sensor that sums all messages across both Device and SIM storage.
 - **SMS Entity Renaming Refactor**:
-    - Removed redundant "SMS" prefix from all entities within the SMS sub-device to fix double-naming in the UI.
-    - Standardized labels: `Unread Msg`, `Total Msg`, `Last Msg`, and simplified location-specific labels (e.g., `Total (SIM)`).
+  - Removed redundant "SMS" prefix from all entities within the SMS sub-device to fix double-naming in the UI.
+  - Standardized labels: `Unread Msg`, `Total Msg`, `Last Msg`, and simplified location-specific labels (e.g., `Total (SIM)`).
 - **Corrected SMS Quantity Sensors**: Fixed invalid API keys for individual storage sensors (e.g., `LocalInbox` -> `LocalUnread` + `LocalRead`), resolving "Unknown" states for technical counters.
 
 ### Changed
+
 - **SMS Category Optimization**:
-    - Renamed **New Msg** -> **In Process** and moved to **Diagnostic** to reflect its transient notification state.
-    - Moved **Total (Device)** and **Total (SIM)** to the **Diagnostic** category.
+  - Renamed **New Msg** -> **In Process** and moved to **Diagnostic** to reflect its transient notification state.
+  - Moved **Total (Device)** and **Total (SIM)** to the **Diagnostic** category.
 - **API Call Simplification**: Stripped non-essential parameters from `get_sms_list` (sort, order, preference) to ensure compatibility with modern 5G firmware that rejected extended XML payloads.
 - **Library Compatibility**: Migrated to `BoxTypeEnum` for box selection to resolve attribute errors in recent `huawei-lte-api` versions.
 - **Diagnostic Visibility**: Promoted SMS list fetch failures to the `WARNING` level with explicit error reporting.
@@ -25,11 +62,13 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ## [1.0.1-dev14] - 2026-05-03
 
 ### Added
+
 - **Explicit Reconnection Logging**: Coordinator now logs an `INFO` message when communication is restored after one or more failed fetches, improving visibility into network recovery.
 - **Modern Data Management**: Migrated integration to use `entry.runtime_data` for coordinator storage, replacing the legacy `hass.data[DOMAIN]` pattern.
 - **Domain-Level Service Registration**: Refactored `send_sms` service registration to `async_setup` (domain-level) rather than `async_setup_entry` (instance-level) to ensure singleton registration across multiple router entries.
 
 ### Changed
+
 - **Parallel Update Optimization**: Added `PARALLEL_UPDATES = 0` to all platform files to indicate update coordination is handled by the coordinator.
 - **Service Error Handling**: Updated `send_sms` to raise `HomeAssistantError` with descriptive feedback on failure, allowing automations to respond to errors.
 - **Test Infrastructure Refactor**: Updated entire test suite to support `runtime_data` and verified 186/186 passing states.
@@ -39,43 +78,48 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ## [1.0.1-dev13] - 2026-05-02
 
 ### Added
+
 - **Full Translation Coverage (Option C)**:
-    - Expanded `strings.json` and `en.json` to include 100% of the integration's entities (101 total).
-    - Achieved compatibility with IQS Gold-tier naming standards.
+  - Expanded `strings.json` and `en.json` to include 100% of the integration's entities (101 total).
+  - Achieved compatibility with IQS Gold-tier naming standards.
 
 ### Changed
+
 - **Entity Naming Refactor**:
-    - Removed all hardcoded `name` parameters from `sensor.py`, `binary_sensor.py`, `select.py`, and `switch.py`.
-    - Implemented `translation_key` across all platforms to enable native Home Assistant translation and dynamic naming.
-    - Standardized `sms_total` as "SMS Total (Device)" in translations.
+  - Removed all hardcoded `name` parameters from `sensor.py`, `binary_sensor.py`, `select.py`, and `switch.py`.
+  - Implemented `translation_key` across all platforms to enable native Home Assistant translation and dynamic naming.
+  - Standardized `sms_total` as "SMS Total (Device)" in translations.
 
 ---
 
 ## [1.0.1-dev12] - 2026-05-02
 
 ### Changed
+
 - **Signal UI Refinement**:
-    - Renamed **LTE CQI 0** -> **LTE CQI** and promoted it to the main **Sensor** category (from Diagnostic) with `state_class: measurement` to match 5G CQI visibility.
-    - Promoted **Signal Bars** to the main **Sensor** category, ensuring the most human-readable signal metric is visible by default.
+  - Renamed **LTE CQI 0** -> **LTE CQI** and promoted it to the main **Sensor** category (from Diagnostic) with `state_class: measurement` to match 5G CQI visibility.
+  - Promoted **Signal Bars** to the main **Sensor** category, ensuring the most human-readable signal metric is visible by default.
 - **SMS Entity Hygiene**:
-    - Moved 12 granular SMS storage metrics (Unread/Inbox/Capacity for Device and SIM) to the **Diagnostic** category to reduce entity fatigue.
-    - Kept primary actionable metrics (**SMS Unread**, **SMS New**, **SMS Total**, **Last SMS**) in the main entity list.
+  - Moved 12 granular SMS storage metrics (Unread/Inbox/Capacity for Device and SIM) to the **Diagnostic** category to reduce entity fatigue.
+  - Kept primary actionable metrics (**SMS Unread**, **SMS New**, **SMS Total**, **Last SMS**) in the main entity list.
 
 ---
 
 ## [1.0.1-dev10] - 2026-05-02
 
 ### Changed
+
 - **Test Suite Resilience**: Implemented a comprehensive fix for Windows-based test environments.
-    - Switched to `WindowsSelectorEventLoopPolicy` in `conftest.py` to avoid `ProactorEventLoop` pipe issues.
-    - Monkeypatched `pytest-socket` to prevent internal asyncio pipes from triggering `SocketBlockedError`.
+  - Switched to `WindowsSelectorEventLoopPolicy` in `conftest.py` to avoid `ProactorEventLoop` pipe issues.
+  - Monkeypatched `pytest-socket` to prevent internal asyncio pipes from triggering `SocketBlockedError`.
 - **API Exception Standardization**: Standardized the instantiation of `ResponseErrorException` and `ResponseErrorLoginRequiredException` in tests to ensure they include required `code` and `message` arguments, matching the underlying library's signature.
 - **Test Alignment**:
-    - Re-aligned `test_get_data_partial_failure` to reflect that `device_information` is now a critical, mandatory field.
-    - Updated `test_select.py` to verify human-readable labels (e.g., "Auto", "4G Only") instead of technical numeric codes.
-    - Updated SMS Storage Full tests to use the corrected `monitoring_check_notifications` data source.
+  - Re-aligned `test_get_data_partial_failure` to reflect that `device_information` is now a critical, mandatory field.
+  - Updated `test_select.py` to verify human-readable labels (e.g., "Auto", "4G Only") instead of technical numeric codes.
+  - Updated SMS Storage Full tests to use the corrected `monitoring_check_notifications` data source.
 
 ### Fixed
+
 - **Pytest Configuration**: Removed the deprecated/invalid `allow_hosts` option from `pyproject.toml` to eliminate test suite warnings.
 
 ---

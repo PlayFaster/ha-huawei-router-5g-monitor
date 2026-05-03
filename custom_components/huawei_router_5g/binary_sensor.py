@@ -10,7 +10,6 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info, parse_signal_value
 
@@ -28,7 +27,6 @@ BEST_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="best_connection",
     translation_key="best_connection",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
-    entity_category=EntityCategory.DIAGNOSTIC,
     group="signal",
 )
 
@@ -73,6 +71,14 @@ MOBILE_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     group="signal",
 )
 
+LTE_CA_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="lte_ca",
+    translation_key="lte_ca",
+    icon="mdi:plus-network",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="signal",
+)
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the binary sensor platform."""
@@ -87,6 +93,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
             HuaweiWifi24GStatusSensor(coordinator, entry, WIFI_24G_STATUS_DESCRIPTION),
             HuaweiWifi5GStatusSensor(coordinator, entry, WIFI_5G_STATUS_DESCRIPTION),
             HuaweiMobileConnectionSensor(coordinator, entry, MOBILE_CONN_DESCRIPTION),
+            HuaweiLteCaSensor(coordinator, entry, LTE_CA_DESCRIPTION),
         ]
     )
 
@@ -120,24 +127,52 @@ class HuaweiBinarySensor(
 
 
 class HuaweiBestConnectionSensor(HuaweiBinarySensor):
-    """Binary sensor that is True when 5G NR is actively in use."""
+    """Binary sensor: True when NSA 5G is present and both LTE anchor and 5G leg are healthy."""
 
     @property
-    def is_on(self) -> bool:
-        """Return True if 5G NR is active."""
+    def is_on(self) -> bool | None:
+        """Return True when all three quality gates pass.
+
+        Stage 1 — NR band assignment present in composite band string.
+        Stage 2 — LTE anchor: rsrp > -100 OR sinr > 15 OR rsrq > -12.
+        Stage 3 — 5G leg: nr_rsrp > -105 OR nr_sinr > 10 OR nr_rsrq > -12
+                           OR 5g_cqi >= 7 OR bler < 10%.
+        """
         data = self.coordinator.data
         if not data:
-            return False
+            return None
         signal = data.get("device_signal") or {}
-        nr_band = signal.get("sc_band", "")
+
+        # Stage 1: NR band label present in composite band string (e.g. "(N28)")
+        band = signal.get("band") or ""
+        if "(N" not in str(band):
+            return False
+
+        # Stage 2: LTE anchor health
+        rsrp = parse_signal_value(signal.get("rsrp"))
+        rsrq = parse_signal_value(signal.get("rsrq"))
+        sinr = parse_signal_value(signal.get("sinr"))
+        lte_ok = (
+            (rsrp is not None and rsrp > -100)
+            or (sinr is not None and sinr > 15)
+            or (rsrq is not None and rsrq > -12)
+        )
+        if not lte_ok:
+            return False
+
+        # Stage 3: 5G leg health
         nr_rsrp = parse_signal_value(signal.get("nrrsrp"))
-
-        # 5G NR is active when a non-empty NR band is reported
-        # OR when a valid 5G RSRP signal is being received
-        is_active = bool(nr_band and nr_band not in ("", "N/A", "0"))
-        has_signal = nr_rsrp is not None and nr_rsrp < 0
-
-        return is_active or has_signal
+        nr_rsrq = parse_signal_value(signal.get("nrrsrq"))
+        nr_sinr = parse_signal_value(signal.get("nrsinr"))
+        nr_bler = parse_signal_value(signal.get("nrbler"))
+        nr_cqi = parse_signal_value(signal.get("nrcqi0"))
+        return (
+            (nr_rsrp is not None and nr_rsrp > -105)
+            or (nr_sinr is not None and nr_sinr > 10)
+            or (nr_rsrq is not None and nr_rsrq > -12)
+            or (nr_cqi is not None and nr_cqi >= 7)
+            or (nr_bler is not None and nr_bler < 10)
+        )
 
     @property
     def icon(self) -> str:
@@ -221,3 +256,18 @@ class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
         status = data.get("monitoring_status") or {}
         # 901 is connected
         return status.get("ConnectionStatus") == "901"
+
+
+class HuaweiLteCaSensor(HuaweiBinarySensor):
+    """Binary sensor that is True when LTE Carrier Aggregation is active."""
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True when multiple LTE carriers are aggregated."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        band = (data.get("device_signal") or {}).get("band")
+        if not band or not isinstance(band, str):
+            return None
+        return "+" in band
