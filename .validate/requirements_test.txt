@@ -4,3 +4,5 @@ pytest-cov
 yamllint
 check-jsonschema
 codespell
+huawei-lte-api==1.11.0
+url-normalize==3.0.0

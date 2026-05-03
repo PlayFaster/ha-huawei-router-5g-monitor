@@ -1,13 +1,20 @@
 # Changelog
 
-## [1.0.0-dev1] - 2026-05-02
+## [1.0.1] - 2026-05-03 - Github Release
 
 ### Added
-- Initial development version of Huawei Router 5G Monitor.
-- Core integration structure modeled after ZTE and TP-Link projects.
-- API wrapper for `huawei-lte-api`.
-- Data update coordinator with configurable polling.
-- Sensors for signal metrics and traffic statistics.
-- Binary sensors for connectivity and SMS storage status.
-- Button for reboot and clearing traffic statistics.
-- Switch for mobile data control.
+
+- **Best Connection Sensor**: A new primary sensor (replacing "5G NR Active") using a 3-stage quality gate to accurately report 5G connectivity status.
+- **Display Last SMS**: Added SMS "Last Msg" text sensor.
+- **send_sms Service**: New service to send SMS messages with support for multiple recipients and content.
+
+### Changed
+
+- **LTE Carrier Aggregation**: Converted from a string sensor to a more appropriate Binary Sensor.
+- **Test Coverage**: Internal test coverage at 90%.
+
+### Fixed
+
+- **Unknown States**: Resolved "Unknown" status for LTE Carrier Aggregation and 5G NR Band on modern firmware by deriving values from composite band strings.
+
+### Initial Commit - 2026-05-01

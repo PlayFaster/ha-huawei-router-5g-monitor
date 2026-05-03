@@ -1,62 +1,111 @@
-"""Tests for the ZTE Router button."""
+"""Tests for the Huawei Router 5G button platform."""
 
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
-from custom_components.zte_router_5g.button import (
-    DELETE_SMS_DESCRIPTION,
+from custom_components.huawei_router_5g.button import (
+    CLEAR_TRAFFIC_DESCRIPTION,
     REBOOT_DESCRIPTION,
-    ZTEDeleteAllSMSButton,
-    ZTERebootButton,
+    HuaweiClearTrafficButton,
+    HuaweiRebootButton,
     async_setup_entry,
 )
-from custom_components.zte_router_5g.const import DOMAIN
+from custom_components.huawei_router_5g.const import DOMAIN
+
+# ---------------------------------------------------------------------------
+# HuaweiRebootButton
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_reboot_button_press(mock_coordinator, mock_config_entry):
-    """Test reboot button trigger."""
+    """Test that pressing reboot calls api.reboot()."""
     mock_api = MagicMock()
     mock_api.reboot = AsyncMock()
     mock_coordinator.api = mock_api
-    button = ZTERebootButton(mock_coordinator, mock_config_entry, REBOOT_DESCRIPTION)
 
+    button = HuaweiRebootButton(mock_coordinator, mock_config_entry, REBOOT_DESCRIPTION)
     await button.async_press()
+
     mock_api.reboot.assert_called_once()
 
 
 @pytest.mark.asyncio
-async def test_delete_sms_button_press(mock_coordinator, mock_config_entry):
-    """Test delete SMS button trigger."""
+async def test_reboot_button_press_error(mock_coordinator, mock_config_entry):
+    """Test that reboot errors are caught and do not propagate."""
     mock_api = MagicMock()
-    mock_api.delete_all = AsyncMock()
+    mock_api.reboot = AsyncMock(side_effect=Exception("Reboot fail"))
     mock_coordinator.api = mock_api
-    button = ZTEDeleteAllSMSButton(
-        mock_coordinator, mock_config_entry, DELETE_SMS_DESCRIPTION
-    )
 
+    button = HuaweiRebootButton(mock_coordinator, mock_config_entry, REBOOT_DESCRIPTION)
+    await button.async_press()  # should not raise
+
+
+def test_reboot_button_device_info(mock_coordinator, mock_config_entry):
+    """Test device_info for the reboot button is in the system group."""
+    button = HuaweiRebootButton(mock_coordinator, mock_config_entry, REBOOT_DESCRIPTION)
+    mac = "DC:71:96:11:22:33"
+    info = button.device_info
+    assert info["identifiers"] == {(DOMAIN, f"{mac}_system")}
+    assert info["manufacturer"] == "Huawei"
+    assert "via_device" not in info
+
+
+# ---------------------------------------------------------------------------
+# HuaweiClearTrafficButton
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_clear_traffic_button_press(mock_coordinator, mock_config_entry):
+    """Test that pressing clear traffic calls the API and triggers a refresh."""
+    mock_api = MagicMock()
+    mock_api.clear_traffic_statistics = AsyncMock()
+    mock_coordinator.api = mock_api
+
+    button = HuaweiClearTrafficButton(
+        mock_coordinator, mock_config_entry, CLEAR_TRAFFIC_DESCRIPTION
+    )
     await button.async_press()
-    mock_api.delete_all.assert_called_once()
+
+    mock_api.clear_traffic_statistics.assert_called_once()
     mock_coordinator.async_request_refresh.assert_called_once()
 
 
-def test_button_device_info(mock_coordinator, mock_config_entry):
-    """Test device_info for router and SMS group."""
+@pytest.mark.asyncio
+async def test_clear_traffic_button_press_error(mock_coordinator, mock_config_entry):
+    """Test that clear traffic errors are caught and do not propagate."""
     mock_api = MagicMock()
+    mock_api.clear_traffic_statistics = AsyncMock(side_effect=Exception("Clear fail"))
     mock_coordinator.api = mock_api
-    reboot = ZTERebootButton(mock_coordinator, mock_config_entry, REBOOT_DESCRIPTION)
-    delete = ZTEDeleteAllSMSButton(
-        mock_coordinator, mock_config_entry, DELETE_SMS_DESCRIPTION
-    )
 
-    assert reboot.device_info["identifiers"] == {(DOMAIN, "00:11:22:33:44:55_system")}
-    assert delete.device_info["identifiers"] == {(DOMAIN, "00:11:22:33:44:55_sms")}
+    button = HuaweiClearTrafficButton(
+        mock_coordinator, mock_config_entry, CLEAR_TRAFFIC_DESCRIPTION
+    )
+    await button.async_press()  # should not raise
+    mock_coordinator.async_request_refresh.assert_not_called()
+
+
+def test_clear_traffic_button_device_info(mock_coordinator, mock_config_entry):
+    """Test device_info for the clear traffic button is in the data group."""
+    button = HuaweiClearTrafficButton(
+        mock_coordinator, mock_config_entry, CLEAR_TRAFFIC_DESCRIPTION
+    )
+    mac = "DC:71:96:11:22:33"
+    info = button.device_info
+    assert info["identifiers"] == {(DOMAIN, f"{mac}_data")}
+    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+
+
+# ---------------------------------------------------------------------------
+# Setup
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
 async def test_button_setup_entry():
-    """Test platform setup."""
+    """Test that async_setup_entry creates both buttons."""
     hass = MagicMock()
     entry = MagicMock()
     entry.entry_id = "test"
@@ -67,3 +116,5 @@ async def test_button_setup_entry():
     async_add_entities = MagicMock()
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
+    entities = async_add_entities.call_args[0][0]
+    assert len(entities) == 2

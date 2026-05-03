@@ -34,3 +34,4 @@ filterwarnings = [
     "ignore::DeprecationWarning:homeassistant.components.http.*",
     "ignore::pytest.PytestUnraisableExceptionWarning",
 ]
+
