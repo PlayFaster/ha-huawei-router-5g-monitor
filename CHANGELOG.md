@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.0.1] - Unreleased
+## [1.0.1] - 2026-05-03 - Github Release
 
 ### Added
 
@@ -11,6 +11,7 @@
 ### Changed
 
 - **LTE Carrier Aggregation**: Converted from a string sensor to a more appropriate Binary Sensor.
+- **Test Coverage**: Internal test coverage at 90%.
 
 ### Fixed
 

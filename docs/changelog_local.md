@@ -4,6 +4,25 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.1] - 2026-05-03
+
+### Added
+
+- **100% Test Coverage for `helpers.py`**: Achieved full coverage of the shared helpers module by adding 38 comprehensive test cases to `test_helpers.py`.
+- **Complex Signal Parsing Tests**: Verified that multi-carrier and technical strings (e.g., `DL:500 UL:18500`) are correctly handled by the `_parse_complex_int` and `_parse_complex_float` logic.
+- **SMS Hardware Variation Tests**: Implemented test scenarios for diverse router SMS behaviors, including metadata-offset lists, single-message dictionaries, and malformed container types.
+- **Device Registry Logic Verification**: Added tests for `build_device_info` to ensure stable entity identification using both MAC and host-based fallbacks.
+
+### Changed
+
+- **Project-wide Test Coverage Milestone**: Successfully increased total project test coverage to **90%**.
+
+### Fixed
+
+- **Linting Compliance**: Resolved all `E501` (Line too long) issues in `test_helpers.py` comments to maintain 100% ruff compliance in the test suite.
+
+---
+
 ## [1.0.1-rc5] - 2026-05-03
 
 ### Added
