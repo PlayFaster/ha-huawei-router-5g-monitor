@@ -118,19 +118,19 @@ class HuaweiRouter5GAPI:
                 ("current_plmn", lambda: client.net.current_plmn()),
                 ("net_mode", lambda: client.net.net_mode()),
                 ("sms_count", lambda: client.sms.sms_count()),
-                ("sms_list",
+                (
+                    "sms_list",
                     lambda: client.sms.get_sms_list(
                         page=1,
                         box_type=(
                             BoxTypeEnum.LOCAL_INBOX
                             if _safe_int(data.get("sms_count", {}).get("LocalInbox"))
-                            or 0
-                            > 0
+                            or 0 > 0
                             or not _safe_int(data.get("sms_count", {}).get("SimInbox"))
                             else BoxTypeEnum.SIM_INBOX
                         ),
                         read_count=20,
-                    )
+                    ),
                 ),
                 ("mobile_dataswitch", lambda: client.dial_up.mobile_dataswitch()),
                 ("lan_host_info", lambda: client.lan.host_info()),

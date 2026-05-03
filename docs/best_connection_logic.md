@@ -45,11 +45,11 @@ lte_ok = (
 )
 ```
 
-| Metric | API field | Threshold | Rationale |
-| :-- | :-- | :-- | :-- |
-| LTE RSRP | `rsrp` | > -100 dBm | "Fair" signal floor |
-| LTE SINR | `sinr` | > 15 dB | "Very good" quality |
-| LTE RSRQ | `rsrq` | > -12 dB | "Acceptable" load/quality |
+| Metric   | API field | Threshold  | Rationale                 |
+| :------- | :-------- | :--------- | :------------------------ |
+| LTE RSRP | `rsrp`    | > -100 dBm | "Fair" signal floor       |
+| LTE SINR | `sinr`    | > 15 dB    | "Very good" quality       |
+| LTE RSRQ | `rsrq`    | > -12 dB   | "Acceptable" load/quality |
 
 **Why RSRQ is load-bearing here:** On observed H165-383 live data, RSRP was -103 dBm and SINR was 13 dB — both just below their thresholds — while the router showed 4 signal bars and was actively streaming data. RSRQ at -9 dB was the only metric that passed. Without RSRQ as a third axis, Stage 2 would falsely report OFF on a healthy working connection.
 
@@ -67,13 +67,13 @@ return (
 )
 ```
 
-| Metric | API field | Threshold | Rationale |
-| :-- | :-- | :-- | :-- |
-| 5G RSRP | `nrrsrp` | > -105 dBm | Slightly more lenient than LTE anchor |
-| 5G SINR | `nrsinr` | > 10 dB | "Good" quality |
-| 5G RSRQ | `nrrsrq` | > -12 dB | Same load/quality floor as LTE |
-| 5G CQI | `nrcqi0` | >= 7 | Decent modulation order (16QAM or higher) |
-| 5G BLER | `nrbler` | < 10% | Low block error rate |
+| Metric  | API field | Threshold  | Rationale                                 |
+| :------ | :-------- | :--------- | :---------------------------------------- |
+| 5G RSRP | `nrrsrp`  | > -105 dBm | Slightly more lenient than LTE anchor     |
+| 5G SINR | `nrsinr`  | > 10 dB    | "Good" quality                            |
+| 5G RSRQ | `nrrsrq`  | > -12 dB   | Same load/quality floor as LTE            |
+| 5G CQI  | `nrcqi0`  | >= 7       | Decent modulation order (16QAM or higher) |
+| 5G BLER | `nrbler`  | < 10%      | Low block error rate                      |
 
 **Note on CQI / BLER:** These are active-traffic metrics. On the H165-383 they are populated even at idle (CQI = 5, BLER = 0.0%), so they do not produce spurious `None` states at rest.
 
@@ -81,7 +81,7 @@ return (
 
 ## Full Logic Summary
 
-```
+```text
 Stage 1 PASS  →  NR band label present in composite band string
      AND
 Stage 2 PASS  →  at least one LTE metric above its threshold
@@ -98,16 +98,16 @@ No coordinator data  →  None (unavailable)
 
 ## Entity Configuration
 
-| Property | Value |
-| :-- | :-- |
-| Key | `best_connection` |
-| Platform | `binary_sensor` |
-| Device class | `CONNECTIVITY` |
-| Entity category | None (primary entity, visible in main list) |
-| Disabled by default | No |
-| Group | `signal` |
-| Icon (ON) | `mdi:signal-5g` |
-| Icon (OFF) | `mdi:signal-cellular-1` |
+| Property            | Value                                       |
+| :------------------ | :------------------------------------------ |
+| Key                 | `best_connection`                           |
+| Platform            | `binary_sensor`                             |
+| Device class        | `CONNECTIVITY`                              |
+| Entity category     | None (primary entity, visible in main list) |
+| Disabled by default | No                                          |
+| Group               | `signal`                                    |
+| Icon (ON)           | `mdi:signal-5g`                             |
+| Icon (OFF)          | `mdi:signal-cellular-1`                     |
 
 ---
 

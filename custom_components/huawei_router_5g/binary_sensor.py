@@ -127,7 +127,10 @@ class HuaweiBinarySensor(
 
 
 class HuaweiBestConnectionSensor(HuaweiBinarySensor):
-    """Binary sensor: True when NSA 5G is present and both LTE anchor and 5G leg are healthy."""
+    """Binary sensor: True when NSA 5G is present.
+
+    Active when both LTE anchor and 5G leg are healthy.
+    """
 
     @property
     def is_on(self) -> bool | None:

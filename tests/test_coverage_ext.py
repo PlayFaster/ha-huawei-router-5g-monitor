@@ -183,8 +183,8 @@ def test_sensor_device_info_fallback_host_signal_group(
 
 
 def test_best_connection_icon_off(mock_coordinator, mock_config_entry):
-    """Icon is cellular-1 when sc_band is not active."""
-    mock_coordinator.data = {"device_signal": {"sc_band": ""}}
+    """Icon is cellular-1 when 5G is not active."""
+    mock_coordinator.data = {"device_signal": {"band": "20MHz(B1)"}}
     sensor = HuaweiBestConnectionSensor(
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )
@@ -192,8 +192,14 @@ def test_best_connection_icon_off(mock_coordinator, mock_config_entry):
 
 
 def test_best_connection_icon_on(mock_coordinator, mock_config_entry):
-    """Icon is 5g when sc_band has a valid NR band."""
-    mock_coordinator.data = {"device_signal": {"sc_band": "n78"}}
+    """Icon is 5g when all health gates pass."""
+    mock_coordinator.data = {
+        "device_signal": {
+            "band": "20MHz(B1) + 10MHz(N78)",
+            "rsrp": "-90dBm",
+            "nrrsrp": "-95dBm",
+        }
+    }
     sensor = HuaweiBestConnectionSensor(
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )

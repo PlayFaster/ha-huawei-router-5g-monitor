@@ -2,6 +2,26 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
+## [1.0.1-dev19] - 2026-05-03
+
+### Added
+
+- **Best Connection logic document**: Created `docs/best_connection_logic.md` as a detailed reference for the 3-stage quality gate algorithm, threshold rationale, idle-stability analysis, and H165-383-specific API field behaviour.
+
+### Changed
+
+- **Best Connection sensor overhauled**: Renamed from "5G NR Active" to "Best Connection". Replaced the simple NR active stub (checking `sc_band`/`nrrsrp` presence) with a 3-stage quality gate. All three stages must pass for the sensor to report ON:
+  - **Stage 1 — NR band assignment**: `(N` present in composite `band` string (e.g. `(N28)`). Replaces `network_type` check, which reports `"LTE"` even in active NSA mode on the H165-383, and replaces `sc_band`, which is always null on this firmware.
+  - **Stage 2 — LTE anchor health**: `rsrp > -100` OR `sinr > 15` OR `rsrq > -12`. RSRQ is load-bearing on real hardware: observed RSRP (-103) and SINR (13) both fail their thresholds on a healthy 4-bar connection; RSRQ (-9) passes.
+  - **Stage 3 — 5G leg health**: `nr_rsrp > -105` OR `nr_sinr > 10` OR `nr_rsrq > -12` OR `5g_cqi >= 7` OR `bler < 10%`.
+  - Promoted from `EntityCategory.DIAGNOSTIC` to primary entity (no category) — visible in the main entity list and usable in dashboards and automations.
+- **Enabled by default — 11 entities** previously disabled without data on the H165-383 but confirmed populated:
+  - _System timestamps_: Uptime, Connection Uptime, Total Uptime.
+  - _Signal diagnostics_: LTE Transmit Power, LTE Uplink MCS, LTE Downlink MCS, LTE EARFCN, 5G Uplink MCS, 5G Downlink MCS, 5G Transmit Power.
+  - _Binary sensor_: LTE Carrier Aggregation.
+
+---
+
 ## [1.0.1-dev18] - 2026-05-03
 
 ### Added
@@ -25,14 +45,17 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ## [1.0.1-dev16] - 2026-05-03
 
 ### Added
+
 - **Complex Signal Metric Support**: Implemented robust parsing for technical diagnostic sensors that frequently return multi-valued strings (e.g., multi-carrier MCS or per-channel Transmit Power).
-    - New `_parse_complex_int` and `_parse_complex_float` helpers preserve the full raw string when complexity (colons or spaces) is detected, preventing "Unknown" states.
-    - Impacted entities: LTE/5G Downlink MCS, Uplink MCS, EARFCN, and Transmit Power.
+  - New `_parse_complex_int` and `_parse_complex_float` helpers preserve the full raw string when complexity (colons or spaces) is detected, preventing "Unknown" states.
+  - Impacted entities: LTE/5G Downlink MCS, Uplink MCS, EARFCN, and Transmit Power.
 
 ### Changed
+
 - **Guard Band Optimization**: Removed `min_limit` and `max_limit` constraints from 8 technical diagnostic sensors to ensure multi-carrier strings are not accidentally filtered or "partial-parsed" by the numeric validation engine.
 
 ### Fixed
+
 - **LTE Carrier Aggregation Logic**: Corrected the `lte_ca` sensor to properly return `None` (Unavailable) when data is missing from the API response, rather than defaulting to "disabled".
 
 ---

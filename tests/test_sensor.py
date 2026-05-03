@@ -114,33 +114,17 @@ def test_sensor_rsrp_guard_band_max(mock_coordinator, mock_config_entry):
     assert sensor.native_value is None
 
 
-def test_sensor_lte_ca_enabled(mock_coordinator, mock_config_entry):
-    """Test carrier aggregation enabled mapping."""
-    mock_coordinator.data = {"device_signal": {"lte_ca": "1"}}
-    desc = next(d for d in SENSOR_TYPES if d.key == "lte_ca")
-    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.native_value == "enabled"
-
-
-def test_sensor_lte_ca_disabled(mock_coordinator, mock_config_entry):
-    """Test carrier aggregation disabled mapping."""
-    mock_coordinator.data = {"device_signal": {"lte_ca": "0"}}
-    desc = next(d for d in SENSOR_TYPES if d.key == "lte_ca")
-    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.native_value == "disabled"
-
-
 def test_sensor_nr5g_band(mock_coordinator, mock_config_entry):
-    """Test 5G NR band is returned as-is."""
-    mock_coordinator.data = {"device_signal": {"sc_band": "n1"}}
+    """Test 5G NR band extraction from composite band string."""
+    mock_coordinator.data = {"device_signal": {"band": "20MHz(B1) + 10MHz(N28)"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "nr5g_band")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.native_value == "n1"
+    assert sensor.native_value == "N28"
 
 
 def test_sensor_nr5g_band_empty(mock_coordinator, mock_config_entry):
-    """Test empty 5G NR band returns None."""
-    mock_coordinator.data = {"device_signal": {"sc_band": ""}}
+    """Test empty band string returns None."""
+    mock_coordinator.data = {"device_signal": {"band": ""}}
     desc = next(d for d in SENSOR_TYPES if d.key == "nr5g_band")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value is None
@@ -240,29 +224,33 @@ def test_sensor_sms_total(mock_coordinator, mock_config_entry):
 
 
 def test_sensor_lte_bandwidth(mock_coordinator, mock_config_entry):
-    """Test LTE bandwidth parsing."""
-    mock_coordinator.data = {"device_signal": {"dlbandwidth": "20.0 MHz", "ulbandwidth": "15.0 MHz"}}
-    
-    desc_dl = next(d for d in SENSOR_TYPES if d.key == "downlink_bandwidth")
+    """Test LTE bandwidth parsing (from dlfrequency/ulfrequency API keys)."""
+    mock_coordinator.data = {
+        "device_signal": {"dlfrequency": "20000", "ulfrequency": "15000"}
+    }
+
+    desc_dl = next(d for d in SENSOR_TYPES if d.key == "lte_downlink_bandwidth")
     sensor_dl = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_dl)
     assert sensor_dl.native_value == 20.0
-    
-    desc_ul = next(d for d in SENSOR_TYPES if d.key == "uplink_bandwidth")
+
+    desc_ul = next(d for d in SENSOR_TYPES if d.key == "lte_uplink_bandwidth")
     sensor_ul = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_ul)
     assert sensor_ul.native_value == 15.0
 
 
 def test_sensor_lte_frequency(mock_coordinator, mock_config_entry):
-    """Test LTE frequency parsing."""
-    mock_coordinator.data = {"device_signal": {"dlfrequency": "21600", "ulfrequency": "19700"}}
-    
-    desc_dl = next(d for d in SENSOR_TYPES if d.key == "downlink_frequency")
+    """Test LTE frequency parsing (from ltedlfreq/lteulfreq API keys)."""
+    mock_coordinator.data = {
+        "device_signal": {"ltedlfreq": "216000", "lteulfreq": "197000"}
+    }
+
+    desc_dl = next(d for d in SENSOR_TYPES if d.key == "lte_downlink_frequency")
     sensor_dl = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_dl)
-    assert sensor_dl.native_value == 21.6
-    
-    desc_ul = next(d for d in SENSOR_TYPES if d.key == "uplink_frequency")
+    assert sensor_dl.native_value == 2160.0
+
+    desc_ul = next(d for d in SENSOR_TYPES if d.key == "lte_uplink_frequency")
     sensor_ul = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_ul)
-    assert sensor_ul.native_value == 19.7
+    assert sensor_ul.native_value == 1970.0
 
 
 def test_sensor_sms_total_attributes(mock_coordinator, mock_config_entry):

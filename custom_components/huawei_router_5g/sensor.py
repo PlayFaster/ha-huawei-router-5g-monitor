@@ -61,13 +61,13 @@ def format_ipv6(value: Any) -> Any:
 
 
 def format_freq_mhz(value: Any) -> float | None:
-    """Convert frequency to MHz (input is in 10ths of MHz, i.e. lteulfreq/ltedlfreq)."""
+    """Format frequency in MHz (input is in 100ths of MHz)."""
     f_val = parse_signal_value(value)
-    return f_val / 10 if f_val is not None else None
+    return f_val / 100 if f_val is not None else None
 
 
-def format_khz_to_mhz(value: Any) -> float | None:
-    """Convert frequency from kHz to MHz (used for ulfrequency/dlfrequency fields)."""
+def format_bw_mhz(value: Any) -> float | None:
+    """Format bandwidth in MHz (input is in thousandths of MHz)."""
     f_val = parse_signal_value(value)
     return f_val / 1000 if f_val is not None else None
 
@@ -565,9 +565,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0,
-        value_fn=lambda data: parse_signal_value(
-            _get_signal_value(data, "ulbandwidth")
-        ),
+        value_fn=lambda data: format_bw_mhz(_get_signal_value(data, "ulfrequency")),
     ),
     HuaweiSensorEntityDescription(
         key="lte_downlink_bandwidth",
@@ -578,9 +576,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0,
-        value_fn=lambda data: parse_signal_value(
-            _get_signal_value(data, "dlbandwidth")
-        ),
+        value_fn=lambda data: format_bw_mhz(_get_signal_value(data, "dlfrequency")),
     ),
     HuaweiSensorEntityDescription(
         key="transmission_mode",
@@ -607,28 +603,6 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         min_limit=0,
         value_fn=lambda data: _safe_int(_get_signal_value(data, "cqi0")),
-    ),
-    HuaweiSensorEntityDescription(
-        key="uplink_frequency",
-        translation_key="uplink_frequency",
-        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
-        device_class=SensorDeviceClass.FREQUENCY,
-        icon="mdi:radio-tower",
-        group="signal",
-        min_limit=0,
-        value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "ulfrequency")),
-        entity_category=EntityCategory.DIAGNOSTIC,
-    ),
-    HuaweiSensorEntityDescription(
-        key="downlink_frequency",
-        translation_key="downlink_frequency",
-        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
-        device_class=SensorDeviceClass.FREQUENCY,
-        icon="mdi:radio-tower",
-        group="signal",
-        min_limit=0,
-        value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "dlfrequency")),
-        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     # 5G Entities
     HuaweiSensorEntityDescription(
