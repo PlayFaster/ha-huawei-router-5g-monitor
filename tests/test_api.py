@@ -3,7 +3,13 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from huawei_lte_api.exceptions import LoginErrorPasswordWrongException
+from huawei_lte_api.enums.sms import BoxTypeEnum
+from huawei_lte_api.exceptions import (
+    LoginErrorPasswordWrongException,
+    LoginErrorUsernameWrongException,
+    ResponseErrorException,
+    ResponseErrorLoginRequiredException,
+)
 
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
@@ -43,8 +49,8 @@ async def test_login_success():
 
 
 @pytest.mark.asyncio
-async def test_login_auth_error():
-    """Test that a credentials-related error raises HuaweiAuthError."""
+async def test_login_auth_error_password():
+    """Test that a password error raises HuaweiAuthError."""
     api = _make_api()
 
     with (
@@ -52,6 +58,24 @@ async def test_login_auth_error():
             api,
             "_create_connection_sync",
             side_effect=LoginErrorPasswordWrongException("Wrong password", "108003"),
+        ),
+        pytest.raises(HuaweiAuthError),
+    ):
+        await api.login()
+
+    assert api._client is None
+
+
+@pytest.mark.asyncio
+async def test_login_auth_error_username():
+    """Test that a username error raises HuaweiAuthError."""
+    api = _make_api()
+
+    with (
+        patch.object(
+            api,
+            "_create_connection_sync",
+            side_effect=LoginErrorUsernameWrongException("Wrong username", "108001"),
         ),
         pytest.raises(HuaweiAuthError),
     ):
@@ -76,6 +100,82 @@ async def test_login_connection_error():
         await api.login()
 
     assert api._client is None
+
+
+# ---------------------------------------------------------------------------
+# _create_connection_sync()
+# ---------------------------------------------------------------------------
+
+
+def test_create_connection_sync():
+    """Test the synchronous connection creation."""
+    api = _make_api()
+
+    mock_conn = MagicMock()
+    mock_client = MagicMock()
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g.api.Connection", return_value=mock_conn
+        ) as mock_conn_class,
+        patch(
+            "custom_components.huawei_router_5g.api.Client", return_value=mock_client
+        ) as mock_client_class,
+    ):
+        conn, client = api._create_connection_sync()
+
+        mock_conn_class.assert_called_once_with(
+            api.url,
+            username=api.username,
+            password=api.password,
+        )
+        mock_client_class.assert_called_once_with(mock_conn)
+        assert conn is mock_conn
+        assert client is mock_client
+
+
+# ---------------------------------------------------------------------------
+# _reset_client()
+# ---------------------------------------------------------------------------
+
+
+def test_reset_client():
+    """Test that _reset_client clears connection and client."""
+    api = _make_api()
+    api._connection = MagicMock()
+    api._client = MagicMock()
+
+    api._reset_client()
+
+    assert api._connection is None
+    assert api._client is None
+
+
+# ---------------------------------------------------------------------------
+# _ensure_client()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_with_existing_client():
+    """Test _ensure_client when client already exists."""
+    api = _make_api()
+    api._client = MagicMock()
+
+    with patch.object(api, "login", new=AsyncMock()) as mock_login:
+        await api._ensure_client()
+        mock_login.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_without_client():
+    """Test _ensure_client when client doesn't exist."""
+    api = _make_api()
+    api._client = None
+
+    with patch.object(api, "login", new=AsyncMock()) as mock_login:
+        await api._ensure_client()
+        mock_login.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -106,6 +206,23 @@ async def test_logout_no_connection():
     await api.logout()  # should not raise
 
 
+@pytest.mark.asyncio
+async def test_logout_exception():
+    """Test that logout handles exceptions gracefully."""
+    api = _make_api()
+    mock_conn = MagicMock()
+    api._connection = mock_conn
+    api._client = MagicMock()
+
+    mock_conn.logout.side_effect = Exception("Logout failed")
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        await api.logout()
+
+    assert api._connection is None
+    assert api._client is None
+
+
 # ---------------------------------------------------------------------------
 # get_data()
 # ---------------------------------------------------------------------------
@@ -127,7 +244,7 @@ async def test_get_data_success():
         "traffic_statistics": {"CurrentDownloadRate": "1024"},
         "month_statistics": {"CurrentMonthDownload": "1073741824"},
         "current_plmn": {"FullName": "Three"},
-        "sms_count": {"LocalUnread": "0"},
+        "sms_count": {"LocalInbox": "5", "SimInbox": "0"},
         "mobile_dataswitch": {"dataswitch": "1"},
     }
 
@@ -146,6 +263,14 @@ async def test_get_data_success():
     mock_client.dial_up.mobile_dataswitch.return_value = expected_data[
         "mobile_dataswitch"
     ]
+    # Mock other endpoints that are called
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.sms.get_sms_list.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         data = await api.get_data()
@@ -153,6 +278,168 @@ async def test_get_data_success():
     assert data["device_information"]["DeviceName"] == "B535s-232"
     assert data["device_signal"]["rsrp"] == "-95dBm"
     assert data["monitoring_status"]["SignalIcon"] == "4"
+
+
+@pytest.mark.asyncio
+async def test_get_data_sms_list_local_inbox():
+    """Test SMS list fetches LocalInbox when LocalInbox > 0."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    # Setup SMS count with LocalInbox > 0
+    mock_client.sms.sms_count.return_value = {"LocalInbox": "5", "SimInbox": "0"}
+    mock_client.sms.get_sms_list.return_value = {"Messages": []}
+
+    # Mock other endpoints
+    mock_client.device.information.return_value = {}
+    mock_client.device.signal.return_value = {}
+    mock_client.monitoring.status.return_value = {}
+    mock_client.monitoring.traffic_statistics.return_value = {}
+    mock_client.monitoring.month_statistics.return_value = {}
+    mock_client.net.current_plmn.return_value = {}
+    mock_client.dial_up.mobile_dataswitch.return_value = {}
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        await api.get_data()
+
+    # Check that get_sms_list was called with LOCAL_INBOX
+    mock_client.sms.get_sms_list.assert_called_once_with(
+        page=1, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=20
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_data_sms_list_sim_inbox():
+    """Test SMS list fetches SimInbox when LocalInbox is 0."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    # Setup SMS count with LocalInbox = 0
+    mock_client.sms.sms_count.return_value = {"LocalInbox": "0", "SimInbox": "3"}
+    mock_client.sms.get_sms_list.return_value = {"Messages": []}
+
+    # Mock other endpoints
+    mock_client.device.information.return_value = {}
+    mock_client.device.signal.return_value = {}
+    mock_client.monitoring.status.return_value = {}
+    mock_client.monitoring.traffic_statistics.return_value = {}
+    mock_client.monitoring.month_statistics.return_value = {}
+    mock_client.net.current_plmn.return_value = {}
+    mock_client.dial_up.mobile_dataswitch.return_value = {}
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        await api.get_data()
+
+    # Check that get_sms_list was called with SIM_INBOX
+    mock_client.sms.get_sms_list.assert_called_once_with(
+        page=1, box_type=BoxTypeEnum.SIM_INBOX, read_count=20
+    )
+
+
+@pytest.mark.asyncio
+async def test_get_data_response_error_login_required():
+    """Test that ResponseErrorLoginRequiredException triggers HuaweiAuthError."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    mock_client.device.information.side_effect = ResponseErrorLoginRequiredException(
+        "Login required", "100001"
+    )
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+        pytest.raises(HuaweiAuthError),
+    ):
+        await api.get_data()
+
+
+@pytest.mark.asyncio
+async def test_get_data_response_error_codes():
+    """Test that specific ResponseErrorException codes trigger HuaweiAuthError."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._connection = MagicMock()
+
+    for error_code in ("100002", "125002", "125003"):
+        api._client = mock_client
+        mock_client.device.information.side_effect = ResponseErrorException(
+            f"Error {error_code}", error_code
+        )
+
+        with (
+            patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+            pytest.raises(HuaweiAuthError),
+        ):
+            await api.get_data()
+
+
+@pytest.mark.asyncio
+async def test_get_data_critical_fetch_failure():
+    """Test that device_information failure raises HuaweiConnectionError."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    mock_client.device.information.side_effect = Exception("Critical failure")
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+        pytest.raises(HuaweiConnectionError),
+    ):
+        await api.get_data()
+
+
+@pytest.mark.asyncio
+async def test_get_data_non_critical_fetch_failure():
+    """Test that non-critical endpoint failures are logged but don't stop the fetch."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    # device_information succeeds
+    mock_client.device.information.return_value = {"DeviceName": "Test"}
+    # device_signal fails
+    mock_client.device.signal.side_effect = Exception("Non-critical failure")
+    # Other endpoints succeed
+    mock_client.monitoring.status.return_value = {}
+    mock_client.monitoring.traffic_statistics.return_value = {}
+    mock_client.monitoring.month_statistics.return_value = {}
+    mock_client.net.current_plmn.return_value = {}
+    mock_client.sms.sms_count.return_value = {"LocalInbox": "0", "SimInbox": "0"}
+    mock_client.dial_up.mobile_dataswitch.return_value = {}
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.sms.get_sms_list.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        data = await api.get_data()
+
+    assert "device_signal" not in data
+    assert data["device_information"]["DeviceName"] == "Test"
 
 
 @pytest.mark.asyncio
@@ -170,8 +457,15 @@ async def test_get_data_partial_failure():
     mock_client.monitoring.traffic_statistics.return_value = {}
     mock_client.monitoring.month_statistics.return_value = {}
     mock_client.net.current_plmn.return_value = {}
-    mock_client.sms.sms_count.return_value = {}
+    mock_client.sms.sms_count.return_value = {"LocalInbox": "0", "SimInbox": "0"}
     mock_client.dial_up.mobile_dataswitch.return_value = {}
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.sms.get_sms_list.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         data = await api.get_data()
@@ -319,3 +613,144 @@ async def test_set_mobile_data_error():
         pytest.raises(Exception, match="Set fail"),
     ):
         await api.set_mobile_data(True)
+
+
+# ---------------------------------------------------------------------------
+# set_net_mode()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_success():
+    """Test successful net mode setting."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+        await api.set_net_mode("auto")
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_error():
+    """Test that net mode set failure propagates."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=Exception("Set fail"))),
+        pytest.raises(Exception, match="Set fail"),
+    ):
+        await api.set_net_mode("auto")
+
+
+# ---------------------------------------------------------------------------
+# set_guest_wifi()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_set_guest_wifi_on():
+    """Test enabling guest WiFi."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+        await api.set_guest_wifi(True)
+
+
+@pytest.mark.asyncio
+async def test_set_guest_wifi_off():
+    """Test disabling guest WiFi."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+        await api.set_guest_wifi(False)
+
+
+@pytest.mark.asyncio
+async def test_set_guest_wifi_error():
+    """Test that guest WiFi set failure propagates."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=Exception("Set fail"))),
+        pytest.raises(Exception, match="Set fail"),
+    ):
+        await api.set_guest_wifi(True)
+
+
+# ---------------------------------------------------------------------------
+# send_sms()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_send_sms_success():
+    """Test successful SMS sending."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    phone_numbers = ["+1234567890"]
+    message = "Test message"
+
+    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+        await api.send_sms(phone_numbers, message)
+
+
+@pytest.mark.asyncio
+async def test_send_sms_error():
+    """Test that SMS send failure propagates."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    phone_numbers = ["+1234567890"]
+    message = "Test message"
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=Exception("Send fail"))),
+        pytest.raises(Exception, match="Send fail"),
+    ):
+        await api.send_sms(phone_numbers, message)
+
+
+# ---------------------------------------------------------------------------
+# delete_sms()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_delete_sms_success():
+    """Test successful SMS deletion."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    index = 1
+
+    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+        await api.delete_sms(index)
+
+
+@pytest.mark.asyncio
+async def test_delete_sms_error():
+    """Test that SMS delete failure propagates."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    index = 1
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=Exception("Delete fail"))),
+        pytest.raises(Exception, match="Delete fail"),
+    ):
+        await api.delete_sms(index)

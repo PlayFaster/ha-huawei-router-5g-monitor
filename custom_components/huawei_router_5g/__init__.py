@@ -34,36 +34,39 @@ PLATFORMS = [
 ]
 
 
+async def async_send_sms(hass: HomeAssistant, service_call) -> None:
+    """Service to send an SMS."""
+    entries: list[ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]] = (
+        hass.config_entries.async_entries(DOMAIN)
+    )
+    if not entries:
+        raise HomeAssistantError("No Huawei Router 5G entries found")
+
+    # Use the first available entry's coordinator
+    entry = entries[0]
+    if not hasattr(entry, "runtime_data") or entry.runtime_data is None:
+        raise HomeAssistantError(f"Integration entry {entry.title} not ready")
+
+    coordinator = entry.runtime_data
+    target = service_call.data["target"]
+    message = service_call.data["message"]
+    if isinstance(target, str):
+        target = [target]
+
+    try:
+        await coordinator.api.send_sms(target, message)
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to send SMS: {err}") from err
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Huawei Router 5G Monitor component."""
-
-    async def async_send_sms(service_call) -> None:
-        """Service to send an SMS."""
-        entries: list[ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]] = (
-            hass.config_entries.async_entries(DOMAIN)
-        )
-        if not entries:
-            raise HomeAssistantError("No Huawei Router 5G entries found")
-
-        # Use the first available entry's coordinator
-        entry = entries[0]
-        if not hasattr(entry, "runtime_data"):
-            raise HomeAssistantError(f"Integration entry {entry.title} not ready")
-
-        coordinator = entry.runtime_data
-        target = service_call.data["target"]
-        message = service_call.data["message"]
-        if isinstance(target, str):
-            target = [target]
-
-        try:
-            await coordinator.api.send_sms(target, message)
-        except Exception as err:
-            raise HomeAssistantError(f"Failed to send SMS: {err}") from err
-
     if not hass.services.has_service(DOMAIN, "send_sms"):
         hass.services.async_register(
-            DOMAIN, "send_sms", async_send_sms, schema=SERVICE_SCHEMA
+            DOMAIN,
+            "send_sms",
+            lambda call: async_send_sms(hass, call),
+            schema=SERVICE_SCHEMA,
         )
 
     return True

@@ -2,6 +2,19 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
+## [1.0.1-dev20] - 2026-05-03
+
+### Fixed
+
+- **Test Suite Reliability**: Resolved `RuntimeWarning` for unawaited coroutines in setup tests by explicitly closing or awaiting background initialization tasks in `test_init.py`.
+- **Linting Compliance**: Resolved all manual `ruff` errors (`SIM117`) in `tests/test_api.py` by combining nested `with` statements for `patch` and `pytest.raises`.
+
+### Changed
+
+- **Test Coverage Expansion**: Verified 220/220 tests passing with zero warnings and 100% clean linting in the Docker devcontainer environment.
+
+---
+
 ## [1.0.1-dev19] - 2026-05-03
 
 ### Added

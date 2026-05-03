@@ -82,8 +82,8 @@ This integration provides **101+ entities** grouped into five logical devices: *
 
 | Type | Count | Primary Functions |
 | :-- | :-- | :-- |
-| **Sensors** | 80+ | Signal strength, data usage, uptime, SMS counts, device info |
-| **Binary Sensors** | 5 | WiFi status, mobile connection, 5G NR active, SMS storage full |
+| **Sensors** | 89 | Signal strength, data usage, uptime, SMS counts, device info |
+| **Binary Sensors** | 7 | WiFi status, mobile connection, 5G NR active, SMS storage full |
 | **Switches** | 3 | Pause Polling, Mobile Data, Guest WiFi |
 | **Controls** | 5 | Reboot, Clear Traffic, Polling Interval, Network Mode, Send SMS service |
 | **Device Trackers** | 1+ | Dynamically discovered per connected LAN/WLAN client |
