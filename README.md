@@ -110,13 +110,13 @@ This integration provides **106+ entities** grouped into five logical devices: *
 
 ![Integration](.github/images/huawei_5g_integration_screen.png)
 
-| Signal Data | Signal Diagnostics |
+| Signal | System |
 | :-: | :-: |
-| ![Sensors](.github/images/huawei_5g_sensor_screen_mini.png) | ![Diagnostics](.github/images/huawei_5g_diagnostic_screen_mini.png) |
+| ![Sensors](.github/images/huawei_5g_signal_info.png) | ![Diagnostics](.github/images/huawei_5g_sensor_control_info.png) |
 
-| System | Data | SMS Management |
+| Data | Clients | SMS |
 | :-: | :-: | :-: |
-| ![System](.github/images/huawei_5g_system_screen_mini.png) | ![Data](.github/images/huawei_5g_data_screen_mini.png) | ![SMS](.github/images/huawei_5g_sms_screen_mini.png) |
+| ![Data](.github/images/huawei_5g_data_info_mini.png) | ![Clients](.github/images/huawei_5g_device_info_mini.png) | ![SMS](.github/images/huawei_5g_sms_info.png) |
 
 ---
 
