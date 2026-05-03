@@ -78,7 +78,7 @@ async def test_device_tracker_setup_entry():
         "lan_host_info": {"Hosts": {"Host": [{"MacAddress": "AA:BB:CC:DD:EE:01", "Active": "1"}]}},
         "wlan_host_list": {"Hosts": {"Host": []}},
     }
-    hass.data = {DOMAIN: {"test": coordinator}}
+    entry.runtime_data = coordinator
 
     async_add_entities = MagicMock()
     await async_setup_entry(hass, entry, async_add_entities)

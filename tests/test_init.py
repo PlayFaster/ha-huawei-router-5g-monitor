@@ -45,8 +45,8 @@ async def test_setup_entry_success(mock_hass, mock_config_entry):
         result = await async_setup_entry(mock_hass, mock_config_entry)
 
     assert result is True
-    assert mock_config_entry.entry_id in mock_hass.data[DOMAIN]
-    coordinator = mock_hass.data[DOMAIN][mock_config_entry.entry_id]
+    assert mock_config_entry.runtime_data is not None
+    coordinator = mock_config_entry.runtime_data
     assert isinstance(coordinator, HuaweiRouter5GDataUpdateCoordinator)
     mock_hass.config_entries.async_forward_entry_setups.assert_called_once()
     mock_config_entry.async_create_background_task.assert_called_once()
@@ -92,32 +92,15 @@ async def test_setup_entry_creates_system_device(mock_hass, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_unload_entry_success(mock_hass, mock_config_entry):
-    """Test that unloading removes the coordinator and cleans up hass.data."""
-    mock_hass.data = {DOMAIN: {mock_config_entry.entry_id: MagicMock()}}
+    """Test that unloading calls logout and unloads platforms."""
+    coordinator = MagicMock()
+    mock_config_entry.runtime_data = coordinator
+    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
 
     result = await async_unload_entry(mock_hass, mock_config_entry)
 
     assert result is True
-    assert DOMAIN not in mock_hass.data
-
-
-@pytest.mark.asyncio
-async def test_unload_entry_leaves_domain_when_other_entries_remain(
-    mock_hass, mock_config_entry
-):
-    """Test that hass.data[DOMAIN] is kept when other entries still exist."""
-    mock_hass.data = {
-        DOMAIN: {
-            mock_config_entry.entry_id: MagicMock(),
-            "other_entry": MagicMock(),
-        }
-    }
-
-    result = await async_unload_entry(mock_hass, mock_config_entry)
-
-    assert result is True
-    assert DOMAIN in mock_hass.data
-    assert mock_config_entry.entry_id not in mock_hass.data[DOMAIN]
+    coordinator.api.logout.assert_called_once()
 
 
 # ---------------------------------------------------------------------------
@@ -138,7 +121,7 @@ async def test_async_update_data_success(mock_hass, mock_config_entry):
         )
 
         await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_hass.data[DOMAIN][mock_config_entry.entry_id]
+        coordinator = mock_config_entry.runtime_data
 
         data = await coordinator._async_update_data()
 
@@ -159,7 +142,7 @@ async def test_async_update_data_paused_returns_cache(mock_hass, mock_config_ent
         patch("homeassistant.helpers.device_registry.async_get"),
     ):
         await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_hass.data[DOMAIN][mock_config_entry.entry_id]
+        coordinator = mock_config_entry.runtime_data
         coordinator.data = {"cached": "data"}
 
         data = await coordinator._async_update_data()
@@ -184,7 +167,7 @@ async def test_async_update_data_paused_first_run_returns_empty(
         mock_api.get_data = AsyncMock(side_effect=Exception("No connection"))
 
         await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_hass.data[DOMAIN][mock_config_entry.entry_id]
+        coordinator = mock_config_entry.runtime_data
         coordinator.data = None  # first run
 
         data = await coordinator._async_update_data()
@@ -203,7 +186,7 @@ async def test_async_update_data_resilience(mock_hass, mock_config_entry):
         mock_api.get_data = AsyncMock(side_effect=Exception("Persistent Fail"))
 
         await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_hass.data[DOMAIN][mock_config_entry.entry_id]
+        coordinator = mock_config_entry.runtime_data
         coordinator.data = {"old": "data"}
 
         # Failures 1-3: return cached data
@@ -229,7 +212,7 @@ async def test_async_update_data_timeout_resilience(mock_hass, mock_config_entry
         mock_api.get_data = AsyncMock(side_effect=TimeoutError)
 
         await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_hass.data[DOMAIN][mock_config_entry.entry_id]
+        coordinator = mock_config_entry.runtime_data
         coordinator.data = {"old": "data"}
 
         for n in range(1, 4):

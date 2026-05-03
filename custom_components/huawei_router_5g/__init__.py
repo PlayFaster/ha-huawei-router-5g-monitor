@@ -6,7 +6,9 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.typing import ConfigType
 
 from .api import HuaweiRouter5GAPI
 from .const import DOMAIN
@@ -32,7 +34,44 @@ PLATFORMS = [
 ]
 
 
-async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
+    """Set up the Huawei Router 5G Monitor component."""
+
+    async def async_send_sms(service_call) -> None:
+        """Service to send an SMS."""
+        entries: list[ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]] = (
+            hass.config_entries.async_entries(DOMAIN)
+        )
+        if not entries:
+            raise HomeAssistantError("No Huawei Router 5G entries found")
+
+        # Use the first available entry's coordinator
+        entry = entries[0]
+        if not hasattr(entry, "runtime_data"):
+            raise HomeAssistantError(f"Integration entry {entry.title} not ready")
+
+        coordinator = entry.runtime_data
+        target = service_call.data["target"]
+        message = service_call.data["message"]
+        if isinstance(target, str):
+            target = [target]
+
+        try:
+            await coordinator.api.send_sms(target, message)
+        except Exception as err:
+            raise HomeAssistantError(f"Failed to send SMS: {err}") from err
+
+    if not hass.services.has_service(DOMAIN, "send_sms"):
+        hass.services.async_register(
+            DOMAIN, "send_sms", async_send_sms, schema=SERVICE_SCHEMA
+        )
+
+    return True
+
+
+async def async_setup_entry(
+    hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
+) -> bool:
     """Set up Huawei Router 5G Monitor from a config entry with Background Safety."""
     conf = entry.options
 
@@ -43,9 +82,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     )
 
     coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry, api)
-
-    hass.data.setdefault(DOMAIN, {})
-    hass.data[DOMAIN][entry.entry_id] = coordinator
+    entry.runtime_data = coordinator
 
     # Register the root System device early to prevent via_device warnings in platforms.
     device_registry = dr.async_get(hass)
@@ -76,19 +113,6 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     # Forward platforms immediately so entities appear in HA at startup.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
 
-    # Register services
-    async def async_send_sms(service_call) -> None:
-        """Service to send an SMS."""
-        target = service_call.data["target"]
-        message = service_call.data["message"]
-        if isinstance(target, str):
-            target = [target]
-        await api.send_sms(target, message)
-
-    hass.services.async_register(
-        DOMAIN, "send_sms", async_send_sms, schema=SERVICE_SCHEMA
-    )
-
     # BACKGROUND INITIALIZATION TASK
     # Offloads the initial connection to keep HA startup instant.
     async def _async_background_setup() -> None:
@@ -110,19 +134,16 @@ async def async_setup_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
     return True
 
 
-async def async_unload_entry(hass: HomeAssistant, entry: ConfigEntry) -> bool:
+async def async_unload_entry(
+    hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
+) -> bool:
     """Unload a config entry and release resources."""
     import contextlib
 
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     with contextlib.suppress(Exception):
         await coordinator.api.logout()
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    if unload_ok:
-        hass.services.async_remove(DOMAIN, "send_sms")
-        hass.data[DOMAIN].pop(entry.entry_id)
-        if not hass.data[DOMAIN]:
-            hass.data.pop(DOMAIN)
     return unload_ok

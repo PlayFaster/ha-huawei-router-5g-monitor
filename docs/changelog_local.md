@@ -2,6 +2,40 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
+## [1.0.1-dev15] - 2026-05-03
+
+### Added
+- **Dynamic SMS Box Selection**: Integration now automatically detects whether messages are stored in the Device Inbox or SIM Inbox by checking `sms_count` results before fetching the list. This ensures "Last Msg" works regardless of storage configuration.
+- **Aggregate SMS Sensor**: Created `Total Msg` as a primary sensor that sums all messages across both Device and SIM storage.
+- **SMS Entity Renaming Refactor**:
+    - Removed redundant "SMS" prefix from all entities within the SMS sub-device to fix double-naming in the UI.
+    - Standardized labels: `Unread Msg`, `Total Msg`, `Last Msg`, and simplified location-specific labels (e.g., `Total (SIM)`).
+- **Corrected SMS Quantity Sensors**: Fixed invalid API keys for individual storage sensors (e.g., `LocalInbox` -> `LocalUnread` + `LocalRead`), resolving "Unknown" states for technical counters.
+
+### Changed
+- **SMS Category Optimization**:
+    - Renamed **New Msg** -> **In Process** and moved to **Diagnostic** to reflect its transient notification state.
+    - Moved **Total (Device)** and **Total (SIM)** to the **Diagnostic** category.
+- **API Call Simplification**: Stripped non-essential parameters from `get_sms_list` (sort, order, preference) to ensure compatibility with modern 5G firmware that rejected extended XML payloads.
+- **Library Compatibility**: Migrated to `BoxTypeEnum` for box selection to resolve attribute errors in recent `huawei-lte-api` versions.
+- **Diagnostic Visibility**: Promoted SMS list fetch failures to the `WARNING` level with explicit error reporting.
+
+---
+
+## [1.0.1-dev14] - 2026-05-03
+
+### Added
+- **Explicit Reconnection Logging**: Coordinator now logs an `INFO` message when communication is restored after one or more failed fetches, improving visibility into network recovery.
+- **Modern Data Management**: Migrated integration to use `entry.runtime_data` for coordinator storage, replacing the legacy `hass.data[DOMAIN]` pattern.
+- **Domain-Level Service Registration**: Refactored `send_sms` service registration to `async_setup` (domain-level) rather than `async_setup_entry` (instance-level) to ensure singleton registration across multiple router entries.
+
+### Changed
+- **Parallel Update Optimization**: Added `PARALLEL_UPDATES = 0` to all platform files to indicate update coordination is handled by the coordinator.
+- **Service Error Handling**: Updated `send_sms` to raise `HomeAssistantError` with descriptive feedback on failure, allowing automations to respond to errors.
+- **Test Infrastructure Refactor**: Updated entire test suite to support `runtime_data` and verified 186/186 passing states.
+
+---
+
 ## [1.0.1-dev13] - 2026-05-02
 
 ### Added

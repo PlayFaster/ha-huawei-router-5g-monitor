@@ -29,6 +29,8 @@ from homeassistant.util import dt as dt_util
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
+    _safe_float,
+    _safe_int,
     get_network_type_label,
     parse_signal_value,
     parse_sms_list,
@@ -36,11 +38,7 @@ from .helpers import (
 
 _LOGGER = logging.getLogger(__name__)
 
-
-def _safe_int(val: Any) -> int | None:
-    """Safely convert value to int or return None."""
-    f_val = parse_signal_value(val)
-    return int(f_val) if f_val is not None else None
+PARALLEL_UPDATES = 0
 
 
 def _get_timestamp(seconds: Any) -> Any:
@@ -1034,6 +1032,25 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         ),
     ),
     HuaweiSensorEntityDescription(
+        key="sms_total_msg",
+        translation_key="sms_total_msg",
+        icon="mdi:message-text",
+        state_class=SensorStateClass.MEASUREMENT,
+        group="sms",
+        min_limit=0,
+        max_limit=10000,
+        value_fn=lambda data: (
+            (_safe_int(data.get("sms_count", {}).get("LocalUnread")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("LocalRead")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("LocalOutbox")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("LocalSent")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("LocalDraft")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("SimUsed")) or 0)
+            if data and data.get("sms_count")
+            else None
+        ),
+    ),
+    HuaweiSensorEntityDescription(
         key="sms_total",
         translation_key="sms_total",
         icon="mdi:message-text",
@@ -1044,11 +1061,13 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             (_safe_int(data.get("sms_count", {}).get("LocalUnread")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("LocalRead")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("LocalOutbox")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("LocalSent")) or 0)
             + (_safe_int(data.get("sms_count", {}).get("LocalDraft")) or 0)
             if data and data.get("sms_count")
             else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="sms_unread_device",
@@ -1072,7 +1091,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         min_limit=0,
         max_limit=10000,
         value_fn=lambda data: (
-            _safe_int(data.get("sms_count", {}).get("LocalInbox")) if data else None
+            (_safe_int(data.get("sms_count", {}).get("LocalUnread")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("LocalRead")) or 0)
+            if data and data.get("sms_count")
+            else None
         ),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -1150,7 +1172,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         min_limit=0,
         max_limit=10000,
         value_fn=lambda data: (
-            _safe_int(data.get("sms_count", {}).get("SimInbox")) if data else None
+            (_safe_int(data.get("sms_count", {}).get("SimUnread")) or 0)
+            + (_safe_int(data.get("sms_count", {}).get("SimRead")) or 0)
+            if data and data.get("sms_count")
+            else None
         ),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -1217,6 +1242,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: (
             _safe_int(data.get("sms_count", {}).get("NewMsg")) if data else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="last_sms",
@@ -1230,7 +1256,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the sensor platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     async_add_entities(
         [
             HuaweiRouterSensor(coordinator, entry, description)
@@ -1303,6 +1329,7 @@ class HuaweiRouterSensor(
                     "local_unread": int(counts.get("LocalUnread", 0)),
                     "local_read": int(counts.get("LocalRead", 0)),
                     "local_sent": int(counts.get("LocalSent", 0)),
+                    "local_outbox": int(counts.get("LocalOutbox", 0)),
                     "local_draft": int(counts.get("LocalDraft", 0)),
                     "local_max": int(counts.get("LocalMax", 0)),
                     "sim_unread": int(counts.get("SimUnread", 0)),

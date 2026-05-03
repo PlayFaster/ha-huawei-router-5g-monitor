@@ -106,6 +106,13 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                         self.entry, data=new_entry_data
                     )
 
+                if self.consecutive_failures > 0:
+                    _LOGGER.info(
+                        "%s: Communication restored after %d failures.",
+                        self.entry.title,
+                        self.consecutive_failures,
+                    )
+
                 self.last_update_success_time = dt_util.now()
                 self.consecutive_failures = 0
 

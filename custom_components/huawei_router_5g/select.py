@@ -13,6 +13,8 @@ from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
 
+PARALLEL_UPDATES = 0
+
 _LOGGER = logging.getLogger(__name__)
 
 
@@ -62,7 +64,7 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the select platform."""
-    coordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator = entry.runtime_data
     async_add_entities(
         [HuaweiRouterSelect(coordinator, description) for description in SELECTS]
     )

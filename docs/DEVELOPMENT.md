@@ -49,7 +49,12 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Dual Duration/Timestamp Sensors**: Providing both raw durations (disabled by default) and calculated timestamps (enabled by default) for metrics like Uptime and Connection Time, catering to both automation and UI needs.
 - **High-Fidelity Logging**: Utilizing `_LOGGER.exception()` for all critical failure paths ensures full tracebacks are available in Home Assistant logs for remote debugging, while downgrading transient session timeouts to `DEBUG` keeps logs clean for end-users.
 - **Architectural Consolidation**: Extracting highly duplicated properties like `device_info` into centralized helpers (e.g., `build_device_info`) to enforce DRY principles across 7+ platform files.
+- **Modern Data Management**: Utilizing `ConfigEntry.runtime_data` to store the `DataUpdateCoordinator`. This removes the need for managing a complex `hass.data[DOMAIN]` dictionary and provides native Home Assistant support for type-safe data access.
+- **Parallel Update Coordination**: Explicitly setting `PARALLEL_UPDATES = 0` in all platform files. This informs Home Assistant that the coordinator handles update orchestration internally, eliminating redundant update overhead.
+- **Domain-Level Service Architecture**: Registering integration services (like `send_sms`) in `async_setup` rather than `async_setup_entry`. This ensures services are registered exactly once for the entire domain, regardless of how many router instances are configured.
+- **Actionable Service Feedback**: Ensuring all services raise `HomeAssistantError` with descriptive messages upon failure. This allows Home Assistant automations and scripts to detect execution errors and provides users with meaningful feedback in the UI.
 - **Seamless Session Recovery**: Implementing immediate retry logic in the `DataUpdateCoordinator` to handle fixed router session TTLs, ensuring continuous data flow and clean logs during re-authentication events.
+- **Recovery Visibility**: Implementing explicit reconnection logging. The coordinator logs an `INFO` message only when communication is restored after a failure, providing a clear "log once on loss, log once on recovery" signal.
 - **Long-Term Statistics Alignment**: Consistent use of `state_class` (`MEASUREMENT`, `TOTAL`, `TOTAL_INCREASING`) across volume, duration, and signal metrics to ensure high-quality historical data and compatibility with Home Assistant's Energy and Statistics dashboards.
 - **Abstracted Select Mappings**: Utilizing internal mapping dictionaries in `select.py` to decouple technical API codes from user-friendly UI labels, ensuring a professional configuration experience without exposing protocol-level strings.
 - **Entity Category Optimization**: Strategically utilizing `EntityCategory.DIAGNOSTIC` for granular infrastructure metrics (e.g., secondary frequency bands, per-bank SMS capacity) while keeping actionable or highly readable metrics (e.g., Signal Bars, SMS Unread) in the primary entity list to balance depth with UI cleanliness.
@@ -70,6 +75,14 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Normalized all MAC identifiers to a consistent lowercase, colon-less format for use in `unique_id`.
 - **Background Task Mocking**: Standard tests can fail if background tasks aren't properly awaited.
   - _Fix_: Ensured all tests use `hass.async_block_till_done()` after setup to catch initialization tasks.
+- **SMS API Parameter Constraints (v1.0.1-dev15)**: Modern 5G firmware is highly sensitive to the XML payload sent to `get_sms_list`. Including optional parameters like `sort_type` or `unread_preferred` can cause the router to reject the request with a "System Error" (110001) or return empty results.
+  - _Fix_: Simplified the API call to the absolute minimum required parameters (`page` and `box_type`) to maximize compatibility.
+- **Transient Notification Counters**: The `NewMsg` API key does not represent a persistent state (like "Unread"); it is a transient notification counter that resets as soon as a client fetches the message list.
+  - _Fix_: Renamed the sensor to **"In Process"** and moved it to **Diagnostic** to prevent user confusion during polling cycles.
+- **Library Enum Requirements**: Recent versions of `huawei-lte-api` expect `Enum` objects (like `BoxTypeEnum`) rather than literal integers for certain parameters. Passing an integer can trigger attribute errors (`'int' object has no attribute 'value'`) within the library's internal logic.
+  - _Fix_: Explicitly import and utilize the library's Enum definitions for all box selection logic.
+- **Invalid API Key Mismatch**: Technical storage metrics (e.g., `LocalInbox`, `SimInbox`) are often used in documentation but do not exist in the actual `sms_count` response for many models.
+  - _Fix_: Corrected mappings to sum physical counters: `Inbox = Read + Unread`, `Outbox = Outbox + Sent`.
 
 ## 6. Environment Constraints
 

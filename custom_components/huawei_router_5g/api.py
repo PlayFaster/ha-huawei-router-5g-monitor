@@ -12,7 +12,10 @@ from huawei_lte_api.exceptions import (
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
+from huawei_lte_api.enums.sms import BoxTypeEnum
 from url_normalize import url_normalize
+
+from .helpers import _safe_int
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -119,11 +122,18 @@ class HuaweiRouter5GAPI:
                     "sms_list",
                     lambda: client.sms.get_sms_list(
                         page=1,
-                        box_type=1,  # LOCAL_INBOX
+                        box_type=(
+                            BoxTypeEnum.LOCAL_INBOX
+                            if (_safe_int(data.get("sms_count", {}).get("LocalRead")) or 0)
+                            + (_safe_int(data.get("sms_count", {}).get("LocalUnread")) or 0)
+                            > 0
+                            or not (
+                                (_safe_int(data.get("sms_count", {}).get("SimRead")) or 0)
+                                + (_safe_int(data.get("sms_count", {}).get("SimUnread")) or 0)
+                            )
+                            else BoxTypeEnum.SIM_INBOX
+                        ),
                         read_count=20,
-                        sort_type=0,  # DATE
-                        ascending=False,
-                        unread_preferred=True,
                     ),
                 ),
                 ("mobile_dataswitch", lambda: client.dial_up.mobile_dataswitch()),
@@ -163,14 +173,20 @@ class HuaweiRouter5GAPI:
                             f"Critical data fetch failed: {err}"
                         ) from err
 
-                    _LOGGER.debug("Failed to fetch %s: %s", key, err)
+                    if key == "sms_list":
+                        _LOGGER.warning("Failed to fetch %s: %s", key, err)
+                    else:
+                        _LOGGER.debug("Failed to fetch %s: %s", key, err)
                 except Exception as err:
                     if key == "device_information":
                         _LOGGER.warning("Critical fetch %s failed: %s", key, err)
                         raise HuaweiConnectionError(
                             f"Critical data fetch failed: {err}"
                         ) from err
-                    _LOGGER.debug("Failed to fetch %s: %s", key, err)
+                    if key == "sms_list":
+                        _LOGGER.warning("Failed to fetch %s: %s", key, err)
+                    else:
+                        _LOGGER.debug("Failed to fetch %s: %s", key, err)
 
             return data
 

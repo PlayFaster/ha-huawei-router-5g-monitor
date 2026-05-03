@@ -14,6 +14,8 @@ from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info, parse_signal_value
 
+PARALLEL_UPDATES = 0
+
 
 @dataclass(frozen=True, kw_only=True)
 class HuaweiBinarySensorEntityDescription(BinarySensorEntityDescription):
@@ -74,7 +76,7 @@ MOBILE_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the binary sensor platform."""
-    coordinator: HuaweiRouter5GDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: HuaweiRouter5GDataUpdateCoordinator = entry.runtime_data
     async_add_entities(
         [
             HuaweiBestConnectionSensor(coordinator, entry, BEST_CONN_DESCRIPTION),

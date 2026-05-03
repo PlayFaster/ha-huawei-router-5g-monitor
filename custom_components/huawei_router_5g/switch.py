@@ -14,6 +14,8 @@ from .helpers import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
+PARALLEL_UPDATES = 0
+
 
 @dataclass(frozen=True, kw_only=True)
 class HuaweiSwitchEntityDescription(SwitchEntityDescription):
@@ -49,7 +51,7 @@ GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the switch platform."""
-    coordinator: HuaweiRouter5GDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: HuaweiRouter5GDataUpdateCoordinator = entry.runtime_data
 
     initial_pause_state = entry.options.get(CONF_STOP_POLLING, False)
 

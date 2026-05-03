@@ -19,6 +19,8 @@ from .helpers import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
+PARALLEL_UPDATES = 0
+
 
 @dataclass(frozen=True, kw_only=True)
 class HuaweiNumberEntityDescription(NumberEntityDescription):
@@ -43,7 +45,7 @@ POLLING_INTERVAL_DESCRIPTION = HuaweiNumberEntityDescription(
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the number platform."""
-    coordinator: HuaweiRouter5GDataUpdateCoordinator = hass.data[DOMAIN][entry.entry_id]
+    coordinator: HuaweiRouter5GDataUpdateCoordinator = entry.runtime_data
 
     # Read initial value from entry options (survives restarts)
     initial_value = entry.options.get(CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL)

@@ -90,6 +90,17 @@ def parse_signal_value(val: Any) -> float | None:
         return None
 
 
+def _safe_int(val: Any) -> int | None:
+    """Safely convert value to int or return None."""
+    f_val = parse_signal_value(val)
+    return int(f_val) if f_val is not None else None
+
+
+def _safe_float(val: Any) -> float | None:
+    """Safely convert value to float or return None."""
+    return parse_signal_value(val)
+
+
 def get_network_type_label(code: str | None) -> str | None:
     """Map a Huawei CurrentNetworkType code to a human-readable label."""
     if code is None:
