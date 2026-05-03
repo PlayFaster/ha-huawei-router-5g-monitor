@@ -581,6 +581,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
+        max_limit=3800,
         value_fn=lambda data: format_freq_mhz(_get_signal_value(data, "lteulfreq")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -593,6 +594,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
+        max_limit=3800,
         value_fn=lambda data: format_freq_mhz(_get_signal_value(data, "ltedlfreq")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -606,6 +608,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0,
+        max_limit=20,
         # ulbandwidth reports LTE channel bandwidth directly in MHz (e.g. 20.0).
         # WARNING: ulfrequency is the carrier frequency in kHz — using it here with
         # /1000 produces ~1970 MHz instead of the correct ~20 MHz.
@@ -623,6 +626,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0,
+        max_limit=20,
         # dlbandwidth reports LTE channel bandwidth directly in MHz (e.g. 20.0).
         # WARNING: dlfrequency is the carrier frequency in kHz — using it here with
         # /1000 produces ~2160 MHz instead of the correct ~20 MHz.
@@ -639,6 +643,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
+        max_limit=7125,
         # ulfrequency reports carrier uplink frequency in kHz; divide by 1000 for MHz.
         # e.g. raw 1970000 kHz -> 1970.0 MHz.
         value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "ulfrequency")),
@@ -653,6 +658,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
+        max_limit=7125,
         # dlfrequency reports carrier downlink frequency in kHz; divide by 1000 for MHz.
         # e.g. raw 2160000 kHz -> 2160.0 MHz.
         value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "dlfrequency")),
@@ -736,6 +742,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:transfer-up",
         group="signal",
         min_limit=0,
+        max_limit=100,
         value_fn=lambda data: parse_signal_value(
             _get_signal_value(data, "nrulbandwidth")
         ),
@@ -750,6 +757,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:transfer-down",
         group="signal",
         min_limit=0,
+        max_limit=100,
         value_fn=lambda data: parse_signal_value(
             _get_signal_value(data, "nrdlbandwidth")
         ),

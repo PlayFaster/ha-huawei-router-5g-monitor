@@ -2,7 +2,68 @@
 
 This document tracks technical shifts, architectural decisions, and detailed implementation notes for the Huawei Router 5G Monitor project.
 
-## [1.0.1-dev20] - 2026-05-03
+---
+
+## [1.0.1-rc5] - 2026-05-03
+
+### Added
+
+- **Guard bands on all 8 frequency/bandwidth sensors**: Added `max_limit` to complete the guard band coverage (all 8 already had `min_limit=0`). Limits are grounded in 3GPP standards:
+  - `lte_uplink_frequency` / `lte_downlink_frequency`: `max_limit=3800` MHz — highest deployed mobile LTE band (B42/B43).
+  - `lte_uplink_bandwidth` / `lte_downlink_bandwidth`: `max_limit=20` MHz — definitive 3GPP LTE maximum channel bandwidth per carrier.
+  - `5g_uplink_frequency` / `5g_downlink_frequency`: `max_limit=7125` MHz — exact 3GPP FR1 upper boundary. FR2/mmWave not applicable to this hardware.
+  - `5g_uplink_bandwidth` / `5g_downlink_bandwidth`: `max_limit=100` MHz — 3GPP FR1 maximum NR channel bandwidth per carrier.
+
+### Fixed
+
+- **Translation gap — 4 sensor keys missing from `strings.json`**: `primary_ipv6_dns`, `secondary_ipv6_dns`, `5g_uplink_frequency`, and `5g_downlink_frequency` were present in `en.json` but absent from `strings.json`. Added in positionally correct locations (IPv6 DNS keys after `secondary_dns`; 5G frequency keys after `lte_downlink_bandwidth`).
+
+### Changed
+
+- **`bandwidth_issue.md` fully rewritten**: The `.notes/bandwidth_issue.md` reference document was superseded — it encoded the original pre-fix understanding (wrong divisors, wrong field assignments, inverted warnings) and had never been updated after the bugs were corrected. Replaced with accurate field-to-sensor mapping table, correct helper function descriptions with raw-value examples, field-confusion history explaining the original bugs, the finalized guard band table, and observed live values from the H165-383.
+
+---
+
+## [1.0.1-rc4] - 2026-05-03
+
+### Changed
+
+- **Project Documentation Sync**: Conducted a full audit of all 106+ entities against the Home Assistant ground truth JSON.
+- **Master Manifest Alignment**: Synchronized `docs/huawei_5g_all_sensors.md` with current implementation keys (e.g., legacy `nr_` prefix migrated to `5g_`), standardized names, and corrected categories. Added missing entries for **IPv6 DNS Servers** and the **Network Mode** sensor.
+- **README Updates**: Updated `README.md` to reflect the current entity count (106+) and replaced the outdated "5G NR active" binary sensor with the overhauled **"Best Connection"** sensor in the "What You Get" table.
+- **Guard Band & Dev Journal Sync**: Aligned `docs/value_min_max.md` and `docs/DEVELOPMENT.md` with finalized sensor names and documented the recent architectural shifts from dev18 to dev22.
+- **Unit Source-of-Truth**: Re-confirmed and standardized documentation to use base units (Seconds, Bytes, B/s) as the authoritative source-of-truth, ensuring alignment with device output regardless of Home Assistant UI auto-scaling.
+
+---
+
+## [1.0.1-rc3] - 2026-05-03
+
+### Fixed
+
+- **CI Validation Failure**: Resolved `ModuleNotFoundError: No module named 'huawei_lte_api'` in GitHub Actions by adding `huawei-lte-api` and `url-normalize` to `.validate/requirements_test.txt`.
+- **CI Coverage Path**: Corrected the `--cov` flag in `.github/workflows/validate.yaml` to point to `custom_components/huawei_router_5g` (previously incorrectly pointing to a `zte` directory), ensuring valid coverage reports in CI.
+
+---
+
+## [1.0.1-dev22] - 2026-05-03
+
+### Added
+
+- **Primary/Secondary IPv6 DNS sensors**: New diagnostic sensors (`primary_ipv6_dns`, `secondary_ipv6_dns`) reading `PrimaryIPv6Dns`/`SecondaryIPv6Dns` from the `monitoring_status` API response. Mirrors the existing IPv4 DNS pair and fills a gap identified against the HA core Huawei LTE project.
+- **5G Uplink/Downlink Frequency sensors**: Added `5g_uplink_frequency` and `5g_downlink_frequency` diagnostic sensors reading the `ulfrequency`/`dlfrequency` API fields (raw kHz, scaled ÷1000 via `format_khz_to_mhz`). Renamed from the generic `uplink_frequency`/`downlink_frequency` introduced in dev18 to make the 5G scope explicit and consistent with the naming convention used throughout this project.
+
+### Fixed
+
+- **"Unit of Measurement" selector absent on all 8 frequency/bandwidth sensors**: The `device_class=FREQUENCY` HA entity property pages showed no unit selector, preventing users from switching between MHz/kHz/GHz display units. Root cause: all 8 sensors had `state_class=SensorStateClass.MEASUREMENT` set, routing them through HA's long-term statistics path, which does not surface the unit selector for the `FREQUENCY` device class. Fixed by removing `state_class` from all 8 sensors (`lte_uplink_frequency`, `lte_downlink_frequency`, `lte_uplink_bandwidth`, `lte_downlink_bandwidth`, `5g_uplink_frequency`, `5g_downlink_frequency`, `5g_uplink_bandwidth`, `5g_downlink_bandwidth`), matching the pattern used by the HA core Huawei LTE project where frequency sensors carry only `device_class` and the unit selector is surfaced via HA's device-class auto-conversion path.
+- **Preferred Network Mode sensor icon invalid**: `preferred_network_mode` was using `mdi:settings-transfer`, which does not resolve in current Material Design Icons. Replaced with `mdi:tune`.
+
+### Changed
+
+- **`format_bw_mhz` renamed to `format_khz_to_mhz`**: Helper function renamed to accurately reflect its sole purpose — scaling kHz carrier-frequency fields to MHz (÷1000). The original name was inherited from an earlier implementation where it was also (incorrectly) used for bandwidth fields; after that was corrected in dev18 the name became misleading.
+
+---
+
+## [1.0.1-dev21] - 2026-05-03
 
 ### Fixed
 

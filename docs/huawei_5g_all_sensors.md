@@ -1,21 +1,21 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 104 entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 106 entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 24 | Core router info, WiFi status, and global integration settings. |
-| **Signal** | 45 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
+| **System** | 26 | Core router info, WiFi status, and global integration settings. |
+| **Signal** | 46 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
 | **Clients** | 1+ | Connected LAN/WLAN devices (dynamically discovered). |
-| **Total** | **104** |  |
+| **Total** | **106** |  |
 
 ---
 
-## 1. System Sub-Device (24 Entities)
+## 1. System Sub-Device (26 Entities)
 
 _Group: `system`_
 
@@ -33,12 +33,14 @@ _Group: `system`_
 | Total Duration | `total_connection_time` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Total Uptime | `total_connection_timestamp` | Sensor | Timestamp | - | Calculated as `now() - total_connection_time`. |
 | Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
-| WiFi Users | `wifi_users` | Sensor | - | Diagnostic |  |
+| WiFi Users Connected | `wifi_users` | Sensor | - | Diagnostic |  |
 | Primary DNS Server | `primary_dns` | Sensor | - | Diagnostic |  |
 | Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic |  |
+| Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic |  |
+| Secondary IPv6 DNS Server | `secondary_ipv6_dns` | Sensor | - | Diagnostic |  |
 | WiFi Status | `wifi_status` | Binary | - | Diagnostic | ON if global WiFi is enabled. |
-| WiFi 2.4GHz Status | `wifi24g_status` | Binary | - | Diagnostic |  |
-| WiFi 5GHz Status | `wifi5g_status` | Binary | - | Diagnostic |  |
+| WiFi 2.4GHz Status | `wifi_2_4ghz_status` | Binary | - | Diagnostic |  |
+| WiFi 5GHz Status | `wifi_5ghz_status` | Binary | - | Diagnostic |  |
 | Reboot | `reboot` | Button | - | - |  |
 | Polling Interval | `polling_interval` | Number | s | Config | Range: 30s - 3600s. Persists in options. |
 | Pause Polling | `pause_polling` | Switch | - | Config | State persists in `ConfigEntry.options`. |
@@ -48,13 +50,14 @@ _Group: `system`_
 
 ---
 
-## 2. Signal Sub-Device (45 Entities)
+## 2. Signal Sub-Device (46 Entities)
 
 _Group: `signal`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | Network Type | `network_type` | Sensor | - | Diagnostic | Human-readable (e.g., LTE, 5G). |
+| Preferred Network Mode | `preferred_network_mode` | Sensor | - | Diagnostic | Read-only state of the network mode. |
 | Operator | `operator` | Sensor | - | Diagnostic | Network provider name. |
 | Operator Code | `plmn` | Sensor | - | Diagnostic | Numeric PLMN code. |
 | Operator Search Mode | `operator_search_mode` | Sensor | - | Diagnostic |  |
@@ -81,13 +84,13 @@ _Group: `signal`_
 | LTE Downlink Bandwidth | `lte_downlink_bandwidth` | Sensor | MHz | Diagnostic | `dlbandwidth` field, no scaling. |
 | LTE Transmission Mode | `transmission_mode` | Sensor | - | Diagnostic |  |
 | eNodeB ID | `enodeb_id` | Sensor | - | Diagnostic |  |
-| LTE CQI | `cqi_0` | Sensor | - | - | Promoted from Diagnostic. |
+| LTE CQI | `lte_cqi` | Sensor | - | - | Promoted from Diagnostic. |
 | LTE Uplink Frequency (Secondary) | `uplink_frequency` | Sensor | MHz | Diagnostic | `ulfrequency` field in kHz, scaled /1000. |
 | LTE Downlink Frequency (Secondary) | `downlink_frequency` | Sensor | MHz | Diagnostic | `dlfrequency` field in kHz, scaled /1000. |
-| 5G NR Band | `nr5g_band` | Sensor | - | Diagnostic | Parsed from `band` string (e.g. `N28`). |
-| 5G RSRP | `nr_rsrp` | Sensor | dBm | - | Range: -150 to -30. |
-| 5G RSRQ | `nr_rsrq` | Sensor | dB | - | Range: -50 to 0. |
-| 5G SINR | `nr_sinr` | Sensor | dB | - | Range: -30 to 40. |
+| 5G NR Band | `5g_nr_band` | Sensor | - | Diagnostic | Parsed from `band` string (e.g. `N28`). |
+| 5G RSRP | `5g_rsrp` | Sensor | dBm | - | Range: -150 to -30. |
+| 5G RSRQ | `5g_rsrq` | Sensor | dB | - | Range: -50 to 0. |
+| 5G SINR | `5g_sinr` | Sensor | dB | - | Range: -30 to 40. |
 | 5G Uplink Bandwidth | `5g_uplink_bandwidth` | Sensor | MHz | Diagnostic |  |
 | 5G Downlink Bandwidth | `5g_downlink_bandwidth` | Sensor | MHz | Diagnostic |  |
 | 5G Uplink MCS | `5g_uplink_mcs` | Sensor | - | Diagnostic | Supports complex multi-carrier strings. |
@@ -96,7 +99,7 @@ _Group: `signal`_
 | 5G EARFCN | `5g_earfcn` | Sensor | - | Diagnostic | Supports complex multi-carrier strings. |
 | 5G Block Error Rate | `5g_block_error_rate` | Sensor | - | Diagnostic |  |
 | 5G Rank | `5g_rank` | Sensor | - | - | 1-4. |
-| 5G CQI | `5g_cqi_0` | Sensor | - | - |  |
+| 5G CQI | `5g_cqi` | Sensor | - | - |  |
 | Best Connection | `best_connection` | Binary | - | - | ON when NSA 5G NR band assigned AND LTE anchor healthy AND 5G leg healthy. 3-stage quality gate — see `best_connection_logic.md`. |
 | Mobile Connection | `mobile_connection` | Binary | - | Diagnostic | ON if mobile data is connected. |
 
@@ -148,8 +151,8 @@ _Group: `sms`_
 | Outbox (SIM) | `sms_outbox_sim` | Sensor | - | Diagnostic |  |
 | Drafts (SIM) | `sms_drafts_sim` | Sensor | - | Diagnostic |  |
 | Capacity (SIM) | `sms_capacity_sim` | Sensor | - | Diagnostic |  |
-| Total (SIM) | `sms_messages_sim` | Sensor | - | Diagnostic |  |
-| In Process | `sms_new` | Sensor | - | Diagnostic | Transient notification counter. |
+| Total (SIM) | `total_sim` | Sensor | - | Diagnostic |  |
+| In Process | `in_process` | Sensor | - | Diagnostic | Transient notification counter. |
 | SMS Storage Full | `sms_storage_full` | Binary | - | Diagnostic |  |
 
 ---

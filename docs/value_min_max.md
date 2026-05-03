@@ -24,10 +24,10 @@ We use a **Declarative Validation** approach. Limits are defined directly within
 |  | RSSI | -120 | -20 | Set to `Unavailable` |
 |  | SINR | -30 | 50 | Set to `Unavailable` |
 |  | Transmit Power | -30 | 40 | Set to `Unavailable` |
-| **5G Signal** | RSRP | -150 | -30 | Set to `Unavailable` |
-|  | RSRQ | -50 | 0 | Set to `Unavailable` |
-|  | SINR | -30 | 50 | Set to `Unavailable` |
-|  | Transmit Power | -30 | 40 | Set to `Unavailable` |
+| **5G Signal** | RSRP (5G) | -150 | -30 | Set to `Unavailable` |
+|  | RSRQ (5G) | -50 | 0 | Set to `Unavailable` |
+|  | SINR (5G) | -30 | 50 | Set to `Unavailable` |
+|  | Transmit Power (5G) | -30 | 40 | Set to `Unavailable` |
 | **Diagnostics** | Signal Bars | 0 | 5 | Set to `Unavailable` |
 |  | Battery | 0 | 100 | Set to `Unavailable` |
 |  | WiFi Users | 0 | 255 | Set to `Unavailable` |

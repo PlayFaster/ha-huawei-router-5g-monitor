@@ -78,12 +78,12 @@ A Home Assistant integration for **Huawei CPE6 LTE/5G routers**, providing exten
 
 ## 📊 What You Get
 
-This integration provides **101+ entities** grouped into five logical devices: **System**, **Signal**, **Data**, **SMS**, and **Clients**.
+This integration provides **106+ entities** grouped into five logical devices: **System**, **Signal**, **Data**, **SMS**, and **Clients**.
 
 | Type | Count | Primary Functions |
 | :-- | :-- | :-- |
-| **Sensors** | 89 | Signal strength, data usage, uptime, SMS counts, device info |
-| **Binary Sensors** | 7 | WiFi status, mobile connection, 5G NR active, SMS storage full |
+| **Sensors** | 94 | Signal strength, data usage, uptime, SMS counts, device info |
+| **Binary Sensors** | 7 | WiFi status, mobile connection, Best Connection, SMS storage full |
 | **Switches** | 3 | Pause Polling, Mobile Data, Guest WiFi |
 | **Controls** | 5 | Reboot, Clear Traffic, Polling Interval, Network Mode, Send SMS service |
 | **Device Trackers** | 1+ | Dynamically discovered per connected LAN/WLAN client |
