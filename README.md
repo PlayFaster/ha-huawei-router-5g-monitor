@@ -2,7 +2,7 @@
 
 [![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-huawei-router-5g-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/b5cb47f2b37e140da07eefd17ac19721/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-huawei-router-5g-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/commits/main)
 
-A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive signal diagnostics, data tracking, SMS management, and connected client monitoring.
+A Home Assistant integration for **Huawei CPE6 LTE/5G routers**, providing extensive signal diagnostics, data tracking, SMS management, and connected client monitoring.
 
 > [!NOTE] This project builds on the excellent work of [Salamek/huawei-lte-api](https://github.com/Salamek/huawei-lte-api). It is optimised to provide deep 5G/LTE metrics alongside SMS management and device tracking.
 
@@ -13,8 +13,8 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 
 **Router Hardware:**
 
-- **Supported**: **Huawei B535**, **B818**, **H112-370**, and similar Huawei LTE/5G CPE and router models.
-  - _Has been tested with the B535s-232. Compatibility with other models may vary._
+- **Supported**: **Huawei CP6**, and similar Huawei LTE/5G CPE and router models.
+  - _Has been tested with the CP6. Compatibility with other models may vary._
   - Uses the `huawei-lte-api` library which supports a wide range of Huawei hardware.
 - **Not Supported**: Non-Huawei hardware.
 

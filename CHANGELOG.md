@@ -1,11 +1,19 @@
 # Changelog
 
-## [1.0.1] - Unreleased - Current
+## [1.0.1] - Unreleased
 
-### Pending Release
+### Added
 
-## [1.0.1-dev2] - 2026-05-02
+- **Best Connection Sensor**: A new primary sensor (replacing "5G NR Active") using a 3-stage quality gate to accurately report 5G connectivity status.
+- **Display Last SMS**: Added SMS "Last Msg" text sensor.
+- **send_sms Service**: New service to send SMS messages with support for multiple recipients and content.
 
-## [1.0.0] - 2026-05-02
+### Changed
 
-### Initial Release
+- **LTE Carrier Aggregation**: Converted from a string sensor to a more appropriate Binary Sensor.
+
+### Fixed
+
+- **Unknown States**: Resolved "Unknown" status for LTE Carrier Aggregation and 5G NR Band on modern firmware by deriving values from composite band strings.
+
+### Initial Commit - 2026-05-01
