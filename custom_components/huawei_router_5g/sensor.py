@@ -64,7 +64,7 @@ def format_freq_mhz(value: Any) -> float | None:
     """Format frequency in MHz from lteulfreq/ltedlfreq API fields.
 
     The Huawei API returns these fields in 10ths of MHz (e.g. raw 19700 → 1970.0 MHz).
-    WARNING: Using /100 gives a 10× too-low result (197.0 MHz — looks like a valid
+    WARNING: Using /100 gives a 10x too-low result (197.0 MHz — looks like a valid
     frequency but is wrong). Using /1000 gives 19.7 MHz (obviously wrong). Only /10
     is correct for this router series.
     """
@@ -639,8 +639,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
-        # ulfrequency reports the carrier uplink frequency in kHz; divide by 1000 for MHz.
-        # e.g. raw 1970000 kHz → 1970.0 MHz.
+        # ulfrequency reports carrier uplink frequency in kHz; divide by 1000 for MHz.
+        # e.g. raw 1970000 kHz -> 1970.0 MHz.
         value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "ulfrequency")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -653,8 +653,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
-        # dlfrequency reports the carrier downlink frequency in kHz; divide by 1000 for MHz.
-        # e.g. raw 2160000 kHz → 2160.0 MHz.
+        # dlfrequency reports carrier downlink frequency in kHz; divide by 1000 for MHz.
+        # e.g. raw 2160000 kHz -> 2160.0 MHz.
         value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "dlfrequency")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),

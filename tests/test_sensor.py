@@ -224,9 +224,9 @@ def test_sensor_sms_total(mock_coordinator, mock_config_entry):
 
 
 def test_sensor_lte_bandwidth(mock_coordinator, mock_config_entry):
-    """Test LTE bandwidth parsing (from dlfrequency/ulfrequency API keys)."""
+    """Test LTE bandwidth parsing (from dlbandwidth/ulbandwidth API keys)."""
     mock_coordinator.data = {
-        "device_signal": {"dlfrequency": "20000", "ulfrequency": "15000"}
+        "device_signal": {"dlbandwidth": "20.0", "ulbandwidth": "15.0"}
     }
 
     desc_dl = next(d for d in SENSOR_TYPES if d.key == "lte_downlink_bandwidth")
@@ -241,7 +241,7 @@ def test_sensor_lte_bandwidth(mock_coordinator, mock_config_entry):
 def test_sensor_lte_frequency(mock_coordinator, mock_config_entry):
     """Test LTE frequency parsing (from ltedlfreq/lteulfreq API keys)."""
     mock_coordinator.data = {
-        "device_signal": {"ltedlfreq": "216000", "lteulfreq": "197000"}
+        "device_signal": {"ltedlfreq": "21600", "lteulfreq": "19700"}
     }
 
     desc_dl = next(d for d in SENSOR_TYPES if d.key == "lte_downlink_frequency")
