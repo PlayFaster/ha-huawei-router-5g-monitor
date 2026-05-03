@@ -61,13 +61,27 @@ def format_ipv6(value: Any) -> Any:
 
 
 def format_freq_mhz(value: Any) -> float | None:
-    """Format frequency in MHz (input is in 100ths of MHz)."""
+    """Format frequency in MHz from lteulfreq/ltedlfreq API fields.
+
+    The Huawei API returns these fields in 10ths of MHz (e.g. raw 19700 → 1970.0 MHz).
+    WARNING: Using /100 gives a 10× too-low result (197.0 MHz — looks like a valid
+    frequency but is wrong). Using /1000 gives 19.7 MHz (obviously wrong). Only /10
+    is correct for this router series.
+    """
     f_val = parse_signal_value(value)
-    return f_val / 100 if f_val is not None else None
+    return f_val / 10 if f_val is not None else None
 
 
-def format_bw_mhz(value: Any) -> float | None:
-    """Format bandwidth in MHz (input is in thousandths of MHz)."""
+def format_khz_to_mhz(value: Any) -> float | None:
+    """Convert frequency from kHz to MHz (÷1000) for ulfrequency/dlfrequency fields.
+
+    NOTE: Do NOT use this for LTE channel bandwidth. LTE bandwidth comes from
+    ulbandwidth/dlbandwidth fields which are already in MHz and need no scaling.
+    The ulfrequency/dlfrequency fields are carrier frequencies in kHz (e.g. 1970000 kHz
+    → 1970.0 MHz); applying /1000 here gives the correct MHz value.
+    WARNING: If ulfrequency/dlfrequency were mistakenly used for the bandwidth sensors,
+    /1000 would give ~1970 MHz instead of the correct ~20 MHz.
+    """
     f_val = parse_signal_value(value)
     return f_val / 1000 if f_val is not None else None
 
@@ -302,6 +316,30 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         ),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
+    HuaweiSensorEntityDescription(
+        key="primary_ipv6_dns",
+        translation_key="primary_ipv6_dns",
+        icon="mdi:dns",
+        group="system",
+        value_fn=lambda data: (
+            format_ipv6(data.get("monitoring_status", {}).get("PrimaryIPv6Dns"))
+            if data
+            else None
+        ),
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    HuaweiSensorEntityDescription(
+        key="secondary_ipv6_dns",
+        translation_key="secondary_ipv6_dns",
+        icon="mdi:dns",
+        group="system",
+        value_fn=lambda data: (
+            format_ipv6(data.get("monitoring_status", {}).get("SecondaryIPv6Dns"))
+            if data
+            else None
+        ),
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
     # --- Signal Sub-device ---
     HuaweiSensorEntityDescription(
         key="network_type",
@@ -320,7 +358,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="preferred_network_mode",
         translation_key="preferred_network_mode",
-        icon="mdi:settings-transfer",
+        icon="mdi:tune",
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: (
@@ -539,6 +577,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="lte_uplink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
@@ -550,6 +589,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="lte_downlink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:radio-tower",
         group="signal",
         min_limit=0,
@@ -561,22 +601,62 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="lte_uplink_bandwidth",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transfer-up",
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0,
-        value_fn=lambda data: format_bw_mhz(_get_signal_value(data, "ulfrequency")),
+        # ulbandwidth reports LTE channel bandwidth directly in MHz (e.g. 20.0).
+        # WARNING: ulfrequency is the carrier frequency in kHz — using it here with
+        # /1000 produces ~1970 MHz instead of the correct ~20 MHz.
+        value_fn=lambda data: parse_signal_value(
+            _get_signal_value(data, "ulbandwidth")
+        ),
     ),
     HuaweiSensorEntityDescription(
         key="lte_downlink_bandwidth",
         translation_key="lte_downlink_bandwidth",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transfer-down",
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         min_limit=0,
-        value_fn=lambda data: format_bw_mhz(_get_signal_value(data, "dlfrequency")),
+        # dlbandwidth reports LTE channel bandwidth directly in MHz (e.g. 20.0).
+        # WARNING: dlfrequency is the carrier frequency in kHz — using it here with
+        # /1000 produces ~2160 MHz instead of the correct ~20 MHz.
+        value_fn=lambda data: parse_signal_value(
+            _get_signal_value(data, "dlbandwidth")
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="5g_uplink_frequency",
+        translation_key="5g_uplink_frequency",
+        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:radio-tower",
+        group="signal",
+        min_limit=0,
+        # ulfrequency reports the carrier uplink frequency in kHz; divide by 1000 for MHz.
+        # e.g. raw 1970000 kHz → 1970.0 MHz.
+        value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "ulfrequency")),
+        entity_category=EntityCategory.DIAGNOSTIC,
+    ),
+    HuaweiSensorEntityDescription(
+        key="5g_downlink_frequency",
+        translation_key="5g_downlink_frequency",
+        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
+        icon="mdi:radio-tower",
+        group="signal",
+        min_limit=0,
+        # dlfrequency reports the carrier downlink frequency in kHz; divide by 1000 for MHz.
+        # e.g. raw 2160000 kHz → 2160.0 MHz.
+        value_fn=lambda data: format_khz_to_mhz(_get_signal_value(data, "dlfrequency")),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="transmission_mode",
@@ -650,7 +730,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="5g_uplink_bandwidth",
         translation_key="5g_uplink_bandwidth",
-        native_unit_of_measurement="MHz",
+        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transfer-up",
         group="signal",
         min_limit=0,
@@ -662,7 +744,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="5g_downlink_bandwidth",
         translation_key="5g_downlink_bandwidth",
-        native_unit_of_measurement="MHz",
+        native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
+        device_class=SensorDeviceClass.FREQUENCY,
+        state_class=SensorStateClass.MEASUREMENT,
         icon="mdi:transfer-down",
         group="signal",
         min_limit=0,
