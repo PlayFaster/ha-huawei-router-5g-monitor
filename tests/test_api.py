@@ -476,6 +476,124 @@ async def test_get_data_partial_failure():
 
 
 @pytest.mark.asyncio
+async def test_get_data_response_error_non_session():
+    """Test non-session ResponseErrorException triggers HuaweiConnectionError."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    mock_client.device.information.side_effect = ResponseErrorException(
+        "Other error", "1"
+    )
+
+    with (
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+        pytest.raises(HuaweiConnectionError),
+    ):
+        await api.get_data()
+
+
+@pytest.mark.asyncio
+async def test_get_data_sms_list_response_error():
+    """Test that ResponseErrorException during sms_list is handled."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    mock_client.device.information.return_value = {"DeviceName": "Test"}
+    mock_client.sms.sms_count.return_value = {"LocalInbox": "1", "SimInbox": "0"}
+    mock_client.sms.get_sms_list.side_effect = ResponseErrorException("SMS error", "1")
+
+    # Mock all other endpoints to avoid errors
+    mock_client.device.signal.return_value = {}
+    mock_client.monitoring.status.return_value = {}
+    mock_client.monitoring.traffic_statistics.return_value = {}
+    mock_client.monitoring.month_statistics.return_value = {}
+    mock_client.net.current_plmn.return_value = {}
+    mock_client.dial_up.mobile_dataswitch.return_value = {}
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        data = await api.get_data()
+
+    assert "sms_list" not in data
+    assert data["device_information"]["DeviceName"] == "Test"
+
+
+@pytest.mark.asyncio
+async def test_get_data_sms_list_generic_exception():
+    """Test that generic Exception during sms_list is handled."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    mock_client.device.information.return_value = {"DeviceName": "Test"}
+    mock_client.sms.sms_count.return_value = {"LocalInbox": "1", "SimInbox": "0"}
+    mock_client.sms.get_sms_list.side_effect = Exception("Generic SMS error")
+
+    # Mock all other endpoints to avoid errors
+    mock_client.device.signal.return_value = {}
+    mock_client.monitoring.status.return_value = {}
+    mock_client.monitoring.traffic_statistics.return_value = {}
+    mock_client.monitoring.month_statistics.return_value = {}
+    mock_client.net.current_plmn.return_value = {}
+    mock_client.dial_up.mobile_dataswitch.return_value = {}
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        data = await api.get_data()
+
+    assert "sms_list" not in data
+    assert data["device_information"]["DeviceName"] == "Test"
+
+
+@pytest.mark.asyncio
+async def test_get_data_other_endpoint_response_error():
+    """Test that ResponseErrorException during non-critical endpoint is handled."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    mock_client.device.information.return_value = {"DeviceName": "Test"}
+    mock_client.device.signal.side_effect = ResponseErrorException("Signal error", "1")
+
+    # Mock all other endpoints
+    mock_client.monitoring.status.return_value = {}
+    mock_client.monitoring.traffic_statistics.return_value = {}
+    mock_client.monitoring.month_statistics.return_value = {}
+    mock_client.net.current_plmn.return_value = {}
+    mock_client.sms.sms_count.return_value = {"LocalInbox": "0", "SimInbox": "0"}
+    mock_client.dial_up.mobile_dataswitch.return_value = {}
+    mock_client.monitoring.check_notifications.return_value = {}
+    mock_client.net.net_mode.return_value = {}
+    mock_client.sms.get_sms_list.return_value = {}
+    mock_client.lan.host_info.return_value = {}
+    mock_client.wlan.host_list.return_value = {}
+    mock_client.wlan.wifi_feature_switch.return_value = {}
+    mock_client.wlan.wifi_guest_network_switch.return_value = {}
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        data = await api.get_data()
+
+    assert "device_signal" not in data
+    assert data["device_information"]["DeviceName"] == "Test"
+
+
+@pytest.mark.asyncio
 async def test_get_data_ensures_client():
     """Test that get_data triggers login when no client exists."""
     api = _make_api()
@@ -520,8 +638,12 @@ async def test_reboot_success():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
         await api.reboot()
+
+    api._client.device.reboot.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -553,8 +675,12 @@ async def test_clear_traffic_success():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
         await api.clear_traffic_statistics()
+
+    api._client.monitoring.clear_traffic.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -586,8 +712,12 @@ async def test_set_mobile_data_on():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
         await api.set_mobile_data(True)
+
+    api._client.dial_up.set_mobile_dataswitch.assert_called_once_with(1)
 
 
 @pytest.mark.asyncio
@@ -597,8 +727,12 @@ async def test_set_mobile_data_off():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
         await api.set_mobile_data(False)
+
+    api._client.dial_up.set_mobile_dataswitch.assert_called_once_with(0)
 
 
 @pytest.mark.asyncio
@@ -627,8 +761,12 @@ async def test_set_net_mode_success():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
         await api.set_net_mode("auto")
+
+    api._client.net.set_net_mode.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -657,8 +795,12 @@ async def test_set_guest_wifi_on():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
         await api.set_guest_wifi(True)
+
+    api._client.wlan.wifi_guest_network_switch.assert_called_once_with(1)
 
 
 @pytest.mark.asyncio
@@ -668,8 +810,12 @@ async def test_set_guest_wifi_off():
     api._client = MagicMock()
     api._connection = MagicMock()
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
         await api.set_guest_wifi(False)
+
+    api._client.wlan.wifi_guest_network_switch.assert_called_once_with(0)
 
 
 @pytest.mark.asyncio
@@ -701,8 +847,15 @@ async def test_send_sms_success():
     phone_numbers = ["+1234567890"]
     message = "Test message"
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread",
+        new=AsyncMock(side_effect=lambda fn, **kwargs: fn(**kwargs)),
+    ):
         await api.send_sms(phone_numbers, message)
+
+    api._client.sms.send_sms.assert_called_once_with(
+        phone_numbers=phone_numbers, message=message
+    )
 
 
 @pytest.mark.asyncio
@@ -736,8 +889,13 @@ async def test_delete_sms_success():
 
     index = 1
 
-    with patch("asyncio.to_thread", new=AsyncMock(return_value=None)):
+    with patch(
+        "asyncio.to_thread",
+        new=AsyncMock(side_effect=lambda fn, **kwargs: fn(**kwargs)),
+    ):
         await api.delete_sms(index)
+
+    api._client.sms.delete_sms.assert_called_once_with(index=index)
 
 
 @pytest.mark.asyncio

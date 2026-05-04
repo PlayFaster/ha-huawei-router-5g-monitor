@@ -4,6 +4,26 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.2-dev1] - 2026-05-04
+
+### Changed
+
+- **100% Test Coverage for `api.py`**: Achieved full coverage (143 lines) by implementing 41 tests covering edge-case ResponseErrorException paths, generic SMS list fetch failures, and verified execution of all async setter closures.
+- **100% Test Coverage for `switch.py`**: Achieved full coverage (106 lines) by implementing 23 tests covering missing API data keys, exception handling for mobile/guest toggles, and Guest WiFi deactivation logic.
+- **100% Test Coverage for `binary_sensor.py`**: Achieved full coverage (119 lines) by consolidating external tests and implementing missing scenarios for WiFi status, mobile connection, and null-data edge cases.
+- **100% Test Coverage for `sensor.py`**: Achieved full coverage of the main sensor platform (120 lines) by implementing 46 comprehensive tests.
+- **98% Test Coverage for `device_tracker.py`**: Added 8 tests for dynamic listener discovery and malformed host-data resilience, reaching near-total coverage.
+- **Consolidated Binary Sensor Test Suite**: Merged `test_binary_sensor_ext.py` into the primary `test_binary_sensor.py` for better maintainability and unified validation.
+- **Improved Sensor Resilience Testing**: Verified IPv6 formatting safeguards, negative duration guards for connection sensors, and 5G band extraction fallbacks.
+- **SMS Metadata & Attribute Verification**: Added exhaustive tests for the `last_sms` sensor and the detailed attribute breakdown in `sms_total`, ensuring coverage for all logical branches including missing or malformed coordinator data.
+- **100% Test Coverage for `coordinator.py`**: Achieved full coverage (92 lines) by implementing targeted tests for communication restoration logging, SMS debug output, and the end-to-end SMS event-firing logic. Verified that the first fetch sets the baseline index without firing events, while subsequent fetches correctly dispatch `huawei_router_5g_sms_received` events for new messages only.
+- **100% Test Coverage for `__init__.py`**: Reached full coverage (62 lines) by implementing success-path and failure-path verification for background initialization tasks, ensuring the integration remains responsive during boot while handling API login failures gracefully.
+- **100% Test Coverage for `select.py`**: Achieved full coverage (38 lines) by adding tests for the `device_info` property and error handling in `async_select_option`, verifying that API failures are correctly captured and logged.
+- **Testing Infrastructure Enhancement**: Implemented a `mock_report_usage` fixture in new test suites to bypass Home Assistant's internal `Frame helper not set up` runtime errors during standalone coordinator and platform testing.
+- **Project-wide Coverage Milestone**: Increased total project test coverage to **99.8%**.
+
+---
+
 ## [1.0.1] - 2026-05-03
 
 ### Added

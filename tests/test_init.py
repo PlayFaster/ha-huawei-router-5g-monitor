@@ -287,6 +287,42 @@ async def test_setup_entry_background_task_failure(mock_hass, mock_config_entry)
     assert mock_logger.warning.called
 
 
+@pytest.mark.asyncio
+async def test_setup_entry_background_task_success(mock_hass, mock_config_entry):
+    """Test that a successful background initialization is logged."""
+    with (
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GAPI", autospec=True
+        ) as mock_api_cls,
+        patch("homeassistant.helpers.device_registry.async_get"),
+        patch("custom_components.huawei_router_5g._LOGGER") as mock_logger,
+    ):
+        mock_api = mock_api_cls.return_value
+        mock_api.login = AsyncMock()
+
+        background_coro = None
+
+        def mock_create_task(hass, coro, name):
+            nonlocal background_coro
+            background_coro = coro
+            return MagicMock()
+
+        mock_config_entry.async_create_background_task.side_effect = mock_create_task
+
+        await async_setup_entry(mock_hass, mock_config_entry)
+        coordinator = mock_config_entry.runtime_data
+        coordinator.async_refresh = AsyncMock()
+
+        if background_coro:
+            await background_coro
+
+        assert coordinator.async_refresh.called
+        assert any(
+            "Background initialization complete" in call.args[0]
+            for call in mock_logger.info.call_args_list
+        )
+
+
 # ---------------------------------------------------------------------------
 # async_unload_entry
 # ---------------------------------------------------------------------------

@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.0.2] - 2026-05-04 - Unreleased
+
+### Changed
+
+- **Readme**: Added clarifying info to readme file.
+- **Test Coverage**: Internal test coverage improved to 99%.
+
 ## [1.0.1] - 2026-05-03 - Github Release
 
 ### Added

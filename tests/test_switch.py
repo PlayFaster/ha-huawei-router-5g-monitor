@@ -6,8 +6,10 @@ import pytest
 
 from custom_components.huawei_router_5g.const import CONF_STOP_POLLING, DOMAIN
 from custom_components.huawei_router_5g.switch import (
+    GUEST_WIFI_DESCRIPTION,
     MOBILE_DATA_DESCRIPTION,
     PAUSE_POLLING_DESCRIPTION,
+    HuaweiGuestWifiSwitch,
     HuaweiMobileDataSwitch,
     HuaweiPausePollingSwitch,
     async_setup_entry,
@@ -172,6 +174,142 @@ async def test_mobile_data_turn_on_error(mock_coordinator, mock_config_entry):
 
     await switch.async_turn_on()  # should not raise
     mock_coordinator.async_request_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_mobile_data_turn_off_error(mock_coordinator, mock_config_entry):
+    """Test that API error during turn_off is handled gracefully."""
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock(side_effect=Exception("Set fail"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    await switch.async_turn_off()  # should not raise
+    mock_coordinator.async_request_refresh.assert_not_called()
+
+
+def test_mobile_data_is_none_missing_val(mock_coordinator, mock_config_entry):
+    """Return None when dataswitch key is missing inside mobile_dataswitch."""
+    mock_coordinator.data = {"mobile_dataswitch": {}}
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    assert switch.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiGuestWifiSwitch
+# ---------------------------------------------------------------------------
+
+
+def test_guest_wifi_is_on(mock_coordinator, mock_config_entry):
+    """Return True when WifiEnable is '1'."""
+    mock_coordinator.data = {"wlan_wifi_guest_network_switch": {"WifiEnable": "1"}}
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    assert switch.is_on is True
+
+
+def test_guest_wifi_is_none_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    assert switch.is_on is None
+
+
+def test_guest_wifi_is_none_missing_key(mock_coordinator, mock_config_entry):
+    """Return None when WifiEnable key is absent."""
+    mock_coordinator.data = {"wlan_wifi_guest_network_switch": {}}
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    assert switch.is_on is None
+
+
+@pytest.mark.asyncio
+async def test_guest_wifi_turn_on(mock_coordinator, mock_config_entry):
+    """Test turning guest wifi on calls API and refreshes."""
+    mock_api = MagicMock()
+    mock_api.set_guest_wifi = AsyncMock()
+    mock_coordinator.api = mock_api
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+
+    await switch.async_turn_on()
+
+    mock_api.set_guest_wifi.assert_called_once_with(True)
+    mock_coordinator.async_request_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_guest_wifi_turn_off(mock_coordinator, mock_config_entry):
+    """Test turning guest wifi off calls API and refreshes."""
+    mock_api = MagicMock()
+    mock_api.set_guest_wifi = AsyncMock()
+    mock_coordinator.api = mock_api
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+
+    await switch.async_turn_off()
+
+    mock_api.set_guest_wifi.assert_called_once_with(False)
+    mock_coordinator.async_request_refresh.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_guest_wifi_turn_on_error(mock_coordinator, mock_config_entry):
+    """Test that API error during turn_on is handled gracefully."""
+    mock_api = MagicMock()
+    mock_api.set_guest_wifi = AsyncMock(side_effect=Exception("Set fail"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    await switch.async_turn_on()  # should not raise
+    mock_coordinator.async_request_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_guest_wifi_turn_off_error(mock_coordinator, mock_config_entry):
+    """Test that API error during turn_off is handled gracefully."""
+    mock_api = MagicMock()
+    mock_api.set_guest_wifi = AsyncMock(side_effect=Exception("Set fail"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    await switch.async_turn_off()  # should not raise
+    mock_coordinator.async_request_refresh.assert_not_called()
+
+
+def test_guest_wifi_extra_attributes(mock_coordinator, mock_config_entry):
+    """Test extra attributes for guest wifi."""
+    mock_coordinator.data = {"wlan_wifi_guest_network_switch": {"WifiSsid": "GuestNet"}}
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    assert switch.extra_state_attributes == {"ssid": "GuestNet"}
+
+
+def test_guest_wifi_extra_attributes_no_data(mock_coordinator, mock_config_entry):
+    """Test extra attributes for guest wifi when no data is available."""
+    mock_coordinator.data = None
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    assert switch.extra_state_attributes == {}
 
 
 # ---------------------------------------------------------------------------

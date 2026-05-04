@@ -9,6 +9,7 @@ from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.sensor import (
     SENSOR_TYPES,
     HuaweiRouterSensor,
+    HuaweiSensorEntityDescription,
     async_setup_entry,
 )
 
@@ -377,3 +378,137 @@ async def test_sensor_setup_entry():
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
     assert len(entities) == len(SENSOR_TYPES)
+
+
+# ---------------------------------------------------------------------------
+# Additional coverage for helpers and edge cases
+# ---------------------------------------------------------------------------
+
+
+def test_sensor_timestamp_invalid(mock_coordinator, mock_config_entry):
+    """Test timestamp helper with invalid inputs."""
+    mock_coordinator.data = {"traffic_statistics": {"TotalConnectTime": "-1"}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "total_connection_timestamp")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value is None
+
+    mock_coordinator.data = {"traffic_statistics": {"TotalConnectTime": None}}
+    assert sensor.native_value is None
+
+
+def test_sensor_ipv6_invalid(mock_coordinator, mock_config_entry):
+    """Test IPv6 formatter with invalid data."""
+    mock_coordinator.data = {"device_information": {"WanIPv6Address": "invalid"}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "wan_ipv6")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value == "invalid"
+
+
+def test_sensor_khz_to_mhz_none(mock_coordinator, mock_config_entry):
+    """Test kHz to MHz helper with None input."""
+    mock_coordinator.data = {"device_signal": {"ulfrequency": None}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "5g_uplink_frequency")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value is None
+
+
+def test_sensor_khz_to_mhz_valid(mock_coordinator, mock_config_entry):
+    """Test kHz to MHz helper with valid input."""
+    mock_coordinator.data = {"device_signal": {"ulfrequency": "800000"}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "5g_uplink_frequency")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value == 800.0
+
+
+def test_sensor_sms_total_no_data(mock_coordinator, mock_config_entry):
+    """Test sms_total attributes when data is missing."""
+    mock_coordinator.data = {}
+    desc = next(d for d in SENSOR_TYPES if d.key == "sms_total")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.extra_state_attributes == {}
+
+
+def test_sensor_nr5g_band_no_nr(mock_coordinator, mock_config_entry):
+    """Test band extraction when no NR band is present."""
+    mock_coordinator.data = {"device_signal": {"band": "20MHz(B1) + 15MHz(B3)"}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "nr5g_band")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value is None
+
+
+def test_sensor_last_sms_empty(mock_coordinator, mock_config_entry):
+    """Test last_sms sensor with empty message list."""
+    mock_coordinator.data = {"sms_list": {"Messages": {"Message": []}}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "last_sms")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes == {}
+
+
+def test_sensor_last_sms_attributes(mock_coordinator, mock_config_entry):
+    """Test last_sms sensor attributes."""
+    mock_coordinator.data = {
+        "sms_list": {
+            "Messages": {
+                "Message": {
+                    "Index": "1",
+                    "Phone": "123456",
+                    "Content": "Test",
+                    "Date": "2023-01-01",
+                    "Smstat": "0",
+                }
+            }
+        }
+    }
+    desc = next(d for d in SENSOR_TYPES if d.key == "last_sms")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value == "Test"
+    attrs = sensor.extra_state_attributes
+    assert attrs["phone"] == "123456"
+    assert attrs["date"] == "2023-01-01"
+    assert attrs["index"] == 1
+    assert attrs["unread"] is True
+
+
+def test_sensor_timestamp_valid(mock_coordinator, mock_config_entry):
+    """Test timestamp helper with valid input."""
+    mock_coordinator.data = {"traffic_statistics": {"TotalConnectTime": "3600"}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "total_connection_timestamp")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    # Check it returns a datetime
+    from datetime import datetime
+
+    assert isinstance(sensor.native_value, datetime)
+
+
+def test_sensor_guard_band_error(mock_coordinator, mock_config_entry):
+    """Test guard band resilience when float conversion fails."""
+    mock_coordinator.data = {"device_signal": {"rsrp": "invalid_number"}}
+    desc = next(d for d in SENSOR_TYPES if d.key == "rsrp")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    # value_fn returns None for "invalid_number", so we need a value_fn that
+    # returns a string that is not a float, but the entity has guard bands.
+    desc_mock = MagicMock(spec=HuaweiSensorEntityDescription)
+    desc_mock.key = "rsrp"
+    desc_mock.min_limit = -150
+    desc_mock.max_limit = -30
+    desc_mock.value_fn = lambda data: "not_a_float"
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_mock)
+    assert sensor.native_value == "not_a_float"
+
+
+def test_sensor_last_sms_no_coordinator_data(mock_coordinator, mock_config_entry):
+    """Test last_sms sensor when coordinator data is None."""
+    mock_coordinator.data = None
+    desc = next(d for d in SENSOR_TYPES if d.key == "last_sms")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value is None
+    assert sensor.extra_state_attributes == {}
+
+
+def test_sensor_generic_attributes(mock_coordinator, mock_config_entry):
+    """Test generic sensor returns empty attributes."""
+    mock_coordinator.data = {"some": "data"}
+    desc = next(d for d in SENSOR_TYPES if d.key == "rsrp")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.extra_state_attributes == {}

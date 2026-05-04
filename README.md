@@ -2,20 +2,27 @@
 
 [![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-huawei-router-5g-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/b5cb47f2b37e140da07eefd17ac19721/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-huawei-router-5g-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/commits/main)
 
-A Home Assistant integration for **Huawei CPE6 LTE/5G routers**, providing extensive signal diagnostics, data tracking, SMS management, and connected client monitoring.
+A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive signal diagnostics, data tracking, SMS management, and connected client monitoring.
 
-> [!NOTE] This project builds on the excellent work of [Salamek/huawei-lte-api](https://github.com/Salamek/huawei-lte-api). It is optimised to provide deep 5G/LTE metrics alongside SMS management and device tracking.
-
-- If you have a Huawei LTE/5G router and want to closely monitor your connection, this integration is for you!
-- If you are looking for a general-purpose Huawei LTE integration, the official [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) integration is also available.
+> [!NOTE]
+>
+> **Is this the right integration for you?**
+>
+> - **Most users** with a Huawei LTE/5G router should use the official [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) core integration — it is well-maintained, broadly compatible, and fully supported.
+> - **If you only want SMS features** on top of the core integration, consider pairing it with [@william-aqn's huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended) component.
+> - **This integration is for you if** you want the core integration's features _plus_ any of the following:
+>   - **Polling control** — pause polling and adjust the scan interval dynamically from the HA UI or via automation.
+>   - **Connected client tracking** — dynamically created `device_tracker` entities for every discovered LAN/WLAN client.
+>   - **Latest SMS message display** — view the most recently received message content and attributes directly in HA.
+>
+> This project builds on the excellent work of [Salamek/huawei-lte-api](https://github.com/Salamek/huawei-lte-api) and the Home Assistant core [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) integration.
 
 ## 🔧 Compatibility & Requirements
 
 **Router Hardware:**
 
-- **Supported**: **Huawei CP6**, and similar Huawei LTE/5G CPE and router models.
-  - _Has been tested with the CP6. Compatibility with other models may vary._
-  - Uses the `huawei-lte-api` library which supports a wide range of Huawei hardware.
+- **Tested on**: **Huawei 5G CPE Pro 6 (H165-383)**
+- **Expected compatible**: Any Huawei LTE/5G router supported by the `huawei-lte-api` library or the Home Assistant core Huawei LTE integration should work, but compatibility with untested models cannot be guaranteed.
 - **Not Supported**: Non-Huawei hardware.
 
 **Network:**
@@ -29,6 +36,14 @@ A Home Assistant integration for **Huawei CPE6 LTE/5G routers**, providing exten
 ---
 
 ## ✅ Features
+
+> [!TIP]
+>
+> **What this adds over the Home Assistant core Huawei LTE integration:**
+>
+> - **Polling Control**: A Pause Polling switch and a configurable, dynamically adjustable scan interval — set it from the UI or drive it via automation.
+> - **Connected Client Tracking**: Automatically creates `device_tracker` entities for every discovered LAN/WLAN client, dynamically updated as devices join and leave.
+> - **Latest SMS Message**: Displays the most recently received SMS message content and full attributes directly in Home Assistant.
 
 ### 📡 Advanced 5G/LTE Diagnostics
 
@@ -73,6 +88,7 @@ A Home Assistant integration for **Huawei CPE6 LTE/5G routers**, providing exten
 - **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
 - **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
 - **Native Resilience**: Built-in 3-strike logic masks transient network glitches and holds last-known-good data between retries.
+- **Modern Integration Architecture**: A data coordinator-based structure and a full options flow.
 
 ---
 
@@ -92,11 +108,10 @@ This integration provides **106+ entities** grouped into five logical devices: *
 >
 > **Clean up your UI: Disable Unnecessary Devices or Entities**
 >
-> - If you are running in Bridge Mode you may not need the Clients sub-device or all Signal diagnostic entities.
+> - If you are running in Bridge Mode you may not need the Clients sub-device
+> - If you never use the Routers SMSyou may not need the SMS sub-device
 > - Devices and their entities can be disabled from the main device page - (⋮ menu) "Disable Device".
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
-
----
 
 ## ❔ What's Missing?
 
@@ -108,15 +123,19 @@ This integration provides **106+ entities** grouped into five logical devices: *
 
 ### Integration Overview
 
-![Integration](.github/images/huawei_5g_integration_screen.png)
+![Integration](.github/images/huawei_5g_integration_screen_mini.png)
 
 | Signal | System |
 | :-: | :-: |
-| ![Sensors](.github/images/huawei_5g_signal_info.png) | ![Diagnostics](.github/images/huawei_5g_sensor_control_info.png) |
+| ![Signal](.github/images/huawei_5g_signal_info.png) | ![System](.github/images/huawei_5g_sensor_control_info.png) |
 
-| Data | Clients | SMS |
-| :-: | :-: | :-: |
-| ![Data](.github/images/huawei_5g_data_info_mini.png) | ![Clients](.github/images/huawei_5g_device_info_mini.png) | ![SMS](.github/images/huawei_5g_sms_info.png) |
+| Data | SMS |
+| :-: | :-: |
+| ![Data](.github/images/huawei_5g_data_info_mini.png) | ![SMS](.github/images/huawei_5g_sms_info.png) |
+
+| Setup | Clients |
+| :-: | :-: |
+| ![Setup](.github/images/huawei_5g_setup_info.png) | ![Clients](.github/images/huawei_5g_device_info_mini.png) |
 
 ---
 
@@ -146,8 +165,8 @@ This integration provides **106+ entities** grouped into five logical devices: *
 Setup is handled entirely via the UI under **Settings > Devices & Services > Add Integration**. You will need:
 
 - **Device Name**: A custom prefix for your devices and entities (e.g., "HomeRouter").
-- **IP Address**: The local IP of your router (e.g., `192.168.8.1` — the Huawei default).
-- **Username**: Usually `admin`.
+- **Router URL**: The local URL of your router (e.g., `http://192.168.8.1` — the Huawei default).
+- **Username**: Often blank for Huawei, otherwise whatever you use in the Ruuter WebUI.
 - **Password**: Your local admin password.
 - **Scan Interval** (optional, default 2 minutes, range 30s to 1 hour)
 
@@ -191,13 +210,20 @@ After setup, you can modify options (e.g. a password change) anytime via: **Sett
 
 ## 📝 Maintenance Status
 
-This is a **personal project**. Support and updates are provided on a **"best-effort"** basis only. While I use this integration daily and aim to keep it functional with the latest Home Assistant releases, I cannot guarantee immediate fixes for issues or compatibility with all router firmware versions.
+This is a **personal project** that exists to fill a specific gap: polling control and connected client tracking on top of what the core Huawei LTE integration already does well. Users who do not need those specific features are encouraged to use the officially maintained [core integration](https://www.home-assistant.io/integrations/huawei_lte/) instead.
+
+Support and updates are provided on a **"best-effort"** basis only. While I use this integration daily and aim to keep it functional with the latest Home Assistant releases, I cannot guarantee immediate fixes for issues or compatibility with all router firmware versions.
 
 ---
 
 ## 🤝 Contributors & Acknowledgements
 
-- 🙏 Special Thanks: This project builds on the excellent work done by @Salamek and contributors on the [huawei-lte-api](https://github.com/Salamek/huawei-lte-api) library. A big thanks for the heavy lifting!
+This integration stands on the shoulders of several excellent open-source projects:
+
+- 🙏 **Home Assistant Core — Huawei LTE Integration** (@scop, @fphammerle, @joostlek, and contributors): The architectural foundation this component builds upon. The core integration is the right choice for most users — this component extends it for a specific niche. A huge thanks for the years of work that went into it.
+- 🙏 **[huawei-lte-api](https://github.com/Salamek/huawei-lte-api)** (@Salamek and contributors): The underlying API library that does the heavy lifting of communicating with Huawei hardware. None of this would be possible without it.
+- 🙏 **[huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended)** (@william-aqn): The expanded SMS functionality in this integration is based on this work. If SMS features are all you need, this component paired with the core integration is an excellent option.
+- 🙏 **Personal prior work**: Structural patterns and integration architecture draw on my own custom components for [TP-Link 5G](https://github.com/PlayFaster/ha-tplink-router-5g-monitor) and [ZTE 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) routers.
 - This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
 
 ---

@@ -7,10 +7,18 @@ import pytest
 from custom_components.huawei_router_5g.binary_sensor import (
     BEST_CONN_DESCRIPTION,
     LTE_CA_DESCRIPTION,
+    MOBILE_CONN_DESCRIPTION,
     SMS_STORAGE_FULL_DESCRIPTION,
+    WIFI_5G_STATUS_DESCRIPTION,
+    WIFI_24G_STATUS_DESCRIPTION,
+    WIFI_STATUS_DESCRIPTION,
     HuaweiBestConnectionSensor,
     HuaweiLteCaSensor,
+    HuaweiMobileConnectionSensor,
     HuaweiSmsStorageFullSensor,
+    HuaweiWifi5GStatusSensor,
+    HuaweiWifi24GStatusSensor,
+    HuaweiWifiStatusSensor,
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -173,6 +181,168 @@ def test_sms_storage_full_device_info(mock_coordinator, mock_config_entry):
     mac = "DC:71:96:11:22:33"
     assert info["identifiers"] == {(DOMAIN, f"{mac}_sms")}
     assert info["via_device"] == (DOMAIN, f"{mac}_system")
+
+
+def test_lte_ca_no_coordinator_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiLteCaSensor(mock_coordinator, mock_config_entry, LTE_CA_DESCRIPTION)
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiWifiStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_status_on(mock_coordinator, mock_config_entry):
+    """Return True when WifiStatus is '1'."""
+    mock_coordinator.data = {"monitoring_status": {"WifiStatus": "1"}}
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_status_off(mock_coordinator, mock_config_entry):
+    """Return False when WifiStatus is '0'."""
+    mock_coordinator.data = {"monitoring_status": {"WifiStatus": "0"}}
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_wifi_status_missing_key(mock_coordinator, mock_config_entry):
+    """Return None when WifiStatus key is missing."""
+    mock_coordinator.data = {"monitoring_status": {}}
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_wifi_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiWifi24GStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_24g_status_on(mock_coordinator, mock_config_entry):
+    """Return True when wifi24g_switch_enable is '1'."""
+    mock_coordinator.data = {"wlan_wifi_feature_switch": {"wifi24g_switch_enable": "1"}}
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_24g_status_off(mock_coordinator, mock_config_entry):
+    """Return False when wifi24g_switch_enable is '0'."""
+    mock_coordinator.data = {"wlan_wifi_feature_switch": {"wifi24g_switch_enable": "0"}}
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_wifi_24g_status_missing_key(mock_coordinator, mock_config_entry):
+    """Return None when wifi24g_switch_enable key is missing."""
+    mock_coordinator.data = {"wlan_wifi_feature_switch": {}}
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_wifi_24g_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiWifi5GStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_5g_status_on(mock_coordinator, mock_config_entry):
+    """Return True when wifi5g_enabled is '1'."""
+    mock_coordinator.data = {"wlan_wifi_feature_switch": {"wifi5g_enabled": "1"}}
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_5g_status_off(mock_coordinator, mock_config_entry):
+    """Return False when wifi5g_enabled is '0'."""
+    mock_coordinator.data = {"wlan_wifi_feature_switch": {"wifi5g_enabled": "0"}}
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_wifi_5g_status_missing_key(mock_coordinator, mock_config_entry):
+    """Return None when wifi5g_enabled key is missing."""
+    mock_coordinator.data = {"wlan_wifi_feature_switch": {}}
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_wifi_5g_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiMobileConnectionSensor
+# ---------------------------------------------------------------------------
+
+
+def test_mobile_connection_on(mock_coordinator, mock_config_entry):
+    """Return True when ConnectionStatus is '901'."""
+    mock_coordinator.data = {"monitoring_status": {"ConnectionStatus": "901"}}
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_mobile_connection_off(mock_coordinator, mock_config_entry):
+    """Return False when ConnectionStatus is not '901'."""
+    mock_coordinator.data = {"monitoring_status": {"ConnectionStatus": "900"}}
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_mobile_connection_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    assert sensor.is_on is None
 
 
 # ---------------------------------------------------------------------------
