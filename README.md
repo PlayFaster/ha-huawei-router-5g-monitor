@@ -71,9 +71,9 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 
 ### 💡 Useful Features
 
-- **SMS Events**: Fires a `huawei_router_5g_sms_event` event when a new message is detected, enabling automations triggered by incoming texts.
 - **Pause Polling**: Switch to halt polling when you need uninterrupted access to the router's web UI.
 - **Configurable Update Interval**: From 30 seconds to 1 hour.
+- **SMS Events**: Fires a `huawei_router_5g_sms_received` event when a new message is detected, enabling automations triggered by incoming texts.
 
 > [!TIP]
 >
@@ -98,10 +98,12 @@ This integration provides **106+ entities** grouped into five logical devices: *
 
 | Type | Count | Primary Functions |
 | :-- | :-- | :-- |
-| **Sensors** | 94 | Signal strength, data usage, uptime, SMS counts, device info |
-| **Binary Sensors** | 7 | WiFi status, mobile connection, Best Connection, SMS storage full |
+| **Sensors** | 92 | Signal strength, data usage, uptime, SMS counts, device info |
+| **Binary Sensors** | 7 | Best Connection, WiFi status, mobile connection, SMS storage full |
 | **Switches** | 3 | Pause Polling, Mobile Data, Guest WiFi |
-| **Controls** | 5 | Reboot, Clear Traffic, Polling Interval, Network Mode, Send SMS service |
+| **Buttons** | 2 | Reboot, Clear Traffic |
+| **Inputs** | 2 | Polling Interval, Network Mode |
+| **Services** | 1 | Send SMS service |
 | **Device Trackers** | 1+ | Dynamically discovered per connected LAN/WLAN client |
 
 > [!TIP]
@@ -109,7 +111,7 @@ This integration provides **106+ entities** grouped into five logical devices: *
 > **Clean up your UI: Disable Unnecessary Devices or Entities**
 >
 > - If you are running in Bridge Mode you may not need the Clients sub-device
-> - If you never use the Routers SMSyou may not need the SMS sub-device
+> - If you never use the Routers SMS you may not need the SMS sub-device
 > - Devices and their entities can be disabled from the main device page - (⋮ menu) "Disable Device".
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
 
@@ -166,9 +168,8 @@ Setup is handled entirely via the UI under **Settings > Devices & Services > Add
 
 - **Device Name**: A custom prefix for your devices and entities (e.g., "HomeRouter").
 - **Router URL**: The local URL of your router (e.g., `http://192.168.8.1` — the Huawei default).
-- **Username**: Often blank for Huawei, otherwise whatever you use in the Ruuter WebUI.
+- **Username**: Often blank for Huawei, otherwise whatever you use in the Router WebUI.
 - **Password**: Your local admin password.
-- **Scan Interval** (optional, default 2 minutes, range 30s to 1 hour)
 
 After setup, you can modify options (e.g. a password change) anytime via: **Settings > Devices & Services > Huawei Router 5G Monitor > Options**
 
@@ -202,7 +203,7 @@ After setup, you can modify options (e.g. a password change) anytime via: **Sett
 
 ### **Why can't I access the router web UI while this integration is running?**
 
-- Huawei routers limit concurrent sessions to one simultaneous login.
+- Huawei routers are generally tolerant of concurrent sessions (e.g. via the web UI and Home Assistant), but it can be an issue.
 - Use the **Pause Polling** switch in Home Assistant to halt polling and free up the session.
 - Resume polling when you are done with the web UI.
 
@@ -222,8 +223,8 @@ This integration stands on the shoulders of several excellent open-source projec
 
 - 🙏 **Home Assistant Core — Huawei LTE Integration** (@scop, @fphammerle, @joostlek, and contributors): The architectural foundation this component builds upon. The core integration is the right choice for most users — this component extends it for a specific niche. A huge thanks for the years of work that went into it.
 - 🙏 **[huawei-lte-api](https://github.com/Salamek/huawei-lte-api)** (@Salamek and contributors): The underlying API library that does the heavy lifting of communicating with Huawei hardware. None of this would be possible without it.
-- 🙏 **[huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended)** (@william-aqn): The expanded SMS functionality in this integration is based on this work. If SMS features are all you need, this component paired with the core integration is an excellent option.
-- 🙏 **Personal prior work**: Structural patterns and integration architecture draw on my own custom components for [TP-Link 5G](https://github.com/PlayFaster/ha-tplink-router-5g-monitor) and [ZTE 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) routers.
+- 🙏 **[huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended)** (@william-aqn): The expanded SMS functionality in this integration is based on this work. If SMS features are what you need, this component paired with the core integration is an excellent option.
+- **Personal prior work**: Structural patterns and integration architecture draw on my own custom components for [TP-Link 5G](https://github.com/PlayFaster/ha-tplink-router-5g-monitor) and [ZTE 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) routers.
 - This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
 
 ---

@@ -384,7 +384,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 - **Declarative Guard Bands**: Implemented comprehensive min/max limits for over 80 numeric sensors. Centralized validation in `native_value` to return `None` (Unavailable) for out-of-bounds data, protecting Home Assistant's long-term statistics.
 - **Robust SMS Parsing**: Implemented a resilient parser in `helpers.py` that handles varied router responses (single dictionary vs. multi-message list) and metadata offsets.
-- **SMS Event Firing**: Added `huawei_router_5g_sms_event` firing in the coordinator when new messages are detected at the top of the inbox.
+- **SMS Event Firing**: Added `huawei_router_5g_sms_received` firing in the coordinator when new messages are detected at the top of the inbox.
 - **send_sms Service**: Implemented the `send_sms` service with support for multiple recipients and message content.
 - **Numeric Sanitization**: Added `_safe_float` and `_safe_int` helpers to strip technical suffixes ('dBm', 'MHz', 'mbps') from API strings before conversion.
 
