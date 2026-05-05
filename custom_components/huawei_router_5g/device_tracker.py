@@ -4,11 +4,10 @@ import logging
 from typing import Any
 
 from homeassistant.components.device_tracker import ScannerEntity
-from homeassistant.const import CONF_HOST
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
+from .helpers import build_device_info
 
 PARALLEL_UPDATES = 0
 
@@ -131,17 +130,4 @@ class HuaweiRouterDeviceTracker(
     @property
     def device_info(self) -> dict[str, Any]:
         """Return device information with sub-device support."""
-        host = self.coordinator.entry.options[CONF_HOST]
-        mac = self.coordinator.mac
-        sub_id_prefix = mac if mac else f"host_{host}"
-
-        return {
-            "identifiers": {(DOMAIN, f"{sub_id_prefix}_clients")},
-            "name": f"{self.coordinator.entry.title} Clients",
-            "manufacturer": "Huawei",
-            "model": self.coordinator.model,
-            "sw_version": self.coordinator.sw_version,
-            "hw_version": self.coordinator.hw_version,
-            "configuration_url": f"http://{host}",
-            "via_device": (DOMAIN, f"{sub_id_prefix}_system"),
-        }
+        return build_device_info(self.coordinator, "clients")

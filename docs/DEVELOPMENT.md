@@ -38,10 +38,43 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
 ### Sub-Device Granularity (v1.0.0)
 
-- **Standard**: Grouped entities into five functional sub-devices: **System, Signal, Data, SMS, and Clients**.
+- **Standard**: Grouped entities into six functional sub-devices: **System, Signal, Data, SMS, WiFi, and Clients**.
 - **Benefit**: Prevents "entity fatigue" in the HA UI and provides a cleaner organization in the Device Registry.
 
+### Dynamic Radio Mapping (v1.0.2-dev4)
+
+- **Change**: Moved from hardcoded radio indices to a path-based discovery model for WiFi radios.
+- **Logic**:
+  1. Fetch all SSIDs via the `wlan_multi_basic_settings` API.
+  2. Search for SSIDs by their firmware `ID` path fragment (e.g., `Radio.1` for 2.4GHz, `Radio.2` for 5GHz).
+  3. Dynamically map status and configuration switches to the correctly discovered index.
+- **Reason**: Huawei routers frequently shift radio indices between firmware versions (the "Index 5" bug).
+- **Result**: Rock-solid WiFi status monitoring and switching across all H165-383 firmware variants.
+
 ## 4. Success Patterns
+
+### Concurrency Locking Pattern (v1.1.0)
+
+- **Change**: Implemented an `asyncio.Lock` in `HuaweiRouter5GAPI` to serialize all router communication.
+- **Reason**: Huawei routers often crash or return empty XML if hit with overlapping requests (e.g., a background poll occurring while a user sends an SMS).
+- **Result**: Guaranteed session stability and eliminated "Busy" or "System Error" (110001) responses during heavy activity.
+
+### Timestamp-Based SMS Tracking (v1.1.0)
+
+- **Change**: Pivoted the `_check_new_sms` logic from comparing slot indices to comparing message dates.
+- **Logic**:
+  1. Store `last_sms_timestamp`.
+  2. Maintain a `fired_sms_hashes` set of `{index}_{date}` to deduplicate messages arriving in the same second.
+  3. Sort incoming messages chronologically before firing events.
+- **Benefit**: Solves the "Slot Reuse" bug where a new message occupying a lower-numbered empty slot was previously ignored.
+
+### Advanced Service Architecture (v1.1.0)
+
+- **Change**: Expanded the service layer to include `delete_sms`, `delete_all_sms`, and `get_sms_list`.
+- **Feature**: `get_sms_list` utilizes `SupportsResponse.ONLY`, allowing Home Assistant automations to programmatically ingest SMS content.
+- **Implementation**: Service handlers use explicit `async def` wrappers to ensure coroutines are properly awaited by Home Assistant's service bus, preventing the "expected dictionary, but got coroutine" error.
+
+## Other
 
 - **`DataUpdateCoordinator`**: Essential for consolidating multiple API calls (Signal, Traffic, SMS, Clients) into a single orchestrated update cycle.
 - **Flat Identity Strategy**: By storing Model, Version, and MAC in `entry.data` and loading them at `__init__`, the integration provides stable metadata to the UI instantly at boot, even if the hardware is offline.
@@ -78,8 +111,13 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Implemented complexity detection in `helpers.py`. If a string contains colons or multiple segments, the parser bypasses numeric conversion entirely and returns the full raw string, preserving technical fidelity.
 - **Background Task Mocking**: Standard tests can fail if background tasks aren't properly awaited.
   - _Fix_: Ensured all tests use `hass.async_block_till_done()` after setup to catch initialization tasks.
+- **SMS Inbox Browsing**: The integration provides the last received message content and unread counts. Browsing the full inbox or replying to specific messages requires the router's web interface.
+- **Slot Reuse Event Suppression (v1.1.0)**: Huawei routers reuse memory slot indices (1-50). Comparing `index > last_seen_index` failed when a new message took a lower-numbered empty slot.
+  - _Fix_: Switched to **Timestamp-Based Tracking**. The coordinator now tracks the latest `date` and uses a `{index}_{date}` hash set for deduplication within the same second.
+- **Service Response Coroutine Error (v1.1.0)**: Registering `async` service handlers with a `lambda` (e.g., `lambda call: async_func(call)`) returns an unawaited coroutine object. While this works for one-way services, it fails for services with responses, as Home Assistant expects a dictionary.
+  - _Fix_: Refactored service handlers into explicit `async def` wrappers that `await` the implementation before returning.
 - **SMS API Parameter Constraints (v1.0.1-dev15)**: Modern 5G firmware is highly sensitive to the XML payload sent to `get_sms_list`. Including optional parameters like `sort_type` or `unread_preferred` can cause the router to reject the request with a "System Error" (110001) or return empty results.
-  - _Fix_: Simplified the API call to the absolute minimum required parameters (`page` and `box_type`) to maximize compatibility.
+  - _Correction_: While simplified in v1.0.1-dev15, these were **re-added and verified** in v1.1.0 alongside the `asyncio.Lock`. Concurrency was the true root cause; with serialized requests, the router accepts the advanced sort/unread parameters correctly.
 - **Transient Notification Counters**: The `NewMsg` API key does not represent a persistent state (like "Unread"); it is a transient notification counter that resets as soon as a client fetches the message list.
   - _Fix_: Renamed the sensor to **"In Process"** and moved it to **Diagnostic** to prevent user confusion during polling cycles.
 - **Library Enum Requirements**: Recent versions of `huawei-lte-api` expect `Enum` objects (like `BoxTypeEnum`) rather than literal integers for certain parameters. Passing an integer can trigger attribute errors (`'int' object has no attribute 'value'`) within the library's internal logic.

@@ -66,9 +66,12 @@ def mock_config_entry():
 
 
 @pytest.fixture
-def mock_coordinator():
+def mock_coordinator(mock_config_entry):
     """Fixture providing a mock DataUpdateCoordinator."""
     coordinator = MagicMock()
+    coordinator.entry = mock_config_entry
+    coordinator.api = MagicMock()
+    coordinator.api.url = "http://192.168.8.1"
     coordinator.data = {}
     coordinator.last_update_success_time = None
     coordinator.async_request_refresh = AsyncMock()

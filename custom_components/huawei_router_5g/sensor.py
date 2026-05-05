@@ -14,7 +14,6 @@ from homeassistant.components.sensor import (
     SensorStateClass,
 )
 from homeassistant.const import (
-    CONF_HOST,
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
     UnitOfDataRate,
@@ -26,12 +25,12 @@ from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
-from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
     _parse_complex_float,
     _parse_complex_int,
     _safe_int,
+    build_device_info,
     get_network_type_label,
     parse_signal_value,
     parse_sms_list,
@@ -154,7 +153,6 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="last_updated",
         icon="mdi:update",
         device_class=SensorDeviceClass.TIMESTAMP,
-        entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
         value_fn=lambda data: None,  # Handled by property
     ),
@@ -263,6 +261,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
             if data
             else None
         ),
+        entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
         key="battery",
@@ -286,11 +285,70 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="wifi_users",
         icon="mdi:wifi-check",
         state_class=SensorStateClass.MEASUREMENT,
-        group="system",
+        group="clients",
         min_limit=0,
         max_limit=255,
         value_fn=lambda data: (
             _safe_int(data.get("monitoring_status", {}).get("CurrentWifiUser"))
+            if data
+            else None
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="total_connected",
+        translation_key="total_connected",
+        icon="mdi:account-group",
+        state_class=SensorStateClass.MEASUREMENT,
+        group="clients",
+        min_limit=0,
+        max_limit=512,
+        value_fn=lambda data: (
+            len(
+                [
+                    h
+                    for h in (
+                        data.get("lan_host_info", {}).get("Hosts", {}).get("Host", [])
+                    )
+                    if isinstance(h, dict) and str(h.get("Active")) == "1"
+                ]
+            )
+            if data and data.get("lan_host_info")
+            else None
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="wired_connected",
+        translation_key="wired_connected",
+        icon="mdi:lan-connect",
+        state_class=SensorStateClass.MEASUREMENT,
+        group="clients",
+        min_limit=0,
+        max_limit=512,
+        value_fn=lambda data: (
+            len(
+                [
+                    h
+                    for h in (
+                        data.get("lan_host_info", {}).get("Hosts", {}).get("Host", [])
+                    )
+                    if isinstance(h, dict)
+                    and str(h.get("Active")) == "1"
+                    and "Wireless" not in str(h.get("InterfaceType", ""))
+                ]
+            )
+            if data and data.get("lan_host_info")
+            else None
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="wifi_capacity",
+        translation_key="wifi_capacity",
+        icon="mdi:wifi-cog",
+        group="wifi",
+        min_limit=0,
+        max_limit=512,
+        value_fn=lambda data: (
+            _safe_int(data.get("monitoring_status", {}).get("TotalWifiUser"))
             if data
             else None
         ),
@@ -466,6 +524,20 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         max_limit=5,
         value_fn=lambda data: (
             _safe_int(data.get("monitoring_status", {}).get("SignalIcon"))
+            if data
+            else None
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="signal_bars_nr",
+        translation_key="signal_bars_nr",
+        icon="mdi:signal-cellular-outline",
+        state_class=SensorStateClass.MEASUREMENT,
+        group="signal",
+        min_limit=0,
+        max_limit=5,
+        value_fn=lambda data: (
+            _safe_int(data.get("monitoring_status", {}).get("SignalIconNr"))
             if data
             else None
         ),
@@ -1426,32 +1498,4 @@ class HuaweiRouterSensor(
     @property
     def device_info(self):
         """Return device information with sub-device support."""
-        host = self._entry.options[CONF_HOST]
-        group = self.entity_description.group
-
-        group_names = {
-            "system": "System",
-            "signal": "Signal",
-            "data": "Data",
-            "sms": "SMS",
-        }
-        display_group = group_names.get(group, group.capitalize())
-        sub_name = f"{self._entry.title} {display_group}"
-
-        mac = self.coordinator.mac
-        sub_id_prefix = mac if mac else f"host_{host}"
-
-        info = {
-            "identifiers": {(DOMAIN, f"{sub_id_prefix}_{group}")},
-            "name": sub_name,
-            "manufacturer": "Huawei",
-            "model": self.coordinator.model,
-            "sw_version": self.coordinator.sw_version,
-            "hw_version": self.coordinator.hw_version,
-            "configuration_url": f"http://{host}",
-        }
-
-        if group != "system":
-            info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
-
-        return info
+        return build_device_info(self.coordinator, self.entity_description.group)

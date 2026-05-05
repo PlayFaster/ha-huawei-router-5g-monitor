@@ -273,11 +273,11 @@ async def test_api_get_data_no_client_triggers_login():
     api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
     assert api._client is None
 
-    with patch.object(api, "login", new=AsyncMock()) as mock_login:
-        mock_login.side_effect = HuaweiConnectionError("offline")
+    with patch.object(api, "_ensure_client", new=AsyncMock()) as mock_ensure:
+        mock_ensure.side_effect = HuaweiConnectionError("offline")
         with pytest.raises(HuaweiConnectionError):
             await api.get_data()
-        mock_login.assert_called_once()
+        mock_ensure.assert_called_once()
 
 
 @pytest.mark.asyncio

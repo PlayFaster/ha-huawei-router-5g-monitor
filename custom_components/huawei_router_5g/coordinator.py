@@ -26,7 +26,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         self.entry = entry
         self.consecutive_failures = 0
         self.last_update_success_time = None
-        self.last_sms_index: int | None = None
+        self.last_sms_timestamp: str | None = None
+        self.fired_sms_hashes: set[str] = set()
 
         # Load hardware identity from persistent ConfigEntry data.
         self.model = entry.data.get("model", "Huawei Router")
@@ -176,17 +177,32 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         if not sms_list:
             return
 
-        # Find the highest index in the current list
-        max_idx = max(msg["index"] for msg in sms_list)
+        # Sort by date ascending (oldest first) to ensure events fire in order
+        sms_list.sort(key=lambda x: x["date"])
 
-        # On first run, just set the index
-        if self.last_sms_index is None:
-            self.last_sms_index = max_idx
+        # On first run, just set the baseline timestamp and hashes
+        if self.last_sms_timestamp is None:
+            self.last_sms_timestamp = sms_list[-1]["date"]
+            self.fired_sms_hashes = {
+                f"{msg['index']}_{msg['date']}"
+                for msg in sms_list
+                if msg["date"] == self.last_sms_timestamp
+            }
+            _LOGGER.debug(
+                "%s: SMS tracking baseline established at %s",
+                self.entry.title,
+                self.last_sms_timestamp,
+            )
             return
 
-        # Fire events for all messages with index > last_sms_index
-        new_messages = [msg for msg in sms_list if msg["index"] > self.last_sms_index]
-        new_messages.sort(key=lambda x: x["index"])
+        new_messages = []
+        for msg in sms_list:
+            msg_hash = f"{msg['index']}_{msg['date']}"
+            if msg["date"] > self.last_sms_timestamp or (
+                msg["date"] == self.last_sms_timestamp
+                and msg_hash not in self.fired_sms_hashes
+            ):
+                new_messages.append(msg)
 
         for msg in new_messages:
             _LOGGER.info("%s: New SMS from %s", self.entry.title, msg["phone"])
@@ -201,4 +217,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 },
             )
 
-        self.last_sms_index = max_idx
+            # Update tracking state
+            msg_hash = f"{msg['index']}_{msg['date']}"
+            if msg["date"] > self.last_sms_timestamp:
+                self.last_sms_timestamp = msg["date"]
+                self.fired_sms_hashes = {msg_hash}
+            else:
+                self.fired_sms_hashes.add(msg_hash)

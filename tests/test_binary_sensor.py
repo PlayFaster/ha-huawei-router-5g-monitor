@@ -6,11 +6,21 @@ import pytest
 
 from custom_components.huawei_router_5g.binary_sensor import (
     BEST_CONN_DESCRIPTION,
+    ENDC_STATUS_DESCRIPTION,
     LTE_CA_DESCRIPTION,
+    SINGLE_SSID_MODE_DESCRIPTION,
     SMS_STORAGE_FULL_DESCRIPTION,
+    WIFI_5G_STATUS_DESCRIPTION,
+    WIFI_24G_STATUS_DESCRIPTION,
+    WIFI_STATUS_DESCRIPTION,
     HuaweiBestConnectionSensor,
+    HuaweiEndcStatusSensor,
     HuaweiLteCaSensor,
+    HuaweiSingleSsidModeSensor,
     HuaweiSmsStorageFullSensor,
+    HuaweiWifi5GStatusSensor,
+    HuaweiWifi24GStatusSensor,
+    HuaweiWifiStatusSensor,
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -175,6 +185,164 @@ def test_sms_storage_full_device_info(mock_coordinator, mock_config_entry):
     assert info["via_device"] == (DOMAIN, f"{mac}_system")
 
 
+def test_lte_ca_no_coordinator_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiLteCaSensor(mock_coordinator, mock_config_entry, LTE_CA_DESCRIPTION)
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiWifiStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_status_on(mock_coordinator, mock_config_entry):
+    """Return True when WifiStatus is '1'."""
+    mock_coordinator.data = {"monitoring_status": {"WifiStatus": "1"}}
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_status_off(mock_coordinator, mock_config_entry):
+    """Return False when WifiStatus is '0'."""
+    mock_coordinator.data = {"monitoring_status": {"WifiStatus": "0"}}
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_wifi_status_missing_key(mock_coordinator, mock_config_entry):
+    """Return None when WifiStatus key is missing."""
+    mock_coordinator.data = {"monitoring_status": {}}
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_wifi_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiWifiStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiWifi24GStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_24g_status_on(mock_coordinator, mock_config_entry):
+    """Return True when wifi24g (Index 0) is enabled."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [{"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}]
+            }
+        }
+    }
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_24g_status_on_dynamic(mock_coordinator, mock_config_entry):
+    """Return True when wifi24g is found by dynamic path."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "ID": "InternetGatewayDevice.X_Config.Wifi.Radio.1.Ssid.1.",
+                        "WifiEnable": "1",
+                        "Index": "10",
+                    }
+                ]
+            }
+        }
+    }
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+# ---------------------------------------------------------------------------
+# HuaweiWifi5GStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_wifi_5g_status_on(mock_coordinator, mock_config_entry):
+    """Return True when wifi5g (Index 1) is enabled."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [{"Index": "1", "WifiEnable": "1", "wifiisguestnetwork": "0"}]
+            }
+        }
+    }
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_5g_status_on_dynamic(mock_coordinator, mock_config_entry):
+    """Return True when wifi5g is found by dynamic path (Radio.2)."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "ID": "InternetGatewayDevice.X_Config.Wifi.Radio.2.Ssid.1.",
+                        "WifiEnable": "1",
+                        "Index": "5",
+                    }
+                ]
+            }
+        }
+    }
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+# ---------------------------------------------------------------------------
+# HuaweiEndcStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_endc_status_on(mock_coordinator, mock_config_entry):
+    """Return True when EndcStatus is '1'."""
+    mock_coordinator.data = {"monitoring_status": {"EndcStatus": "1"}}
+    sensor = HuaweiEndcStatusSensor(
+        mock_coordinator, mock_config_entry, ENDC_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+# ---------------------------------------------------------------------------
+# HuaweiSingleSsidModeSensor
+# ---------------------------------------------------------------------------
+
+
+def test_single_ssid_mode_dbho(mock_coordinator, mock_config_entry):
+    """Return True when DbhoEnable is '1'."""
+    mock_coordinator.data = {"wlan_multi_basic_settings": {"DbhoEnable": "1"}}
+    sensor = HuaweiSingleSsidModeSensor(
+        mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------
@@ -182,7 +350,7 @@ def test_sms_storage_full_device_info(mock_coordinator, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_binary_sensor_setup_entry():
-    """Test that async_setup_entry creates both binary sensors."""
+    """Test that async_setup_entry creates all binary sensors."""
     hass = MagicMock()
     entry = MagicMock()
     entry.entry_id = "test"
@@ -193,4 +361,4 @@ async def test_binary_sensor_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 7
+    assert len(entities) == 12

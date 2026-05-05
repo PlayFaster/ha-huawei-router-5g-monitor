@@ -1,6 +1,6 @@
 """Tests for the Huawei Router 5G select platform."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
@@ -39,6 +39,27 @@ async def test_network_mode_select_option(mock_coordinator, mock_config_entry):
 
     await select.async_select_option("4G Only")
     mock_coordinator.api.set_net_mode.assert_called_once_with("03")
+
+
+@pytest.mark.asyncio
+async def test_network_mode_select_option_failure(mock_coordinator, mock_config_entry):
+    """Test error handling when selecting an option fails."""
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+    mock_coordinator.api.set_net_mode = AsyncMock(side_effect=Exception("API Error"))
+
+    with patch("custom_components.huawei_router_5g.select._LOGGER") as mock_logger:
+        await select.async_select_option("4G Only")
+
+    assert mock_logger.exception.called
+    assert "Failed to set network mode" in mock_logger.exception.call_args[0][0]
+
+
+def test_select_device_info(mock_coordinator, mock_config_entry):
+    """Test device_info generation for select entities."""
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+    info = select.device_info
+    assert info["identifiers"] == {(DOMAIN, "DC:71:96:11:22:33_system")}
+    assert info["manufacturer"] == "Huawei"
 
 
 @pytest.mark.asyncio

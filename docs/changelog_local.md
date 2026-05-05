@@ -4,6 +4,92 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.2-dev4] - 2026-05-05
+
+### Added
+
+- **WiFi Sub-Device**: Created a dedicated 'WiFi' sub-device to group all wireless networking entities, improving UI organization and logical separation from core system metrics.
+- **Critical Fixes for H165-383**:
+  - Fixed **Request Format Error (100005)** by implementing a "Full Payload" POST strategy that preserves `DbhoEnable` and other mandatory fields during Wi-Fi updates.
+  - Fixed **AttributeError** in Single SSID toggle by correctly targeting the internal session object and correcting fallback method names.
+- **Enhanced Client Connectivity Sensors**:
+  - `total_connected`: Sum of all active LAN and WLAN clients.
+  - `wired_connected`: Calculated as Total Active minus Wireless Active clients.
+- **5G Signal Bars**: Added a dedicated `signal_bars_nr` sensor to track 5G signal quality separately from LTE.
+- **WiFi User Capacity**: Added `wifi_capacity` sensor to report the maximum supported wireless users for the hardware.
+- **Dynamic Radio Discovery**: Implemented `find_ssid_by_path` helper to automatically map 2.4GHz and 5GHz radios using firmware "ID paths" (e.g., `Radio.1.Ssid.1`). This eliminates the "Index 5 bug" on H165-383 models where radio indices shifted between firmware versions.
+- **Organization Test Suite**: Created `tests/test_organization.py` to verify sub-device grouping, entity categories, and naming conventions across all platforms.
+
+### Changed
+
+- **Entity Naming Refinement**:
+  - Renamed **5G Active** to **5G ENDC Active** for technical accuracy (E-UTRA New Radio Dual Connectivity).
+  - Stripped "WiFi" and "Wi-Fi" prefixes from all entities within the WiFi sub-device to prevent redundant labeling (e.g., "WiFi Status" becomes "Status" under the WiFi sub-device).
+  - Stripped redundant "Wi-Fi" from the **Guest Network** switch.
+- **Category Optimization**:
+  - Promoted **WiFi Connected** (`wifi_users`) from Diagnostic to the main **Sensor** category (grouped under Clients).
+  - Promoted **Last Updated** from Diagnostic to the main **Sensor** category for immediate data-freshness visibility.
+  - Moved **Total Uptime** (`total_connection_timestamp`) from Sensor to **Diagnostic**, prioritizing it for long-term troubleshooting rather than daily monitoring.
+- **Sub-Device Grouping**:
+  - Moved `wifi_status`, `wifi24g_status`, `wifi5g_status`, `single_ssid_mode`, `wifi_capacity`, and `wifi_guest_network` to the new **WiFi** sub-device.
+  - Consolidated client tracking entities under the **Clients** sub-device.
+- **Metadata Refinement**: Removed `measurement` state class from **WiFi User Capacity** as it is a static hardware capability, preventing unnecessary long-term statistics tracking.
+
+### Fixed
+
+- **H165-383 WiFi Stability**: Resolved "Guest WiFi always off" bug on modern firmware by implementing a "Full List POST" strategy in `set_guest_wifi`, ensuring all SSID indices are maintained during single-SSID updates.
+- **API Error Suppression**: Downgraded Error 100002 (Not Supported) to `DEBUG` level for 5G/LTE status checks, preventing log spam on older router models that don't support modern EN-DC metrics.
+- **ConfigEntry Attribute Assignment**: Fixed `AttributeError` in tests caused by direct assignment to `ConfigEntry.options`, migrating to `MockConfigEntry` initialization standard.
+
+---
+
+## [1.0.2-dev3] - 2026-05-04
+
+### Added
+
+- **Expanded SMS Service Suite**: Implemented three new services and enhanced one existing service:
+  - `delete_sms`: Deletes a specific message by its storage index.
+  - `delete_all_sms`: Performs bulk deletion with a `keep_last` safety parameter to maintain minimal history.
+  - `get_sms_list`: Provides a full inbox dump with **Service Response** support, enabling automated ingestion of SMS content.
+  - `send_sms`: Upgraded to support targeting multiple recipients and specific `device_id` identifiers.
+- **Dedicated `__init__.py` Test Suite**: Created `tests/test_init.py` to target service registration, handler routing, and error propagation, achieving high coverage for the integration lifecycle.
+
+### Changed
+
+- **Timestamp-Based SMS Tracking**: Replaced the brittle "Index-based" detection logic with a robust timestamp-based system. The coordinator now uses a combination of message `date` and a `{index}_{date}` hash set to identify new messages, effectively eliminating the "Slot Reuse" bug where messages in recycled slots were previously ignored.
+- **API Concurrency Locking**: Integrated an `asyncio.Lock` into the `HuaweiRouter5GAPI` class. All router communications are now serialized, preventing the session crashes and "Busy" errors caused by simultaneous polling and service execution.
+- **Modernized Service Handlers**: Refactored service registration from lambdas to explicit `async def` wrappers. This resolved a critical bug where `get_sms_list` returned an unawaited coroutine instead of the expected data dictionary.
+- **Enhanced Polling Parameters**: Re-enabled `SortTypeEnum.DATE` and `unread_preferred=True` in the SMS poll cycle. Serialization via the new API lock ensures these advanced parameters are now accepted by the router firmware without triggering system errors.
+- **Test Coverage Recovery**: Restored overall project coverage to **95%** after the introduction of complex async logic. Updated `tests/test_api.py` and `tests/test_coverage_ext.py` to match the new lock-protected API structure and verified all 285 tests passing in the devcontainer.
+
+### Fixed
+
+- **SMS Deletion Argument Bug**: Resolved a `TypeError` in the `delete_sms` service caused by using the incorrect keyword argument (`index` instead of `sms_id`). This fix also restores functionality to the `delete_all_sms` service.
+- **Network Mode Argument Order**: Corrected the argument order in `set_net_mode` and migrated to keyword arguments (`lte_band`, `network_band`, `network_mode`) to ensure compatibility with the `huawei-lte-api` library's expectations.
+- **Robustness in Tests**: Updated the API test suite to verify correct keyword arguments for SMS and network mode operations, preventing future regressions of library-specific signatures.
+
+---
+
+## [1.0.2-dev1] - 2026-05-04
+
+### Changed
+
+- **100% Test Coverage for `api.py`**: Achieved full coverage (143 lines) by implementing 41 tests covering edge-case ResponseErrorException paths, generic SMS list fetch failures, and verified execution of all async setter closures.
+- **100% Test Coverage for `switch.py`**: Achieved full coverage (106 lines) by implementing 23 tests covering missing API data keys, exception handling for mobile/guest toggles, and Guest WiFi deactivation logic.
+- **100% Test Coverage for `binary_sensor.py`**: Achieved full coverage (119 lines) by consolidating external tests and implementing missing scenarios for WiFi status, mobile connection, and null-data edge cases.
+- **100% Test Coverage for `sensor.py`**: Achieved full coverage of the main sensor platform (120 lines) by implementing 46 comprehensive tests.
+- **98% Test Coverage for `device_tracker.py`**: Added 8 tests for dynamic listener discovery and malformed host-data resilience, reaching near-total coverage.
+- **Consolidated Binary Sensor Test Suite**: Merged `test_binary_sensor_ext.py` into the primary `test_binary_sensor.py` for better maintainability and unified validation.
+- **Improved Sensor Resilience Testing**: Verified IPv6 formatting safeguards, negative duration guards for connection sensors, and 5G band extraction fallbacks.
+- **SMS Metadata & Attribute Verification**: Added exhaustive tests for the `last_sms` sensor and the detailed attribute breakdown in `sms_total`, ensuring coverage for all logical branches including missing or malformed coordinator data.
+- **100% Test Coverage for `coordinator.py`**: Achieved full coverage (92 lines) by implementing targeted tests for communication restoration logging, SMS debug output, and the end-to-end SMS event-firing logic. Verified that the first fetch sets the baseline index without firing events, while subsequent fetches correctly dispatch `huawei_router_5g_sms_received` events for new messages only.
+- **100% Test Coverage for `__init__.py`**: Reached full coverage (62 lines) by implementing success-path and failure-path verification for background initialization tasks, ensuring the integration remains responsive during boot while handling API login failures gracefully.
+- **100% Test Coverage for `select.py`**: Achieved full coverage (38 lines) by adding tests for the `device_info` property and error handling in `async_select_option`, verifying that API failures are correctly captured and logged.
+- **Testing Infrastructure Enhancement**: Implemented a `mock_report_usage` fixture in new test suites to bypass Home Assistant's internal `Frame helper not set up` runtime errors during standalone coordinator and platform testing.
+- **Project-wide Coverage Milestone**: Increased total project test coverage to **99.8%**.
+
+---
+
 ## [1.0.1] - 2026-05-03
 
 ### Added
@@ -364,7 +450,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 - **Declarative Guard Bands**: Implemented comprehensive min/max limits for over 80 numeric sensors. Centralized validation in `native_value` to return `None` (Unavailable) for out-of-bounds data, protecting Home Assistant's long-term statistics.
 - **Robust SMS Parsing**: Implemented a resilient parser in `helpers.py` that handles varied router responses (single dictionary vs. multi-message list) and metadata offsets.
-- **SMS Event Firing**: Added `huawei_router_5g_sms_event` firing in the coordinator when new messages are detected at the top of the inbox.
+- **SMS Event Firing**: Added `huawei_router_5g_sms_received` firing in the coordinator when new messages are detected at the top of the inbox.
 - **send_sms Service**: Implemented the `send_sms` service with support for multiple recipients and message content.
 - **Numeric Sanitization**: Added `_safe_float` and `_safe_int` helpers to strip technical suffixes ('dBm', 'MHz', 'mbps') from API strings before conversion.
 

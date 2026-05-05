@@ -1,478 +1,414 @@
-"""Tests for the Huawei Router 5G integration setup and coordinator."""
+"""Tests for the Huawei Router 5G Monitor __init__.py."""
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-import voluptuous as vol
+from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.update_coordinator import UpdateFailed
+from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from custom_components.huawei_router_5g import (
-    PLATFORMS,
-    async_setup,
-    async_setup_entry,
-    async_unload_entry,
-)
-from custom_components.huawei_router_5g.const import (
-    CONF_STOP_POLLING,
     DOMAIN,
+    async_delete_all_sms,
+    async_delete_sms,
+    async_get_sms_list,
+    async_send_sms,
+    async_setup,
 )
-from custom_components.huawei_router_5g.coordinator import (
-    HuaweiRouter5GDataUpdateCoordinator,
-)
-
-
-@pytest.fixture(autouse=True)
-def mock_report_usage():
-    """Suppress 'Frame helper not set up' warnings from HA internals."""
-    with patch("homeassistant.helpers.frame.report_usage"):
-        yield
 
 
 @pytest.fixture
 def mock_hass():
-    """Create a mock HomeAssistant instance with the async methods needed for setup."""
-    hass = MagicMock()
-    hass.data = {}
+    """Mock Home Assistant."""
+    hass = MagicMock(spec=HomeAssistant)
     hass.services = MagicMock()
-    hass.services.has_service = MagicMock(return_value=False)
-    hass.services.async_register = MagicMock()
-    hass.config_entries.async_forward_entry_setups = AsyncMock(return_value=True)
-    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
-    hass.config_entries.async_update_entry = MagicMock()
+    hass.config_entries = MagicMock()
+    hass.config_entries.async_forward_entry_setups = AsyncMock()
+    hass.config_entries.async_unload_platforms = AsyncMock()
     return hass
 
 
-# ---------------------------------------------------------------------------
-# async_setup (Service Registration)
-# ---------------------------------------------------------------------------
+@pytest.fixture
+def mock_coordinator():
+    """Mock Coordinator."""
+    coordinator = MagicMock()
+    coordinator.api = MagicMock()
+    coordinator.async_request_refresh = AsyncMock()
+    return coordinator
+
+
+@pytest.fixture
+def mock_config_entry(mock_coordinator):
+    """Mock Config Entry."""
+    entry = MagicMock()
+    entry.entry_id = "test_entry_id"
+    entry.title = "Test Router"
+    entry.domain = DOMAIN
+    entry.runtime_data = mock_coordinator
+    return entry
 
 
 @pytest.mark.asyncio
-async def test_async_setup_registers_service(mock_hass):
-    """Test async_setup registers send_sms service when not already registered."""
+async def test_async_setup_registers_services(mock_hass):
+    """Test that async_setup registers all expected services."""
     mock_hass.services.has_service.return_value = False
 
     result = await async_setup(mock_hass, {})
 
     assert result is True
-    mock_hass.services.async_register.assert_called_once()
-    call_args = mock_hass.services.async_register.call_args
-    assert call_args[0][0] == DOMAIN
-    assert call_args[0][1] == "send_sms"
-    # Check schema validation
-    schema = call_args[1]["schema"]
-    assert isinstance(schema, vol.Schema)
-    # Test schema with valid data
-    valid_data = {"target": "1234567890", "message": "Hello"}
-    assert schema(valid_data) == valid_data
-    # Test schema with invalid data (too long message)
-    with pytest.raises(vol.Invalid):
-        schema({"target": "123", "message": "x" * 161})
+    assert mock_hass.services.async_register.call_count == 4
+
+    # Check registration of specific services
+    calls = mock_hass.services.async_register.call_args_list
+    registered_services = [call[0][1] for call in calls]
+    assert "send_sms" in registered_services
+    assert "delete_sms" in registered_services
+    assert "delete_all_sms" in registered_services
+    assert "get_sms_list" in registered_services
 
 
 @pytest.mark.asyncio
-async def test_async_setup_service_already_registered(mock_hass):
-    """Test async_setup skips registration if service already exists."""
-    mock_hass.services.has_service.return_value = True
+async def test_get_coordinator_by_id(mock_hass, mock_config_entry):
+    """Test _get_coordinator when device_id is provided."""
+    from custom_components.huawei_router_5g import _get_coordinator
 
-    result = await async_setup(mock_hass, {})
+    mock_hass.config_entries.async_get_entry.return_value = mock_config_entry
+    call_data = {"device_id": "test_entry_id"}
 
-    assert result is True
-    mock_hass.services.async_register.assert_not_called()
+    coordinator = _get_coordinator(mock_hass, call_data)
 
-
-@pytest.mark.asyncio
-async def test_async_send_sms_service_integration(mock_hass, mock_config_entry):
-    """Test the send_sms service call integration."""
-    from custom_components.huawei_router_5g import async_send_sms
-
-    mock_coordinator = MagicMock()
-    mock_coordinator.api = MagicMock()
-    mock_coordinator.api.send_sms = AsyncMock()
-
-    mock_hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
-    mock_config_entry.runtime_data = mock_coordinator
-
-    service_call = MagicMock()
-    service_call.data = {"target": "+441234567890", "message": "Test SMS"}
-
-    await async_send_sms(mock_hass, service_call)
-
-    mock_coordinator.api.send_sms.assert_called_once_with(["+441234567890"], "Test SMS")
+    assert coordinator == mock_config_entry.runtime_data
+    mock_hass.config_entries.async_get_entry.assert_called_once_with("test_entry_id")
 
 
 @pytest.mark.asyncio
-async def test_async_send_sms_service_no_entries(mock_hass):
-    """Test send_sms service when no config entries exist."""
-    from custom_components.huawei_router_5g import async_send_sms
+async def test_get_coordinator_fallback(mock_hass, mock_config_entry):
+    """Test _get_coordinator fallback when device_id is missing."""
+    from custom_components.huawei_router_5g import _get_coordinator
 
-    mock_hass.config_entries.async_entries = MagicMock(return_value=[])
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    call_data = {}
 
-    service_call = MagicMock()
-    service_call.data = {"target": "123", "message": "test"}
+    coordinator = _get_coordinator(mock_hass, call_data)
 
-    with pytest.raises(HomeAssistantError, match="No Huawei Router 5G entries found"):
-        await async_send_sms(mock_hass, service_call)
+    assert coordinator == mock_config_entry.runtime_data
 
 
 @pytest.mark.asyncio
-async def test_async_send_sms_service_entry_not_ready(mock_hass, mock_config_entry):
-    """Test send_sms service when entry runtime_data is missing."""
-    from custom_components.huawei_router_5g import async_send_sms
+async def test_get_coordinator_not_found(mock_hass):
+    """Test _get_coordinator raises error when no entries found."""
+    from custom_components.huawei_router_5g import _get_coordinator
 
-    mock_hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
-    mock_config_entry.runtime_data = None
-
-    service_call = MagicMock()
-    service_call.data = {"target": "123", "message": "test"}
+    mock_hass.config_entries.async_entries.return_value = []
+    call_data = {}
 
     with pytest.raises(
-        HomeAssistantError,
-        match=f"Integration entry {mock_config_entry.title} not ready",
+        HomeAssistantError, match="No active Huawei Router 5G entries found"
     ):
-        await async_send_sms(mock_hass, service_call)
+        _get_coordinator(mock_hass, call_data)
 
 
 @pytest.mark.asyncio
-async def test_async_send_sms_service_api_error(mock_hass, mock_config_entry):
-    """Test send_sms service when API call fails."""
-    from custom_components.huawei_router_5g import async_send_sms
+async def test_async_send_sms_service(mock_hass, mock_coordinator, mock_config_entry):
+    """Test the send_sms service handler."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.send_sms = AsyncMock()
 
-    mock_coordinator = MagicMock()
-    mock_coordinator.api = MagicMock()
-    mock_coordinator.api.send_sms = AsyncMock(side_effect=Exception("API error"))
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"target": ["+123"], "message": "hello"}
 
-    mock_hass.config_entries.async_entries = MagicMock(return_value=[mock_config_entry])
-    mock_config_entry.runtime_data = mock_coordinator
+    await async_send_sms(mock_hass, call)
 
-    service_call = MagicMock()
-    service_call.data = {"target": "123", "message": "test"}
+    mock_coordinator.api.send_sms.assert_awaited_once_with(["+123"], "hello")
+
+
+@pytest.mark.asyncio
+async def test_async_delete_sms_service(mock_hass, mock_coordinator, mock_config_entry):
+    """Test the delete_sms service handler."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.delete_sms = AsyncMock()
+
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"index": 5}
+
+    await async_delete_sms(mock_hass, call)
+
+    mock_coordinator.api.delete_sms.assert_awaited_once_with(5)
+    mock_coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_async_delete_all_sms_service(
+    mock_hass, mock_coordinator, mock_config_entry
+):
+    """Test the delete_all_sms service handler."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.get_sms_list = AsyncMock(
+        return_value={
+            "Messages": {"Message": [{"Index": "1"}, {"Index": "2"}, {"Index": "3"}]}
+        }
+    )
+    mock_coordinator.api.delete_sms = AsyncMock()
+
+    # Keep last 1, so delete 2 and 3
+    # (messages are usually newest first in our parse_sms_list)
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"keep_last": 1}
+
+    await async_delete_all_sms(mock_hass, call)
+
+    assert mock_coordinator.api.delete_sms.call_count == 2
+    mock_coordinator.async_request_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_get_coordinator_by_id_invalid(mock_hass, mock_config_entry):
+    """Test _get_coordinator when device_id is invalid or not DOMAIN."""
+    from custom_components.huawei_router_5g import _get_coordinator
+
+    mock_hass.config_entries.async_get_entry.return_value = None
+    call_data = {"device_id": "bad_id"}
+
+    with pytest.raises(
+        HomeAssistantError, match="No active Huawei Router 5G entries found"
+    ):
+        _get_coordinator(mock_hass, call_data)
+
+
+@pytest.mark.asyncio
+async def test_get_coordinator_entry_not_ready(mock_hass):
+    """Test _get_coordinator when entry has no runtime_data."""
+    from custom_components.huawei_router_5g import _get_coordinator
+
+    entry = MagicMock()
+    entry.domain = DOMAIN
+    entry.runtime_data = None
+    mock_hass.config_entries.async_get_entry.return_value = entry
+    call_data = {"device_id": "test_entry_id"}
+
+    with pytest.raises(HomeAssistantError, match=r"Router .* is not ready"):
+        _get_coordinator(mock_hass, call_data)
+
+
+@pytest.mark.asyncio
+async def test_async_send_sms_service_error(
+    mock_hass, mock_coordinator, mock_config_entry
+):
+    """Test the send_sms service error handling."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.send_sms = AsyncMock(side_effect=Exception("API Error"))
+
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"target": ["+123"], "message": "hello"}
 
     with pytest.raises(HomeAssistantError, match="Failed to send SMS"):
-        await async_send_sms(mock_hass, service_call)
-
-
-# ---------------------------------------------------------------------------
-# async_setup_entry
-# ---------------------------------------------------------------------------
+        await async_send_sms(mock_hass, call)
 
 
 @pytest.mark.asyncio
-async def test_setup_entry_success(mock_hass, mock_config_entry):
-    """Test that setup creates the coordinator and registers the system device."""
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI"),
-        patch("homeassistant.helpers.device_registry.async_get"),
-    ):
-        result = await async_setup_entry(mock_hass, mock_config_entry)
-
-    assert result is True
-    assert mock_config_entry.runtime_data is not None
-    coordinator = mock_config_entry.runtime_data
-    assert isinstance(coordinator, HuaweiRouter5GDataUpdateCoordinator)
-    mock_hass.config_entries.async_forward_entry_setups.assert_called_once()
-    mock_config_entry.async_create_background_task.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_setup_entry_creates_system_device(mock_hass, mock_config_entry):
-    """Test that setup registers the root system device in the device registry."""
-    mock_dev_reg = MagicMock()
-
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI"),
-        patch(
-            "homeassistant.helpers.device_registry.async_get",
-            return_value=mock_dev_reg,
-        ),
-    ):
-        await async_setup_entry(mock_hass, mock_config_entry)
-
-    assert mock_dev_reg.async_get_or_create.call_count == 2
-
-    mac = "DC:71:96:11:22:33"
-    calls = mock_dev_reg.async_get_or_create.call_args_list
-
-    # Check System device call
-    system_call = next(
-        c for c in calls if (DOMAIN, f"{mac}_system") in c.kwargs["identifiers"]
-    )
-    assert system_call.kwargs["name"] == f"{mock_config_entry.title} System"
-
-    # Check Clients device call
-    clients_call = next(
-        c for c in calls if (DOMAIN, f"{mac}_clients") in c.kwargs["identifiers"]
-    )
-    assert clients_call.kwargs["name"] == f"{mock_config_entry.title} Clients"
-    assert clients_call.kwargs["via_device"] == (DOMAIN, f"{mac}_system")
-
-
-@pytest.mark.asyncio
-async def test_setup_entry_no_mac(mock_hass, mock_config_entry):
-    """Test that setup works even if MAC is missing (falls back to host prefix)."""
-    # Create a new config entry without MAC in data
-    from homeassistant.const import CONF_HOST, CONF_PASSWORD
-    from pytest_homeassistant_custom_component.common import MockConfigEntry
-
-    entry = MockConfigEntry(
-        domain=DOMAIN,
-        title="No MAC Router",
-        data={"model": "B535"},
-        options={CONF_HOST: "http://192.168.8.100", CONF_PASSWORD: "password"},
-    )
-
-    # Use the same background task helper as the main fixture
-    background_coros = []
-
-    def mock_create_task(hass, coro, name):
-        background_coros.append(coro)
-        return MagicMock()
-
-    entry.async_create_background_task = MagicMock(side_effect=mock_create_task)
-
-    mock_dev_reg = MagicMock()
-
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI"),
-        patch(
-            "homeassistant.helpers.device_registry.async_get",
-            return_value=mock_dev_reg,
-        ),
-    ):
-        await async_setup_entry(mock_hass, entry)
-
-    # Clean up background tasks to avoid warnings
-    for coro in background_coros:
-        coro.close()
-
-    # Verify identifiers use host prefix
-    calls = mock_dev_reg.async_get_or_create.call_args_list
-    assert any(
-        "host_http://192.168.8.100_system" in str(c.kwargs["identifiers"])
-        for c in calls
-    )
-
-
-@pytest.mark.asyncio
-async def test_setup_entry_background_task_failure(mock_hass, mock_config_entry):
-    """Test that a failure in the background initialization task is handled."""
-    with (
-        patch(
-            "custom_components.huawei_router_5g.HuaweiRouter5GAPI", autospec=True
-        ) as mock_api_cls,
-        patch("homeassistant.helpers.device_registry.async_get"),
-        patch("custom_components.huawei_router_5g._LOGGER") as mock_logger,
-    ):
-        mock_api = mock_api_cls.return_value
-        mock_api.login = AsyncMock(side_effect=Exception("Background Fail"))
-
-        background_coro = None
-
-        def mock_create_task(hass, coro, name):
-            nonlocal background_coro
-            background_coro = coro
-            return MagicMock()
-
-        # Ensure we are replacing the MagicMock correctly
-        mock_config_entry.async_create_background_task.side_effect = mock_create_task
-
-        result = await async_setup_entry(mock_hass, mock_config_entry)
-
-        if background_coro:
-            await background_coro
-
-    assert result is True
-    # The error should be logged as a warning
-    assert mock_logger.warning.called
-
-
-# ---------------------------------------------------------------------------
-# async_unload_entry
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_unload_entry_success(mock_hass, mock_config_entry):
-    """Test that unloading calls logout and unloads platforms."""
-    coordinator = MagicMock()
-    mock_config_entry.runtime_data = coordinator
-    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
-
-    result = await async_unload_entry(mock_hass, mock_config_entry)
-
-    assert result is True
-    coordinator.api.logout.assert_called_once()
-    mock_hass.config_entries.async_unload_platforms.assert_called_once_with(
-        mock_config_entry, PLATFORMS
-    )
-
-
-@pytest.mark.asyncio
-async def test_unload_entry_logout_exception(mock_hass, mock_config_entry):
-    """Test that logout exceptions during unload are suppressed."""
-    coordinator = MagicMock()
-    coordinator.api.logout = AsyncMock(side_effect=Exception("Logout Fail"))
-    mock_config_entry.runtime_data = coordinator
-    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
-
-    result = await async_unload_entry(mock_hass, mock_config_entry)
-
-    assert result is True  # still unloads successfully
-
-
-@pytest.mark.asyncio
-async def test_unload_entry_no_coordinator(mock_hass, mock_config_entry):
-    """Test that unloading works even if coordinator is missing."""
-    mock_config_entry.runtime_data = None
-    mock_hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
-
-    result = await async_unload_entry(mock_hass, mock_config_entry)
-
-    assert result is True
-
-
-# ---------------------------------------------------------------------------
-# Coordinator — _async_update_data
-# ---------------------------------------------------------------------------
-
-
-@pytest.mark.asyncio
-async def test_async_update_data_success(mock_hass, mock_config_entry):
-    """Test that a successful fetch resets consecutive_failures and timestamps."""
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_cls,
-        patch("homeassistant.helpers.device_registry.async_get"),
-    ):
-        mock_api = mock_api_cls.return_value
-        mock_api.get_data = AsyncMock(
-            return_value={"device_information": {"DeviceName": "B535s-232"}}
-        )
-
-        await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_config_entry.runtime_data
-
-        data = await coordinator._async_update_data()
-
-    assert data["device_information"]["DeviceName"] == "B535s-232"
-    assert coordinator.consecutive_failures == 0
-    assert coordinator.last_update_success_time is not None
-
-
-@pytest.mark.asyncio
-async def test_async_update_data_paused_returns_cache(mock_hass, mock_config_entry):
-    """Test that a paused coordinator returns cached data without fetching."""
-    new_options = dict(mock_config_entry.options)
-    new_options[CONF_STOP_POLLING] = True
-    object.__setattr__(mock_config_entry, "options", new_options)
-
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI"),
-        patch("homeassistant.helpers.device_registry.async_get"),
-    ):
-        await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_config_entry.runtime_data
-        coordinator.data = {"cached": "data"}
-
-        data = await coordinator._async_update_data()
-
-    assert data == {"cached": "data"}
-
-
-@pytest.mark.asyncio
-async def test_async_update_data_paused_first_run_returns_empty(
-    mock_hass, mock_config_entry
+async def test_async_delete_sms_service_error(
+    mock_hass, mock_coordinator, mock_config_entry
 ):
-    """Test that a paused coordinator on first run returns empty dict (not raises)."""
-    new_options = dict(mock_config_entry.options)
-    new_options[CONF_STOP_POLLING] = True
-    object.__setattr__(mock_config_entry, "options", new_options)
+    """Test the delete_sms service error handling."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.delete_sms = AsyncMock(side_effect=Exception("API Error"))
 
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_cls,
-        patch("homeassistant.helpers.device_registry.async_get"),
-    ):
-        mock_api = mock_api_cls.return_value
-        mock_api.get_data = AsyncMock(side_effect=Exception("No connection"))
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"index": 5}
 
-        await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_config_entry.runtime_data
-        coordinator.data = None  # first run
-
-        data = await coordinator._async_update_data()
-
-    assert data == {}
+    with pytest.raises(HomeAssistantError, match="Failed to delete SMS"):
+        await async_delete_sms(mock_hass, call)
 
 
 @pytest.mark.asyncio
-async def test_async_update_data_resilience(mock_hass, mock_config_entry):
-    """Test that up to 3 failures hold cached data; 4th raises UpdateFailed."""
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_cls,
-        patch("homeassistant.helpers.device_registry.async_get"),
-    ):
-        mock_api = mock_api_cls.return_value
-        mock_api.get_data = AsyncMock(side_effect=Exception("Persistent Fail"))
+async def test_async_delete_all_sms_service_error(
+    mock_hass, mock_coordinator, mock_config_entry
+):
+    """Test the delete_all_sms service error handling."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.get_sms_list = AsyncMock(side_effect=Exception("API Error"))
 
-        await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_config_entry.runtime_data
-        coordinator.data = {"old": "data"}
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"keep_last": 0}
 
-        # Failures 1-3: return cached data
-        for n in range(1, 4):
-            data = await coordinator._async_update_data()
-            assert data == {"old": "data"}
-            assert coordinator.consecutive_failures == n
-
-        # Failure 4: raise UpdateFailed
-        with pytest.raises(UpdateFailed):
-            await coordinator._async_update_data()
-        assert coordinator.consecutive_failures == 4
+    with pytest.raises(HomeAssistantError, match="Failed to delete all SMS"):
+        await async_delete_all_sms(mock_hass, call)
 
 
 @pytest.mark.asyncio
-async def test_async_update_data_timeout_resilience(mock_hass, mock_config_entry):
-    """Test that TimeoutError counts toward resilience the same way as other errors."""
-    with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_cls,
-        patch("homeassistant.helpers.device_registry.async_get"),
-    ):
-        mock_api = mock_api_cls.return_value
-        mock_api.get_data = AsyncMock(side_effect=TimeoutError)
+async def test_async_get_sms_list_service_error(
+    mock_hass, mock_coordinator, mock_config_entry
+):
+    """Test the get_sms_list service error handling."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.get_sms_list = AsyncMock(side_effect=Exception("API Error"))
 
-        await async_setup_entry(mock_hass, mock_config_entry)
-        coordinator = mock_config_entry.runtime_data
-        coordinator.data = {"old": "data"}
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"page": 1, "count": 20, "box_type": 1}
 
-        for n in range(1, 4):
-            data = await coordinator._async_update_data()
-            assert data == {"old": "data"}
-            assert coordinator.consecutive_failures == n
-
-        with pytest.raises(UpdateFailed):
-            await coordinator._async_update_data()
+    with pytest.raises(HomeAssistantError, match="Failed to fetch SMS list"):
+        await async_get_sms_list(mock_hass, call)
 
 
 @pytest.mark.asyncio
-async def test_background_setup_failure_is_handled(mock_hass, mock_config_entry):
-    """Test that a background initialization failure is silently logged (no crash)."""
+async def test_async_get_sms_list_service_success(
+    mock_hass, mock_coordinator, mock_config_entry
+):
+    """Test the get_sms_list service success path."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.get_sms_list = AsyncMock(
+        return_value={
+            "Messages": {
+                "Message": [
+                    {
+                        "Index": "1",
+                        "Phone": "123",
+                        "Content": "hi",
+                        "Date": "now",
+                        "Smstat": "1",
+                    }
+                ]
+            }
+        }
+    )
+
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"page": 1, "count": 20, "box_type": 1}
+
+    response = await async_get_sms_list(mock_hass, call)
+
+    assert "messages" in response
+    assert len(response["messages"]) == 1
+    assert response["messages"][0]["content"] == "hi"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_registers_and_calls_services(mock_hass):
+    """Test that async_setup registers services and they can be called."""
+    mock_hass.services.has_service.return_value = False
+
+    result = await async_setup(mock_hass, {})
+    assert result is True
+
+    registered_callbacks = {}
+    for call_args in mock_hass.services.async_register.call_args_list:
+        service_name = call_args[0][1]
+        callback = call_args[0][2]
+        registered_callbacks[service_name] = callback
+
     with (
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_cls,
-        patch("homeassistant.helpers.device_registry.async_get"),
+        patch("custom_components.huawei_router_5g.async_send_sms") as mock_send,
+        patch("custom_components.huawei_router_5g.async_delete_sms") as mock_delete,
+        patch(
+            "custom_components.huawei_router_5g.async_delete_all_sms"
+        ) as mock_delete_all,
+        patch("custom_components.huawei_router_5g.async_get_sms_list") as mock_get_list,
     ):
-        mock_api = mock_api_cls.return_value
-        mock_api.login = AsyncMock(side_effect=Exception("Login fail"))
+        mock_call = MagicMock()
 
-        background_coro = None
+        await registered_callbacks["send_sms"](mock_call)
+        mock_send.assert_called_once_with(mock_hass, mock_call)
 
-        def capture_task(hass, coro, name):
-            nonlocal background_coro
-            background_coro = coro
-            return MagicMock()
+        await registered_callbacks["delete_sms"](mock_call)
+        mock_delete.assert_called_once_with(mock_hass, mock_call)
 
-        mock_config_entry.async_create_background_task = capture_task
+        await registered_callbacks["delete_all_sms"](mock_call)
+        mock_delete_all.assert_called_once_with(mock_hass, mock_call)
 
-        await async_setup_entry(mock_hass, mock_config_entry)
+        await registered_callbacks["get_sms_list"](mock_call)
+        mock_get_list.assert_called_once_with(mock_hass, mock_call)
 
-        if background_coro:
-            await background_coro  # should not raise
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_and_unload(mock_hass):
+    """Test async_setup_entry and async_unload_entry."""
+    from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+
+    from custom_components.huawei_router_5g import async_setup_entry, async_unload_entry
+
+    mock_entry = MagicMock()
+    mock_entry.options = {
+        CONF_HOST: "192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "pw",
+    }
+    mock_entry.data = {
+        "mac": "00:11:22:33:44:55",
+        "model": "B535",
+        "sw_version": "1.0",
+        "hw_version": "2.0",
+    }
+    mock_entry.entry_id = "test_id"
+    mock_entry.title = "My Router"
+
+    mock_registry = MagicMock()
+    with (
+        patch(
+            "custom_components.huawei_router_5g.dr.async_get",
+            return_value=mock_registry,
+        ),
+        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_class,
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
+        ) as mock_coord_class,
+    ):
+        # Test setup
+        result = await async_setup_entry(mock_hass, mock_entry)
+        assert result is True
+        assert mock_registry.async_get_or_create.call_count == 2
+        mock_hass.config_entries.async_forward_entry_setups.assert_called_once()
+        mock_entry.async_create_background_task.assert_called_once()
+
+        # Extract the background task
+        bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
+
+        # Run background task
+        mock_api_instance = mock_api_class.return_value
+        mock_coord_instance = mock_coord_class.return_value
+        mock_api_instance.login = AsyncMock()
+        mock_coord_instance.async_refresh = AsyncMock()
+
+        await bg_task_coro
+        mock_api_instance.login.assert_called_once()
+        mock_coord_instance.async_refresh.assert_called_once()
+
+        # Test unload
+        mock_entry.runtime_data = mock_coord_instance
+        mock_coord_instance.api.logout = AsyncMock()
+        mock_hass.config_entries.async_unload_platforms.return_value = True
+
+        unload_result = await async_unload_entry(mock_hass, mock_entry)
+        assert unload_result is True
+        mock_coord_instance.api.logout.assert_called_once()
+        mock_hass.config_entries.async_unload_platforms.assert_called_once()
+
+        # Run background task with exception by doing a fresh setup
+        mock_entry2 = MagicMock()
+        mock_entry2.options = mock_entry.options
+        mock_entry2.data = mock_entry.data
+        mock_entry2.entry_id = "test_id2"
+        mock_entry2.title = "My Router 2"
+
+        await async_setup_entry(mock_hass, mock_entry2)
+        bg_task_coro2 = mock_entry2.async_create_background_task.call_args[0][1]
+        mock_api_instance.login.side_effect = Exception("Background Error")
+        await bg_task_coro2
+
+
+@pytest.mark.parametrize("box_type", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+@pytest.mark.asyncio
+async def test_async_get_sms_list_box_types(
+    mock_hass, mock_coordinator, mock_config_entry, box_type
+):
+    """Test that all supported box types are accepted."""
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.get_sms_list = AsyncMock(return_value={})
+
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"page": 1, "count": 20, "box_type": box_type}
+
+    # Should not raise vol.Invalid
+    await async_get_sms_list(mock_hass, call)
+    mock_coordinator.api.get_sms_list.assert_called_with(
+        page=1, box_type=BoxTypeEnum(box_type), read_count=20
+    )

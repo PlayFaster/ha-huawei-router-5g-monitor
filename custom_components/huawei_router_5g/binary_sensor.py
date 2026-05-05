@@ -11,7 +11,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info, parse_signal_value
+from .helpers import build_device_info, is_ssid_on, parse_signal_value
 
 PARALLEL_UPDATES = 0
 
@@ -44,7 +44,7 @@ WIFI_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     translation_key="wifi_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
-    group="system",
+    group="wifi",
 )
 
 WIFI_24G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
@@ -52,7 +52,7 @@ WIFI_24G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     translation_key="wifi24g_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
-    group="system",
+    group="wifi",
 )
 
 WIFI_5G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
@@ -60,7 +60,7 @@ WIFI_5G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     translation_key="wifi5g_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
-    group="system",
+    group="wifi",
 )
 
 MOBILE_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
@@ -79,6 +79,45 @@ LTE_CA_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     group="signal",
 )
 
+ENDC_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="endc_status",
+    translation_key="endc_status",
+    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    group="signal",
+)
+
+ENDC_RESTRICTED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="endc_restricted",
+    translation_key="endc_restricted",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="signal",
+)
+
+SINGLE_SSID_MODE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="single_ssid_mode",
+    translation_key="single_ssid_mode",
+    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="wifi",
+)
+
+ROAMING_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="roaming",
+    translation_key="roaming",
+    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="signal",
+)
+
+SIM_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="sim_status",
+    translation_key="sim_status",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="system",
+)
+
 
 async def async_setup_entry(hass, entry, async_add_entities):
     """Set up the binary sensor platform."""
@@ -94,6 +133,13 @@ async def async_setup_entry(hass, entry, async_add_entities):
             HuaweiWifi5GStatusSensor(coordinator, entry, WIFI_5G_STATUS_DESCRIPTION),
             HuaweiMobileConnectionSensor(coordinator, entry, MOBILE_CONN_DESCRIPTION),
             HuaweiLteCaSensor(coordinator, entry, LTE_CA_DESCRIPTION),
+            HuaweiEndcStatusSensor(coordinator, entry, ENDC_STATUS_DESCRIPTION),
+            HuaweiEndcRestrictedSensor(coordinator, entry, ENDC_RESTRICTED_DESCRIPTION),
+            HuaweiSingleSsidModeSensor(
+                coordinator, entry, SINGLE_SSID_MODE_DESCRIPTION
+            ),
+            HuaweiRoamingSensor(coordinator, entry, ROAMING_DESCRIPTION),
+            HuaweiSimStatusSensor(coordinator, entry, SIM_STATUS_DESCRIPTION),
         ]
     )
 
@@ -224,11 +270,24 @@ class HuaweiWifi24GStatusSensor(HuaweiBinarySensor):
         data = self.coordinator.data
         if not data:
             return None
-        status = data.get("wlan_wifi_feature_switch") or {}
-        flag = status.get("wifi24g_switch_enable")
-        if flag is None:
-            return None
-        return str(flag) == "1"
+        multi_settings = data.get("wlan_multi_basic_settings") or {}
+        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
+        if isinstance(ssids, dict):
+            ssids = [ssids]
+
+        # Priority 1: ID path (Dynamic mapping)
+        res = is_ssid_on(ssids, "Radio.1.Ssid.1")
+        if res is not None:
+            return res
+
+        # Fallback to Index 0
+        for ssid in ssids:
+            if (
+                str(ssid.get("Index")) == "0"
+                and str(ssid.get("wifiisguestnetwork")) != "1"
+            ):
+                return str(ssid.get("WifiEnable")) == "1"
+        return None
 
 
 class HuaweiWifi5GStatusSensor(HuaweiBinarySensor):
@@ -240,11 +299,126 @@ class HuaweiWifi5GStatusSensor(HuaweiBinarySensor):
         data = self.coordinator.data
         if not data:
             return None
-        status = data.get("wlan_wifi_feature_switch") or {}
-        flag = status.get("wifi5g_enabled")
-        if flag is None:
+        multi_settings = data.get("wlan_multi_basic_settings") or {}
+        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
+        if isinstance(ssids, dict):
+            ssids = [ssids]
+
+        # Priority 0: ID path (Dynamic mapping)
+        res = is_ssid_on(ssids, "Radio.2.Ssid.1")
+        if res is not None:
+            return res
+
+        # Fallback 1: SSID specifically named with '5G' but not '2.4G', and not guest
+        for ssid in ssids:
+            if str(ssid.get("wifiisguestnetwork")) != "1":
+                name = str(ssid.get("WifiSsid", "")).upper()
+                if "5G" in name and "2.4G" not in name:
+                    return str(ssid.get("WifiEnable")) == "1"
+
+        # Fallback 2: Index 1 (standard for 5GHz on many models)
+        for ssid in ssids:
+            if (
+                str(ssid.get("Index")) == "1"
+                and str(ssid.get("wifiisguestnetwork")) != "1"
+            ):
+                return str(ssid.get("WifiEnable")) == "1"
+
+        # Fallback 3: Index 5 (H165-383)
+        for ssid in ssids:
+            if (
+                str(ssid.get("Index")) == "5"
+                and str(ssid.get("wifiisguestnetwork")) != "1"
+            ):
+                return str(ssid.get("WifiEnable")) == "1"
+
+        # Fallback 4: First non-guest SSID that is NOT Index 0
+        for ssid in ssids:
+            if (
+                str(ssid.get("Index")) != "0"
+                and str(ssid.get("wifiisguestnetwork")) != "1"
+            ):
+                return str(ssid.get("WifiEnable")) == "1"
+
+        return None
+
+
+class HuaweiEndcStatusSensor(HuaweiBinarySensor):
+    """Binary sensor: True when ENDC (LTE+5G Dual Connectivity) is active."""
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if ENDC is active."""
+        data = self.coordinator.data
+        if not data:
             return None
-        return str(flag) == "1"
+        status = data.get("monitoring_status") or {}
+        return str(status.get("EndcStatus")) == "1"
+
+
+class HuaweiEndcRestrictedSensor(HuaweiBinarySensor):
+    """Binary sensor: True if 5G access is restricted by the carrier."""
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if 5G is restricted."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        status = data.get("monitoring_status") or {}
+        return str(status.get("endcRestrictedStatus")) == "1"
+
+
+class HuaweiSingleSsidModeSensor(HuaweiBinarySensor):
+    """Binary sensor: True if WiFi Single SSID (Band Steering) mode is enabled."""
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if Single SSID mode is active."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        # DBHO (Dual-Band Handover) is the definitive flag for this router model
+        multi_settings = data.get("wlan_multi_basic_settings") or {}
+        if str(multi_settings.get("DbhoEnable")) == "1":
+            return True
+
+        # Fallback to feature switches for older models
+        feature_switch = data.get("wlan_wifi_feature_switch") or {}
+        return (
+            feature_switch.get("stafrequenceenable") == "1"
+            or feature_switch.get("wifi_dbdc_enable") == "1"
+        )
+
+
+class HuaweiRoamingSensor(HuaweiBinarySensor):
+    """Binary sensor: True if the device is currently roaming."""
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if roaming is active."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        status = data.get("monitoring_status") or {}
+        return str(status.get("RoamingStatus")) == "1"
+
+
+class HuaweiSimStatusSensor(HuaweiBinarySensor):
+    """Binary sensor: True if there is a problem with the SIM card."""
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if SIM status is NOT '1' (Ready)."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        status = data.get("monitoring_status") or {}
+        sim_status = status.get("SimStatus")
+        if sim_status is None:
+            return None
+        # 1 is Normal/Ready
+        return str(sim_status) != "1"
 
 
 class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
