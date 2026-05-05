@@ -189,17 +189,19 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         """Enable guest WiFi."""
         try:
             await self.coordinator.api.set_guest_wifi(True)
-            await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("%s: Enable guest WiFi failed: %s", self._entry.title, err)
+        finally:
+            await self.coordinator.async_request_refresh()
 
     async def async_turn_off(self, **kwargs) -> None:
         """Disable guest WiFi."""
         try:
             await self.coordinator.api.set_guest_wifi(False)
-            await self.coordinator.async_request_refresh()
         except Exception as err:
             _LOGGER.error("%s: Disable guest WiFi failed: %s", self._entry.title, err)
+        finally:
+            await self.coordinator.async_request_refresh()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

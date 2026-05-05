@@ -197,6 +197,7 @@ _Group: `clients`_
 ### Dynamic Radio Mapping (v1.0.2-dev4)
 
 WiFi radio status is now derived using ID paths rather than hardcoded indices.
+
 - **2.4GHz**: Mapped from path containing `Radio.1`.
 - **5GHz**: Mapped from path containing `Radio.2`.
 

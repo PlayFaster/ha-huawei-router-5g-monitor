@@ -290,51 +290,37 @@ class HuaweiRouter5GAPI:
             await self._ensure_client()
 
             def _set() -> None:
-                try:
-                    multi_settings = self._client.wlan.multi_basic_settings()
-                    ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-                    if isinstance(ssids, dict):
-                        ssids = [ssids]
+                multi_settings = self._client.wlan.multi_basic_settings()
+                ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
+                if isinstance(ssids, dict):
+                    ssids = [ssids]
 
-                    found = False
-                    updated_ssids = []
-                    
-                    WHITELIST = {
-                        "Index", "WifiEnable", "WifiSsid", "WifiHide", 
-                        "WifiSecurityMode", "WifiPassword", "WifiEncryptionMode", 
-                        "WifiMode", "WifiChannel", "WifiBandwidth"
-                    }
+                found = False
+                for ssid in ssids:
+                    if str(ssid.get("wifiisguestnetwork")) == "1":
+                        ssid["WifiEnable"] = "1" if enable else "0"
+                        found = True
+                        break
 
-                    for ssid in ssids:
-                        new_ssid = {}
-                        for field in WHITELIST:
-                            if field in ssid:
-                                new_ssid[field] = str(ssid[field])
-                        
-                        if str(ssid.get("wifiisguestnetwork")) == "1":
-                            new_ssid["WifiEnable"] = "1" if enable else "0"
-                            found = True
-                        
-                        if new_ssid:
-                            updated_ssids.append(new_ssid)
+                if not found:
+                    _LOGGER.warning(
+                        "No guest SSID (wifiisguestnetwork=1) found; known SSIDs: %s",
+                        [s.get("WifiSsid") for s in ssids],
+                    )
+                    raise RuntimeError("No guest SSID found in router response")
 
-                    if found:
-                        payload = {
-                            "Ssids": {"Ssid": updated_ssids},
-                            "WifiRestart": "1"
-                        }
-                        dbho = multi_settings.get("DbhoEnable")
-                        if dbho is not None:
-                            payload["DbhoEnable"] = str(dbho)
-                            
-                        self._client.wlan._session.post_set("wlan/multi-basic-settings", payload)
-                        return
+                # Send back the full original payload so no required fields are dropped.
+                payload = dict(multi_settings)
+                payload["WifiRestart"] = "1"
 
-                except Exception as err:
-                    _LOGGER.debug("Manual guest wifi set failed, falling back: %s", err)
-
-                # Fallback to library method
-                self._client.wlan.wifi_guest_network_switch(enable)
+                _LOGGER.debug(
+                    "Setting guest WiFi %s; payload keys: %s",
+                    "enabled" if enable else "disabled",
+                    list(payload.keys()),
+                )
+                self._client.wlan._session.post_set(
+                    "wlan/multi-basic-settings", payload
+                )
 
             try:
                 await asyncio.to_thread(_set)

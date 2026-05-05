@@ -35,6 +35,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
 - **Change**: Moved all business logic out of the Entity class and into metadata descriptions.
 - **Benefit**: Reduced thousands of lines of code into a maintainable list of descriptions. Adding a new sensor now requires only a single line of metadata.
+
 ### Sub-Device Granularity (v1.0.0)
 
 - **Standard**: Grouped entities into six functional sub-devices: **System, Signal, Data, SMS, WiFi, and Clients**.
@@ -51,6 +52,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Result**: Rock-solid WiFi status monitoring and switching across all H165-383 firmware variants.
 
 ## 4. Success Patterns
+
 ### Concurrency Locking Pattern (v1.1.0)
 
 - **Change**: Implemented an `asyncio.Lock` in `HuaweiRouter5GAPI` to serialize all router communication.
