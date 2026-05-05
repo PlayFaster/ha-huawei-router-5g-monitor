@@ -35,12 +35,22 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
 - **Change**: Moved all business logic out of the Entity class and into metadata descriptions.
 - **Benefit**: Reduced thousands of lines of code into a maintainable list of descriptions. Adding a new sensor now requires only a single line of metadata.
-
 ### Sub-Device Granularity (v1.0.0)
 
-- **Standard**: Grouped entities into five functional sub-devices: **System, Signal, Data, SMS, and Clients**.
+- **Standard**: Grouped entities into six functional sub-devices: **System, Signal, Data, SMS, WiFi, and Clients**.
 - **Benefit**: Prevents "entity fatigue" in the HA UI and provides a cleaner organization in the Device Registry.
 
+### Dynamic Radio Mapping (v1.0.2-dev4)
+
+- **Change**: Moved from hardcoded radio indices to a path-based discovery model for WiFi radios.
+- **Logic**:
+  1. Fetch all SSIDs via the `wlan_multi_basic_settings` API.
+  2. Search for SSIDs by their firmware `ID` path fragment (e.g., `Radio.1` for 2.4GHz, `Radio.2` for 5GHz).
+  3. Dynamically map status and configuration switches to the correctly discovered index.
+- **Reason**: Huawei routers frequently shift radio indices between firmware versions (the "Index 5" bug).
+- **Result**: Rock-solid WiFi status monitoring and switching across all H165-383 firmware variants.
+
+## 4. Success Patterns
 ### Concurrency Locking Pattern (v1.1.0)
 
 - **Change**: Implemented an `asyncio.Lock` in `HuaweiRouter5GAPI` to serialize all router communication.

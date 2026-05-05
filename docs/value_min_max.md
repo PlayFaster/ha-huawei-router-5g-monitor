@@ -28,9 +28,12 @@ We use a **Declarative Validation** approach. Limits are defined directly within
 |  | RSRQ (5G) | -50 | 0 | Set to `Unavailable` |
 |  | SINR (5G) | -30 | 50 | Set to `Unavailable` |
 |  | Transmit Power (5G) | -30 | 40 | Set to `Unavailable` |
-| **Diagnostics** | Signal Bars | 0 | 5 | Set to `Unavailable` |
+| **Diagnostics** | Signal Bars (LTE & 5G) | 0 | 5 | Set to `Unavailable` |
 |  | Battery | 0 | 100 | Set to `Unavailable` |
 |  | WiFi Users | 0 | 255 | Set to `Unavailable` |
+|  | WiFi User Capacity | 0 | 512 | Set to `Unavailable` |
+|  | Total Connected | 0 | 512 | Set to `Unavailable` |
+|  | Wired Connected | 0 | 512 | Set to `Unavailable` |
 |  | Uptime / Connection Time | 0 | None | Set to `Unavailable` |
 | **Data Usage** | Total / Monthly / Day Use | 0 | 100TB | Set to `Unavailable` |
 | **Data Rates** | Download / Upload Rates | 0 | 1.25GB/s (10Gb) | Set to `Unavailable` |

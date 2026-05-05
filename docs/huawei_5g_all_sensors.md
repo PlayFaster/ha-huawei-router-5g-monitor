@@ -1,21 +1,22 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 106 entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 112+ entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 26 | Core router info, WiFi status, and global integration settings. |
+| **System** | 19 | Core router info, WAN configuration, and global integration settings. |
 | **Signal** | 46 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
-| **Clients** | 1+ | Connected LAN/WLAN devices (dynamically discovered). |
-| **Total** | **106** |  |
+| **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
+| **Clients** | 4+ | Connected LAN/WLAN devices and aggregate connectivity counters. |
+| **Total** | **112+** |  |
 
 ---
 
-## 1. System Sub-Device (26 Entities)
+## 1. System Sub-Device (19 Entities)
 
 _Group: `system`_
 
@@ -23,7 +24,7 @@ _Group: `system`_
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | Model Name | `model_name` | Sensor | - | Diagnostic |  |
 | Software Version | `sw_version` | Sensor | - | Diagnostic |  |
-| Last Updated | `last_updated` | Sensor | Timestamp | Diagnostic | Internal tracking of last successful poll. |
+| Last Updated | `last_updated` | Sensor | Timestamp | - | Promoted from Diagnostic. Internal tracking of last successful poll. |
 | WAN IP Address | `wan_ip` | Sensor | - | Diagnostic |  |
 | WAN IPv6 Address | `wan_ipv6` | Sensor | - | Diagnostic |  |
 | Uptime Duration | `uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
@@ -31,22 +32,15 @@ _Group: `system`_
 | Connection Duration | `current_connection_duration` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Connection Uptime | `current_connection_timestamp` | Sensor | Timestamp | - | Calculated as `now() - current_connection_time`. |
 | Total Duration | `total_connection_time` | Sensor | s | Diagnostic | **Disabled by default.** |
-| Total Uptime | `total_connection_timestamp` | Sensor | Timestamp | - | Calculated as `now() - total_connection_time`. |
+| Total Uptime | `total_connection_timestamp` | Sensor | Timestamp | Diagnostic | Moved to Diagnostic. Calculated as `now() - total_connection_time`. |
 | Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
-| WiFi Users Connected | `wifi_users` | Sensor | - | Diagnostic |  |
 | Primary DNS Server | `primary_dns` | Sensor | - | Diagnostic |  |
 | Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic |  |
 | Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic |  |
 | Secondary IPv6 DNS Server | `secondary_ipv6_dns` | Sensor | - | Diagnostic |  |
-| WiFi Status | `wifi_status` | Binary | - | Diagnostic | ON if global WiFi is enabled. |
-| WiFi 2.4GHz Status | `wifi_2_4ghz_status` | Binary | - | Diagnostic |  |
-| WiFi 5GHz Status | `wifi_5ghz_status` | Binary | - | Diagnostic |  |
 | Reboot | `reboot` | Button | - | - |  |
 | Polling Interval | `polling_interval` | Number | s | Config | Range: 30s - 3600s. Persists in options. |
 | Pause Polling | `pause_polling` | Switch | - | Config | State persists in `ConfigEntry.options`. |
-| Mobile Data | `mobile_data` | Switch | - | Config | Control for mobile data connection. |
-| Wi-Fi Guest Network | `wifi_guest_network` | Switch | - | Config | Control for guest WiFi network. |
-| Preferred Network Mode | `network_mode` | Select | - | Config | Options: Auto, 4G Only, 5G Only, etc. |
 
 ---
 
@@ -66,6 +60,7 @@ _Group: `signal`_
 | LTE RSSI | `rssi` | Sensor | dBm | - | Range: -120 to -25. |
 | LTE SINR | `sinr` | Sensor | dB | - | Range: -30 to 40. |
 | Signal Bars | `signal_bars` | Sensor | - | - | 0-5 scale. |
+| 5G Signal Bars | `signal_bars_nr` | Sensor | - | - | 0-5 scale. New in v1.0.2-dev4. |
 | LTE Cell ID | `cell_id` | Sensor | - | Diagnostic |  |
 | LTE PCI | `pci` | Sensor | - | Diagnostic |  |
 | LTE TAC | `tac` | Sensor | - | Diagnostic |  |
@@ -100,7 +95,9 @@ _Group: `signal`_
 | 5G Block Error Rate | `5g_block_error_rate` | Sensor | - | Diagnostic |  |
 | 5G Rank | `5g_rank` | Sensor | - | - | 1-4. |
 | 5G CQI | `5g_cqi` | Sensor | - | - |  |
-| Best Connection | `best_connection` | Binary | - | - | ON when NSA 5G NR band assigned AND LTE anchor healthy AND 5G leg healthy. 3-stage quality gate — see `best_connection_logic.md`. |
+| Best Connection | `best_connection` | Binary | - | - | ON when NSA 5G NR band assigned AND LTE anchor healthy AND 5G leg healthy. |
+| 5G ENDC Active | `endc_status` | Binary | - | - | Renamed from 5G Active. ON if EN-DC is active. |
+| 5G Restricted | `endc_restricted` | Binary | - | Diagnostic | ON if 5G is restricted by the carrier. |
 | Mobile Connection | `mobile_connection` | Binary | - | Diagnostic | ON if mobile data is connected. |
 
 ---
@@ -142,10 +139,10 @@ _Group: `sms`_
 | Total (Device) | `sms_total` | Sensor | - | Diagnostic | Total stored on device. |
 | Unread (Device) | `sms_unread_device` | Sensor | - | Diagnostic |  |
 | Inbox (Device) | `sms_inbox_device` | Sensor | - | Diagnostic |  |
-| Outbox (Device) | `sms_outbox_device` | Sensor | - | Diagnostic |  |
-| Drafts (Device) | `sms_drafts_device` | Sensor | - | Diagnostic |  |
-| Deleted (Device) | `sms_deleted_device` | Sensor | - | Diagnostic |  |
-| Capacity (Device) | `sms_capacity_device` | Sensor | - | Diagnostic |  |
+| Outbox (Device) | `sms_outbox_device" | Sensor | - | Diagnostic |  |
+| Drafts (Device) | `sms_drafts_device" | Sensor | - | Diagnostic |  |
+| Deleted (Device) | `sms_deleted_device" | Sensor | - | Diagnostic |  |
+| Capacity (Device) | `sms_capacity_device" | Sensor | - | Diagnostic |  |
 | Unread (SIM) | `sms_unread_sim` | Sensor | - | Diagnostic |  |
 | Inbox (SIM) | `sms_inbox_sim` | Sensor | - | Diagnostic |  |
 | Outbox (SIM) | `sms_outbox_sim` | Sensor | - | Diagnostic |  |
@@ -157,12 +154,34 @@ _Group: `sms`_
 
 ---
 
-## 5. Clients Sub-Device (1+ Entities)
+## 5. WiFi Sub-Device (7 Entities)
+
+_Group: `wifi`_
+
+| Name | Key | Type | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- |
+| Status | `wifi_status` | Binary | Diagnostic | ON if global WiFi is enabled. |
+| 2.4GHz Status | `wifi24g_status` | Binary | Diagnostic |  |
+| 5GHz Status | `wifi5g_status` | Binary | Diagnostic |  |
+| Single SSID Mode | `single_ssid_mode` | Binary | Diagnostic | ON if 2.4GHz/5GHz merged. |
+| User Capacity | `wifi_capacity` | Sensor | Diagnostic | Max supported users. |
+| Single SSID Mode | `single_ssid_mode` | Switch | Config | Toggle Band Steering. |
+| Main Switch | `wifi_main` | Switch | Config | Master toggle (Single SSID mode only). |
+| 2.4GHz | `wifi_24g` | Switch | Config | 2.4GHz toggle (Separate mode only). |
+| 5GHz | `wifi_5g` | Switch | Config | 5GHz toggle (Separate mode only). |
+| Guest Network | `wifi_guest_network` | Switch | Config | Toggle for guest SSID. |
+
+---
+
+## 6. Clients Sub-Device (4+ Entities)
 
 _Group: `clients`_
 
 | Name | Key | Type | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- |
+| WiFi Connected | `wifi_users` | Sensor | - | Current active WLAN users. Promoted from Diagnostic. |
+| Total Connected | `total_connected` | Sensor | - | Sum of all active clients (LAN+WLAN). New in v1.0.2-dev4. |
+| Wired Connected | `wired_connected` | Sensor | - | Active LAN clients. New in v1.0.2-dev4. |
 | Tracked Device | `(mac_address)` | Device Tracker | - | Dynamically created for each discovered MAC. |
 
 ---
@@ -173,7 +192,13 @@ _Group: `clients`_
 
 - **Base Unique ID**: The MAC address of the router (normalized to lowercase, no colons) or `host_{IP}` (fallback).
 - **Entity Unique ID**: `{{base_id}}_{{key}}`.
-- **Device Identifiers**: `{{DOMAIN}}_{{base_id}}_{{group}}` (e.g., `huawei_router_5g_001122334455_signal`).
+- **Device Identifiers**: `{{DOMAIN}}_{{base_id}}_{{group}}` (e.g., `huawei_router_5g_001122334455_wifi`).
+
+### Dynamic Radio Mapping (v1.0.2-dev4)
+
+WiFi radio status is now derived using ID paths rather than hardcoded indices.
+- **2.4GHz**: Mapped from path containing `Radio.1`.
+- **5GHz**: Mapped from path containing `Radio.2`.
 
 ### SMS Attributes
 

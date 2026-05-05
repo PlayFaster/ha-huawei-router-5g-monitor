@@ -4,6 +4,45 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.2-dev4] - 2026-05-05
+
+### Added
+
+- **WiFi Sub-Device**: Created a dedicated 'WiFi' sub-device to group all wireless networking entities, improving UI organization and logical separation from core system metrics.
+- **Critical Fixes for H165-383**:
+  - Fixed **Request Format Error (100005)** by implementing a "Full Payload" POST strategy that preserves `DbhoEnable` and other mandatory fields during Wi-Fi updates.
+  - Fixed **AttributeError** in Single SSID toggle by correctly targeting the internal session object and correcting fallback method names.
+- **Enhanced Client Connectivity Sensors**:
+  - `total_connected`: Sum of all active LAN and WLAN clients.
+  - `wired_connected`: Calculated as Total Active minus Wireless Active clients.
+- **5G Signal Bars**: Added a dedicated `signal_bars_nr` sensor to track 5G signal quality separately from LTE.
+- **WiFi User Capacity**: Added `wifi_capacity` sensor to report the maximum supported wireless users for the hardware.
+- **Dynamic Radio Discovery**: Implemented `find_ssid_by_path` helper to automatically map 2.4GHz and 5GHz radios using firmware "ID paths" (e.g., `Radio.1.Ssid.1`). This eliminates the "Index 5 bug" on H165-383 models where radio indices shifted between firmware versions.
+- **Organization Test Suite**: Created `tests/test_organization.py` to verify sub-device grouping, entity categories, and naming conventions across all platforms.
+
+### Changed
+
+- **Entity Naming Refinement**:
+  - Renamed **5G Active** to **5G ENDC Active** for technical accuracy (E-UTRA New Radio Dual Connectivity).
+  - Stripped "WiFi" and "Wi-Fi" prefixes from all entities within the WiFi sub-device to prevent redundant labeling (e.g., "WiFi Status" becomes "Status" under the WiFi sub-device).
+  - Stripped redundant "Wi-Fi" from the **Guest Network** switch.
+- **Category Optimization**:
+  - Promoted **WiFi Connected** (`wifi_users`) from Diagnostic to the main **Sensor** category (grouped under Clients).
+  - Promoted **Last Updated** from Diagnostic to the main **Sensor** category for immediate data-freshness visibility.
+  - Moved **Total Uptime** (`total_connection_timestamp`) from Sensor to **Diagnostic**, prioritizing it for long-term troubleshooting rather than daily monitoring.
+- **Sub-Device Grouping**:
+  - Moved `wifi_status`, `wifi24g_status`, `wifi5g_status`, `single_ssid_mode`, `wifi_capacity`, and `wifi_guest_network` to the new **WiFi** sub-device.
+  - Consolidated client tracking entities under the **Clients** sub-device.
+- **Metadata Refinement**: Removed `measurement` state class from **WiFi User Capacity** as it is a static hardware capability, preventing unnecessary long-term statistics tracking.
+
+### Fixed
+
+- **H165-383 WiFi Stability**: Resolved "Guest WiFi always off" bug on modern firmware by implementing a "Full List POST" strategy in `set_guest_wifi`, ensuring all SSID indices are maintained during single-SSID updates.
+- **API Error Suppression**: Downgraded Error 100002 (Not Supported) to `DEBUG` level for 5G/LTE status checks, preventing log spam on older router models that don't support modern EN-DC metrics.
+- **ConfigEntry Attribute Assignment**: Fixed `AttributeError` in tests caused by direct assignment to `ConfigEntry.options`, migrating to `MockConfigEntry` initialization standard.
+
+---
+
 ## [1.0.2-dev3] - 2026-05-04
 
 ### Added

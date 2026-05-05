@@ -98,11 +98,6 @@ class HuaweiRouter5GAPI:
     async def _ensure_client(self) -> None:
         """Create a client if one does not exist."""
         if self._client is None:
-            # We don't lock here because login() already locks.
-            # But wait, if login() is called from here, it will deadlock
-            # if we are already holding the lock.
-            # However, we only call _ensure_client from within a locked block.
-            # Let's refactor this.
             await self._login_internal()
 
     async def _login_internal(self) -> None:
@@ -192,8 +187,6 @@ class HuaweiRouter5GAPI:
                         )
                         raise HuaweiAuthError(f"Session expired: {err}") from err
                     except ResponseErrorException as err:
-                        # 125002: Session timeout
-                        # 125003: Token error
                         if str(err.code) in ("125002", "125003"):
                             _LOGGER.debug(
                                 "Session expired during fetch of %s (%s). "
@@ -229,7 +222,6 @@ class HuaweiRouter5GAPI:
             try:
                 return await asyncio.to_thread(_fetch)
             except HuaweiAuthError:
-                # Propagate auth errors immediately to trigger re-login logic
                 self._reset_client()
                 raise
             except Exception as err:
@@ -298,8 +290,6 @@ class HuaweiRouter5GAPI:
             await self._ensure_client()
 
             def _set() -> None:
-                # Some routers require 'wifiisguestnetwork' field to be '1' in the
-                # POST data and/or require the full list of SSIDs to be sent.
                 try:
                     multi_settings = self._client.wlan.multi_basic_settings()
                     ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
@@ -308,18 +298,36 @@ class HuaweiRouter5GAPI:
 
                     found = False
                     updated_ssids = []
+                    
+                    WHITELIST = {
+                        "Index", "WifiEnable", "WifiSsid", "WifiHide", 
+                        "WifiSecurityMode", "WifiPassword", "WifiEncryptionMode", 
+                        "WifiMode", "WifiChannel", "WifiBandwidth"
+                    }
+
                     for ssid in ssids:
-                        new_ssid = dict(ssid)
+                        new_ssid = {}
+                        for field in WHITELIST:
+                            if field in ssid:
+                                new_ssid[field] = str(ssid[field])
+                        
                         if str(ssid.get("wifiisguestnetwork")) == "1":
                             new_ssid["WifiEnable"] = "1" if enable else "0"
-                            # Explicitly ensure this field is present
-                            # as some firmwares need it
-                            new_ssid["wifiisguestnetwork"] = "1"
                             found = True
-                        updated_ssids.append(new_ssid)
+                        
+                        if new_ssid:
+                            updated_ssids.append(new_ssid)
 
                     if found:
-                        self._client.wlan.set_multi_basic_settings(updated_ssids)
+                        payload = {
+                            "Ssids": {"Ssid": updated_ssids},
+                            "WifiRestart": "1"
+                        }
+                        dbho = multi_settings.get("DbhoEnable")
+                        if dbho is not None:
+                            payload["DbhoEnable"] = str(dbho)
+                            
+                        self._client.wlan._session.post_set("wlan/multi-basic-settings", payload)
                         return
 
                 except Exception as err:

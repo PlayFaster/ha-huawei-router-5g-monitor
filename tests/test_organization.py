@@ -72,3 +72,16 @@ def test_wifi_users_sensor_category(mock_coordinator, mock_config_entry):
     mac = "DC:71:96:11:22:33"
     assert info["identifiers"] == {(DOMAIN, f"{mac}_clients")}
     assert info["name"] == "My Huawei Router Clients"
+
+
+def test_system_sensor_categories(mock_coordinator, mock_config_entry):
+    """Test that system sensor categories are correct."""
+    # Last Updated should be a regular sensor
+    desc = next(d for d in SENSOR_TYPES if d.key == "last_updated")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.entity_description.entity_category is None
+
+    # Total Uptime should be a diagnostic sensor
+    desc = next(d for d in SENSOR_TYPES if d.key == "total_connection_timestamp")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.entity_description.entity_category == EntityCategory.DIAGNOSTIC

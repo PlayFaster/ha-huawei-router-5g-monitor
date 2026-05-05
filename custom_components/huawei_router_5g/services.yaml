@@ -82,7 +82,9 @@ get_sms_list:
           max: 50
           mode: box
     box_type:
-      description: The inbox to read from (1=Local Inbox, 2=Local Sent, 3=Local Draft, 5=SIM Inbox).
+      description:
+        The inbox to read from (1=Local Inbox, 2=Local Sent, 3=Local Draft, 5=SIM
+        Inbox).
       default: 1
       selector:
         select:

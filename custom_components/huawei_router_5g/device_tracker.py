@@ -4,10 +4,8 @@ import logging
 from typing import Any
 
 from homeassistant.components.device_tracker import ScannerEntity
-from homeassistant.const import CONF_HOST
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
 

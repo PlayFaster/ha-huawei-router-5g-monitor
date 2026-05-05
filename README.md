@@ -53,17 +53,18 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 
 ### 📊 Comprehensive Monitoring
 
-- **Sub-Device Organisation**: Entities are automatically grouped into five logical devices: **System**, **Signal**, **Data**, **SMS**, and **Clients**.
-  - **System**: Core router info, WAN IP addresses, uptime, WiFi status, and integration controls.
+- **Sub-Device Organisation**: Entities are automatically grouped into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**.
+  - **System**: Core router info, WAN IP addresses, uptime and integration controls.
   - **Signal**: Extensive 5G NR and LTE signal data including RSRP, RSRQ, SINR, cell ID, and band info.
   - **Data**: Real-time download/upload rates, daily usage, monthly totals, and connection statistics.
   - **SMS**: Message counts per storage bank (Device & SIM), and last received message with full attributes.
+  - **WiFi**: Wireless radio status, frequency bands, and user capacity.
   - **Clients**: Dynamically discovered and tracked LAN/WLAN connected devices.
 
 ### 📋 Essential Router Management
 
 - **Data Usage Tracking**: Real-time rates, daily usage, and monthly download/upload totals.
-- **Router Management**: Reboot button, Mobile Data toggle, WiFi and Guest WiFi controls.
+- **Router Management**: Reboot button, Mobile Data toggle, and Guest WiFi controls.
 - **Connected Clients**: Dynamic device tracking for every discovered LAN/WLAN client.
 - **SMS Management**: Unread SMS counts, last message content, and advanced SMS services (Send, Delete, List).
 - **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
@@ -158,11 +159,11 @@ sequence:
 
 ## 📊 What You Get
 
-This integration provides **106+ entities** grouped into five logical devices: **System**, **Signal**, **Data**, **SMS**, and **Clients**.
+This integration provides **112+ entities** grouped into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**.
 
 | Type | Count | Primary Functions |
 | :-- | :-- | :-- |
-| **Sensors** | 92 | Signal strength, data usage, uptime, SMS counts, device info |
+| **Sensors** | 98 | Signal strength, data usage, uptime, SMS counts, device info |
 | **Binary Sensors** | 7 | Best Connection, WiFi status, mobile connection, SMS storage full |
 | **Switches** | 3 | Pause Polling, Mobile Data, Guest WiFi |
 | **Buttons** | 2 | Reboot, Clear Traffic |

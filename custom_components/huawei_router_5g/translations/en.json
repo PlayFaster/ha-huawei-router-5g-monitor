@@ -57,7 +57,7 @@
       "wifi_users": { "name": "WiFi Connected" },
       "total_connected": { "name": "Total Connected" },
       "wired_connected": { "name": "Wired Connected" },
-      "wifi_capacity": { "name": "WiFi User Capacity" },
+      "wifi_capacity": { "name": "User Capacity" },
       "primary_dns": { "name": "Primary DNS Server" },
       "secondary_dns": { "name": "Secondary DNS Server" },
       "primary_ipv6_dns": { "name": "Primary IPv6 DNS Server" },
@@ -147,12 +147,13 @@
     "binary_sensor": {
       "best_connection": { "name": "Best Connection" },
       "sms_storage_full": { "name": "SMS Storage Full" },
-      "wifi_status": { "name": "WiFi Status" },
-      "wifi24g_status": { "name": "WiFi 2.4GHz Status" },
-      "wifi5g_status": { "name": "WiFi 5GHz Status" },
+      "wifi_status": { "name": "Status" },
+      "wifi24g_status": { "name": "2.4GHz Status" },
+      "wifi5g_status": { "name": "5GHz Status" },
       "mobile_connection": { "name": "Mobile Connection" },
-      "endc_status": { "name": "5G ENDC Active" },      "endc_restricted": { "name": "5G Restricted" },
-      "single_ssid_mode": { "name": "WiFi Single SSID Mode" },
+      "endc_status": { "name": "5G ENDC Active" },
+      "endc_restricted": { "name": "5G Restricted" },
+      "single_ssid_mode": { "name": "Single SSID Mode" },
       "roaming": { "name": "Roaming Status" },
       "sim_status": { "name": "SIM Card Status" },
       "lte_ca": { "name": "LTE Carrier Aggregation" }
@@ -160,7 +161,7 @@
     "switch": {
       "pause_polling": { "name": "Pause Polling" },
       "mobile_data": { "name": "Mobile Data" },
-      "wifi_guest_network": { "name": "Wi-Fi Guest Network" }
+      "wifi_guest_network": { "name": "Guest Network" }
     },
     "select": {
       "network_mode": { "name": "Preferred Network Mode" }

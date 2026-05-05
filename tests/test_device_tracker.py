@@ -3,7 +3,6 @@
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.const import CONF_HOST
 
 from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.device_tracker import (
