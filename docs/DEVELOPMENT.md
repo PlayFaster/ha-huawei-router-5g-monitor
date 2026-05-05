@@ -74,7 +74,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Feature**: `get_sms_list` utilizes `SupportsResponse.ONLY`, allowing Home Assistant automations to programmatically ingest SMS content.
 - **Implementation**: Service handlers use explicit `async def` wrappers to ensure coroutines are properly awaited by Home Assistant's service bus, preventing the "expected dictionary, but got coroutine" error.
 
-## 4. Success Patterns
+## Other
 
 - **`DataUpdateCoordinator`**: Essential for consolidating multiple API calls (Signal, Traffic, SMS, Clients) into a single orchestrated update cycle.
 - **Flat Identity Strategy**: By storing Model, Version, and MAC in `entry.data` and loading them at `__init__`, the integration provides stable metadata to the UI instantly at boot, even if the hardware is offline.

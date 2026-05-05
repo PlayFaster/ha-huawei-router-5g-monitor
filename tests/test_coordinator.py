@@ -177,6 +177,74 @@ async def test_coordinator_critical_data_missing(mock_hass, mock_config_entry):
         await coordinator._async_update_data()
 
 
+@pytest.mark.asyncio
+async def test_coordinator_paused_polling(mock_hass, mock_config_entry, caplog):
+    """Test paused polling logic: returns cached data or empty dict on failure."""
+    from custom_components.huawei_router_5g.const import CONF_STOP_POLLING
+
+    mock_api = MagicMock()
+    object.__setattr__(mock_config_entry, "options", {CONF_STOP_POLLING: True})
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+
+    # Scenario 1: Initial fetch fails while paused
+    mock_api.get_data = AsyncMock(side_effect=Exception("Initial fail"))
+    caplog.set_level(logging.WARNING)
+    data = await coordinator._async_update_data()
+    assert data == {}
+    assert "Initial fetch failed while paused" in caplog.text
+
+    # Scenario 2: Polling is paused and not first run
+    caplog.clear()
+    caplog.set_level(logging.DEBUG)
+    coordinator.data = {"cached": "data"}
+    data = await coordinator._async_update_data()
+    assert data == {"cached": "data"}
+    assert "Polling is paused; returning cached data." in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
+    """Test SMS hash handling when multiple messages have the same timestamp."""
+    mock_api = MagicMock()
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    coordinator.last_sms_timestamp = "2024-05-01 10:00:00"
+    coordinator.fired_sms_hashes = {"10_2024-05-01 10:00:00"}
+
+    data = {
+        "sms_list": {
+            "Messages": {
+                "Message": [
+                    {
+                        "Index": "11",
+                        "Phone": "123",
+                        "Content": "New1",
+                        "Date": "2024-05-01 10:01:00",
+                    },
+                    {
+                        "Index": "12",
+                        "Phone": "456",
+                        "Content": "New2",
+                        "Date": "2024-05-01 10:01:00",  # Same timestamp!
+                    },
+                ]
+            }
+        }
+    }
+
+    with patch.object(mock_hass.bus, "async_fire") as mock_fire:
+        coordinator._check_new_sms(data)
+
+    assert coordinator.last_sms_timestamp == "2024-05-01 10:01:00"
+    assert "11_2024-05-01 10:01:00" in coordinator.fired_sms_hashes
+    assert "12_2024-05-01 10:01:00" in coordinator.fired_sms_hashes
+    assert mock_fire.call_count == 2
+
+
 @pytest.fixture
 def mock_hass():
     """Mock Home Assistant."""

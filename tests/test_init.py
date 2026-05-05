@@ -1,6 +1,6 @@
 """Tests for the Huawei Router 5G Monitor __init__.py."""
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant, ServiceCall
@@ -23,6 +23,8 @@ def mock_hass():
     hass = MagicMock(spec=HomeAssistant)
     hass.services = MagicMock()
     hass.config_entries = MagicMock()
+    hass.config_entries.async_forward_entry_setups = AsyncMock()
+    hass.config_entries.async_unload_platforms = AsyncMock()
     return hass
 
 
@@ -278,6 +280,119 @@ async def test_async_get_sms_list_service_success(
     assert "messages" in response
     assert len(response["messages"]) == 1
     assert response["messages"][0]["content"] == "hi"
+
+
+@pytest.mark.asyncio
+async def test_async_setup_registers_and_calls_services(mock_hass):
+    """Test that async_setup registers services and they can be called."""
+    mock_hass.services.has_service.return_value = False
+
+    result = await async_setup(mock_hass, {})
+    assert result is True
+
+    registered_callbacks = {}
+    for call_args in mock_hass.services.async_register.call_args_list:
+        service_name = call_args[0][1]
+        callback = call_args[0][2]
+        registered_callbacks[service_name] = callback
+
+    with (
+        patch("custom_components.huawei_router_5g.async_send_sms") as mock_send,
+        patch("custom_components.huawei_router_5g.async_delete_sms") as mock_delete,
+        patch(
+            "custom_components.huawei_router_5g.async_delete_all_sms"
+        ) as mock_delete_all,
+        patch("custom_components.huawei_router_5g.async_get_sms_list") as mock_get_list,
+    ):
+        mock_call = MagicMock()
+
+        await registered_callbacks["send_sms"](mock_call)
+        mock_send.assert_called_once_with(mock_hass, mock_call)
+
+        await registered_callbacks["delete_sms"](mock_call)
+        mock_delete.assert_called_once_with(mock_hass, mock_call)
+
+        await registered_callbacks["delete_all_sms"](mock_call)
+        mock_delete_all.assert_called_once_with(mock_hass, mock_call)
+
+        await registered_callbacks["get_sms_list"](mock_call)
+        mock_get_list.assert_called_once_with(mock_hass, mock_call)
+
+
+@pytest.mark.asyncio
+async def test_async_setup_entry_and_unload(mock_hass):
+    """Test async_setup_entry and async_unload_entry."""
+    from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+
+    from custom_components.huawei_router_5g import async_setup_entry, async_unload_entry
+
+    mock_entry = MagicMock()
+    mock_entry.options = {
+        CONF_HOST: "192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "pw",
+    }
+    mock_entry.data = {
+        "mac": "00:11:22:33:44:55",
+        "model": "B535",
+        "sw_version": "1.0",
+        "hw_version": "2.0",
+    }
+    mock_entry.entry_id = "test_id"
+    mock_entry.title = "My Router"
+
+    mock_registry = MagicMock()
+    with (
+        patch(
+            "custom_components.huawei_router_5g.dr.async_get",
+            return_value=mock_registry,
+        ),
+        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_class,
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
+        ) as mock_coord_class,
+    ):
+        # Test setup
+        result = await async_setup_entry(mock_hass, mock_entry)
+        assert result is True
+        assert mock_registry.async_get_or_create.call_count == 2
+        mock_hass.config_entries.async_forward_entry_setups.assert_called_once()
+        mock_entry.async_create_background_task.assert_called_once()
+
+        # Extract the background task
+        bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
+
+        # Run background task
+        mock_api_instance = mock_api_class.return_value
+        mock_coord_instance = mock_coord_class.return_value
+        mock_api_instance.login = AsyncMock()
+        mock_coord_instance.async_refresh = AsyncMock()
+
+        await bg_task_coro
+        mock_api_instance.login.assert_called_once()
+        mock_coord_instance.async_refresh.assert_called_once()
+
+        # Test unload
+        mock_entry.runtime_data = mock_coord_instance
+        mock_coord_instance.api.logout = AsyncMock()
+        mock_hass.config_entries.async_unload_platforms.return_value = True
+
+        unload_result = await async_unload_entry(mock_hass, mock_entry)
+        assert unload_result is True
+        mock_coord_instance.api.logout.assert_called_once()
+        mock_hass.config_entries.async_unload_platforms.assert_called_once()
+
+        # Run background task with exception by doing a fresh setup
+        mock_entry2 = MagicMock()
+        mock_entry2.options = mock_entry.options
+        mock_entry2.data = mock_entry.data
+        mock_entry2.entry_id = "test_id2"
+        mock_entry2.title = "My Router 2"
+
+        await async_setup_entry(mock_hass, mock_entry2)
+        bg_task_coro2 = mock_entry2.async_create_background_task.call_args[0][1]
+        mock_api_instance.login.side_effect = Exception("Background Error")
+        await bg_task_coro2
 
 
 @pytest.mark.parametrize("box_type", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])

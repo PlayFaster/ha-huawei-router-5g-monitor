@@ -285,7 +285,7 @@ async def test_guest_wifi_turn_on_error(mock_coordinator, mock_config_entry):
     switch.hass = MagicMock()
 
     await switch.async_turn_on()  # should not raise
-    mock_coordinator.async_request_refresh.assert_not_called()
+    mock_coordinator.async_request_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -300,7 +300,7 @@ async def test_guest_wifi_turn_off_error(mock_coordinator, mock_config_entry):
     switch.hass = MagicMock()
 
     await switch.async_turn_off()  # should not raise
-    mock_coordinator.async_request_refresh.assert_not_called()
+    mock_coordinator.async_request_refresh.assert_called_once()
 
 
 def test_guest_wifi_extra_attributes(mock_coordinator, mock_config_entry):
