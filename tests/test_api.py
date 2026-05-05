@@ -3,7 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from huawei_lte_api.enums.sms import BoxTypeEnum
+from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
     LoginErrorPasswordWrongException,
     LoginErrorUsernameWrongException,
@@ -162,7 +162,7 @@ async def test_ensure_client_with_existing_client():
     api = _make_api()
     api._client = MagicMock()
 
-    with patch.object(api, "login", new=AsyncMock()) as mock_login:
+    with patch.object(api, "_login_internal", new=AsyncMock()) as mock_login:
         await api._ensure_client()
         mock_login.assert_not_called()
 
@@ -173,7 +173,7 @@ async def test_ensure_client_without_client():
     api = _make_api()
     api._client = None
 
-    with patch.object(api, "login", new=AsyncMock()) as mock_login:
+    with patch.object(api, "_login_internal", new=AsyncMock()) as mock_login:
         await api._ensure_client()
         mock_login.assert_called_once()
 
@@ -310,9 +310,14 @@ async def test_get_data_sms_list_local_inbox():
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         await api.get_data()
 
-    # Check that get_sms_list was called with LOCAL_INBOX
+    # Check that get_sms_list was called with LOCAL_INBOX and the new parameters
     mock_client.sms.get_sms_list.assert_called_once_with(
-        page=1, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=20
+        page=1,
+        box_type=BoxTypeEnum.LOCAL_INBOX,
+        read_count=20,
+        sort_type=SortTypeEnum.DATE,
+        ascending=False,
+        unread_preferred=True,
     )
 
 
@@ -346,9 +351,14 @@ async def test_get_data_sms_list_sim_inbox():
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         await api.get_data()
 
-    # Check that get_sms_list was called with SIM_INBOX
+    # Check that get_sms_list was called with SIM_INBOX and the new parameters
     mock_client.sms.get_sms_list.assert_called_once_with(
-        page=1, box_type=BoxTypeEnum.SIM_INBOX, read_count=20
+        page=1,
+        box_type=BoxTypeEnum.SIM_INBOX,
+        read_count=20,
+        sort_type=SortTypeEnum.DATE,
+        ascending=False,
+        unread_preferred=True,
     )
 
 
@@ -595,15 +605,14 @@ async def test_get_data_other_endpoint_response_error():
 
 @pytest.mark.asyncio
 async def test_get_data_ensures_client():
-    """Test that get_data triggers login when no client exists."""
+    """Test that get_data triggers _ensure_client when called."""
     api = _make_api()
-    assert api._client is None
 
-    with patch.object(api, "login", new=AsyncMock()) as mock_login:
-        mock_login.side_effect = HuaweiConnectionError("No connection")
+    with patch.object(api, "_ensure_client", new=AsyncMock()) as mock_ensure:
+        mock_ensure.side_effect = HuaweiConnectionError("No connection")
         with pytest.raises(HuaweiConnectionError):
             await api.get_data()
-        mock_login.assert_called_once()
+        mock_ensure.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -761,12 +770,19 @@ async def test_set_net_mode_success():
     api._client = MagicMock()
     api._connection = MagicMock()
 
+    from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
+
+    mode = "03"
     with patch(
         "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
     ):
-        await api.set_net_mode("auto")
+        await api.set_net_mode(mode)
 
-    api._client.net.set_net_mode.assert_called_once()
+    api._client.net.set_net_mode.assert_called_once_with(
+        lte_band=LTEBandEnum.ALL.value,
+        network_band=NetworkBandEnum.ALL.value,
+        network_mode=mode,
+    )
 
 
 @pytest.mark.asyncio
@@ -895,7 +911,7 @@ async def test_delete_sms_success():
     ):
         await api.delete_sms(index)
 
-    api._client.sms.delete_sms.assert_called_once_with(index=index)
+    api._client.sms.delete_sms.assert_called_once_with(sms_id=index)
 
 
 @pytest.mark.asyncio

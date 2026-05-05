@@ -5,21 +5,56 @@ import logging
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
+from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from .api import HuaweiRouter5GAPI
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
+from .helpers import parse_sms_list
 
 _LOGGER = logging.getLogger(__name__)
 
-SERVICE_SCHEMA = vol.Schema(
+SERVICE_SEND_SMS_SCHEMA = vol.Schema(
     {
-        vol.Required("target"): vol.All(str, vol.Length(min=1)),
+        vol.Optional("device_id"): str,
+        vol.Required("target"): vol.All(cv.ensure_list, [str]),
         vol.Required("message"): vol.All(str, vol.Length(min=1, max=160)),
+    }
+)
+
+SERVICE_DELETE_SMS_SCHEMA = vol.Schema(
+    {
+        vol.Required("device_id"): str,
+        vol.Required("index"): vol.Coerce(int),
+    }
+)
+
+SERVICE_DELETE_ALL_SMS_SCHEMA = vol.Schema(
+    {
+        vol.Required("device_id"): str,
+        vol.Optional("keep_last", default=0): vol.All(
+            vol.Coerce(int), vol.Range(min=0, max=50)
+        ),
+    }
+)
+
+SERVICE_GET_SMS_LIST_SCHEMA = vol.Schema(
+    {
+        vol.Required("device_id"): str,
+        vol.Optional("page", default=1): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=100)
+        ),
+        vol.Optional("count", default=20): vol.All(
+            vol.Coerce(int), vol.Range(min=1, max=50)
+        ),
+        vol.Optional("box_type", default=1): vol.All(
+            vol.Coerce(int), vol.In([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
+        ),
     }
 )
 
@@ -34,24 +69,32 @@ PLATFORMS = [
 ]
 
 
-async def async_send_sms(hass: HomeAssistant, service_call) -> None:
+def _get_coordinator(
+    hass: HomeAssistant, call_data: dict
+) -> HuaweiRouter5GDataUpdateCoordinator:
+    """Get coordinator from service call data."""
+    device_id = call_data.get("device_id")
+    if device_id:
+        entry = hass.config_entries.async_get_entry(device_id)
+        if entry and entry.domain == DOMAIN:
+            if hasattr(entry, "runtime_data") and entry.runtime_data:
+                return entry.runtime_data
+            raise HomeAssistantError(f"Router {entry.title} is not ready")
+
+    # Fallback to first available entry if no specific ID provided
+    entries = hass.config_entries.async_entries(DOMAIN)
+    for entry in entries:
+        if hasattr(entry, "runtime_data") and entry.runtime_data:
+            return entry.runtime_data
+
+    raise HomeAssistantError("No active Huawei Router 5G entries found")
+
+
+async def async_send_sms(hass: HomeAssistant, call: ServiceCall) -> None:
     """Service to send an SMS."""
-    entries: list[ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]] = (
-        hass.config_entries.async_entries(DOMAIN)
-    )
-    if not entries:
-        raise HomeAssistantError("No Huawei Router 5G entries found")
-
-    # Use the first available entry's coordinator
-    entry = entries[0]
-    if not hasattr(entry, "runtime_data") or entry.runtime_data is None:
-        raise HomeAssistantError(f"Integration entry {entry.title} not ready")
-
-    coordinator = entry.runtime_data
-    target = service_call.data["target"]
-    message = service_call.data["message"]
-    if isinstance(target, str):
-        target = [target]
+    coordinator = _get_coordinator(hass, call.data)
+    target = call.data["target"]
+    message = call.data["message"]
 
     try:
         await coordinator.api.send_sms(target, message)
@@ -59,15 +102,100 @@ async def async_send_sms(hass: HomeAssistant, service_call) -> None:
         raise HomeAssistantError(f"Failed to send SMS: {err}") from err
 
 
+async def async_delete_sms(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Service to delete an SMS."""
+    coordinator = _get_coordinator(hass, call.data)
+    index = call.data["index"]
+
+    try:
+        await coordinator.api.delete_sms(index)
+        await coordinator.async_request_refresh()
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to delete SMS: {err}") from err
+
+
+async def async_delete_all_sms(hass: HomeAssistant, call: ServiceCall) -> None:
+    """Service to delete all SMS messages."""
+    coordinator = _get_coordinator(hass, call.data)
+    keep_last = call.data.get("keep_last", 0)
+
+    try:
+        # Fetch current list to identify messages to delete
+        response = await coordinator.api.get_sms_list(
+            page=1, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=50
+        )
+        messages = parse_sms_list(response)
+
+        # Skip the most recent 'keep_last' messages
+        to_delete = messages[keep_last:] if keep_last > 0 else messages
+
+        for msg in to_delete:
+            await coordinator.api.delete_sms(msg["index"])
+
+        await coordinator.async_request_refresh()
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to delete all SMS: {err}") from err
+
+
+async def async_get_sms_list(hass: HomeAssistant, call: ServiceCall) -> dict:
+    """Service to get SMS list with response."""
+    coordinator = _get_coordinator(hass, call.data)
+    page = call.data["page"]
+    count = call.data["count"]
+    box_type = BoxTypeEnum(call.data["box_type"])
+
+    try:
+        response = await coordinator.api.get_sms_list(
+            page=page, box_type=box_type, read_count=count
+        )
+        return {"messages": parse_sms_list(response)}
+    except Exception as err:
+        raise HomeAssistantError(f"Failed to fetch SMS list: {err}") from err
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Huawei Router 5G Monitor component."""
-    if not hass.services.has_service(DOMAIN, "send_sms"):
-        hass.services.async_register(
-            DOMAIN,
-            "send_sms",
-            lambda call: async_send_sms(hass, call),
-            schema=SERVICE_SCHEMA,
-        )
+
+    async def _handle_send_sms(call: ServiceCall) -> None:
+        await async_send_sms(hass, call)
+
+    async def _handle_delete_sms(call: ServiceCall) -> None:
+        await async_delete_sms(hass, call)
+
+    async def _handle_delete_all_sms(call: ServiceCall) -> None:
+        await async_delete_all_sms(hass, call)
+
+    async def _handle_get_sms_list(call: ServiceCall) -> dict:
+        return await async_get_sms_list(hass, call)
+
+    hass.services.async_register(
+        DOMAIN,
+        "send_sms",
+        _handle_send_sms,
+        schema=SERVICE_SEND_SMS_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "delete_sms",
+        _handle_delete_sms,
+        schema=SERVICE_DELETE_SMS_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "delete_all_sms",
+        _handle_delete_all_sms,
+        schema=SERVICE_DELETE_ALL_SMS_SCHEMA,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "get_sms_list",
+        _handle_get_sms_list,
+        schema=SERVICE_GET_SMS_LIST_SCHEMA,
+        supports_response=SupportsResponse.ONLY,
+    )
 
     return True
 

@@ -4,6 +4,33 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.2-dev3] - 2026-05-04
+
+### Added
+
+- **Expanded SMS Service Suite**: Implemented three new services and enhanced one existing service:
+  - `delete_sms`: Deletes a specific message by its storage index.
+  - `delete_all_sms`: Performs bulk deletion with a `keep_last` safety parameter to maintain minimal history.
+  - `get_sms_list`: Provides a full inbox dump with **Service Response** support, enabling automated ingestion of SMS content.
+  - `send_sms`: Upgraded to support targeting multiple recipients and specific `device_id` identifiers.
+- **Dedicated `__init__.py` Test Suite**: Created `tests/test_init.py` to target service registration, handler routing, and error propagation, achieving high coverage for the integration lifecycle.
+
+### Changed
+
+- **Timestamp-Based SMS Tracking**: Replaced the brittle "Index-based" detection logic with a robust timestamp-based system. The coordinator now uses a combination of message `date` and a `{index}_{date}` hash set to identify new messages, effectively eliminating the "Slot Reuse" bug where messages in recycled slots were previously ignored.
+- **API Concurrency Locking**: Integrated an `asyncio.Lock` into the `HuaweiRouter5GAPI` class. All router communications are now serialized, preventing the session crashes and "Busy" errors caused by simultaneous polling and service execution.
+- **Modernized Service Handlers**: Refactored service registration from lambdas to explicit `async def` wrappers. This resolved a critical bug where `get_sms_list` returned an unawaited coroutine instead of the expected data dictionary.
+- **Enhanced Polling Parameters**: Re-enabled `SortTypeEnum.DATE` and `unread_preferred=True` in the SMS poll cycle. Serialization via the new API lock ensures these advanced parameters are now accepted by the router firmware without triggering system errors.
+- **Test Coverage Recovery**: Restored overall project coverage to **95%** after the introduction of complex async logic. Updated `tests/test_api.py` and `tests/test_coverage_ext.py` to match the new lock-protected API structure and verified all 285 tests passing in the devcontainer.
+
+### Fixed
+
+- **SMS Deletion Argument Bug**: Resolved a `TypeError` in the `delete_sms` service caused by using the incorrect keyword argument (`index` instead of `sms_id`). This fix also restores functionality to the `delete_all_sms` service.
+- **Network Mode Argument Order**: Corrected the argument order in `set_net_mode` and migrated to keyword arguments (`lte_band`, `network_band`, `network_mode`) to ensure compatibility with the `huawei-lte-api` library's expectations.
+- **Robustness in Tests**: Updated the API test suite to verify correct keyword arguments for SMS and network mode operations, preventing future regressions of library-specific signatures.
+
+---
+
 ## [1.0.2-dev1] - 2026-05-04
 
 ### Changed

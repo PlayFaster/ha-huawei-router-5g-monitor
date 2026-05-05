@@ -13,7 +13,7 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 > - **This integration is for you if** you want the core integration's features _plus_ any of the following:
 >   - **Polling control** — pause polling and adjust the scan interval dynamically from the HA UI or via automation.
 >   - **Connected client tracking** — dynamically created `device_tracker` entities for every discovered LAN/WLAN client.
->   - **Latest SMS message display** — view the most recently received message content and attributes directly in HA.
+>   - **SMS Management** — view the most recently received message content and attributes directly in HA.
 >
 > This project builds on the excellent work of [Salamek/huawei-lte-api](https://github.com/Salamek/huawei-lte-api) and the Home Assistant core [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) integration.
 
@@ -43,7 +43,7 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 >
 > - **Polling Control**: A Pause Polling switch and a configurable, dynamically adjustable scan interval — set it from the UI or drive it via automation.
 > - **Connected Client Tracking**: Automatically creates `device_tracker` entities for every discovered LAN/WLAN client, dynamically updated as devices join and leave.
-> - **Latest SMS Message**: Displays the most recently received SMS message content and full attributes directly in Home Assistant.
+> - **SMS Management**: Most recent SMS as text sensor, all SMS inbox counts, services to read, send and delete SMS.
 
 ### 📡 Advanced 5G/LTE Diagnostics
 
@@ -65,15 +65,17 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 - **Data Usage Tracking**: Real-time rates, daily usage, and monthly download/upload totals.
 - **Router Management**: Reboot button, Mobile Data toggle, WiFi and Guest WiFi controls.
 - **Connected Clients**: Dynamic device tracking for every discovered LAN/WLAN client.
-- **SMS Management**: Unread SMS counts, last message content, **Send SMS** service, and HA event firing on new messages.
+- **SMS Management**: Unread SMS counts, last message content, and advanced SMS services (Send, Delete, List).
 - **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
 - **100% Local**: No cloud account or internet access required.
+
+---
 
 ### 💡 Useful Features
 
 - **Pause Polling**: Switch to halt polling when you need uninterrupted access to the router's web UI.
 - **Configurable Update Interval**: From 30 seconds to 1 hour.
-- **SMS Events**: Fires a `huawei_router_5g_sms_received` event when a new message is detected, enabling automations triggered by incoming texts.
+- **SMS Events & Services**: Fires a `huawei_router_5g_sms_received` event when a new message is detected, enabling automations triggered by incoming texts. Has services to send, delete and list SMS messages, see below.
 
 > [!TIP]
 >
@@ -82,13 +84,75 @@ A Home Assistant integration for **Huawei LTE/5G routers**, providing extensive 
 > - Polling Interval is available as a number control within the device, you can change it via automation, if desired.
 > - Set it to 30 seconds during periods of heavy use to examine connection quality and set it higher afterwards, to avoid taxing the router and your Home Assistant database.
 
-### 🏗️ Under the Hood
+---
 
-- **Data Validation**: Router values are checked for validity (guard band limits), with out-of-range sensors being marked as unknown.
-- **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
-- **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
-- **Native Resilience**: Built-in 3-strike logic masks transient network glitches and holds last-known-good data between retries.
-- **Modern Integration Architecture**: A data coordinator-based structure and a full options flow.
+## 🛠️ SMS Services
+
+This integration provides the following services for SMS management:
+
+- **`huawei_router_5g.send_sms`**: Send an SMS message to one or more recipients.
+- **`huawei_router_5g.delete_sms`**: Delete a specific SMS message by its storage index.
+- **`huawei_router_5g.delete_all_sms`**: Bulk delete messages from the inbox. Includes a `keep_last` parameter to preserve recent messages for safety.
+- **`huawei_router_5g.get_sms_list`**: Fetch a list of SMS messages from a specific storage bank (Local, SIM, Sent, or Draft). This service supports **Service Responses**, allowing you to use the output in Home Assistant automations and scripts.
+
+---
+
+## 💡 Example SMS Automations
+
+### Forward Incoming SMS to Mobile
+
+This automation fires when a new SMS is detected and forwards the content to your mobile phone via a notification service.
+
+```yaml
+alias: "SMS: Forward to Mobile"
+trigger:
+  - platform: event
+    event_type: huawei_router_5g_sms_received
+action:
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "New SMS from {{ trigger.event.data.phone }}"
+      message: "{{ trigger.event.data.content }}"
+```
+
+### Automated Inbox Maintenance
+
+Keep your router's SMS storage clean by automatically deleting old messages while keeping the most recent ones for safety.
+
+```yaml
+alias: "SMS: Weekly Inbox Cleanup"
+trigger:
+  - platform: time
+    at: "03:00:00"
+condition:
+  - condition: time
+    weekday:
+      - sun
+action:
+  - service: huawei_router_5g.delete_all_sms
+    data:
+      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA # Replace with your Device ID
+      keep_last: 5
+```
+
+### Fetch and Process Inbox via Script
+
+Example of using the `get_sms_list` service response in a script to count messages from a specific sender.
+
+```yaml
+alias: "SMS: Count OTP Messages"
+sequence:
+  - service: huawei_router_5g.get_sms_list
+    data:
+      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA
+      count: 50
+    response_variable: inbox
+  - service: notify.persistent_notification
+    data:
+      message: >
+        You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') | list | count }} 
+        messages from your bank in the inbox.
+```
 
 ---
 
@@ -103,7 +167,7 @@ This integration provides **106+ entities** grouped into five logical devices: *
 | **Switches** | 3 | Pause Polling, Mobile Data, Guest WiFi |
 | **Buttons** | 2 | Reboot, Clear Traffic |
 | **Inputs** | 2 | Polling Interval, Network Mode |
-| **Services** | 1 | Send SMS service |
+| **Services** | 4 | Send, Delete, and List SMS services |
 | **Device Trackers** | 1+ | Dynamically discovered per connected LAN/WLAN client |
 
 > [!TIP]
@@ -114,6 +178,18 @@ This integration provides **106+ entities** grouped into five logical devices: *
 > - If you never use the Routers SMS you may not need the SMS sub-device
 > - Devices and their entities can be disabled from the main device page - (⋮ menu) "Disable Device".
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
+
+---
+
+### 🏗️ Under the Hood
+
+- **Data Validation**: Router values are checked for validity (guard band limits), with out-of-range sensors being marked as unknown.
+- **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
+- **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
+- **Native Resilience**: Built-in 3-strike logic masks transient network glitches and holds last-known-good data between retries.
+- **Modern Integration Architecture**: A data coordinator-based structure and a full options flow.
+
+---
 
 ## ❔ What's Missing?
 
@@ -224,7 +300,7 @@ This integration stands on the shoulders of several excellent open-source projec
 - 🙏 **Home Assistant Core — Huawei LTE Integration** (@scop, @fphammerle, @joostlek, and contributors): The architectural foundation this component builds upon. The core integration is the right choice for most users — this component extends it for a specific niche. A huge thanks for the years of work that went into it.
 - 🙏 **[huawei-lte-api](https://github.com/Salamek/huawei-lte-api)** (@Salamek and contributors): The underlying API library that does the heavy lifting of communicating with Huawei hardware. None of this would be possible without it.
 - 🙏 **[huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended)** (@william-aqn): The expanded SMS functionality in this integration is based on this work. If SMS features are what you need, this component paired with the core integration is an excellent option.
-- **Personal prior work**: Structural patterns and integration architecture draw on my own custom components for [TP-Link 5G](https://github.com/PlayFaster/ha-tplink-router-5g-monitor) and [ZTE 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) routers.
+- **Personal prior work**: The structure and integration architecture draw on my own custom components for [TP-Link 5G](https://github.com/PlayFaster/ha-tplink-router-5g-monitor) and [ZTE 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) routers.
 - This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
 
 ---
