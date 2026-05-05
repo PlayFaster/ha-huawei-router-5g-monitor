@@ -176,9 +176,118 @@ This integration provides **112+ entities** grouped into six logical devices: **
 > **Clean up your UI: Disable Unnecessary Devices or Entities**
 >
 > - If you are running in Bridge Mode you may not need the Clients sub-device
-> - If you never use the Routers SMS you may not need the SMS sub-device
+> - If you never use the Router's SMS you may not need the SMS sub-device
 > - Devices and their entities can be disabled from the main device page - (⋮ menu) "Disable Device".
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
+
+## Other Usage Examples
+
+### Data Usage Alerts
+
+Monitor your data consumption and get notified when you approach daily or monthly limits.
+
+```yaml
+alias: "Data: Usage Alert"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.huawei_5g_data_day_used
+    above: 10000000000 # 10 GB (in bytes)
+  - platform: numeric_state
+    entity_id: sensor.huawei_5g_data_month_total
+    above: 100000000000 # 100 GB (in bytes)
+action:
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "High Data Usage Alert"
+      message: >
+        Significant data usage detected:
+        Today: {{ states('sensor.huawei_5g_data_day_used') | multiply(0.000000001) | round(2) }} GB
+        This Month: {{ states('sensor.huawei_5g_data_month_total') | multiply(0.000000001) | round(2) }} GB
+```
+
+### System Health & Connectivity Alerts
+
+Monitor for router reboots or connection resets by watching the uptime and connection duration sensors.
+
+```yaml
+alias: "System: Router Reboot or Reset Alert"
+trigger:
+  - platform: numeric_state
+    entity_id: sensor.huawei_5g_system_uptime_duration
+    below: 120 # Trigger if uptime is less than 2 minutes (indicates a recent reboot)
+    id: "reboot"
+  - platform: numeric_state
+    entity_id: sensor.huawei_5g_system_connection_duration
+    below: 120 # Trigger if connection duration is less than 2 minutes (indicates a recent reconnect)
+    id: "reconnect"
+condition:
+  # Optional: Don't alert if HA itself just started
+  - condition: uptime
+    after: "00:05:00"
+action:
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "Huawei Router Notification"
+      message: >
+        {% if trigger.id == "reboot" %}
+          The router has rebooted. 
+          System Uptime: {{ states('sensor.huawei_5g_system_uptime') }}
+        {% else %}
+          The mobile connection was reset/reconnected.
+          Connection Uptime: {{ states('sensor.huawei_5g_system_connection_uptime') }}
+        {% endif %}
+```
+
+### Signal Quality Alerts
+
+Monitor for poor connection quality based on 5G status, signal bars, and link quality (CQI).
+
+```yaml
+alias: "Signal: Poor Quality Connection Alert"
+trigger:
+  - platform: state
+    entity_id:
+      - binary_sensor.huawei_5g_signal_5g_endc_active
+      - binary_sensor.huawei_5g_signal_best_connection
+    to: "off"
+    for: "00:05:00"
+  - platform: numeric_state
+    entity_id:
+      - sensor.huawei_5g_signal_5g_signal_bars
+      - sensor.huawei_5g_signal_signal_bars
+      - sensor.huawei_5g_signal_5g_cqi
+    below: 4
+    for: "00:05:00"
+condition:
+  - or:
+      - and:
+          - condition: state
+            entity_id: binary_sensor.huawei_5g_signal_5g_endc_active
+            state: "off"
+          - condition: state
+            entity_id: binary_sensor.huawei_5g_signal_best_connection
+            state: "off"
+      - condition: numeric_state
+        entity_id: sensor.huawei_5g_signal_5g_signal_bars
+        below: 4
+      - condition: numeric_state
+        entity_id: sensor.huawei_5g_signal_signal_bars
+        below: 4
+      - condition: numeric_state
+        entity_id: sensor.huawei_5g_signal_5g_cqi
+        below: 4
+action:
+  - service: notify.mobile_app_your_phone
+    data:
+      title: "Poor Signal Quality Detected"
+      message: >
+        The router connection quality is poor.
+        - 5G ENDC: {{ states('binary_sensor.huawei_5g_signal_5g_endc_active') }}
+        - Best Connection: {{ states('binary_sensor.huawei_5g_signal_best_connection') }}
+        - 5G Bars: {{ states('sensor.huawei_5g_signal_5g_signal_bars') }}
+        - LTE Bars: {{ states('sensor.huawei_5g_signal_signal_bars') }}
+        - 5G CQI: {{ states('sensor.huawei_5g_signal_5g_cqi') }}
+```
 
 ---
 
@@ -194,7 +303,7 @@ This integration provides **112+ entities** grouped into six logical devices: **
 
 ## ❔ What's Missing?
 
-- **SMS Inbox Browsing**: The integration provides the last received message content and unread counts. Browsing the full inbox or replying to specific messages requires the router's web interface.
+- **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi.
 
 ---
 
@@ -248,7 +357,7 @@ Setup is handled entirely via the UI under **Settings > Devices & Services > Add
 - **Username**: Often blank for Huawei, otherwise whatever you use in the Router WebUI.
 - **Password**: Your local admin password.
 
-After setup, you can modify options (e.g. a password change) anytime via: **Settings > Devices & Services > Huawei Router 5G Monitor > Options**
+After setup, you can modify options (e.g., a password change) anytime via: **Settings > Devices & Services > Huawei Router 5G Monitor > Options**
 
 ---
 
