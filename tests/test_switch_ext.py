@@ -90,7 +90,18 @@ async def test_guest_wifi_switch(mock_coordinator, mock_config_entry):
 
     # Attributes
     mock_coordinator.data = {
-        "wlan_wifi_guest_network_switch": {"WifiEnable": "1", "WifiSsid": "GuestSSID"}
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "Index": "2",
+                        "WifiEnable": "1",
+                        "wifiisguestnetwork": "1",
+                        "WifiSsid": "GuestSSID",
+                    }
+                ]
+            }
+        }
     }
     assert switch.is_on is True
     assert switch.extra_state_attributes["ssid"] == "GuestSSID"

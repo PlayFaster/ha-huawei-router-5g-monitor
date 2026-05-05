@@ -271,6 +271,7 @@ async def test_get_data_success():
     mock_client.wlan.host_list.return_value = {}
     mock_client.wlan.wifi_feature_switch.return_value = {}
     mock_client.wlan.wifi_guest_network_switch.return_value = {}
+    mock_client.wlan.multi_basic_settings.return_value = {}
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         data = await api.get_data()
@@ -388,7 +389,8 @@ async def test_get_data_response_error_codes():
     mock_client = MagicMock()
     api._connection = MagicMock()
 
-    for error_code in ("100002", "125002", "125003"):
+    # Note: 100002 is removed as it's used for "Not Supported"
+    for error_code in ("125002", "125003"):
         api._client = mock_client
         mock_client.device.information.side_effect = ResponseErrorException(
             f"Error {error_code}", error_code
@@ -805,45 +807,103 @@ async def test_set_net_mode_error():
 
 
 @pytest.mark.asyncio
-async def test_set_guest_wifi_on():
-    """Test enabling guest WiFi."""
+async def test_set_guest_wifi_on_manual():
+    """Test enabling guest WiFi using the manual path with multiple SSIDs."""
     api = _make_api()
     api._client = MagicMock()
     api._connection = MagicMock()
+
+    # Setup multi_basic_settings to return multiple SSIDs
+    api._client.wlan.multi_basic_settings.return_value = {
+        "Ssids": {
+            "Ssid": [
+                {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"},
+                {"Index": "2", "WifiEnable": "0", "wifiisguestnetwork": "1"},
+            ]
+        }
+    }
 
     with patch(
         "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
     ):
         await api.set_guest_wifi(True)
 
-    api._client.wlan.wifi_guest_network_switch.assert_called_once_with(1)
+    # Should call set_multi_basic_settings with BOTH SSIDs
+    api._client.wlan.set_multi_basic_settings.assert_called_once()
+    args = api._client.wlan.set_multi_basic_settings.call_args[0][0]
+    assert len(args) == 2
+    # Guest one (Index 2) should be ON
+    guest = next(s for s in args if s["Index"] == "2")
+    assert guest["WifiEnable"] == "1"
+    assert guest["wifiisguestnetwork"] == "1"
+    # Main one (Index 0) should remain unchanged
+    main = next(s for s in args if s["Index"] == "0")
+    assert main["WifiEnable"] == "1"
 
 
 @pytest.mark.asyncio
-async def test_set_guest_wifi_off():
-    """Test disabling guest WiFi."""
+async def test_set_guest_wifi_off_manual():
+    """Test disabling guest WiFi using the manual path with multiple SSIDs."""
     api = _make_api()
     api._client = MagicMock()
     api._connection = MagicMock()
+
+    # Setup multi_basic_settings to return multiple SSIDs
+    api._client.wlan.multi_basic_settings.return_value = {
+        "Ssids": {
+            "Ssid": [
+                {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"},
+                {"Index": "2", "WifiEnable": "1", "wifiisguestnetwork": "1"},
+            ]
+        }
+    }
 
     with patch(
         "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
     ):
         await api.set_guest_wifi(False)
 
-    api._client.wlan.wifi_guest_network_switch.assert_called_once_with(0)
+    api._client.wlan.set_multi_basic_settings.assert_called_once()
+    args = api._client.wlan.set_multi_basic_settings.call_args[0][0]
+    assert len(args) == 2
+    # Guest one (Index 2) should be OFF
+    guest = next(s for s in args if s["Index"] == "2")
+    assert guest["WifiEnable"] == "0"
 
 
 @pytest.mark.asyncio
-async def test_set_guest_wifi_error():
-    """Test that guest WiFi set failure propagates."""
+async def test_set_guest_wifi_fallback():
+    """Test that set_guest_wifi falls back to library method if fetch fails."""
     api = _make_api()
     api._client = MagicMock()
     api._connection = MagicMock()
 
+    api._client.wlan.multi_basic_settings.side_effect = Exception("Fetch fail")
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_guest_wifi(True)
+
+    # Should fallback to library method (which uses 1 for True)
+    api._client.wlan.wifi_guest_network_switch.assert_called_once_with(True)
+
+
+@pytest.mark.asyncio
+async def test_set_guest_wifi_error():
+    """Test that guest WiFi set failure propagates when both paths fail."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    api._client.wlan.multi_basic_settings.side_effect = Exception("Fetch fail")
+    api._client.wlan.wifi_guest_network_switch.side_effect = Exception("Switch fail")
+
     with (
-        patch("asyncio.to_thread", new=AsyncMock(side_effect=Exception("Set fail"))),
-        pytest.raises(Exception, match="Set fail"),
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        pytest.raises(Exception, match="Switch fail"),
     ):
         await api.set_guest_wifi(True)
 

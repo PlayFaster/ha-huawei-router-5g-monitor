@@ -145,6 +145,7 @@ def build_device_info(coordinator, group: str) -> DeviceInfo:
         "data": "Data",
         "sms": "SMS",
         "clients": "Clients",
+        "wifi": "WiFi",
     }
     display_group = group_names.get(group, group.capitalize())
     sub_name = f"{coordinator.entry.title} {display_group}"
@@ -222,3 +223,19 @@ def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:
         for msg in messages_raw
         if isinstance(msg, dict) and "Index" in msg
     ]
+
+
+def find_ssid_by_path(ssids: list[dict], path_fragment: str) -> dict | None:
+    """Find an SSID dict based on its internal ID path fragment."""
+    for ssid in ssids:
+        if path_fragment in str(ssid.get("ID", "")):
+            return ssid
+    return None
+
+
+def is_ssid_on(ssids: list[dict], path_fragment: str) -> bool | None:
+    """Check if a specific radio path is enabled."""
+    ssid = find_ssid_by_path(ssids, path_fragment)
+    if ssid:
+        return str(ssid.get("WifiEnable")) == "1"
+    return None

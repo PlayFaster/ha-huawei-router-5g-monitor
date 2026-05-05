@@ -206,8 +206,17 @@ def test_mobile_data_is_none_missing_val(mock_coordinator, mock_config_entry):
 
 
 def test_guest_wifi_is_on(mock_coordinator, mock_config_entry):
-    """Return True when WifiEnable is '1'."""
-    mock_coordinator.data = {"wlan_wifi_guest_network_switch": {"WifiEnable": "1"}}
+    """Return True when Guest SSID is enabled."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {"Index": "2", "WifiEnable": "1", "wifiisguestnetwork": "1"},
+                    {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"},
+                ]
+            }
+        }
+    }
     switch = HuaweiGuestWifiSwitch(
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
@@ -224,8 +233,8 @@ def test_guest_wifi_is_none_no_data(mock_coordinator, mock_config_entry):
 
 
 def test_guest_wifi_is_none_missing_key(mock_coordinator, mock_config_entry):
-    """Return None when WifiEnable key is absent."""
-    mock_coordinator.data = {"wlan_wifi_guest_network_switch": {}}
+    """Return None when Guest SSID is absent."""
+    mock_coordinator.data = {"wlan_multi_basic_settings": {"Ssids": {"Ssid": []}}}
     switch = HuaweiGuestWifiSwitch(
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
@@ -296,7 +305,20 @@ async def test_guest_wifi_turn_off_error(mock_coordinator, mock_config_entry):
 
 def test_guest_wifi_extra_attributes(mock_coordinator, mock_config_entry):
     """Test extra attributes for guest wifi."""
-    mock_coordinator.data = {"wlan_wifi_guest_network_switch": {"WifiSsid": "GuestNet"}}
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "Index": "2",
+                        "WifiEnable": "1",
+                        "wifiisguestnetwork": "1",
+                        "WifiSsid": "GuestNet",
+                    }
+                ]
+            }
+        }
+    }
     switch = HuaweiGuestWifiSwitch(
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )

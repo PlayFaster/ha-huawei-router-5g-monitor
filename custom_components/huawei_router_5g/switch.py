@@ -45,7 +45,7 @@ GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
     translation_key="wifi_guest_network",
     icon="mdi:wifi-lock",
     entity_category=EntityCategory.CONFIG,
-    group="system",
+    group="wifi",
 )
 
 
@@ -175,11 +175,15 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         data = self.coordinator.data
         if not data:
             return None
-        status = data.get("wlan_wifi_guest_network_switch") or {}
-        val = status.get("WifiEnable")
-        if val is None:
-            return None
-        return str(val) == "1"
+        multi_settings = data.get("wlan_multi_basic_settings") or {}
+        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
+        if isinstance(ssids, dict):
+            ssids = [ssids]
+
+        for ssid in ssids:
+            if str(ssid.get("wifiisguestnetwork")) == "1":
+                return str(ssid.get("WifiEnable")) == "1"
+        return None
 
     async def async_turn_on(self, **kwargs) -> None:
         """Enable guest WiFi."""
@@ -203,5 +207,12 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         data = self.coordinator.data
         if not data:
             return {}
-        status = data.get("wlan_wifi_guest_network_switch") or {}
-        return {"ssid": status.get("WifiSsid")}
+        multi_settings = data.get("wlan_multi_basic_settings") or {}
+        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
+        if isinstance(ssids, dict):
+            ssids = [ssids]
+
+        for ssid in ssids:
+            if str(ssid.get("wifiisguestnetwork")) == "1":
+                return {"ssid": ssid.get("WifiSsid")}
+        return {}

@@ -178,8 +178,8 @@ class HuaweiRouter5GAPI:
                         lambda: client.wlan.wifi_feature_switch(),
                     ),
                     (
-                        "wlan_wifi_guest_network_switch",
-                        lambda: client.wlan.wifi_guest_network_switch(),
+                        "wlan_multi_basic_settings",
+                        lambda: client.wlan.multi_basic_settings(),
                     ),
                 ]:
                     try:
@@ -192,10 +192,9 @@ class HuaweiRouter5GAPI:
                         )
                         raise HuaweiAuthError(f"Session expired: {err}") from err
                     except ResponseErrorException as err:
-                        # 100002: Not logged in
                         # 125002: Session timeout
                         # 125003: Token error
-                        if str(err.code) in ("100002", "125002", "125003"):
+                        if str(err.code) in ("125002", "125003"):
                             _LOGGER.debug(
                                 "Session expired during fetch of %s (%s). "
                                 "Forcing re-login.",
@@ -298,10 +297,39 @@ class HuaweiRouter5GAPI:
         async with self._lock:
             await self._ensure_client()
 
+            def _set() -> None:
+                # Some routers require 'wifiisguestnetwork' field to be '1' in the
+                # POST data and/or require the full list of SSIDs to be sent.
+                try:
+                    multi_settings = self._client.wlan.multi_basic_settings()
+                    ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
+                    if isinstance(ssids, dict):
+                        ssids = [ssids]
+
+                    found = False
+                    updated_ssids = []
+                    for ssid in ssids:
+                        new_ssid = dict(ssid)
+                        if str(ssid.get("wifiisguestnetwork")) == "1":
+                            new_ssid["WifiEnable"] = "1" if enable else "0"
+                            # Explicitly ensure this field is present
+                            # as some firmwares need it
+                            new_ssid["wifiisguestnetwork"] = "1"
+                            found = True
+                        updated_ssids.append(new_ssid)
+
+                    if found:
+                        self._client.wlan.set_multi_basic_settings(updated_ssids)
+                        return
+
+                except Exception as err:
+                    _LOGGER.debug("Manual guest wifi set failed, falling back: %s", err)
+
+                # Fallback to library method
+                self._client.wlan.wifi_guest_network_switch(enable)
+
             try:
-                await asyncio.to_thread(
-                    self._client.wlan.wifi_guest_network_switch, 1 if enable else 0
-                )
+                await asyncio.to_thread(_set)
             except Exception:
                 _LOGGER.exception("Set guest WiFi failed")
                 raise

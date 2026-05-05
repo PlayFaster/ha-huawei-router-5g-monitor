@@ -127,11 +127,11 @@ def test_device_tracker_update_state(mock_coordinator, mock_config_entry):
     assert tracker.is_connected is False
 
 
-def test_device_tracker_device_info(mock_coordinator):
+def test_device_tracker_device_info(mock_coordinator, mock_config_entry):
     """Test device_info generation including fallbacks."""
     tracker = HuaweiRouterDeviceTracker(mock_coordinator, "MAC1")
-    mock_coordinator.entry.options = {CONF_HOST: "192.168.8.1"}
-    mock_coordinator.entry.title = "My Router"
+    # mock_config_entry already has host http://192.168.8.1 in conftest.py
+    # and title "My Huawei Router"
     mock_coordinator.mac = "00:11:22:33:44:55"
     mock_coordinator.model = "H165-383"
     mock_coordinator.sw_version = "1.0.1"
@@ -139,14 +139,14 @@ def test_device_tracker_device_info(mock_coordinator):
 
     info = tracker.device_info
     assert info["identifiers"] == {(DOMAIN, "00:11:22:33:44:55_clients")}
-    assert info["name"] == "My Router Clients"
+    assert info["name"] == "My Huawei Router Clients"
     assert info["via_device"] == (DOMAIN, "00:11:22:33:44:55_system")
     assert info["configuration_url"] == "http://192.168.8.1"
 
     # Test fallback to host if MAC missing
     mock_coordinator.mac = None
     info = tracker.device_info
-    assert info["identifiers"] == {(DOMAIN, "host_192.168.8.1_clients")}
+    assert info["identifiers"] == {(DOMAIN, "host_http://192.168.8.1_clients")}
 
 
 @pytest.mark.asyncio

@@ -13,8 +13,12 @@ from custom_components.huawei_router_5g.binary_sensor import (
 
 
 def test_wifi_status_24g_on(mock_coordinator, mock_config_entry):
-    """Return True when wifi24g_switch_enable is '1'."""
-    mock_coordinator.data = {"wlan_wifi_feature_switch": {"wifi24g_switch_enable": "1"}}
+    """Return True when 2.4G is enabled in multi basic settings."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {"Ssid": [{"Index": "0", "WifiEnable": "1"}]}
+        }
+    }
     sensor = HuaweiWifi24GStatusSensor(
         mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
     )
@@ -22,8 +26,12 @@ def test_wifi_status_24g_on(mock_coordinator, mock_config_entry):
 
 
 def test_wifi_status_24g_off(mock_coordinator, mock_config_entry):
-    """Return False when wifi24g_switch_enable is '0'."""
-    mock_coordinator.data = {"wlan_wifi_feature_switch": {"wifi24g_switch_enable": "0"}}
+    """Return False when 2.4G is disabled in multi basic settings."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {"Ssid": [{"Index": "0", "WifiEnable": "0"}]}
+        }
+    }
     sensor = HuaweiWifi24GStatusSensor(
         mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
     )
@@ -31,8 +39,12 @@ def test_wifi_status_24g_off(mock_coordinator, mock_config_entry):
 
 
 def test_wifi_status_5g_on(mock_coordinator, mock_config_entry):
-    """Return True when wifi5g_enabled is '1'."""
-    mock_coordinator.data = {"wlan_wifi_feature_switch": {"wifi5g_enabled": "1"}}
+    """Return True when 5G is enabled in multi basic settings."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {"Ssid": [{"Index": "1", "WifiEnable": "1"}]}
+        }
+    }
     sensor = HuaweiWifi5GStatusSensor(
         mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
     )
