@@ -199,7 +199,7 @@ action:
   - service: notify.mobile_app_your_phone
     data:
       title: "High Data Usage Alert"
-      message: >
+      message: |
         Significant data usage detected:
         Today: {{ states('sensor.huawei_5g_data_day_used') | multiply(0.000000001) | round(2) }} GB
         This Month: {{ states('sensor.huawei_5g_data_month_total') | multiply(0.000000001) | round(2) }} GB
@@ -280,7 +280,7 @@ action:
   - service: notify.mobile_app_your_phone
     data:
       title: "Poor Signal Quality Detected"
-      message: >
+      message: |
         The router connection quality is poor.
         - 5G ENDC: {{ states('binary_sensor.huawei_5g_signal_5g_endc_active') }}
         - Best Connection: {{ states('binary_sensor.huawei_5g_signal_best_connection') }}

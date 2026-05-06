@@ -1451,7 +1451,7 @@ class HuaweiRouterSensor(
                     return None
                 if max_limit is not None and num_val > max_limit:
                     return None
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 pass
 
         return val
@@ -1476,7 +1476,7 @@ class HuaweiRouterSensor(
                     "sim_read": int(counts.get("SimRead", 0)),
                     "sim_max": int(counts.get("SimMax", 0)),
                 }
-            except (ValueError, TypeError):
+            except ValueError, TypeError:
                 return {}
 
         if self.entity_description.key == "last_sms":
