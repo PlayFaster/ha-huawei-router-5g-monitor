@@ -4,6 +4,20 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.0] - 2026-05-07 - Release
+
+### Changed
+
+- **Under the Hood**: Significant code clean-up.
+- **Unique ID via MAC**: Changed to have the Unique IDz generated from MAC not IP.
+- **Automation Examples**: Updated the automation examples.
+
+## [1.1.0-rc2] - 2026-05-07
+
+### Changed
+
+- **Automation Examples**: Updated the automation examples, modern syntax (action vs service).
+
 ## [1.1.0-rc1] - 2026-05-07
 
 ### Changed

@@ -106,11 +106,11 @@ This automation fires when a new SMS is detected and forwards the content to you
 
 ```yaml
 alias: "SMS: Forward to Mobile"
-trigger:
+triggers:
   - platform: event
     event_type: huawei_router_5g_sms_received
-action:
-  - service: notify.mobile_app_your_phone
+actions:
+  - action: notify.mobile_app_your_phone
     data:
       title: "New SMS from {{ trigger.event.data.phone }}"
       message: "{{ trigger.event.data.content }}"
@@ -122,17 +122,17 @@ Keep your router's SMS storage clean by automatically deleting old messages whil
 
 ```yaml
 alias: "SMS: Weekly Inbox Cleanup"
-trigger:
+triggers:
   - platform: time
     at: "03:00:00"
-condition:
+conditions:
   - condition: time
     weekday:
       - sun
-action:
-  - service: huawei_router_5g.delete_all_sms
+actions:
+  - action: huawei_router_5g.delete_all_sms
     data:
-      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA # Replace with your Device ID
+      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA # Use your Device ID. This is GUI selectable in the Automation Editor.
       keep_last: 5
 ```
 
@@ -143,12 +143,12 @@ Example of using the `get_sms_list` service response in a script to count messag
 ```yaml
 alias: "SMS: Count OTP Messages"
 sequence:
-  - service: huawei_router_5g.get_sms_list
+  - action: huawei_router_5g.get_sms_list
     data:
       device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA
       count: 50
     response_variable: inbox
-  - service: notify.persistent_notification
+  - action: notify.persistent_notification
     data:
       message: >
         You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') | list | count }} 
@@ -184,19 +184,19 @@ This integration provides **112+ entities** grouped into six logical devices: **
 
 ### Data Usage Alerts
 
-Monitor your data consumption and get notified when you approach daily or monthly limits.
+Monitor your data consumption and get notified when you approach daily or monthly limits. If you change the display unit of data sensors (e.g. from Bytes to GB), you have to change the numbers below as well.
 
 ```yaml
 alias: "Data: Usage Alert"
-trigger:
+triggers:
   - platform: numeric_state
     entity_id: sensor.huawei_5g_data_day_used
     above: 10000000000 # 10 GB (in bytes)
   - platform: numeric_state
     entity_id: sensor.huawei_5g_data_month_total
     above: 100000000000 # 100 GB (in bytes)
-action:
-  - service: notify.mobile_app_your_phone
+actions:
+  - action: notify.mobile_app_your_phone
     data:
       title: "High Data Usage Alert"
       message: |
@@ -211,21 +211,19 @@ Monitor for router reboots or connection resets by watching the uptime and conne
 
 ```yaml
 alias: "System: Router Reboot or Reset Alert"
-trigger:
-  - platform: numeric_state
-    entity_id: sensor.huawei_5g_system_uptime_duration
-    below: 120 # Trigger if uptime is less than 2 minutes (indicates a recent reboot)
-    id: "reboot"
-  - platform: numeric_state
-    entity_id: sensor.huawei_5g_system_connection_duration
-    below: 120 # Trigger if connection duration is less than 2 minutes (indicates a recent reconnect)
-    id: "reconnect"
-condition:
-  # Optional: Don't alert if HA itself just started
-  - condition: uptime
-    after: "00:05:00"
-action:
-  - service: notify.mobile_app_your_phone
+triggers:
+  - trigger: template
+    value_template: >
+      {% set uptime = states('sensor.huawei_5g_system_uptime') | as_datetime %} {{ uptime is not none and (now() - uptime).total_seconds() < 120 }}
+
+    id: reboot # Trigger if uptime is less than 2 minutes (indicates a recent reboot)
+  - trigger: template
+    value_template: >
+      {% set conn = states('sensor.huawei_5g_system_connection_uptime') | as_datetime %} {{ conn is not none and (now() - conn).total_seconds() < 120 }}
+
+    id: reconnect # Trigger if connection duration is less than 2 minutes (indicates a recent reconnect)
+actions:
+  - action: notify.mobile_app_your_phone
     data:
       title: "Huawei Router Notification"
       message: >
@@ -244,7 +242,7 @@ Monitor for poor connection quality based on 5G status, signal bars, and link qu
 
 ```yaml
 alias: "Signal: Poor Quality Connection Alert"
-trigger:
+triggers:
   - platform: state
     entity_id:
       - binary_sensor.huawei_5g_signal_5g_endc_active
@@ -258,7 +256,7 @@ trigger:
       - sensor.huawei_5g_signal_5g_cqi
     below: 4
     for: "00:05:00"
-condition:
+conditions:
   - or:
       - and:
           - condition: state
@@ -276,8 +274,8 @@ condition:
       - condition: numeric_state
         entity_id: sensor.huawei_5g_signal_5g_cqi
         below: 4
-action:
-  - service: notify.mobile_app_your_phone
+actions:
+  - action: notify.mobile_app_your_phone
     data:
       title: "Poor Signal Quality Detected"
       message: |
