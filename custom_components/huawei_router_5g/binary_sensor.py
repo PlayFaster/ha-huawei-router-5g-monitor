@@ -353,7 +353,10 @@ class HuaweiEndcStatusSensor(HuaweiBinarySensor):
         if not data:
             return None
         status = data.get("monitoring_status") or {}
-        return str(status.get("EndcStatus")) == "1"
+        value = status.get("EndcStatus")
+        if value is None:
+            return None
+        return str(value) == "1"
 
 
 class HuaweiEndcRestrictedSensor(HuaweiBinarySensor):
@@ -401,7 +404,10 @@ class HuaweiRoamingSensor(HuaweiBinarySensor):
         if not data:
             return None
         status = data.get("monitoring_status") or {}
-        return str(status.get("RoamingStatus")) == "1"
+        value = status.get("RoamingStatus")
+        if value is None:
+            return None
+        return str(value) == "1"
 
 
 class HuaweiSimStatusSensor(HuaweiBinarySensor):
@@ -432,7 +438,10 @@ class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
             return None
         status = data.get("monitoring_status") or {}
         # 901 is connected
-        return status.get("ConnectionStatus") == "901"
+        value = status.get("ConnectionStatus")
+        if value is None:
+            return None
+        return value == "901"
 
 
 class HuaweiLteCaSensor(HuaweiBinarySensor):

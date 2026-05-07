@@ -51,7 +51,8 @@ async def test_validate_credentials_success():
     assert result["model"] == "B535s-232"
     assert result["sw_version"] == "11.0.1.1"
     assert result["hw_version"] == "Ver.A"
-    assert result["mac"] == "DC:71:96:11:22:33"
+    # MAC is normalized to lowercase without colons
+    assert result["mac"] == "dc7196112233"
     mock_api.login.assert_called_once()
     mock_api.logout.assert_called_once()
 
@@ -341,3 +342,265 @@ async def test_options_flow_title_update():
         )
 
     flow.hass.config_entries.async_update_entry.assert_called_once()
+
+@pytest.mark.asyncio
+async def test_config_flow_user_step_abort_flow():
+    """Test that AbortFlow is re-raised (not swallowed)."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g.config_flow._validate_credentials",
+            side_effect=AbortFlow("already_configured"),
+        ),
+        pytest.raises(AbortFlow),
+    ):
+        await flow.async_step_user(
+            {CONF_HOST: "http://192.168.8.1", CONF_PASSWORD: "p"}
+        )
+
+@pytest.mark.asyncio
+async def test_config_flow_reauth_entry_not_found():
+    """Test async_step_reauth when entry not found."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "missing_entry"}
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=None)
+
+    result = await flow.async_step_reauth(None)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "entry_not_found"
+
+@pytest.mark.asyncio
+async def test_config_flow_reauth_confirm_invalid_auth():
+    """Test async_step_reauth_confirm with invalid auth."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    flow._reauth_entry = entry
+    flow.context = {"entry_id": "test_entry_id"}
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        side_effect=HuaweiAuthError,
+    ):
+        result = await flow.async_step_reauth_confirm(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "wrong",
+            }
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+@pytest.mark.asyncio
+async def test_config_flow_reauth_confirm_cannot_connect():
+    """Test async_step_reauth_confirm with cannot connect."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    flow._reauth_entry = entry
+    flow.context = {"entry_id": "test_entry_id"}
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        side_effect=HuaweiConnectionError,
+    ):
+        result = await flow.async_step_reauth_confirm(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "wrong",
+            }
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+@pytest.mark.asyncio
+async def test_config_flow_reauth_confirm_unknown_error():
+    """Test async_step_reauth_confirm with unknown error."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    flow._reauth_entry = entry
+    flow.context = {"entry_id": "test_entry_id"}
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        side_effect=Exception("Unexpected"),
+    ):
+        result = await flow.async_step_reauth_confirm(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "wrong",
+            }
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "unknown"}
+
+@pytest.mark.asyncio
+async def test_config_flow_reconfigure_invalid_auth():
+    """Test async_step_reconfigure with invalid auth."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "test_entry_id"}
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        side_effect=HuaweiAuthError,
+    ):
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "wrong",
+            }
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "invalid_auth"}
+
+@pytest.mark.asyncio
+async def test_config_flow_reconfigure_cannot_connect():
+    """Test async_step_reconfigure with cannot connect."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "test_entry_id"}
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        side_effect=HuaweiConnectionError,
+    ):
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "wrong",
+            }
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}
+
+@pytest.mark.asyncio
+async def test_config_flow_reconfigure_unknown_error():
+    """Test async_step_reconfigure with unknown error."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "test_entry_id"}
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        side_effect=Exception("Unexpected"),
+    ):
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "wrong",
+            }
+        )
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "unknown"}
+
+@pytest.mark.asyncio
+async def test_config_flow_reauth_confirm_success():
+    """Test async_step_reauth_confirm success."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config_entries.async_reload = AsyncMock()
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    entry.entry_id = "test_entry_id"
+    flow._reauth_entry = entry
+    flow.context = {"entry_id": "test_entry_id"}
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        return_value={},
+    ):
+        result = await flow.async_step_reauth_confirm(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "new",
+            }
+        )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reauth_successful"
+    flow.hass.config_entries.async_update_entry.assert_called_once()
+    flow.hass.config_entries.async_reload.assert_called_once_with("test_entry_id")
+
+@pytest.mark.asyncio
+async def test_config_flow_reconfigure_success():
+    """Test async_step_reconfigure success."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config_entries.async_reload = AsyncMock()
+    flow.context = {"entry_id": "test_entry_id"}
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    entry.entry_id = "test_entry_id"
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        return_value={},
+    ):
+        result = await flow.async_step_reconfigure(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "new",
+            }
+        )
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "reconfigure_successful"
+    flow.hass.config_entries.async_update_entry.assert_called_once()
+    flow.hass.config_entries.async_reload.assert_called_once_with("test_entry_id")

@@ -13,6 +13,9 @@ from custom_components.huawei_router_5g.binary_sensor import (
     WIFI_5G_STATUS_DESCRIPTION,
     WIFI_24G_STATUS_DESCRIPTION,
     WIFI_STATUS_DESCRIPTION,
+    ROAMING_DESCRIPTION,
+    SIM_STATUS_DESCRIPTION,
+    MOBILE_CONN_DESCRIPTION,
     HuaweiBestConnectionSensor,
     HuaweiEndcStatusSensor,
     HuaweiLteCaSensor,
@@ -21,6 +24,9 @@ from custom_components.huawei_router_5g.binary_sensor import (
     HuaweiWifi5GStatusSensor,
     HuaweiWifi24GStatusSensor,
     HuaweiWifiStatusSensor,
+    HuaweiRoamingSensor,
+    HuaweiSimStatusSensor,
+    HuaweiMobileConnectionSensor,
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -274,6 +280,36 @@ def test_wifi_24g_status_on_dynamic(mock_coordinator, mock_config_entry):
     assert sensor.is_on is True
 
 
+def test_wifi_24g_status_no_ssid_match(mock_coordinator, mock_config_entry):
+    """Return None when no matching SSID is found."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "ID": "InternetGatewayDevice.X_Config.Wifi.Radio.2.Ssid.1.",
+                        "WifiEnable": "1",
+                        "Index": "5",
+                    }
+                ]
+            }
+        }
+    }
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_wifi_24g_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiWifi24GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
 # ---------------------------------------------------------------------------
 # HuaweiWifi5GStatusSensor
 # ---------------------------------------------------------------------------
@@ -315,6 +351,67 @@ def test_wifi_5g_status_on_dynamic(mock_coordinator, mock_config_entry):
     assert sensor.is_on is True
 
 
+def test_wifi_5g_status_fallback_index_5(mock_coordinator, mock_config_entry):
+    """Return True when using fallback Index 5."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {"Index": "5", "WifiEnable": "1", "wifiisguestnetwork": "0"}
+                ]
+            }
+        }
+    }
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_5g_status_fallback_non_guest(mock_coordinator, mock_config_entry):
+    """Return True when using fallback first non-guest SSID not Index 0."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"},
+                    {"Index": "2", "WifiEnable": "1", "wifiisguestnetwork": "0"},
+                ]
+            }
+        }
+    }
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_wifi_5g_status_no_match(mock_coordinator, mock_config_entry):
+    """Return None when no matching SSID is found."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}
+                ]
+            }
+        }
+    }
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_wifi_5g_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
 # ---------------------------------------------------------------------------
 # HuaweiEndcStatusSensor
 # ---------------------------------------------------------------------------
@@ -329,6 +426,33 @@ def test_endc_status_on(mock_coordinator, mock_config_entry):
     assert sensor.is_on is True
 
 
+def test_endc_status_off(mock_coordinator, mock_config_entry):
+    """Return False when EndcStatus is '0'."""
+    mock_coordinator.data = {"monitoring_status": {"EndcStatus": "0"}}
+    sensor = HuaweiEndcStatusSensor(
+        mock_coordinator, mock_config_entry, ENDC_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_endc_status_missing(mock_coordinator, mock_config_entry):
+    """Return None when EndcStatus key is missing."""
+    mock_coordinator.data = {"monitoring_status": {}}
+    sensor = HuaweiEndcStatusSensor(
+        mock_coordinator, mock_config_entry, ENDC_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_endc_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiEndcStatusSensor(
+        mock_coordinator, mock_config_entry, ENDC_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
 # ---------------------------------------------------------------------------
 # HuaweiSingleSsidModeSensor
 # ---------------------------------------------------------------------------
@@ -341,6 +465,175 @@ def test_single_ssid_mode_dbho(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION
     )
     assert sensor.is_on is True
+
+
+def test_single_ssid_mode_feature_switch(mock_coordinator, mock_config_entry):
+    """Return True when feature switch indicates single SSID mode."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {"DbhoEnable": "0"},
+        "wlan_wifi_feature_switch": {"stafrequenceenable": "1"},
+    }
+    sensor = HuaweiSingleSsidModeSensor(
+        mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_single_ssid_mode_dbdc_enable(mock_coordinator, mock_config_entry):
+    """Return True when wifi_dbdc_enable is '1'."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {"DbhoEnable": "0"},
+        "wlan_wifi_feature_switch": {"stafrequenceenable": "0", "wifi_dbdc_enable": "1"},
+    }
+    sensor = HuaweiSingleSsidModeSensor(
+        mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_single_ssid_mode_false(mock_coordinator, mock_config_entry):
+    """Return False when no single SSID mode indicators are present."""
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {"DbhoEnable": "0"},
+        "wlan_wifi_feature_switch": {"stafrequenceenable": "0", "wifi_dbdc_enable": "0"},
+    }
+    sensor = HuaweiSingleSsidModeSensor(
+        mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_single_ssid_mode_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiSingleSsidModeSensor(
+        mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiRoamingSensor
+# ---------------------------------------------------------------------------
+
+
+def test_roaming_on(mock_coordinator, mock_config_entry):
+    """Return True when RoamingStatus is '1'."""
+    mock_coordinator.data = {"monitoring_status": {"RoamingStatus": "1"}}
+    sensor = HuaweiRoamingSensor(
+        mock_coordinator, mock_config_entry, ROAMING_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_roaming_off(mock_coordinator, mock_config_entry):
+    """Return False when RoamingStatus is '0'."""
+    mock_coordinator.data = {"monitoring_status": {"RoamingStatus": "0"}}
+    sensor = HuaweiRoamingSensor(
+        mock_coordinator, mock_config_entry, ROAMING_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_roaming_missing(mock_coordinator, mock_config_entry):
+    """Return None when RoamingStatus key is missing."""
+    mock_coordinator.data = {"monitoring_status": {}}
+    sensor = HuaweiRoamingSensor(
+        mock_coordinator, mock_config_entry, ROAMING_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_roaming_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiRoamingSensor(
+        mock_coordinator, mock_config_entry, ROAMING_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiSimStatusSensor
+# ---------------------------------------------------------------------------
+
+
+def test_sim_status_problem(mock_coordinator, mock_config_entry):
+    """Return True when SimStatus is not '1'."""
+    for status in ("0", "2", "3", "99"):
+        mock_coordinator.data = {"monitoring_status": {"SimStatus": status}}
+        sensor = HuaweiSimStatusSensor(
+            mock_coordinator, mock_config_entry, SIM_STATUS_DESCRIPTION
+        )
+        assert sensor.is_on is True
+
+
+def test_sim_status_ready(mock_coordinator, mock_config_entry):
+    """Return False when SimStatus is '1'."""
+    mock_coordinator.data = {"monitoring_status": {"SimStatus": "1"}}
+    sensor = HuaweiSimStatusSensor(
+        mock_coordinator, mock_config_entry, SIM_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_sim_status_missing(mock_coordinator, mock_config_entry):
+    """Return None when SimStatus key is missing."""
+    mock_coordinator.data = {"monitoring_status": {}}
+    sensor = HuaweiSimStatusSensor(
+        mock_coordinator, mock_config_entry, SIM_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_sim_status_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiSimStatusSensor(
+        mock_coordinator, mock_config_entry, SIM_STATUS_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# HuaweiMobileConnectionSensor
+# ---------------------------------------------------------------------------
+
+
+def test_mobile_connection_active(mock_coordinator, mock_config_entry):
+    """Return True when ConnectionStatus is '901'."""
+    mock_coordinator.data = {"monitoring_status": {"ConnectionStatus": "901"}}
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    assert sensor.is_on is True
+
+
+def test_mobile_connection_inactive(mock_coordinator, mock_config_entry):
+    """Return False when ConnectionStatus is not '901'."""
+    mock_coordinator.data = {"monitoring_status": {"ConnectionStatus": "902"}}
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    assert sensor.is_on is False
+
+
+def test_mobile_connection_missing(mock_coordinator, mock_config_entry):
+    """Return None when ConnectionStatus key is missing."""
+    mock_coordinator.data = {"monitoring_status": {}}
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    assert sensor.is_on is None
+
+
+def test_mobile_connection_no_data(mock_coordinator, mock_config_entry):
+    """Return None when coordinator data is None."""
+    mock_coordinator.data = None
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    assert sensor.is_on is None
 
 
 # ---------------------------------------------------------------------------
