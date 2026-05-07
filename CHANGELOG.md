@@ -1,5 +1,12 @@
 # Changelog
 
+## [1.1.0] - 2026-05-07 - Pre-release
+
+### Changed
+
+- **Under the Hood**: Significant code clean-up.
+- **Unique ID via MAC**: Changed to have the Unique IDz generated from MAC not IP.
+
 ## [1.0.2] - 2026-05-05 - Release
 
 ### Added

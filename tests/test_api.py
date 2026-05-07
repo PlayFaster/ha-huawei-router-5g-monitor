@@ -271,8 +271,12 @@ async def test_get_data_success():
     mock_client.sms.get_sms_list.return_value = {}
     mock_client.lan.host_info.return_value = {}
     mock_client.wlan.host_list.return_value = {}
-    mock_client.wlan.wifi_feature_switch.return_value = expected_data["wlan_wifi_feature_switch"]
-    mock_client.wlan.multi_basic_settings.return_value = expected_data["wlan_multi_basic_settings"]
+    mock_client.wlan.wifi_feature_switch.return_value = expected_data[
+        "wlan_wifi_feature_switch"
+    ]
+    mock_client.wlan.multi_basic_settings.return_value = expected_data[
+        "wlan_multi_basic_settings"
+    ]
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         data = await api.get_data()
@@ -283,9 +287,10 @@ async def test_get_data_success():
     assert data["wlan_wifi_feature_switch"] == {"stafrequenceenable": "1"}
     assert data["wlan_multi_basic_settings"] == {"DbhoEnable": "0"}
 
+
 @pytest.mark.asyncio
 async def test_get_data_wlan_endpoints_success():
-    """Test that wlan_wifi_feature_switch and wlan_multi_basic_settings are included in data."""
+    """Test that wlan_wifi_feature_switch and wlan_multi_basic_settings are included."""
     api = _make_api()
     mock_client = MagicMock()
     api._client = mock_client
@@ -1095,6 +1100,7 @@ async def test_get_sms_list_error():
     ):
         await api.get_sms_list(page=1)
 
+
 @pytest.mark.asyncio
 async def test_login_internal_success():
     """Test _login_internal creates client."""
@@ -1110,39 +1116,51 @@ async def test_login_internal_success():
     assert api._connection is mock_conn
     assert api._client is mock_client
 
+
 @pytest.mark.asyncio
 async def test_login_internal_auth_error():
     """Test _login_internal raises HuaweiAuthError on login failure."""
     api = _make_api()
 
-    with patch.object(
-        api,
-        "_create_connection_sync",
-        side_effect=LoginErrorPasswordWrongException("Wrong password", "108003"),
-    ), pytest.raises(HuaweiAuthError):
+    with (
+        patch.object(
+            api,
+            "_create_connection_sync",
+            side_effect=LoginErrorPasswordWrongException("Wrong password", "108003"),
+        ),
+        pytest.raises(HuaweiAuthError),
+    ):
         await api._login_internal()
 
     assert api._client is None
     assert api._connection is None
+
 
 @pytest.mark.asyncio
 async def test_login_internal_connection_error():
     """Test _login_internal raises HuaweiConnectionError on network error."""
     api = _make_api()
 
-    with patch.object(
-        api,
-        "_create_connection_sync",
-        side_effect=Exception("Network error"),
-    ), pytest.raises(HuaweiConnectionError):
+    with (
+        patch.object(
+            api,
+            "_create_connection_sync",
+            side_effect=Exception("Network error"),
+        ),
+        pytest.raises(HuaweiConnectionError),
+    ):
         await api._login_internal()
 
     assert api._client is None
     assert api._connection is None
 
+
 @pytest.mark.asyncio
 async def test_get_data_wlan_endpoints_exception():
-    """Test that exceptions in wlan_wifi_feature_switch and wlan_multi_basic_settings are handled."""
+    """Test exceptions in wlan_wifi_feature_switch and wlan_multi_basic_settings.
+
+    This test checks that exceptions are correctly caught.
+    """
     api = _make_api()
     mock_client = MagicMock()
     api._client = mock_client
@@ -1153,7 +1171,9 @@ async def test_get_data_wlan_endpoints_exception():
     # wlan_wifi_feature_switch raises exception
     mock_client.wlan.wifi_feature_switch.side_effect = Exception("Feature switch error")
     # wlan_multi_basic_settings raises exception
-    mock_client.wlan.multi_basic_settings.side_effect = Exception("Multi settings error")
+    mock_client.wlan.multi_basic_settings.side_effect = Exception(
+        "Multi settings error"
+    )
     # Other endpoints succeed
     mock_client.device.signal.return_value = {}
     mock_client.monitoring.status.return_value = {}
@@ -1176,6 +1196,7 @@ async def test_get_data_wlan_endpoints_exception():
     assert "wlan_wifi_feature_switch" not in data
     assert "wlan_multi_basic_settings" not in data
 
+
 @pytest.mark.asyncio
 async def test_set_guest_wifi_attribute_error():
     """Test set_guest_wifi raises RuntimeError when post_set raises AttributeError."""
@@ -1197,6 +1218,7 @@ async def test_set_guest_wifi_attribute_error():
         pytest.raises(RuntimeError, match="huawei_lte_api internal API changed"),
     ):
         await api.set_guest_wifi(True)
+
 
 @pytest.mark.asyncio
 async def test_get_data_sms_count_safe_int_zero():
@@ -1236,6 +1258,7 @@ async def test_get_data_sms_count_safe_int_zero():
         ascending=False,
         unread_preferred=True,
     )
+
 
 @pytest.mark.asyncio
 async def test_get_data_sms_count_safe_int_none():

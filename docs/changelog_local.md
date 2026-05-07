@@ -4,6 +4,20 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.0-rc1] - 2026-05-07
+
+### Changed
+
+- **Linting**: Fixed some linting and formatting issues.
+- **Tests**: Added pytests, improved coverage.
+- **IQS**: Corrected format of quality_scale.yaml.
+
+## [1.1.0-dev2] - 2026-05-07
+
+### Changed
+
+- **Test Coverage**: Improved test coverage including new test file for diagnistics.py.
+
 ## [1.1.0-dev1] - 2026-05-07
 
 ### Changed

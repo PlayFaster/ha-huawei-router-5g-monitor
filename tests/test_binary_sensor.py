@@ -8,25 +8,25 @@ from custom_components.huawei_router_5g.binary_sensor import (
     BEST_CONN_DESCRIPTION,
     ENDC_STATUS_DESCRIPTION,
     LTE_CA_DESCRIPTION,
+    MOBILE_CONN_DESCRIPTION,
+    ROAMING_DESCRIPTION,
+    SIM_STATUS_DESCRIPTION,
     SINGLE_SSID_MODE_DESCRIPTION,
     SMS_STORAGE_FULL_DESCRIPTION,
     WIFI_5G_STATUS_DESCRIPTION,
     WIFI_24G_STATUS_DESCRIPTION,
     WIFI_STATUS_DESCRIPTION,
-    ROAMING_DESCRIPTION,
-    SIM_STATUS_DESCRIPTION,
-    MOBILE_CONN_DESCRIPTION,
     HuaweiBestConnectionSensor,
     HuaweiEndcStatusSensor,
     HuaweiLteCaSensor,
+    HuaweiMobileConnectionSensor,
+    HuaweiRoamingSensor,
+    HuaweiSimStatusSensor,
     HuaweiSingleSsidModeSensor,
     HuaweiSmsStorageFullSensor,
     HuaweiWifi5GStatusSensor,
     HuaweiWifi24GStatusSensor,
     HuaweiWifiStatusSensor,
-    HuaweiRoamingSensor,
-    HuaweiSimStatusSensor,
-    HuaweiMobileConnectionSensor,
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -356,9 +356,7 @@ def test_wifi_5g_status_fallback_index_5(mock_coordinator, mock_config_entry):
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {
             "Ssids": {
-                "Ssid": [
-                    {"Index": "5", "WifiEnable": "1", "wifiisguestnetwork": "0"}
-                ]
+                "Ssid": [{"Index": "5", "WifiEnable": "1", "wifiisguestnetwork": "0"}]
             }
         }
     }
@@ -391,9 +389,7 @@ def test_wifi_5g_status_no_match(mock_coordinator, mock_config_entry):
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {
             "Ssids": {
-                "Ssid": [
-                    {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}
-                ]
+                "Ssid": [{"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}]
             }
         }
     }
@@ -483,7 +479,10 @@ def test_single_ssid_mode_dbdc_enable(mock_coordinator, mock_config_entry):
     """Return True when wifi_dbdc_enable is '1'."""
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {"DbhoEnable": "0"},
-        "wlan_wifi_feature_switch": {"stafrequenceenable": "0", "wifi_dbdc_enable": "1"},
+        "wlan_wifi_feature_switch": {
+            "stafrequenceenable": "0",
+            "wifi_dbdc_enable": "1",
+        },
     }
     sensor = HuaweiSingleSsidModeSensor(
         mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION
@@ -495,7 +494,10 @@ def test_single_ssid_mode_false(mock_coordinator, mock_config_entry):
     """Return False when no single SSID mode indicators are present."""
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {"DbhoEnable": "0"},
-        "wlan_wifi_feature_switch": {"stafrequenceenable": "0", "wifi_dbdc_enable": "0"},
+        "wlan_wifi_feature_switch": {
+            "stafrequenceenable": "0",
+            "wifi_dbdc_enable": "0",
+        },
     }
     sensor = HuaweiSingleSsidModeSensor(
         mock_coordinator, mock_config_entry, SINGLE_SSID_MODE_DESCRIPTION

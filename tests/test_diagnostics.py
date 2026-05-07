@@ -1,9 +1,8 @@
 """Tests for the Huawei Router 5G diagnostics platform."""
 
-from unittest.mock import AsyncMock, MagicMock, patch
+from unittest.mock import MagicMock, patch
 
 import pytest
-from homeassistant.components.diagnostics import async_redact_data
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -80,43 +79,38 @@ def mock_config_entry():
 
 
 @pytest.mark.asyncio
-async def test_async_get_config_entry_diagnostics(
-    mock_coordinator, mock_config_entry
-):
+async def test_async_get_config_entry_diagnostics(mock_coordinator, mock_config_entry):
     """Test diagnostics data generation and redaction."""
     mock_hass = MagicMock(spec=HomeAssistant)
-    
+
     # Set up the entry with runtime_data
     mock_config_entry.runtime_data = mock_coordinator
-    
+
     # Mock async_redact_data to verify it's called correctly
     with patch(
         "custom_components.huawei_router_5g.diagnostics.async_redact_data"
     ) as mock_redact:
         mock_redact.side_effect = lambda data, to_redact: {
-            k: ("[REDACTED]" if k in to_redact else v)
-            for k, v in data.items()
+            k: ("[REDACTED]" if k in to_redact else v) for k, v in data.items()
         }
-        
-        result = await async_get_config_entry_diagnostics(
-            mock_hass, mock_config_entry
-        )
-    
+
+        result = await async_get_config_entry_diagnostics(mock_hass, mock_config_entry)
+
     # Verify the structure of the result
     assert "config_entry" in result
     assert "coordinator_data" in result
-    
+
     # Verify async_redact_data was called twice
     assert mock_redact.call_count == 2
-    
+
     # Get the calls to async_redact_data
     call1_args = mock_redact.call_args_list[0]
     call2_args = mock_redact.call_args_list[1]
-    
+
     # First call should be for config_entry
     assert call1_args[0][0] == mock_config_entry.as_dict.return_value
     assert call1_args[0][1] == TO_REDACT
-    
+
     # Second call should be for coordinator_data
     assert call2_args[0][0] == mock_coordinator.data
     assert call2_args[0][1] == TO_REDACT
@@ -128,7 +122,7 @@ async def test_async_get_config_entry_diagnostics_redaction():
     mock_hass = MagicMock(spec=HomeAssistant)
     mock_entry = MagicMock(spec=ConfigEntry)
     mock_coordinator = MagicMock()
-    
+
     # Create test data with sensitive information
     test_entry_data = {
         "entry_id": "test",
@@ -145,7 +139,7 @@ async def test_async_get_config_entry_diagnostics_redaction():
             "host": "http://192.168.8.1",
         },
     }
-    
+
     test_coordinator_data = {
         "device_information": {
             "MacAddress1": "DC:71:96:11:22:33",
@@ -182,17 +176,17 @@ async def test_async_get_config_entry_diagnostics_redaction():
             "not_sensitive": "should remain",
         },
     }
-    
+
     mock_entry.as_dict.return_value = test_entry_data
     mock_coordinator.data = test_coordinator_data
     mock_entry.runtime_data = mock_coordinator
-    
+
     result = await async_get_config_entry_diagnostics(mock_hass, mock_entry)
-    
+
     # Verify the result contains both parts
     assert "config_entry" in result
     assert "coordinator_data" in result
-    
+
     # The actual redaction is done by Home Assistant's async_redact_data
     # We just need to ensure our function calls it with the right parameters
     # In a real test, we would verify the redacted output, but since we're
@@ -220,8 +214,8 @@ def test_to_redact_set():
         "phone",
         "content",
     }
-    
-    assert TO_REDACT == expected_fields
+
+    assert expected_fields == TO_REDACT
     assert len(TO_REDACT) == len(expected_fields)
 
 
@@ -231,7 +225,7 @@ async def test_async_get_config_entry_diagnostics_empty_data():
     mock_hass = MagicMock(spec=HomeAssistant)
     mock_entry = MagicMock(spec=ConfigEntry)
     mock_coordinator = MagicMock()
-    
+
     mock_entry.as_dict.return_value = {
         "entry_id": "test",
         "data": {},
@@ -239,14 +233,14 @@ async def test_async_get_config_entry_diagnostics_empty_data():
     }
     mock_coordinator.data = None  # Empty data
     mock_entry.runtime_data = mock_coordinator
-    
+
     with patch(
         "custom_components.huawei_router_5g.diagnostics.async_redact_data"
     ) as mock_redact:
         mock_redact.side_effect = lambda data, to_redact: data
-        
+
         result = await async_get_config_entry_diagnostics(mock_hass, mock_entry)
-    
+
     assert "config_entry" in result
     assert "coordinator_data" in result
     # Should still call async_redact_data with None data
@@ -261,7 +255,7 @@ async def test_async_get_config_entry_diagnostics_missing_keys():
     mock_hass = MagicMock(spec=HomeAssistant)
     mock_entry = MagicMock(spec=ConfigEntry)
     mock_coordinator = MagicMock()
-    
+
     mock_entry.as_dict.return_value = {
         "entry_id": "test",
         "data": {},
@@ -275,14 +269,14 @@ async def test_async_get_config_entry_diagnostics_missing_keys():
         # No monitoring_status, sms_list, etc.
     }
     mock_entry.runtime_data = mock_coordinator
-    
+
     with patch(
         "custom_components.huawei_router_5g.diagnostics.async_redact_data"
     ) as mock_redact:
         mock_redact.return_value = {"redacted": True}
-        
+
         result = await async_get_config_entry_diagnostics(mock_hass, mock_entry)
-    
+
     assert result == {
         "config_entry": {"redacted": True},
         "coordinator_data": {"redacted": True},

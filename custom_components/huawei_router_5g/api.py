@@ -328,7 +328,8 @@ class HuaweiRouter5GAPI:
                     )
                 except AttributeError as err:
                     raise RuntimeError(
-                        "huawei_lte_api internal API changed; update integration or library"
+                        "huawei_lte_api internal API changed; "
+                        "update integration or library"
                     ) from err
 
             try:

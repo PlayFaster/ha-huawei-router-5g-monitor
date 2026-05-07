@@ -343,6 +343,7 @@ async def test_options_flow_title_update():
 
     flow.hass.config_entries.async_update_entry.assert_called_once()
 
+
 @pytest.mark.asyncio
 async def test_config_flow_user_step_abort_flow():
     """Test that AbortFlow is re-raised (not swallowed)."""
@@ -361,6 +362,7 @@ async def test_config_flow_user_step_abort_flow():
             {CONF_HOST: "http://192.168.8.1", CONF_PASSWORD: "p"}
         )
 
+
 @pytest.mark.asyncio
 async def test_config_flow_reauth_entry_not_found():
     """Test async_step_reauth when entry not found."""
@@ -372,6 +374,7 @@ async def test_config_flow_reauth_entry_not_found():
     result = await flow.async_step_reauth(None)
     assert result["type"] == FlowResultType.ABORT
     assert result["reason"] == "entry_not_found"
+
 
 @pytest.mark.asyncio
 async def test_config_flow_reauth_confirm_invalid_auth():
@@ -401,6 +404,7 @@ async def test_config_flow_reauth_confirm_invalid_auth():
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
 
+
 @pytest.mark.asyncio
 async def test_config_flow_reauth_confirm_cannot_connect():
     """Test async_step_reauth_confirm with cannot connect."""
@@ -428,6 +432,7 @@ async def test_config_flow_reauth_confirm_cannot_connect():
         )
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
+
 
 @pytest.mark.asyncio
 async def test_config_flow_reauth_confirm_unknown_error():
@@ -457,6 +462,7 @@ async def test_config_flow_reauth_confirm_unknown_error():
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {"base": "unknown"}
 
+
 @pytest.mark.asyncio
 async def test_config_flow_reconfigure_invalid_auth():
     """Test async_step_reconfigure with invalid auth."""
@@ -484,6 +490,7 @@ async def test_config_flow_reconfigure_invalid_auth():
         )
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {"base": "invalid_auth"}
+
 
 @pytest.mark.asyncio
 async def test_config_flow_reconfigure_cannot_connect():
@@ -513,6 +520,7 @@ async def test_config_flow_reconfigure_cannot_connect():
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {"base": "cannot_connect"}
 
+
 @pytest.mark.asyncio
 async def test_config_flow_reconfigure_unknown_error():
     """Test async_step_reconfigure with unknown error."""
@@ -540,6 +548,7 @@ async def test_config_flow_reconfigure_unknown_error():
         )
     assert result["type"] == FlowResultType.FORM
     assert result["errors"] == {"base": "unknown"}
+
 
 @pytest.mark.asyncio
 async def test_config_flow_reauth_confirm_success():
@@ -572,6 +581,7 @@ async def test_config_flow_reauth_confirm_success():
     assert result["reason"] == "reauth_successful"
     flow.hass.config_entries.async_update_entry.assert_called_once()
     flow.hass.config_entries.async_reload.assert_called_once_with("test_entry_id")
+
 
 @pytest.mark.asyncio
 async def test_config_flow_reconfigure_success():
