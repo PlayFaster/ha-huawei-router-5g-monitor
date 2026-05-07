@@ -28,7 +28,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         for key in ["lan_host_info", "wlan_host_list"]:
             try:
                 hosts.extend(data.get(key, {}).get("Hosts", {}).get("Host", []))
-            except (AttributeError, KeyError, TypeError):
+            except AttributeError, KeyError, TypeError:
                 continue
 
         for host in hosts:
@@ -47,7 +47,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if new_entities:
             async_add_entities(new_entities, True)
 
-    coordinator.async_add_listener(_async_update_listener)
+    entry.async_on_unload(coordinator.async_add_listener(_async_update_listener))
 
 
 class HuaweiRouterDeviceTracker(
@@ -71,7 +71,7 @@ class HuaweiRouterDeviceTracker(
         for key in ["lan_host_info", "wlan_host_list"]:
             try:
                 hosts.extend(data.get(key, {}).get("Hosts", {}).get("Host", []))
-            except (AttributeError, KeyError, TypeError):
+            except AttributeError, KeyError, TypeError:
                 continue
         return next((h for h in hosts if h.get("MacAddress") == self._mac), None)
 
@@ -90,7 +90,7 @@ class HuaweiRouterDeviceTracker(
         if not host:
             return False
         # Active: "1" or "0"
-        return host.get("Active") == "1" or host.get("Active") is None
+        return host.get("Active") == "1"
 
     @property
     def ip_address(self) -> str | None:

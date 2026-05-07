@@ -150,10 +150,13 @@ class HuaweiRouter5GAPI:
                             page=1,
                             box_type=(
                                 BoxTypeEnum.LOCAL_INBOX
-                                if _safe_int(
-                                    data.get("sms_count", {}).get("LocalInbox")
+                                if (
+                                    _safe_int(
+                                        data.get("sms_count", {}).get("LocalInbox")
+                                    )
+                                    or 0
                                 )
-                                or 0 > 0
+                                > 0
                                 or not _safe_int(
                                     data.get("sms_count", {}).get("SimInbox")
                                 )
@@ -235,6 +238,7 @@ class HuaweiRouter5GAPI:
             await self._ensure_client()
             try:
                 await asyncio.to_thread(self._client.device.reboot)
+                self._reset_client()
             except Exception:
                 _LOGGER.exception("Reboot failed")
                 self._reset_client()
@@ -318,9 +322,15 @@ class HuaweiRouter5GAPI:
                     "enabled" if enable else "disabled",
                     list(payload.keys()),
                 )
-                self._client.wlan._session.post_set(
-                    "wlan/multi-basic-settings", payload
-                )
+                try:
+                    self._client.wlan._session.post_set(
+                        "wlan/multi-basic-settings", payload
+                    )
+                except AttributeError as err:
+                    raise RuntimeError(
+                        "huawei_lte_api internal API changed; "
+                        "update integration or library"
+                    ) from err
 
             try:
                 await asyncio.to_thread(_set)

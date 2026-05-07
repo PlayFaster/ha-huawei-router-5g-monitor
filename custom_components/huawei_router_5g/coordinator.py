@@ -7,6 +7,8 @@ from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import ConfigEntryAuthFailed
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -113,6 +115,11 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                         self.entry.title,
                         self.consecutive_failures,
                     )
+                    ir.async_delete_issue(
+                        self.hass,
+                        "huawei_router_5g",
+                        f"conn_error_{self.entry.entry_id}",
+                    )
 
                 self.last_update_success_time = dt_util.now()
                 self.consecutive_failures = 0
@@ -140,12 +147,32 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 )
                 return self.data
 
-            error_msg = (
-                "Session expired"
-                if isinstance(err, HuaweiAuthError)
-                else "API request timed out"
-            )
+            if isinstance(err, HuaweiAuthError):
+                ir.async_create_issue(
+                    self.hass,
+                    "huawei_router_5g",
+                    f"auth_failed_{self.entry.entry_id}",
+                    is_fixable=True,
+                    is_persistent=True,
+                    severity=ir.IssueSeverity.ERROR,
+                    translation_key="auth_failed",
+                    translation_placeholders={"entry_title": self.entry.title},
+                    data={"entry_id": self.entry.entry_id},
+                )
+                raise ConfigEntryAuthFailed("Authentication failed") from err
+
+            error_msg = "API request timed out"
             _LOGGER.exception("%s: %s", self.entry.title, error_msg)
+            ir.async_create_issue(
+                self.hass,
+                "huawei_router_5g",
+                f"conn_error_{self.entry.entry_id}",
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="conn_error",
+                translation_placeholders={"entry_title": self.entry.title},
+            )
             raise UpdateFailed(error_msg) from err
 
         except Exception as err:
@@ -209,7 +236,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             self.hass.bus.async_fire(
                 "huawei_router_5g_sms_received",
                 {
-                    "device_id": self.entry.entry_id,
+                    "entry_id": self.entry.entry_id,
                     "phone": msg["phone"],
                     "content": msg["content"],
                     "date": msg["date"],

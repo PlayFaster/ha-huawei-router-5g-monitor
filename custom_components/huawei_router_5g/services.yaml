@@ -2,7 +2,7 @@
 send_sms:
   description: Send an SMS message via the router.
   fields:
-    device_id:
+    entry_id:
       description: The router to use (optional if only one exists).
       required: false
       selector:
@@ -24,7 +24,7 @@ send_sms:
 delete_sms:
   description: Delete an SMS message by its index.
   fields:
-    device_id:
+    entry_id:
       description: The router to use.
       required: true
       selector:
@@ -41,7 +41,7 @@ delete_sms:
 delete_all_sms:
   description: Delete all SMS messages from the router inbox.
   fields:
-    device_id:
+    entry_id:
       description: The router to use.
       required: true
       selector:
@@ -59,7 +59,7 @@ delete_all_sms:
 get_sms_list:
   description: Fetch a list of SMS messages from the router.
   fields:
-    device_id:
+    entry_id:
       description: The router to use.
       required: true
       selector:

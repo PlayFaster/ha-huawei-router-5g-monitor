@@ -4,6 +4,112 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.0] - 2026-05-07 - Release
+
+### Changed
+
+- **Under the Hood**: Significant code clean-up.
+- **Unique ID via MAC**: Changed to have the Unique IDz generated from MAC not IP.
+- **Automation Examples**: Updated the automation examples.
+
+## [1.1.0-rc2] - 2026-05-07
+
+### Changed
+
+- **Automation Examples**: Updated the automation examples, modern syntax (action vs service).
+
+## [1.1.0-rc1] - 2026-05-07
+
+### Changed
+
+- **Linting**: Fixed some linting and formatting issues.
+- **Tests**: Added pytests, improved coverage.
+- **IQS**: Corrected format of quality_scale.yaml.
+
+## [1.1.0-dev2] - 2026-05-07
+
+### Changed
+
+- **Test Coverage**: Improved test coverage including new test file for diagnistics.py.
+
+## [1.1.0-dev1] - 2026-05-07
+
+### Changed
+
+- **Service Parameter Rename — `device_id` → `entry_id`**: Renamed the router selector field in all 4 SMS service schemas (`send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`) to accurately reflect that it accepts a config entry ID, not a HA device registry ID. Updated `services.yaml`, `__init__.py` schemas and `_get_coordinator()`, and `tests/test_init.py`.
+- **SMS Event Payload**: Renamed `device_id` → `entry_id` in the `huawei_router_5g_sms_received` event payload for consistency with the service rename.
+- **MAC-Based Config Entry Unique ID**: `async_set_unique_id` in `config_flow.py` now uses the router MAC address (with host URL fallback) instead of the host URL, ensuring a stable unique ID that survives IP address changes. MAC is normalized to lowercase colon/dash-stripped format at `_validate_credentials()` return time before being stored in `entry.data`.
+
+### Added
+
+- **Deferred Review Note**: Created `.notes/code_review/code_review_20260507_deferred.md` documenting the M9 (Config Entry → DeviceRegistry) deferral — issue, boot-sequence complexity, and recommended implementation path if revisited.
+
+## [1.0.3-dev3] - 2026-05-07
+
+### Fixed
+
+- **Python 3.14 Syntax Compatibility**: Replaced 6 bare-tuple `except A, B:` clauses (SyntaxWarning in Python 3.14) with `except (A, B):` across `helpers.py`, `sensor.py`, and `device_tracker.py`.
+- **Ghost Device Tracker Bug**: Fixed `is_connected` in `device_tracker.py` incorrectly treating hosts with a missing `Active` field as connected.
+- **Device Tracker Listener Leak**: Wrapped coordinator listener registration in `entry.async_on_unload()` to ensure cleanup on integration removal.
+- **SMS Box Selection Logic**: Fixed operator precedence bug (`or 0 > 0`) in `api.py` that made the LocalInbox count check always evaluate to `False`.
+- **Reboot Session Cleanup**: Added `self._reset_client()` after a successful reboot so the stale connection is not reused after the router restarts.
+- **Guest WiFi API Guard**: Wrapped the `_session.post_set()` call in `set_guest_wifi` with an `AttributeError` catch to surface a clean error if `huawei_lte_api` internals change.
+- **Debounce Task Leak**: Added `async_will_remove_from_hass` to `HuaweiPollingInterval` in `number.py` to cancel any pending refresh task on entity removal.
+- **SMS Service ValueError**: Moved `BoxTypeEnum()` conversion inside the try-except in `async_get_sms_list` so invalid `box_type` values raise a clean `HomeAssistantError`.
+- **Reauth None Guard**: Added a None check in `async_step_reauth` to abort cleanly if the config entry cannot be found.
+- **Diagnostics MAC Redaction**: Added `"mac"` to `TO_REDACT` in `diagnostics.py` so the router MAC is redacted from diagnostic data dumps.
+- **Timestamp Truncation**: Fixed `_get_timestamp` in `sensor.py` to truncate seconds/microseconds from the result timestamp rather than rounding the duration.
+
+### Changed
+
+- **SMS Message Helper**: Extracted `_get_messages()` in `sensor.py` to deduplicate `parse_sms_list` calls across `native_value` and `extra_state_attributes` of the `last_sms` sensor.
+- **Button Device Info**: Replaced a duplicated `device_info` property in `button.py` with the shared `build_device_info` helper.
+
+## [1.0.3-dev2] - 2026-05-07
+
+### Added
+
+- **IQS Gold Elevation**: Implemented Diagnostics, Reauthentication, Reconfiguration, and Repair Issues to achieve Gold status.
+- **Diagnostics Support**: Created `diagnostics.py` to provide sanitized data dumps for troubleshooting.
+- **Repair System**: Integrated `issue_registry` to surface persistent authentication and transient connection issues in the HA Repairs dashboard.
+
+### Changed
+
+- **Config Flow Overhaul**: Added support for UI-based reauthentication and reconfiguration (changing host/credentials without re-setup).
+- **Resilience Logic**: Coordinator now raises `ConfigEntryAuthFailed` for persistent authentication errors to trigger the reauth flow.
+- **Documentation**: Added "Removal" section to README and established `ha_quality_standard.md` as the master quality reference.
+
+### Fixed
+
+- **Import Error**: Resolved `AttributeError` for `Platform.DIAGNOSTICS` during integration setup.
+
+## [1.0.3-dev1] - 2026-05-07 - Unreleased
+
+### Added
+
+- **Quality Scale**: Added quality_scale.yaml into project folder to track compliance to Home Assistant Integration Quality Scale (IQS). As a custom component full compliance is not possible but this is a good mechanism to ensure alignment with Home Assistant best practise.
+
+## [1.0.2] - 2026-05-05 - Release
+
+### Added
+
+- **SMS Management**: Improved SMS management significantly with services to list all, delete all and delete individual SMS messages.
+- **WiFi Sub-Device**: Moved all WiFi related entities into a WiFi sub-device.
+- **Wired Device Count**: Added sensors to track the number of wired and total (wired plus wifi) active clients.
+- **WiFi Single SSID Mode**: Added a sensor to track the status of single SSID mode (2.4GHz and 5GHz WiFi using the same SSID - "5GHz Preferred").
+- **5G ENDC Active**: Added sensor to track the status of ENDC connectivity.
+- **5G Signal Bars**: Added a sensor for 5G signal bars, in addition to the existing Signal Bars. These are both as-reported by the router, not calculated.
+
+### Changed
+
+- **Readme**: Added clarifying info to readme file, and several example automations.
+- **Test Coverage**: Internal test coverage improved to > 95%.
+
+### Fixed
+
+- **WiFi Status**: Fixed an issue where 2.4GHz and 5GHz WiFi status sensors did not always report correct status.
+- **Guest WiFi Toggle**: Fixed an issue where the Guest WiFi Network toggle switch did not always work.
+
 ## [1.0.2-dev4] - 2026-05-05
 
 ### Added

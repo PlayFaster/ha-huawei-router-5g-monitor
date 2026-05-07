@@ -8,11 +8,10 @@ from homeassistant.components.button import (
     ButtonEntity,
     ButtonEntityDescription,
 )
-from homeassistant.const import CONF_HOST
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
+from .helpers import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -78,35 +77,7 @@ class HuaweiButton(
     @property
     def device_info(self):
         """Return device information with sub-device support."""
-        host = self._entry.options[CONF_HOST]
-        group = self.entity_description.group
-
-        group_names = {
-            "system": "System",
-            "signal": "Signal",
-            "data": "Data",
-            "sms": "SMS",
-        }
-        display_group = group_names.get(group, group.capitalize())
-        sub_name = f"{self._entry.title} {display_group}"
-
-        mac = self.coordinator.mac
-        sub_id_prefix = mac if mac else f"host_{host}"
-
-        info = {
-            "identifiers": {(DOMAIN, f"{sub_id_prefix}_{group}")},
-            "name": sub_name,
-            "manufacturer": "Huawei",
-            "model": self.coordinator.model,
-            "sw_version": self.coordinator.sw_version,
-            "hw_version": self.coordinator.hw_version,
-            "configuration_url": f"http://{host}",
-        }
-
-        if group != "system":
-            info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
-
-        return info
+        return build_device_info(self.coordinator, self.entity_description.group)
 
 
 class HuaweiRebootButton(HuaweiButton):

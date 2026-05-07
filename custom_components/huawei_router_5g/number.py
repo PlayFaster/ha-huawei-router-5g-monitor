@@ -130,6 +130,11 @@ class HuaweiPollingInterval(
         except Exception as err:
             _LOGGER.error("Failed to apply polling interval change: %s", err)
 
+    async def async_will_remove_from_hass(self) -> None:
+        """Cancel any pending debounce task on removal."""
+        if self._refresh_task:
+            self._refresh_task.cancel()
+
     @property
     def device_info(self):
         """Return device information with sub-device support."""

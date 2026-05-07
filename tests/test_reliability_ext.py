@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
 from huawei_lte_api.exceptions import (
     ResponseErrorException,
@@ -175,9 +176,9 @@ async def test_coordinator_auth_error_resilience():
     assert result == {"old": "data"}
     assert coordinator.consecutive_failures == 1
 
-    # Fourth fail - raises UpdateFailed
+    # Fourth fail - raises ConfigEntryAuthFailed
     coordinator.consecutive_failures = 3
-    with pytest.raises(UpdateFailed, match="Session expired"):
+    with pytest.raises(ConfigEntryAuthFailed, match="Authentication failed"):
         await coordinator._async_update_data()
 
 
