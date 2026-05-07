@@ -4,6 +4,27 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.3-dev3] - 2026-05-07
+
+### Fixed
+
+- **Python 3.14 Syntax Compatibility**: Replaced 6 bare-tuple `except A, B:` clauses (SyntaxWarning in Python 3.14) with `except (A, B):` across `helpers.py`, `sensor.py`, and `device_tracker.py`.
+- **Ghost Device Tracker Bug**: Fixed `is_connected` in `device_tracker.py` incorrectly treating hosts with a missing `Active` field as connected.
+- **Device Tracker Listener Leak**: Wrapped coordinator listener registration in `entry.async_on_unload()` to ensure cleanup on integration removal.
+- **SMS Box Selection Logic**: Fixed operator precedence bug (`or 0 > 0`) in `api.py` that made the LocalInbox count check always evaluate to `False`.
+- **Reboot Session Cleanup**: Added `self._reset_client()` after a successful reboot so the stale connection is not reused after the router restarts.
+- **Guest WiFi API Guard**: Wrapped the `_session.post_set()` call in `set_guest_wifi` with an `AttributeError` catch to surface a clean error if `huawei_lte_api` internals change.
+- **Debounce Task Leak**: Added `async_will_remove_from_hass` to `HuaweiPollingInterval` in `number.py` to cancel any pending refresh task on entity removal.
+- **SMS Service ValueError**: Moved `BoxTypeEnum()` conversion inside the try-except in `async_get_sms_list` so invalid `box_type` values raise a clean `HomeAssistantError`.
+- **Reauth None Guard**: Added a None check in `async_step_reauth` to abort cleanly if the config entry cannot be found.
+- **Diagnostics MAC Redaction**: Added `"mac"` to `TO_REDACT` in `diagnostics.py` so the router MAC is redacted from diagnostic data dumps.
+- **Timestamp Truncation**: Fixed `_get_timestamp` in `sensor.py` to truncate seconds/microseconds from the result timestamp rather than rounding the duration.
+
+### Changed
+
+- **SMS Message Helper**: Extracted `_get_messages()` in `sensor.py` to deduplicate `parse_sms_list` calls across `native_value` and `extra_state_attributes` of the `last_sms` sensor.
+- **Button Device Info**: Replaced a duplicated `device_info` property in `button.py` with the shared `build_device_info` helper.
+
 ## [1.0.3-dev2] - 2026-05-07
 
 ### Added

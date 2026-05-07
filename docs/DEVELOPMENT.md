@@ -116,6 +116,12 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Switched to **Timestamp-Based Tracking**. The coordinator now tracks the latest `date` and uses a `{index}_{date}` hash set for deduplication within the same second.
 - **Service Response Coroutine Error (v1.1.0)**: Registering `async` service handlers with a `lambda` (e.g., `lambda call: async_func(call)`) returns an unawaited coroutine object. While this works for one-way services, it fails for services with responses, as Home Assistant expects a dictionary.
   - _Fix_: Refactored service handlers into explicit `async def` wrappers that `await` the implementation before returning.
+- **Python 3.14 Bare-Tuple Except Syntax**: The `except A, B:` form (Python 2 style) generates a `SyntaxWarning` in Python 3.14 because the interpreter parses it as `except A, (B):` — catching `A` and binding the exception to the name `B`. It still compiles and runs, but silently catches only the first exception type.
+  - _Fix_: Always use `except (A, B):` with explicit parentheses when catching multiple exception types.
+- **Operator Precedence Trap (`or 0 > 0`)**: The expression `x or 0 > 0` evaluates as `x or (0 > 0)` — i.e., `x or False` — which always reduces to `bool(x)`. The parenthesisation `(x or 0) > 0` is required to get "treat `None` as 0, then compare". This pattern appears naturally when guard-banding a nullable integer against a threshold.
+  - _Fix_: When using `or 0` as a None-guard before a comparison, always wrap the entire `or` expression in parentheses: `(val or 0) > threshold`.
+- **Debounce Task Lifecycle (`async_will_remove_from_hass`)**: Entities that schedule background `asyncio` tasks (e.g., debounced refresh) must cancel them on removal. Without this, the task holds a reference to the coordinator and fires after the entity is gone, causing "entity not found" log noise.
+  - _Fix_: Override `async_will_remove_from_hass` and call `task.cancel()` on any stored task handle.
 - **SMS API Parameter Constraints (v1.0.1-dev15)**: Modern 5G firmware is highly sensitive to the XML payload sent to `get_sms_list`. Including optional parameters like `sort_type` or `unread_preferred` can cause the router to reject the request with a "System Error" (110001) or return empty results.
   - _Correction_: While simplified in v1.0.1-dev15, these were **re-added and verified** in v1.1.0 alongside the `asyncio.Lock`. Concurrency was the true root cause; with serialized requests, the router accepts the advanced sort/unread parameters correctly.
 - **Transient Notification Counters**: The `NewMsg` API key does not represent a persistent state (like "Unread"); it is a transient notification counter that resets as soon as a client fetches the message list.
@@ -147,3 +153,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Signal Guard Band Refinement**: Continue to tune min/max limits as more users provide data from different signal environments (e.g., extreme fringe areas).
 - **Client Metadata**: Expand the "Clients" sub-device to include more detailed information like hostnames if supported by the router firmware.
 - **Multi-SIM Support**: Investigate support for routers with dual SIM slots.
+
+---
+
+_[1.0.3-dev3] — Added pitfall entries for Python 3.14 bare-tuple except syntax, operator precedence (`or 0 > 0`), and debounce task lifecycle (`async_will_remove_from_hass`)._

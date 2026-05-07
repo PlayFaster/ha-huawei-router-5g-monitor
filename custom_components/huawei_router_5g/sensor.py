@@ -46,9 +46,8 @@ def _get_timestamp(seconds: Any) -> Any:
     sec = _safe_int(seconds)
     if sec is None or sec < 0:
         return None
-    # Round to nearest minute (60s)
-    rounded_sec = round(sec / 60) * 60
-    return dt_util.now() - timedelta(seconds=rounded_sec)
+    raw_ts = dt_util.now() - timedelta(seconds=sec)
+    return raw_ts.replace(second=0, microsecond=0)
 
 
 def format_ipv6(value: Any) -> Any:
@@ -1426,6 +1425,12 @@ class HuaweiRouterSensor(
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
 
+    def _get_messages(self) -> list[dict]:
+        """Return parsed SMS messages from coordinator data."""
+        if not self.coordinator.data:
+            return []
+        return parse_sms_list(self.coordinator.data.get("sms_list"))
+
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
@@ -1433,9 +1438,7 @@ class HuaweiRouterSensor(
             return self.coordinator.last_update_success_time
 
         if self.entity_description.key == "last_sms":
-            if not self.coordinator.data:
-                return None
-            messages = parse_sms_list(self.coordinator.data.get("sms_list"))
+            messages = self._get_messages()
             return messages[0]["content"] if messages else None
 
         val = self.entity_description.value_fn(self.coordinator.data)
@@ -1480,9 +1483,7 @@ class HuaweiRouterSensor(
                 return {}
 
         if self.entity_description.key == "last_sms":
-            if not self.coordinator.data:
-                return {}
-            messages = parse_sms_list(self.coordinator.data.get("sms_list"))
+            messages = self._get_messages()
             if not messages:
                 return {}
             latest = messages[0]

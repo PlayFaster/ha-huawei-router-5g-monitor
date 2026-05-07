@@ -97,6 +97,8 @@ class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         self._reauth_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
         )
+        if self._reauth_entry is None:
+            return self.async_abort(reason="entry_not_found")
         return await self.async_step_reauth_confirm()
 
     async def async_step_reauth_confirm(self, user_input=None):

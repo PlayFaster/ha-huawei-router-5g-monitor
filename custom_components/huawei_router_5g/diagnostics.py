@@ -14,6 +14,7 @@ from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 TO_REDACT = {
     CONF_PASSWORD,
     CONF_USERNAME,
+    "mac",
     "MacAddress1",
     "wan_mac_address",
     "WanMacAddress",

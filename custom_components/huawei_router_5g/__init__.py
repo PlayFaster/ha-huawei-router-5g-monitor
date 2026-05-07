@@ -142,9 +142,9 @@ async def async_get_sms_list(hass: HomeAssistant, call: ServiceCall) -> dict:
     coordinator = _get_coordinator(hass, call.data)
     page = call.data["page"]
     count = call.data["count"]
-    box_type = BoxTypeEnum(call.data["box_type"])
 
     try:
+        box_type = BoxTypeEnum(call.data["box_type"])
         response = await coordinator.api.get_sms_list(
             page=page, box_type=box_type, read_count=count
         )

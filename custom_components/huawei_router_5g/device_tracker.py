@@ -47,7 +47,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
         if new_entities:
             async_add_entities(new_entities, True)
 
-    coordinator.async_add_listener(_async_update_listener)
+    entry.async_on_unload(coordinator.async_add_listener(_async_update_listener))
 
 
 class HuaweiRouterDeviceTracker(
@@ -90,7 +90,7 @@ class HuaweiRouterDeviceTracker(
         if not host:
             return False
         # Active: "1" or "0"
-        return host.get("Active") == "1" or host.get("Active") is None
+        return host.get("Active") == "1"
 
     @property
     def ip_address(self) -> str | None:
