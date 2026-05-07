@@ -69,11 +69,11 @@ async def test_async_setup_registers_services(mock_hass):
 
 @pytest.mark.asyncio
 async def test_get_coordinator_by_id(mock_hass, mock_config_entry):
-    """Test _get_coordinator when device_id is provided."""
+    """Test _get_coordinator when entry_id is provided."""
     from custom_components.huawei_router_5g import _get_coordinator
 
     mock_hass.config_entries.async_get_entry.return_value = mock_config_entry
-    call_data = {"device_id": "test_entry_id"}
+    call_data = {"entry_id": "test_entry_id"}
 
     coordinator = _get_coordinator(mock_hass, call_data)
 
@@ -83,7 +83,7 @@ async def test_get_coordinator_by_id(mock_hass, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_get_coordinator_fallback(mock_hass, mock_config_entry):
-    """Test _get_coordinator fallback when device_id is missing."""
+    """Test _get_coordinator fallback when entry_id is missing."""
     from custom_components.huawei_router_5g import _get_coordinator
 
     mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
@@ -163,11 +163,11 @@ async def test_async_delete_all_sms_service(
 
 @pytest.mark.asyncio
 async def test_get_coordinator_by_id_invalid(mock_hass, mock_config_entry):
-    """Test _get_coordinator when device_id is invalid or not DOMAIN."""
+    """Test _get_coordinator when entry_id is invalid or not DOMAIN."""
     from custom_components.huawei_router_5g import _get_coordinator
 
     mock_hass.config_entries.async_get_entry.return_value = None
-    call_data = {"device_id": "bad_id"}
+    call_data = {"entry_id": "bad_id"}
 
     with pytest.raises(
         HomeAssistantError, match="No active Huawei Router 5G entries found"
@@ -184,7 +184,7 @@ async def test_get_coordinator_entry_not_ready(mock_hass):
     entry.domain = DOMAIN
     entry.runtime_data = None
     mock_hass.config_entries.async_get_entry.return_value = entry
-    call_data = {"device_id": "test_entry_id"}
+    call_data = {"entry_id": "test_entry_id"}
 
     with pytest.raises(HomeAssistantError, match=r"Router .* is not ready"):
         _get_coordinator(mock_hass, call_data)

@@ -4,6 +4,18 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.0-dev1] - 2026-05-07
+
+### Changed
+
+- **Service Parameter Rename — `device_id` → `entry_id`**: Renamed the router selector field in all 4 SMS service schemas (`send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`) to accurately reflect that it accepts a config entry ID, not a HA device registry ID. Updated `services.yaml`, `__init__.py` schemas and `_get_coordinator()`, and `tests/test_init.py`.
+- **SMS Event Payload**: Renamed `device_id` → `entry_id` in the `huawei_router_5g_sms_received` event payload for consistency with the service rename.
+- **MAC-Based Config Entry Unique ID**: `async_set_unique_id` in `config_flow.py` now uses the router MAC address (with host URL fallback) instead of the host URL, ensuring a stable unique ID that survives IP address changes. MAC is normalized to lowercase colon/dash-stripped format at `_validate_credentials()` return time before being stored in `entry.data`.
+
+### Added
+
+- **Deferred Review Note**: Created `.notes/code_review/code_review_20260507_deferred.md` documenting the M9 (Config Entry → DeviceRegistry) deferral — issue, boot-sequence complexity, and recommended implementation path if revisited.
+
 ## [1.0.3-dev3] - 2026-05-07
 
 ### Fixed

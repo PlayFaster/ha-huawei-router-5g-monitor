@@ -44,6 +44,8 @@ async def _validate_credentials(user_input: dict) -> dict:
             or dev_info.get("wan_mac_address")
             or dev_info.get("WanMacAddress")
         )
+        if mac:
+            mac = mac.lower().replace(":", "").replace("-", "")
         return {
             "model": get_router_model(dev_info),
             "sw_version": dev_info.get("SoftwareVersion"),
@@ -67,7 +69,7 @@ class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             try:
                 info = await _validate_credentials(user_input)
 
-                await self.async_set_unique_id(user_input[CONF_HOST])
+                await self.async_set_unique_id(info["mac"] or user_input[CONF_HOST])
                 self._abort_if_unique_id_configured()
 
                 return self.async_create_entry(

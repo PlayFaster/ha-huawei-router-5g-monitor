@@ -21,7 +21,7 @@ _LOGGER = logging.getLogger(__name__)
 
 SERVICE_SEND_SMS_SCHEMA = vol.Schema(
     {
-        vol.Optional("device_id"): str,
+        vol.Optional("entry_id"): str,
         vol.Required("target"): vol.All(cv.ensure_list, [str]),
         vol.Required("message"): vol.All(str, vol.Length(min=1, max=160)),
     }
@@ -29,14 +29,14 @@ SERVICE_SEND_SMS_SCHEMA = vol.Schema(
 
 SERVICE_DELETE_SMS_SCHEMA = vol.Schema(
     {
-        vol.Required("device_id"): str,
+        vol.Required("entry_id"): str,
         vol.Required("index"): vol.Coerce(int),
     }
 )
 
 SERVICE_DELETE_ALL_SMS_SCHEMA = vol.Schema(
     {
-        vol.Required("device_id"): str,
+        vol.Required("entry_id"): str,
         vol.Optional("keep_last", default=0): vol.All(
             vol.Coerce(int), vol.Range(min=0, max=50)
         ),
@@ -45,7 +45,7 @@ SERVICE_DELETE_ALL_SMS_SCHEMA = vol.Schema(
 
 SERVICE_GET_SMS_LIST_SCHEMA = vol.Schema(
     {
-        vol.Required("device_id"): str,
+        vol.Required("entry_id"): str,
         vol.Optional("page", default=1): vol.All(
             vol.Coerce(int), vol.Range(min=1, max=100)
         ),
@@ -73,9 +73,9 @@ def _get_coordinator(
     hass: HomeAssistant, call_data: dict
 ) -> HuaweiRouter5GDataUpdateCoordinator:
     """Get coordinator from service call data."""
-    device_id = call_data.get("device_id")
-    if device_id:
-        entry = hass.config_entries.async_get_entry(device_id)
+    entry_id = call_data.get("entry_id")
+    if entry_id:
+        entry = hass.config_entries.async_get_entry(entry_id)
         if entry and entry.domain == DOMAIN:
             if hasattr(entry, "runtime_data") and entry.runtime_data:
                 return entry.runtime_data

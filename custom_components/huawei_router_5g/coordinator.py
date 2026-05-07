@@ -236,7 +236,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             self.hass.bus.async_fire(
                 "huawei_router_5g_sms_received",
                 {
-                    "device_id": self.entry.entry_id,
+                    "entry_id": self.entry.entry_id,
                     "phone": msg["phone"],
                     "content": msg["content"],
                     "date": msg["date"],
