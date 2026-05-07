@@ -5,7 +5,7 @@
 ### Changed
 
 - **Under the Hood**: Significant code clean-up.
-- **Unique ID via MAC**: Changed to have the Unique IDz generated from MAC not IP.
+- **Unique ID via MAC**: Changed to have the Unique IDs generated from MAC not IP.
 - **Automation Examples**: Updated the automation examples.
 
 ## [1.0.2] - 2026-05-05 - Release

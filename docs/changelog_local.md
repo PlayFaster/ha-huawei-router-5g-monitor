@@ -4,12 +4,18 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev1] - 2026-05-07
+
+### Changed
+
+- **Readme**: Changed the top level info in readme to line up with GitHub description.
+
 ## [1.1.0] - 2026-05-07 - Release
 
 ### Changed
 
 - **Under the Hood**: Significant code clean-up.
-- **Unique ID via MAC**: Changed to have the Unique IDz generated from MAC not IP.
+- **Unique ID via MAC**: Changed to have the Unique IDs generated from MAC not IP.
 - **Automation Examples**: Updated the automation examples.
 
 ## [1.1.0-rc2] - 2026-05-07
