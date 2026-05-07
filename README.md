@@ -393,7 +393,21 @@ After setup, you can modify options (e.g., a password change) anytime via: **Set
 - Use the **Pause Polling** switch in Home Assistant to halt polling and free up the session.
 - Resume polling when you are done with the web UI.
 
----
+## 🗑️ Removal
+
+To remove the integration from Home Assistant:
+
+1. Go to **Settings > Devices & Services**.
+2. Find the **Huawei Router 5G Monitor** card.
+3. Click the **three dots** (⋮) and select **Delete**.
+4. Confirm deletion.
+
+To fully uninstall (HACS):
+
+1. Go to **HACS > Integrations**.
+2. Find **Huawei Router 5G Monitor**.
+3. Click the **three dots** (⋮) and select **Remove**.
+4. Restart Home Assistant.
 
 ## 📝 Maintenance Status
 

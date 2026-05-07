@@ -3,7 +3,7 @@
 
 # Bronze Tier
 action-setup: done
-appropriate-polling: exempt  # User-configurable interval is intentional
+appropriate-polling: exempt # User-configurable interval is intentional
 brands: exempt
 common-modules: done
 config-flow: done
@@ -12,9 +12,7 @@ dependency-transparency: done
 docs-actions: done
 docs-high-level-description: done
 docs-installation-instructions: done
-docs-removal-instructions:
-  status: todo
-  comment: README missing integration removal steps
+docs-removal-instructions: done
 entity-event-setup: done
 entity-unique-id: done
 has-entity-name: done
@@ -32,16 +30,12 @@ entity-unavailable: done
 integration-owner: exempt
 log-when-unavailable: done
 parallel-updates: done
-reauthentication-flow:
-  status: todo
-  comment: missing async_step_reauth in config_flow.py
+reauthentication-flow: done
 test-coverage: done
 
 # Gold Tier
 devices: done
-diagnostics:
-  status: todo
-  comment: diagnostics.py platform missing
+diagnostics: done
 discovery: exempt
 discovery-update-info: exempt
 docs-data-update: done
@@ -58,10 +52,6 @@ entity-disabled-by-default: done
 entity-translations: done
 exception-translations: done
 icon-translations: done
-reconfiguration-flow:
-  status: todo
-  comment: missing async_step_reconfigure in config_flow.py
-repair-issues:
-  status: todo
-  comment: issue_registry not implemented for error reporting
+reconfiguration-flow: done
+repair-issues: done
 stale-devices: exempt

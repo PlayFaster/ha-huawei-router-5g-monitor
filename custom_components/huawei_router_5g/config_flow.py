@@ -92,6 +92,70 @@ class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    async def async_step_reauth(self, entry_data):
+        """Handle reauthentication."""
+        self._reauth_entry = self.hass.config_entries.async_get_entry(
+            self.context["entry_id"]
+        )
+        return await self.async_step_reauth_confirm()
+
+    async def async_step_reauth_confirm(self, user_input=None):
+        """Dialog that informs the user that reauth is required."""
+        errors = {}
+        if user_input is not None:
+            try:
+                await _validate_credentials(user_input)
+
+                updated_options = dict(self._reauth_entry.options)
+                updated_options.update(user_input)
+
+                self.hass.config_entries.async_update_entry(
+                    self._reauth_entry, options=updated_options
+                )
+                await self.hass.config_entries.async_reload(self._reauth_entry.entry_id)
+                return self.async_abort(reason="reauth_successful")
+
+            except HuaweiAuthError:
+                errors["base"] = "invalid_auth"
+            except HuaweiConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during reauth")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="reauth_confirm",
+            data_schema=_user_schema(self._reauth_entry.options),
+            errors=errors,
+        )
+
+    async def async_step_reconfigure(self, user_input=None):
+        """Handle reconfiguration."""
+        errors = {}
+        entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+
+        if user_input is not None:
+            try:
+                await _validate_credentials(user_input)
+
+                self.hass.config_entries.async_update_entry(entry, options=user_input)
+                await self.hass.config_entries.async_reload(entry.entry_id)
+                return self.async_abort(reason="reconfigure_successful")
+
+            except HuaweiAuthError:
+                errors["base"] = "invalid_auth"
+            except HuaweiConnectionError:
+                errors["base"] = "cannot_connect"
+            except Exception:
+                _LOGGER.exception("Unexpected error during reconfiguration")
+                errors["base"] = "unknown"
+
+        return self.async_show_form(
+            step_id="reconfigure",
+            data_schema=_user_schema(entry.options),
+            errors=errors,
+        )
+
     @staticmethod
     @config_entries.callback
     def async_get_options_flow(entry):

@@ -4,6 +4,24 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.0.3-dev2] - 2026-05-07
+
+### Added
+
+- **IQS Gold Elevation**: Implemented Diagnostics, Reauthentication, Reconfiguration, and Repair Issues to achieve Gold status.
+- **Diagnostics Support**: Created `diagnostics.py` to provide sanitized data dumps for troubleshooting.
+- **Repair System**: Integrated `issue_registry` to surface persistent authentication and transient connection issues in the HA Repairs dashboard.
+
+### Changed
+
+- **Config Flow Overhaul**: Added support for UI-based reauthentication and reconfiguration (changing host/credentials without re-setup).
+- **Resilience Logic**: Coordinator now raises `ConfigEntryAuthFailed` for persistent authentication errors to trigger the reauth flow.
+- **Documentation**: Added "Removal" section to README and established `ha_quality_standard.md` as the master quality reference.
+
+### Fixed
+
+- **Import Error**: Resolved `AttributeError` for `Platform.DIAGNOSTICS` during integration setup.
+
 ## [1.0.3-dev1] - 2026-05-07 - Unreleased
 
 ### Added
