@@ -257,8 +257,10 @@ triggers:
     below: 4
     for: "00:05:00"
 conditions:
-  - or:
-      - and:
+  - condition: or
+    conditions:
+      - condition: and
+        conditions:
           - condition: state
             entity_id: binary_sensor.huawei_5g_signal_5g_endc_active
             state: "off"
@@ -296,12 +298,6 @@ actions:
 - **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
 - **Native Resilience**: Built-in 3-strike logic masks transient network glitches and holds last-known-good data between retries.
 - **Modern Integration Architecture**: A data coordinator-based structure and a full options flow.
-
----
-
-## ❔ What's Missing?
-
-- **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi.
 
 ---
 
@@ -396,16 +392,20 @@ After setup, you can modify options (e.g., a password change) anytime via: **Set
 To remove the integration from Home Assistant:
 
 1. Go to **Settings > Devices & Services**.
-2. Find the **Huawei Router 5G Monitor** card.
-3. Click the **three dots** (⋮) and select **Delete**.
+2. Find the **Huawei Router 5G Monitor** card and click into it.
+3. Click the **three dots** (⋮) next to the gear icon and select **Delete**.
 4. Confirm deletion.
 
 To fully uninstall (HACS):
 
-1. Go to **HACS > Integrations**.
-2. Find **Huawei Router 5G Monitor**.
-3. Click the **three dots** (⋮) and select **Remove**.
+1. Go to **HACS**.
+2. Find **Huawei Router 5G Monitor** and click into it.
+3. Click the **three dots** (⋮) at the top right and select **Remove**.
 4. Restart Home Assistant.
+
+## ⚠️ Known Limitations /❔ What's Missing?
+
+- **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
 
 ## 📝 Maintenance Status
 
@@ -433,4 +433,4 @@ This project is licensed under the Apache License, Version 2.0. See [LICENSE](LI
 
 ---
 
-**For issues, feature requests, or contributions, please visit the [GitHub repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor).**
+**Questions or Issues?** Visit the [GitHub repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor).**
