@@ -150,8 +150,9 @@ sequence:
     response_variable: inbox
   - action: notify.persistent_notification
     data:
+      message: |
       message: >
-        You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') | list | count }} 
+        You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') | list | count }}
         messages from your bank in the inbox.
 ```
 
@@ -216,10 +217,12 @@ triggers:
     value_template: >
       {% set uptime = states('sensor.huawei_5g_system_uptime') | as_datetime %} {{ uptime is not none and (now() - uptime).total_seconds() < 120 }}
 
+
     id: reboot # Trigger if uptime is less than 2 minutes (indicates a recent reboot)
   - trigger: template
     value_template: >
       {% set conn = states('sensor.huawei_5g_system_connection_uptime') | as_datetime %} {{ conn is not none and (now() - conn).total_seconds() < 120 }}
+
 
     id: reconnect # Trigger if connection duration is less than 2 minutes (indicates a recent reconnect)
 actions:
@@ -433,4 +436,4 @@ This project is licensed under the Apache License, Version 2.0. See [LICENSE](LI
 
 ---
 
-**Questions or Issues?** Visit the [GitHub repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor).**
+**Questions or Issues?** Visit the [GitHub repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor).
