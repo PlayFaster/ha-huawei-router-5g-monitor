@@ -27,7 +27,7 @@ jobs:
     # Branch @main
     uses: PlayFaster/.github/.github/workflows/validate.yaml@cc6a1a12a5c7bc831fdda2bd385a3221112a7937
     with:
-      component_name: wifi_ssid_monitor
+      component_name: huawei_router_5g
       gist_id: b5cb47f2b37e140da07eefd17ac19721
     secrets:
       GIST_SECRET: ${{ secrets.GIST_SECRET }}

@@ -1,1 +1,1 @@
-"""Tests for the ZTE Router integration."""
+"""Tests for the Huawei Router integration."""
