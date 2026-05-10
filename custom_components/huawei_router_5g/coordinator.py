@@ -12,7 +12,7 @@ from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import HuaweiAuthError
+from .api import HuaweiAuthError, HuaweiRouter5GAPI
 from .const import CONF_SCAN_INTERVAL, CONF_STOP_POLLING, DEFAULT_SCAN_INTERVAL
 from .helpers import get_router_model, parse_sms_list
 
@@ -22,7 +22,12 @@ _LOGGER = logging.getLogger(__name__)
 class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Huawei Router data with resilience and pausing."""
 
-    def __init__(self, hass: HomeAssistant, entry: ConfigEntry, api) -> None:
+    def __init__(
+        self,
+        hass: HomeAssistant,
+        entry: ConfigEntry,
+        api: HuaweiRouter5GAPI,
+    ) -> None:
         """Initialize the coordinator."""
         self.api = api
         self.entry = entry

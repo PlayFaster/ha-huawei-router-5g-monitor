@@ -19,6 +19,8 @@ from .helpers import parse_sms_list
 
 _LOGGER = logging.getLogger(__name__)
 
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
 SERVICE_SEND_SMS_SCHEMA = vol.Schema(
     {
         vol.Optional("entry_id"): str,

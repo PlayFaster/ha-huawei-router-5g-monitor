@@ -5,7 +5,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_STOP_POLLING
@@ -49,7 +53,11 @@ GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the switch platform."""
     coordinator: HuaweiRouter5GDataUpdateCoordinator = entry.runtime_data
 
@@ -78,7 +86,7 @@ class HuaweiSwitch(
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
-        entry,
+        entry: ConfigEntry,
         description: HuaweiSwitchEntityDescription,
     ) -> None:
         """Initialize the switch."""
@@ -89,7 +97,7 @@ class HuaweiSwitch(
         self._group = description.group
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self._group)
 
@@ -100,7 +108,7 @@ class HuaweiPausePollingSwitch(HuaweiSwitch):
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
-        entry,
+        entry: ConfigEntry,
         description: HuaweiSwitchEntityDescription,
         initial_state: bool,
     ) -> None:
@@ -113,12 +121,12 @@ class HuaweiPausePollingSwitch(HuaweiSwitch):
         """Return True if polling is paused."""
         return self._entry.options.get(CONF_STOP_POLLING, False)
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
         """Pause polling."""
         _LOGGER.debug("Pausing Huawei Router polling")
         await self._async_set_state(True)
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         """Resume polling."""
         _LOGGER.debug("Resuming Huawei Router polling")
         await self._async_set_state(False)
@@ -149,7 +157,7 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
             return None
         return str(val) == "1"
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable mobile data."""
         try:
             await self.coordinator.api.set_mobile_data(True)
@@ -157,7 +165,7 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         except Exception as err:
             _LOGGER.error("%s: Enable mobile data failed: %s", self._entry.title, err)
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable mobile data."""
         try:
             await self.coordinator.api.set_mobile_data(False)
@@ -185,7 +193,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
                 return str(ssid.get("WifiEnable")) == "1"
         return None
 
-    async def async_turn_on(self, **kwargs) -> None:
+    async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable guest WiFi."""
         try:
             await self.coordinator.api.set_guest_wifi(True)
@@ -194,7 +202,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         finally:
             await self.coordinator.async_request_refresh()
 
-    async def async_turn_off(self, **kwargs) -> None:
+    async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable guest WiFi."""
         try:
             await self.coordinator.api.set_guest_wifi(False)

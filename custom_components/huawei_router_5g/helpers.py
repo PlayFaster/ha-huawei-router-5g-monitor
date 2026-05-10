@@ -1,11 +1,14 @@
 """Shared helpers for the Huawei Router 5G Monitor integration."""
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
+
+if TYPE_CHECKING:
+    from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -137,7 +140,9 @@ def get_network_type_label(code: str | None) -> str | None:
     return _NETWORK_TYPE_MAP.get(str(code), f"Unknown ({code})")
 
 
-def build_device_info(coordinator, group: str) -> DeviceInfo:
+def build_device_info(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, group: str
+) -> DeviceInfo:
     """Build standardized DeviceInfo dict for platforms."""
     group_names = {
         "system": "System",

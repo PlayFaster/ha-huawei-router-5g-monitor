@@ -13,6 +13,7 @@ from homeassistant.components.sensor import (
     SensorEntityDescription,
     SensorStateClass,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import (
     PERCENTAGE,
     SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
@@ -21,7 +22,10 @@ from homeassistant.const import (
     UnitOfInformation,
     UnitOfTime,
 )
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
 
@@ -1093,7 +1097,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         max_limit=100000,
         value_fn=lambda data: (
             round(
-                _safe_int(data.get("month_statistics", {}).get("CurrentMonthDownload"))
+                (
+                    _safe_int(
+                        data.get("month_statistics", {}).get("CurrentMonthDownload")
+                    )
+                    or 0
+                )
                 / (1024**3),
                 2,
             )
@@ -1129,7 +1138,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         max_limit=100000,
         value_fn=lambda data: (
             round(
-                _safe_int(data.get("month_statistics", {}).get("CurrentMonthUpload"))
+                (
+                    _safe_int(
+                        data.get("month_statistics", {}).get("CurrentMonthUpload")
+                    )
+                    or 0
+                )
                 / (1024**3),
                 2,
             )
@@ -1393,7 +1407,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the sensor platform."""
     coordinator = entry.runtime_data
     async_add_entities(
@@ -1416,7 +1434,7 @@ class HuaweiRouterSensor(
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
-        entry,
+        entry: ConfigEntry,
         description: HuaweiSensorEntityDescription,
     ) -> None:
         """Initialize the sensor."""
@@ -1497,6 +1515,6 @@ class HuaweiRouterSensor(
         return {}
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self.entity_description.group)

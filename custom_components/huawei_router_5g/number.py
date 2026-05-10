@@ -9,8 +9,12 @@ from homeassistant.components.number import (
     NumberEntity,
     NumberEntityDescription,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import UnitOfTime
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity import EntityCategory
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
@@ -43,7 +47,11 @@ POLLING_INTERVAL_DESCRIPTION = HuaweiNumberEntityDescription(
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the number platform."""
     coordinator: HuaweiRouter5GDataUpdateCoordinator = entry.runtime_data
 
@@ -71,10 +79,10 @@ class HuaweiPollingInterval(
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
-        entry,
+        entry: ConfigEntry,
         description: HuaweiNumberEntityDescription,
-        initial_value,
-    ):
+        initial_value: float,
+    ) -> None:
         """Initialize the number entity."""
         super().__init__(coordinator)
         self._entry = entry
@@ -86,7 +94,7 @@ class HuaweiPollingInterval(
 
         # Local state
         self._attr_native_value = initial_value
-        self._refresh_task = None
+        self._refresh_task: asyncio.Task[None] | None = None
 
     async def async_set_native_value(self, value: float) -> None:
         """Handle the UI slider change."""
@@ -136,6 +144,6 @@ class HuaweiPollingInterval(
             self._refresh_task.cancel()
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self._group)

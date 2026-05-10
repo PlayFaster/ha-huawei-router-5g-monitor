@@ -51,6 +51,7 @@ class HuaweiRouter5GAPI:
         The Connection constructor triggers login automatically when
         credentials are provided.
         """
+        assert self.url is not None
         conn = Connection(
             self.url,
             username=self.username,
@@ -84,7 +85,9 @@ class HuaweiRouter5GAPI:
             if self._connection is None:
                 return
             try:
-                await asyncio.to_thread(self._connection.logout)
+                await asyncio.to_thread(
+                    self._connection.logout  # type: ignore[attr-defined]
+                )
             except Exception as err:
                 _LOGGER.debug("Logout failed: %s", err)
             finally:
@@ -95,10 +98,12 @@ class HuaweiRouter5GAPI:
         self._connection = None
         self._client = None
 
-    async def _ensure_client(self) -> None:
+    async def _ensure_client(self) -> Client:
         """Create a client if one does not exist."""
         if self._client is None:
             await self._login_internal()
+        assert self._client is not None
+        return self._client
 
     async def _login_internal(self) -> None:
         """Perform internal login without locking."""
@@ -127,6 +132,8 @@ class HuaweiRouter5GAPI:
             def _fetch() -> dict[str, Any]:
                 data: dict[str, Any] = {}
                 client = self._client
+                assert client is not None
+                assert client is not None
 
                 for key, fetcher in [
                     ("device_information", lambda: client.device.information()),
@@ -235,9 +242,9 @@ class HuaweiRouter5GAPI:
     async def reboot(self) -> None:
         """Reboot the router."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
             try:
-                await asyncio.to_thread(self._client.device.reboot)
+                await asyncio.to_thread(client.device.reboot)
                 self._reset_client()
             except Exception:
                 _LOGGER.exception("Reboot failed")
@@ -247,9 +254,11 @@ class HuaweiRouter5GAPI:
     async def clear_traffic_statistics(self) -> None:
         """Clear the traffic statistics counters."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
             try:
-                await asyncio.to_thread(self._client.monitoring.clear_traffic)
+                await asyncio.to_thread(
+                    client.monitoring.clear_traffic  # type: ignore[attr-defined]
+                )
             except Exception:
                 _LOGGER.exception("Clear traffic failed")
                 raise
@@ -257,10 +266,10 @@ class HuaweiRouter5GAPI:
     async def set_mobile_data(self, enable: bool) -> None:
         """Enable or disable the mobile data connection."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
 
             def _set() -> None:
-                self._client.dial_up.set_mobile_dataswitch(1 if enable else 0)
+                client.dial_up.set_mobile_dataswitch(1 if enable else 0)
 
             try:
                 await asyncio.to_thread(_set)
@@ -271,15 +280,15 @@ class HuaweiRouter5GAPI:
     async def set_net_mode(self, mode: str) -> None:
         """Set the preferred network mode."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
 
             from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
 
             def _set() -> None:
-                self._client.net.set_net_mode(
-                    lte_band=LTEBandEnum.ALL.value,
-                    network_band=NetworkBandEnum.ALL.value,
-                    network_mode=mode,
+                client.net.set_net_mode(
+                    lteband=LTEBandEnum.ALL.value,
+                    networkband=NetworkBandEnum.ALL.value,
+                    networkmode=mode,
                 )
 
             try:
@@ -291,10 +300,10 @@ class HuaweiRouter5GAPI:
     async def set_guest_wifi(self, enable: bool) -> None:
         """Enable or disable the guest WiFi network."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
 
             def _set() -> None:
-                multi_settings = self._client.wlan.multi_basic_settings()
+                multi_settings = client.wlan.multi_basic_settings()
                 ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
                 if isinstance(ssids, dict):
                     ssids = [ssids]
@@ -323,9 +332,7 @@ class HuaweiRouter5GAPI:
                     list(payload.keys()),
                 )
                 try:
-                    self._client.wlan._session.post_set(
-                        "wlan/multi-basic-settings", payload
-                    )
+                    client.wlan._session.post_set("wlan/multi-basic-settings", payload)
                 except AttributeError as err:
                     raise RuntimeError(
                         "huawei_lte_api internal API changed; "
@@ -341,11 +348,11 @@ class HuaweiRouter5GAPI:
     async def send_sms(self, phone_numbers: list[str], message: str) -> None:
         """Send an SMS message to one or more numbers."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
 
             try:
                 await asyncio.to_thread(
-                    self._client.sms.send_sms,
+                    client.sms.send_sms,
                     phone_numbers=phone_numbers,
                     message=message,
                 )
@@ -356,10 +363,10 @@ class HuaweiRouter5GAPI:
     async def delete_sms(self, index: int) -> None:
         """Delete an SMS message by index."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
 
             try:
-                await asyncio.to_thread(self._client.sms.delete_sms, sms_id=index)
+                await asyncio.to_thread(client.sms.delete_sms, sms_id=index)
             except Exception:
                 _LOGGER.exception("Delete SMS failed")
                 raise
@@ -372,11 +379,11 @@ class HuaweiRouter5GAPI:
     ) -> dict[str, Any]:
         """Fetch a list of SMS messages."""
         async with self._lock:
-            await self._ensure_client()
+            client = await self._ensure_client()
 
             try:
                 return await asyncio.to_thread(
-                    self._client.sms.get_sms_list,
+                    client.sms.get_sms_list,
                     page=page,
                     box_type=box_type,
                     read_count=read_count,

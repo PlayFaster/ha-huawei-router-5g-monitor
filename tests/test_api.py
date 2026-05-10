@@ -173,9 +173,14 @@ async def test_ensure_client_without_client():
     api = _make_api()
     api._client = None
 
-    with patch.object(api, "_login_internal", new=AsyncMock()) as mock_login:
-        await api._ensure_client()
-        mock_login.assert_called_once()
+    mock_client = MagicMock()
+
+    async def _mock_login():
+        api._client = mock_client
+
+    with patch.object(api, "_login_internal", new=AsyncMock(side_effect=_mock_login)):
+        result = await api._ensure_client()
+        assert result is mock_client
 
 
 # ---------------------------------------------------------------------------
@@ -824,9 +829,9 @@ async def test_set_net_mode_success():
         await api.set_net_mode(mode)
 
     api._client.net.set_net_mode.assert_called_once_with(
-        lte_band=LTEBandEnum.ALL.value,
-        network_band=NetworkBandEnum.ALL.value,
-        network_mode=mode,
+        lteband=LTEBandEnum.ALL.value,
+        networkband=NetworkBandEnum.ALL.value,
+        networkmode=mode,
     )
 
 

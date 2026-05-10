@@ -7,7 +7,11 @@ from homeassistant.components.binary_sensor import (
     BinarySensorEntity,
     BinarySensorEntityDescription,
 )
+from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
@@ -119,7 +123,11 @@ SIM_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the binary sensor platform."""
     coordinator: HuaweiRouter5GDataUpdateCoordinator = entry.runtime_data
     async_add_entities(
@@ -156,7 +164,7 @@ class HuaweiBinarySensor(
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
-        entry,
+        entry: ConfigEntry,
         description: HuaweiBinarySensorEntityDescription,
     ) -> None:
         """Initialize the binary sensor."""
@@ -167,7 +175,7 @@ class HuaweiBinarySensor(
         self._group = description.group
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self._group)
 
