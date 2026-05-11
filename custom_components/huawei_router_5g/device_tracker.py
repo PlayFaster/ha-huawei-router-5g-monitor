@@ -107,7 +107,7 @@ class HuaweiRouterDeviceTracker(
         if host:
             ip = host.get("IpAddress")
             if ip:
-                return ip.split(";")[0]
+                return str(ip).split(";")[0]
         return None
 
     @property

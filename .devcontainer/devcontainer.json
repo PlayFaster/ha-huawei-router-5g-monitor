@@ -49,6 +49,12 @@
       "source": "C:/Local/Code/github/PlayFaster/home-assistant/shared/SharedNotes",
       "target": "${containerWorkspaceFolder}/.shared",
       "type": "bind"
+    },
+    {
+      "source": "C:/Local/Code/ha_core/core",
+      "target": "/ha_core",
+      "type": "bind",
+      "readonly": true
     }
   ],
   "name": "Huawei Router Dev",

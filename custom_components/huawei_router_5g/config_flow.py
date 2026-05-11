@@ -1,6 +1,7 @@
 """Config flow for Huawei Router 5G Monitor integration."""
 
 import logging
+from collections.abc import Callable
 from typing import Any
 
 import voluptuous as vol
@@ -15,7 +16,7 @@ from .helpers import get_router_model
 _LOGGER = logging.getLogger(__name__)
 
 
-def _user_schema(defaults: dict) -> vol.Schema:
+def _user_schema(defaults: dict[str, Any]) -> vol.Schema:
     """Return the user/options form schema, pre-filled with defaults."""
     return vol.Schema(
         {
@@ -29,7 +30,7 @@ def _user_schema(defaults: dict) -> vol.Schema:
     )
 
 
-async def _validate_credentials(user_input: dict) -> dict:
+async def _validate_credentials(user_input: dict[str, Any]) -> dict[str, Any]:
     """Validate router credentials and return basic device info."""
     api = HuaweiRouter5GAPI(
         user_input[CONF_HOST],
@@ -170,8 +171,12 @@ class HuaweiRouter5GConfigFlow(
             errors=errors,
         )
 
+    _ha_callback: Callable[[Callable[..., Any]], Callable[..., Any]] = (
+        config_entries.callback
+    )
+
     @staticmethod
-    @config_entries.callback
+    @_ha_callback
     def async_get_options_flow(
         entry: config_entries.ConfigEntry,
     ) -> HuaweiRouter5GOptionsFlow:

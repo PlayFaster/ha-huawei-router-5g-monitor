@@ -119,7 +119,7 @@ class HuaweiPausePollingSwitch(HuaweiSwitch):
     @property
     def is_on(self) -> bool:
         """Return True if polling is paused."""
-        return self._entry.options.get(CONF_STOP_POLLING, False)
+        return bool(self._entry.options.get(CONF_STOP_POLLING, False))
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Pause polling."""

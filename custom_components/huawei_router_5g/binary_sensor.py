@@ -449,7 +449,7 @@ class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
         value = status.get("ConnectionStatus")
         if value is None:
             return None
-        return value == "901"
+        return str(value) == "901"
 
 
 class HuaweiLteCaSensor(HuaweiBinarySensor):

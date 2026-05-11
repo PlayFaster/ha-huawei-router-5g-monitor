@@ -88,7 +88,7 @@ def format_khz_to_mhz(value: Any) -> float | None:
     return f_val / 1000 if f_val is not None else None
 
 
-def _get_signal_value(data: dict | None, key: str) -> Any:
+def _get_signal_value(data: dict[str, Any] | None, key: str) -> Any:
     """Get signal value from data."""
     if data is None:
         return None
@@ -1443,7 +1443,7 @@ class HuaweiRouterSensor(
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
 
-    def _get_messages(self) -> list[dict]:
+    def _get_messages(self) -> list[dict[str, Any]]:
         """Return parsed SMS messages from coordinator data."""
         if not self.coordinator.data:
             return []

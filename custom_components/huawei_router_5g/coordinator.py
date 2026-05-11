@@ -3,7 +3,7 @@
 import asyncio
 import logging
 from datetime import timedelta
-from typing import Any
+from typing import Any, cast
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -60,7 +60,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "%s: Polling is paused; returning cached data.", self.entry.title
             )
-            return self.data
+            return cast("dict[str, Any]", self.data)
 
         try:
             async with asyncio.timeout(30):
@@ -150,7 +150,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     else "timeout",
                     self.consecutive_failures,
                 )
-                return self.data
+                return cast("dict[str, Any]", self.data)
 
             if isinstance(err, HuaweiAuthError):
                 ir.async_create_issue(
@@ -189,7 +189,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     self.consecutive_failures,
                     err,
                 )
-                return self.data
+                return cast("dict[str, Any]", self.data)
 
             if is_paused:
                 _LOGGER.warning(

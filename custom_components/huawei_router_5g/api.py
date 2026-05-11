@@ -2,6 +2,7 @@
 
 import asyncio
 import logging
+from collections.abc import Callable
 from typing import Any
 
 from huawei_lte_api.Client import Client
@@ -135,7 +136,7 @@ class HuaweiRouter5GAPI:
                 assert client is not None
                 assert client is not None
 
-                for key, fetcher in [
+                fetch_tasks: list[tuple[str, Callable[[], Any]]] = [
                     ("device_information", lambda: client.device.information()),
                     ("device_signal", lambda: client.device.signal()),
                     ("monitoring_status", lambda: client.monitoring.status()),
@@ -186,7 +187,8 @@ class HuaweiRouter5GAPI:
                         "wlan_multi_basic_settings",
                         lambda: client.wlan.multi_basic_settings(),
                     ),
-                ]:
+                ]
+                for key, fetcher in fetch_tasks:
                     try:
                         data[key] = fetcher()
                     except ResponseErrorLoginRequiredException as err:
