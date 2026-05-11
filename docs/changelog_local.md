@@ -4,6 +4,26 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev12] - 2026-05-11
+
+### Added
+
+- **Code Review**: Carried out a code review, implemented several improvements.
+
+### Changed
+
+- **Extracted `FETCH_TIMEOUT` constant**: Moved the hardcoded 30-second fetch timeout value from `coordinator.py` to a named constant `FETCH_TIMEOUT = 30` in `const.py` for discoverability and reuse.
+
+### Fixed
+
+- **Duplicate assert in `api.py`**: Removed a duplicate `assert client is not None` statement — copy-paste error with no runtime impact.
+- **Diagnostics None guard**: Added `coordinator.data or {}` guard in `diagnostics.py` to prevent crash if diagnostics is queried before the first successful coordinator poll. Updated test assertion accordingly.
+- **Device tracker exception handling**: Replaced overly broad try-except blocks in `device_tracker.py` with `isinstance` guards and early-return `None` checks. The old code wrapped `.get()` chains that already supplied default empty dicts — the try-except was dead code for normal data shapes but masked the real issue when `coordinator.data` was `None`. Added explicit `if not data` guards in both `_get_entities()` and `_host_data()` matching the pattern used by all other platforms.
+
+### Documentation
+
+- **Updated `DEVELOPMENT.md`**: Clarified Python 3.14 `except A, B:` comma syntax behavior — it is now valid multi-catch per PEP 3111 on Python 3.14+, but ruff with `target-version = "py314"` will auto-format to it. Added guidance on pinning `target-version = "py313"` for backward compatibility.
+
 ## [1.1.1-dev11] - 2026-05-11
 
 ### Changed
@@ -25,6 +45,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Added
 
+- IQS Standards Review carried out. Added next steps document and implemented icons.json based on it.
 - **Full Implementation of `icons.json`**: Achieved IQS Gold compliance for `icon-translations` by moving all entity icons to a centralized translation-based system.
 - **Dynamic Icons**: Added dynamic state-based icons for 5G connectivity (`best_connection`), SMS storage status, and roaming.
 - **Range-Based Icons**: Added dynamic icons for battery (10-100%) and signal bars (1-3) that change automatically based on the sensor value.

@@ -32,12 +32,13 @@ async def async_setup_entry(
     def _get_entities() -> list[HuaweiRouterDeviceTracker]:
         new_entities: list[HuaweiRouterDeviceTracker] = []
         data = coordinator.data
+        if not data:
+            return new_entities
         hosts = []
         for key in ["lan_host_info", "wlan_host_list"]:
-            try:
-                hosts.extend(data.get(key, {}).get("Hosts", {}).get("Host", []))
-            except AttributeError, KeyError, TypeError:
-                continue
+            hosts_data = data.get(key)
+            if isinstance(hosts_data, dict):
+                hosts.extend(hosts_data.get("Hosts", {}).get("Host", []))
 
         for host in hosts:
             mac = host.get("MacAddress")
@@ -75,12 +76,13 @@ class HuaweiRouterDeviceTracker(
     def _host_data(self) -> dict[str, Any] | None:
         """Get host data from coordinator."""
         data = self.coordinator.data
+        if not data:
+            return None
         hosts = []
         for key in ["lan_host_info", "wlan_host_list"]:
-            try:
-                hosts.extend(data.get(key, {}).get("Hosts", {}).get("Host", []))
-            except AttributeError, KeyError, TypeError:
-                continue
+            hosts_data = data.get(key)
+            if isinstance(hosts_data, dict):
+                hosts.extend(hosts_data.get("Hosts", {}).get("Host", []))
         return next((h for h in hosts if h.get("MacAddress") == self._mac), None)
 
     @property

@@ -13,7 +13,12 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import HuaweiAuthError, HuaweiRouter5GAPI
-from .const import CONF_SCAN_INTERVAL, CONF_STOP_POLLING, DEFAULT_SCAN_INTERVAL
+from .const import (
+    CONF_SCAN_INTERVAL,
+    CONF_STOP_POLLING,
+    DEFAULT_SCAN_INTERVAL,
+    FETCH_TIMEOUT,
+)
 from .helpers import get_router_model, parse_sms_list
 
 _LOGGER = logging.getLogger(__name__)
@@ -63,7 +68,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             return self.data
 
         try:
-            async with asyncio.timeout(30):
+            async with asyncio.timeout(FETCH_TIMEOUT):
                 try:
                     data = await self.api.get_data()
                 except HuaweiAuthError:

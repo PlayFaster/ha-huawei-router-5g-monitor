@@ -134,7 +134,6 @@ class HuaweiRouter5GAPI:
                 data: dict[str, Any] = {}
                 client = self._client
                 assert client is not None
-                assert client is not None
 
                 fetch_tasks: list[tuple[str, Callable[[], Any]]] = [
                     ("device_information", lambda: client.device.information()),
