@@ -8,12 +8,12 @@ from datetime import timedelta
 from homeassistant.components.number import (
     NumberEntity,
     NumberEntityDescription,
+    NumberMode,
 )
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import UnitOfTime
+from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
-from homeassistant.helpers.entity import EntityCategory
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -41,7 +41,7 @@ POLLING_INTERVAL_DESCRIPTION = HuaweiNumberEntityDescription(
     native_max_value=3600,
     native_step=30,
     native_unit_of_measurement=UnitOfTime.SECONDS,
-    mode="slider",
+    mode=NumberMode.SLIDER,
     entity_category=EntityCategory.CONFIG,
     group="system",
 )

@@ -2,8 +2,8 @@
 
 import asyncio
 import logging
-from datetime import timedelta
-from typing import Any, cast
+from datetime import datetime, timedelta
+from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
@@ -32,7 +32,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         self.api = api
         self.entry = entry
         self.consecutive_failures = 0
-        self.last_update_success_time = None
+        self.last_update_success_time: datetime | None = None
         self.last_sms_timestamp: str | None = None
         self.fired_sms_hashes: set[str] = set()
 
@@ -60,7 +60,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.debug(
                 "%s: Polling is paused; returning cached data.", self.entry.title
             )
-            return cast("dict[str, Any]", self.data)
+            return self.data
 
         try:
             async with asyncio.timeout(30):
@@ -150,7 +150,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     else "timeout",
                     self.consecutive_failures,
                 )
-                return cast("dict[str, Any]", self.data)
+                return self.data
 
             if isinstance(err, HuaweiAuthError):
                 ir.async_create_issue(
@@ -189,7 +189,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     self.consecutive_failures,
                     err,
                 )
-                return cast("dict[str, Any]", self.data)
+                return self.data
 
             if is_paused:
                 _LOGGER.warning(
