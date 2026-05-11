@@ -56,3 +56,6 @@ rules:
   reconfiguration-flow: done
   repair-issues: done
   stale-devices: exempt
+
+  # Platinum Tier
+  strict-typing: done

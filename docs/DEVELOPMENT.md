@@ -100,6 +100,18 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Entity Category Optimization**: Strategically utilizing `EntityCategory.DIAGNOSTIC` for granular infrastructure metrics (e.g., secondary frequency bands, per-bank SMS capacity) while keeping actionable or highly readable metrics (e.g., Signal Bars, SMS Unread) in the primary entity list to balance depth with UI cleanliness.
 - **Multi-Stage Quality Gate Pattern**: The `best_connection` binary sensor demonstrates deriving a stable composite quality indicator from multiple metrics rather than a single API field. A 3-stage AND gate (NR band assignment → LTE anchor health → 5G leg health) using OR-of-thresholds within each stage prevents false negatives when individual metrics are borderline. This pattern is robust to the H165-383's `network_type` reporting `"LTE"` even in active NSA 5G mode, and to `sc_band` returning null. Documented in `docs/best_connection_logic.md`.
 
+### Icon Translation Architecture (v1.1.1-dev9)
+
+- **Pattern**: Centralized all entity icons in `icons.json` using the Home Assistant icon translation engine. Removed hardcoded `icon="..."` arguments from Python `EntityDescription` objects.
+- **Logic**:
+  - **Fallback**: Every entity defines a `default` icon in the JSON mapping.
+  - **Dynamic States**: Binary sensors (like `wifi_status` or `best_connection`) use `state` mappings to toggle between different icons based on ON/OFF status.
+  - **Dynamic Ranges**: Numeric sensors (like `battery` or `signal_bars`) use `range` mappings. The frontend automatically selects the icon for the highest range value that is less than or equal to the current state.
+- **Benefit**:
+  - **Decoupling**: Visual presentation is separated from business logic, making the Python code significantly cleaner and easier to read.
+  - **IQS Compliance**: Achieved Gold-tier compliance for the `icon-translations` rule.
+  - **Reactive UI**: Provides a more "alive" experience with icons that reflect signal strength and connectivity states without custom Python property overhead.
+
 ## 5. Technical Pitfalls & Fixes
 
 - **Auth Error Handling**: Relying on string matching (e.g., `"password" in str(err)`) to detect login failures is brittle and breaks if library messages change.
@@ -168,3 +180,5 @@ The project was built from the ground up using the latest "PlayFaster" standards
 _[1.0.3-dev3] — Added pitfall entries for Python 3.14 bare-tuple except syntax, operator precedence (`or 0 > 0`), and debounce task lifecycle (`async_will_remove_from_hass`)._
 
 _[1.0.3-dev4] — Added success pattern for MAC-based stable unique ID with normalization. Added pitfall entry for HA `device_id` vs `entry_id` naming._
+
+_[1.1.1-dev9] — Added success pattern for Icon Translation Architecture (decoupling icons from Python logic). Updated documentation terminology to "Actions"._

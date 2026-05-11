@@ -183,16 +183,16 @@ def test_sensor_device_info_fallback_host_signal_group(
 
 
 def test_best_connection_icon_off(mock_coordinator, mock_config_entry):
-    """Icon is cellular-1 when 5G is not active."""
+    """Icon is None (icons.json handles state-based icons at frontend level)."""
     mock_coordinator.data = {"device_signal": {"band": "20MHz(B1)"}}
     sensor = HuaweiBestConnectionSensor(
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )
-    assert sensor.icon == "mdi:signal-cellular-1"
+    assert sensor.icon is None
 
 
 def test_best_connection_icon_on(mock_coordinator, mock_config_entry):
-    """Icon is 5g when all health gates pass."""
+    """Icon is None (icons.json handles state-based icons at frontend level)."""
     mock_coordinator.data = {
         "device_signal": {
             "band": "20MHz(B1) + 10MHz(N78)",
@@ -203,7 +203,7 @@ def test_best_connection_icon_on(mock_coordinator, mock_config_entry):
     sensor = HuaweiBestConnectionSensor(
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )
-    assert sensor.icon == "mdi:signal-5g"
+    assert sensor.icon is None
 
 
 # ---------------------------------------------------------------------------

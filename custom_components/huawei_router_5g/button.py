@@ -32,7 +32,6 @@ class HuaweiButtonEntityDescription(ButtonEntityDescription):
 REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
     key="reboot",
     translation_key="reboot",
-    icon="mdi:restart",
     device_class=ButtonDeviceClass.RESTART,
     group="system",
 )
@@ -40,7 +39,6 @@ REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
 CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
     key="clear_traffic",
     translation_key="clear_traffic",
-    icon="mdi:chart-line-variant",
     group="data",
 )
 

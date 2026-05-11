@@ -4,6 +4,43 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev11] - 2026-05-11
+
+### Changed
+
+- **Final icons.json cleanup**: Removed last inline `icon=` declarations from `select.py` and `button.py` — all entity icons are now served exclusively via `icons.json`. Previous rounds had already migrated `sensor.py`, `binary_sensor.py`, and `switch.py`; this completes the migration for all 6 entity types (sensor, binary_sensor, switch, select, button, number).
+
+### Fixed
+
+- **Test assertions aligned with icons.json approach**: Updated 4 icon assertions in `test_binary_sensor.py` and `test_coverage_ext.py` to expect `sensor.icon is None` — icons are now resolved by the HA frontend from `icons.json`, not via Python `@property icon`. The `HuaweiBestConnectionSensor` no longer declares an inline `icon` property.
+
+## [1.1.1-dev10] - 2026-05-11
+
+### Changed
+
+- **IQS Platinum**: With icons.json and strict typing the IQS scale is now "near-platinum", with the major caveats that (i) IQS does not apply to cusomt components and (ii) several standards are N/A but still a very positive indicator.
+- **Project Structure Document**: Updated the project structure document to v1.2.4.
+
+## [1.1.1-dev9] - 2026-05-11
+
+### Added
+
+- **Full Implementation of `icons.json`**: Achieved IQS Gold compliance for `icon-translations` by moving all entity icons to a centralized translation-based system.
+- **Dynamic Icons**: Added dynamic state-based icons for 5G connectivity (`best_connection`), SMS storage status, and roaming.
+- **Range-Based Icons**: Added dynamic icons for battery (10-100%) and signal bars (1-3) that change automatically based on the sensor value.
+- **SMS Inbox-State Icons**: Added dynamic switching for `sms_unread` sensors, showing `mdi:message-badge` when unread messages are present.
+
+### Changed
+
+- **Removed Hardcoded Icons**: Refactored `sensor.py`, `binary_sensor.py`, and `switch.py` to remove redundant `icon="..."` arguments in favor of translation keys.
+- **`README.md` Terminology Update**: Updated all documentation references from "Services" to modern Home Assistant **"Actions"** terminology; updated SMS service examples to use `action` blocks.
+- **Documentation Enhancement**: Added specific tested firmware version `11.0.2.11(H1352SP2C00)` to the hardware compatibility section.
+- **IQS Tracking Updated**: Updated `quality_scale.yaml` and family compliance matrix to reflect 100% completion of `strict-typing` (Platinum) and `icon-translations` (Gold).
+
+### Fixed
+
+- **Initial Icon Mapping Gaps**: Resolved missing icon definitions for `sms_storage_full`, `endc_restricted`, `current_connection_duration`, and `total_connection_time` identified during implementation validation.
+
 ## [1.1.1-dev8] - 2026-05-11
 
 ### Changed
@@ -21,8 +58,8 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Changed
 
-- **HA Core stubs mounted in devcontainer**: Mounted HA core files into the devcontainer at `/ha_core` so mypy can resolve HA type stubs. This surfaced 33 previously hidden strict mypy errors that were blocked by missing type information.
-pro
+- **HA Core stubs mounted in devcontainer**: Mounted HA core files into the devcontainer at `/ha_core` so mypy can resolve HA type stubs. This surfaced 33 previously hidden strict mypy errors that were blocked by missing type information. pro
+
 ### Fixed
 
 - **33 Strict Mypy Errors Resolved**: All remaining strict mypy errors fixed across 7 files (`coordinator.py`, `switch.py`, `sensor.py`, `select.py`, `number.py`, `device_tracker.py`, `config_flow.py`). Key fixes: removed 3 redundant `cast()` calls and annotated `last_update_success_time` as `datetime | None` in `coordinator.py`; corrected `EntityCategory` import path to `homeassistant.const` (4 files); used `NumberMode.SLIDER` enum instead of string `"slider"` in `number.py`; corrected `ScannerEntity` import to `device_tracker.config_entry` and added `# type: ignore[misc]` for `@final device_info` override in `device_tracker.py`; replaced `FlowResult` with `ConfigFlowResult` return type, added null-safety asserts, changed parameter type to `Mapping[str, Any]`, and moved `callback` import to `homeassistant.core` in `config_flow.py`.

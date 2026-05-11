@@ -22,6 +22,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 **Router Hardware:**
 
 - **Tested on**: **Huawei 5G CPE Pro 6 (H165-383)**
+  - Tested Firmware: `4.4.0.1(H1600SP2Cxxxx)`
 - **Expected compatible**: Any Huawei LTE/5G router supported by the `huawei-lte-api` library or the Home Assistant core Huawei LTE integration should work, but compatibility with untested models cannot be guaranteed.
 - **Not Supported**: Non-Huawei hardware.
 
@@ -43,7 +44,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 >
 > - **Polling Control**: A Pause Polling switch and a configurable, dynamically adjustable scan interval — set it from the UI or drive it via automation.
 > - **Connected Client Tracking**: Automatically creates `device_tracker` entities for every discovered LAN/WLAN client, dynamically updated as devices join and leave.
-> - **SMS Management**: Most recent SMS as text sensor, all SMS inbox counts, services to read, send and delete SMS.
+> - **SMS Management**: Most recent SMS as text sensor, all SMS inbox counts, actions to read, send and delete SMS.
 
 ### 📡 Advanced 5G/LTE Diagnostics
 
@@ -66,7 +67,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 - **Data Usage Tracking**: Real-time rates, daily usage, and monthly download/upload totals.
 - **Router Management**: Reboot button, Mobile Data toggle, and Guest WiFi controls.
 - **Connected Clients**: Dynamic device tracking for every discovered LAN/WLAN client.
-- **SMS Management**: Unread SMS counts, last message content, and advanced SMS services (Send, Delete, List).
+- **SMS Management**: Unread SMS counts, last message content, and advanced SMS actions (Send, Delete, List).
 - **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
 - **100% Local**: No cloud account or internet access required.
 
@@ -76,7 +77,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 - **Pause Polling**: Switch to halt polling when you need uninterrupted access to the router's web UI.
 - **Configurable Update Interval**: From 30 seconds to 1 hour.
-- **SMS Events & Services**: Fires a `huawei_router_5g_sms_received` event when a new message is detected, enabling automations triggered by incoming texts. Has services to send, delete and list SMS messages, see below.
+- **SMS Events & Actions**: Fires a `huawei_router_5g_sms_received` event when a new message is detected, enabling automations triggered by incoming texts. Has actions to send, delete and list SMS messages, see below.
 
 > [!TIP]
 >
@@ -87,14 +88,14 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 ---
 
-## 🛠️ SMS Services
+## 🛠️ SMS Actions
 
-This integration provides the following services for SMS management:
+This integration provides the following actions for SMS management:
 
 - **`huawei_router_5g.send_sms`**: Send an SMS message to one or more recipients.
 - **`huawei_router_5g.delete_sms`**: Delete a specific SMS message by its storage index.
 - **`huawei_router_5g.delete_all_sms`**: Bulk delete messages from the inbox. Includes a `keep_last` parameter to preserve recent messages for safety.
-- **`huawei_router_5g.get_sms_list`**: Fetch a list of all SMS messages or those from a specific storage bank (Local, SIM, Sent, or Draft). This service supports **Service Responses**, allowing you to use the output in Home Assistant automations and scripts.
+- **`huawei_router_5g.get_sms_list`**: Fetch a list of all SMS messages or those from a specific storage bank (Local, SIM, Sent, or Draft). This action supports **Action Responses**, allowing you to use the output in Home Assistant automations and scripts.
 
 ---
 
@@ -102,7 +103,7 @@ This integration provides the following services for SMS management:
 
 ### Forward Incoming SMS to Mobile
 
-This automation fires when a new SMS is detected and forwards the content to your mobile phone via a notification service.
+This automation fires when a new SMS is detected and forwards the content to your mobile phone via a notification action.
 
 ```yaml
 alias: "SMS: Forward to Mobile"
@@ -138,7 +139,7 @@ actions:
 
 ### Fetch and Process Inbox via Script
 
-Example of using the `get_sms_list` service response in a script to count messages from a specific sender.
+Example of using the `get_sms_list` action response in a script to count messages from a specific sender.
 
 ```yaml
 alias: "SMS: Count OTP Messages"
@@ -169,7 +170,7 @@ This integration provides **112+ entities** grouped into six logical devices: **
 | **Switches** | 3 | Pause Polling, Mobile Data, Guest WiFi |
 | **Buttons** | 2 | Reboot, Clear Traffic |
 | **Inputs** | 2 | Polling Interval, Network Mode |
-| **Services** | 4 | Send, Delete, and List SMS services |
+| **Actions** | 4 | Send, Delete, and List SMS actions |
 | **Device Trackers** | 1+ | Dynamically discovered per connected LAN/WLAN client |
 
 > [!TIP]

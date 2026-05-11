@@ -47,7 +47,6 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
     HuaweiSelectEntityDescription(
         key="network_mode",
         translation_key="network_mode",
-        icon="mdi:settings-transfer",
         options=list(NETWORK_MODE_MAPPING.keys()),
         entity_category=EntityCategory.CONFIG,
         group="system",

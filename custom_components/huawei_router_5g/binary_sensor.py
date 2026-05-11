@@ -78,7 +78,6 @@ MOBILE_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 LTE_CA_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="lte_ca",
     translation_key="lte_ca",
-    icon="mdi:plus-network",
     entity_category=EntityCategory.DIAGNOSTIC,
     group="signal",
 )
@@ -230,11 +229,6 @@ class HuaweiBestConnectionSensor(HuaweiBinarySensor):
             or (nr_cqi is not None and nr_cqi >= 7)
             or (nr_bler is not None and nr_bler < 10)
         )
-
-    @property
-    def icon(self) -> str:
-        """Return icon based on connection quality."""
-        return "mdi:signal-5g" if self.is_on else "mdi:signal-cellular-1"
 
 
 class HuaweiSmsStorageFullSensor(HuaweiBinarySensor):
