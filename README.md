@@ -34,7 +34,13 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 - Minimum: Home Assistant **2025.1**
 
----
+## 🏠 Use Cases
+
+- **Signal Monitoring**: Near real-time and historical 5G/LTE signal data allows monitoring of router performance.
+  - **Best Signal**: Use signal diagnostics (RSRP, SNR) to optimize the physical placement or orientation of your router.
+  - **Performance Tracking**: Use signal history to check whether the performance from your 5G/LTE ISP is stable or changing.
+- **Data Cap Management**: Create automations to get notified when you reach 80% or 90% of your monthly data limit to avoid unexpected overage charges on limited 5G plans.
+- **Smart SMS Gateway**: Use your router as a notification bridge; for example, forward home security alerts to your phone via SMS if your primary internet connection goes down.
 
 ## ✅ Features
 
@@ -97,71 +103,11 @@ This integration provides the following actions for SMS management:
 - **`huawei_router_5g.delete_all_sms`**: Bulk delete messages from the inbox. Includes a `keep_last` parameter to preserve recent messages for safety.
 - **`huawei_router_5g.get_sms_list`**: Fetch a list of all SMS messages or those from a specific storage bank (Local, SIM, Sent, or Draft). This action supports **Action Responses**, allowing you to use the output in Home Assistant automations and scripts.
 
----
-
-## 💡 Example SMS Automations
-
-### Forward Incoming SMS to Mobile
-
-This automation fires when a new SMS is detected and forwards the content to your mobile phone via a notification action.
-
-```yaml
-alias: "SMS: Forward to Mobile"
-triggers:
-  - platform: event
-    event_type: huawei_router_5g_sms_received
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "New SMS from {{ trigger.event.data.phone }}"
-      message: "{{ trigger.event.data.content }}"
-```
-
-### Automated Inbox Maintenance
-
-Keep your router's SMS storage clean by automatically deleting old messages while keeping the most recent ones for safety.
-
-```yaml
-alias: "SMS: Weekly Inbox Cleanup"
-triggers:
-  - platform: time
-    at: "03:00:00"
-conditions:
-  - condition: time
-    weekday:
-      - sun
-actions:
-  - action: huawei_router_5g.delete_all_sms
-    data:
-      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA # Use your Device ID. This is GUI selectable in the Automation Editor.
-      keep_last: 5
-```
-
-### Fetch and Process Inbox via Script
-
-Example of using the `get_sms_list` action response in a script to count messages from a specific sender.
-
-```yaml
-alias: "SMS: Count OTP Messages"
-sequence:
-  - action: huawei_router_5g.get_sms_list
-    data:
-      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA
-      count: 50
-    response_variable: inbox
-  - action: notify.persistent_notification
-    data:
-      message: |
-      message: >
-        You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') | list | count }}
-        messages from your bank in the inbox.
-```
-
----
-
 ## 📊 What You Get
 
 This integration provides **112+ entities** grouped into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**.
+
+> [!NOTE] Entity Visibility: To keep your Home Assistant UI clean, some entities are disabled by default. You can enable them via the Entities tab in the device settings.
 
 | Type | Count | Primary Functions |
 | :-- | :-- | :-- |
@@ -182,9 +128,66 @@ This integration provides **112+ entities** grouped into six logical devices: **
 > - Devices and their entities can be disabled from the main device page - (⋮ menu) "Disable Device".
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
 
-## Other Usage Examples
+## 💡 Example Automations
 
-### Data Usage Alerts
+### SMS Examples
+
+#### Forward Incoming SMS to Mobile
+
+This automation fires when a new SMS is detected and forwards the content to your mobile phone via a notification action.
+
+```yaml
+alias: "SMS: Forward to Mobile"
+triggers:
+  - platform: event
+    event_type: huawei_router_5g_sms_received
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "New SMS from {{ trigger.event.data.phone }}"
+      message: "{{ trigger.event.data.content }}"
+```
+
+#### Automated Inbox Maintenance
+
+Keep your router's SMS storage clean by automatically deleting old messages while keeping the most recent ones for safety.
+
+```yaml
+alias: "SMS: Weekly Inbox Cleanup"
+triggers:
+  - platform: time
+    at: "03:00:00"
+conditions:
+  - condition: time
+    weekday:
+      - sun
+actions:
+  - action: huawei_router_5g.delete_all_sms
+    data:
+      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA # Use your Device ID. This is GUI selectable in the Automation Editor.
+      keep_last: 5
+```
+
+#### Fetch and Process Inbox via Script
+
+Example of using the `get_sms_list` action response in a script to count messages from a specific sender.
+
+```yaml
+alias: "SMS: Count OTP Messages"
+sequence:
+  - action: huawei_router_5g.get_sms_list
+    data:
+      device_id: 01KQT9S47HN7R6PN3Y7A7NPRRA
+      count: 50
+    response_variable: inbox
+  - action: notify.persistent_notification
+    data:
+      message: |
+        You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') | list | count }}
+        messages from your bank in the inbox.
+```
+
+### 🚨 Data Usage Alert
 
 Monitor your data consumption and get notified when you approach daily or monthly limits. If you change the display unit of data sensors (e.g. from Bytes to GB), you have to change the numbers below as well.
 
@@ -240,7 +243,7 @@ actions:
         {% endif %}
 ```
 
-### Signal Quality Alerts
+### 📶 Signal Quality Alert
 
 Monitor for poor connection quality based on 5G status, signal bars, and link quality (CQI).
 
@@ -293,17 +296,23 @@ actions:
         - 5G CQI: {{ states('sensor.huawei_5g_signal_5g_cqi') }}
 ```
 
----
+### ⏯️ Auto-Resume Polling
 
-### 🏗️ Under the Hood
+Ensure polling is turned back on automatically if someone forgets to resume it after managing the router.
 
-- **Data Validation**: Router values are checked for validity (guard band limits), with out-of-range sensors being marked as unknown.
-- **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
-- **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
-- **Native Resilience**: Built-in 3-strike logic masks transient network glitches and holds last-known-good data between retries.
-- **Modern Integration Architecture**: A data coordinator-based structure and a full options flow.
-
----
+```yaml
+alias: "Huawei: Auto-Resume Polling"
+description: "Turn polling back on after 1 hour if it was manually paused."
+triggers:
+  - trigger: state
+    entity_id: switch.huawei_5g_system_pause_polling
+    to: "on"
+    for: "01:00:00"
+actions:
+  - action: switch.turn_off
+    target:
+      entity_id: switch.huawei_5g_system_pause_polling
+```
 
 ## 📸 Screenshots
 
@@ -323,11 +332,9 @@ actions:
 | :-: | :-: |
 | ![Setup](.github/images/huawei_5g_setup_info.png) | ![Clients](.github/images/huawei_5g_device_info_mini.png) |
 
----
+## 📥 Installation
 
-## ✨ Installation
-
-### HACS (Recommended)
+### ✨ HACS (Recommended)
 
 1. Add this repository as a **Custom Repository** in HACS:
    - Open HACS in Home Assistant
@@ -337,27 +344,45 @@ actions:
 3. Restart Home Assistant
 4. Go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor"
 
-### Manual Installation
+### 💾 Manual Installation
 
 1. Download the [latest release](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases).
 2. Copy the `custom_components/huawei_router_5g` folder to your Home Assistant `custom_components` directory.
 3. Restart Home Assistant.
 4. Go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor"
 
----
-
 ## ⚙️ Configuration
 
-Setup is handled entirely via the UI under **Settings > Devices & Services > Add Integration**. You will need:
+### 🔧 Initial Setup
+
+Setup is handled entirely via the UI. You will need the same details that you use for the router's web UI:
 
 - **Device Name**: A custom prefix for your devices and entities (e.g., "HomeRouter").
 - **Router URL**: The local URL of your router (e.g., `http://192.168.8.1` — the Huawei default).
 - **Username**: Often blank for Huawei, otherwise whatever you use in the Router WebUI.
 - **Password**: Your local admin password.
 
-After setup, you can modify options (e.g., a password change) anytime via: **Settings > Devices & Services > Huawei Router 5G Monitor > Options**
+### 🛠️ Runtime Options
 
----
+After installation, open **Settings > Devices & Services > Huawei Router 5G Monitor > Configure** to adjust:
+
+| Option   | Description                                                |
+| -------- | ---------------------------------------------------------- |
+| Host     | Router IP address (change if the router's LAN IP changes). |
+| Username | Router login username.                                     |
+| Password | Admin password (update if changed on the router).          |
+
+| Option | Default | Range | Description |
+| --- | --- | --- | --- |
+| Polling Interval | 180 s | 30–3600 s (step: 30 s) | How often the integration fetches data from the router. Lower values give more responsive updates but increase router load. |
+
+## 🏗️ Under the Hood - Technical Architecture
+
+- **Data Validation**: Router values are checked for validity (guard band limits), with out-of-range sensors being marked as unknown.
+- **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
+- **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
+- **Native Resilience**: Built-in 3-strike logic masks transient network glitches and holds last-known-good data between retries.
+- **Modern Integration Architecture**: A data coordinator-based structure and a full options flow.
 
 ## ❓ FAQ & Troubleshooting
 
@@ -437,4 +462,4 @@ This project is licensed under the Apache License, Version 2.0. See [LICENSE](LI
 
 ---
 
-**Questions or Issues?** Visit the [GitHub repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor).
+💬 **Questions or Issues?** Visit the [GitHub repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor).

@@ -4,6 +4,14 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev14] - 2026-05-24 - Unreleased
+
+### Changed
+
+- **Dependabot**: Bump PlayFaster/.github shared validation from v1.02 to v1.04
+- **Dependabot**: Bump [zizmor](https://github.com/zizmorcore/zizmor-pre-commit) from v1.24.1 to 1.25.2
+- **Dependabot**: Bump [python-typing](https://github.com/cdce8p/python-typing-update) from v0.6.0 to 0.8.1
+
 ## [1.1.1-dev12] - 2026-05-11
 
 ### Added
