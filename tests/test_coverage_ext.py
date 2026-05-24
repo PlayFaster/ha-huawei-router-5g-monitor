@@ -132,8 +132,8 @@ def test_sensor_month_total(mock_coordinator, mock_config_entry):
 
 
 def test_sensor_month_upload_gb(mock_coordinator, mock_config_entry):
-    """Test month_upload_gb converts bytes to GB."""
-    mock_coordinator.data = {"month_statistics": {"CurrentMonthUpload": "1073741824"}}
+    """Test month_upload_gb converts bytes to GB (1,000,000,000 bytes → 1.0 GB)."""
+    mock_coordinator.data = {"month_statistics": {"CurrentMonthUpload": "1000000000"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "month_upload_gb")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 1.0

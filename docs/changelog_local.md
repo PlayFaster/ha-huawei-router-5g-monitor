@@ -4,6 +4,14 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev15] - 2026-05-24
+
+### Fixed
+
+- **Uptime timestamp drift**: Replaced `_get_timestamp()` (naive `now() − uptime` recomputed every poll) with a reboot-detection latch in the coordinator for all three timestamp sensors (`uptime_timestamp`, `current_connection_timestamp`, `total_connection_timestamp`). Boot/start times are now computed once and frozen; the latch re-fires only when the counter drops by more than 30 seconds (genuine reset). Eliminates clock-rate divergence drift and the minute-boundary backward jumps caused by the prior truncation approach. Six latch fields persisted to `entry.data` so timestamps survive HA restarts.
+- **`month_download_gb` / `month_upload_gb` GB/GiB mismatch**: Both sensors were dividing bytes by `1024³` (producing GiB) while declaring `native_unit_of_measurement=GIGABYTES` (GB). Corrected divisor to `1,000,000,000` — fixes ~7.4% underreporting (e.g. actual 133 GB was displayed as 124 GB).
+- **`dict` → `dict[str, Any]` mypy `[type-arg]` error** in `coordinator.py` on the `entry_data_updates` local variable.
+
 ## [1.1.1-dev14] - 2026-05-24 - Unreleased
 
 ### Changed

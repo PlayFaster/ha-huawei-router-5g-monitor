@@ -1,5 +1,6 @@
 """Tests for the Huawei Router 5G sensor platform."""
 
+from datetime import UTC
 from unittest.mock import MagicMock
 
 import pytest
@@ -190,8 +191,8 @@ def test_sensor_month_download(mock_coordinator, mock_config_entry):
 
 
 def test_sensor_month_download_gb(mock_coordinator, mock_config_entry):
-    """Test monthly download GB conversion (2GB → 2.0)."""
-    mock_coordinator.data = {"month_statistics": {"CurrentMonthDownload": "2147483648"}}
+    """Test monthly download GB conversion (2,000,000,000 bytes → 2.0 GB)."""
+    mock_coordinator.data = {"month_statistics": {"CurrentMonthDownload": "2000000000"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "month_download_gb")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 2.0
@@ -471,14 +472,14 @@ def test_sensor_last_sms_attributes(mock_coordinator, mock_config_entry):
 
 
 def test_sensor_timestamp_valid(mock_coordinator, mock_config_entry):
-    """Test timestamp helper with valid input."""
-    mock_coordinator.data = {"traffic_statistics": {"TotalConnectTime": "3600"}}
-    desc = next(d for d in SENSOR_TYPES if d.key == "total_connection_timestamp")
-    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    # Check it returns a datetime
+    """Test total_connection_timestamp reads the pre-computed coordinator key."""
     from datetime import datetime
 
-    assert isinstance(sensor.native_value, datetime)
+    frozen = datetime(2025, 1, 1, 12, 0, 0, tzinfo=UTC)
+    mock_coordinator.data = {"total_conn_start_time": frozen}
+    desc = next(d for d in SENSOR_TYPES if d.key == "total_connection_timestamp")
+    sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
+    assert sensor.native_value == frozen
 
 
 def test_sensor_guard_band_error(mock_coordinator, mock_config_entry):

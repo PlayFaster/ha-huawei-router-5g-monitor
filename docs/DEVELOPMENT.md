@@ -112,6 +112,23 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - **IQS Compliance**: Achieved Gold-tier compliance for the `icon-translations` rule.
   - **Reactive UI**: Provides a more "alive" experience with icons that reflect signal strength and connectivity states without custom Python property overhead.
 
+### Uptime Timestamp Stability — Reboot-Detection Latch (v1.1.1-dev15)
+
+- **Problem**: All three uptime timestamp sensors (`uptime_timestamp`, `current_connection_timestamp`, `total_connection_timestamp`) used `_get_timestamp()` in `sensor.py`, which recomputed `now() − uptime_seconds` on every poll. Because the router's internal uptime counter and HA's wall clock tick at slightly different rates (crystal oscillator / NTP divergence), the computed boot time crept monotonically in one direction — visible as several minutes of drift over hours without any actual restart. A prior truncation fix (round to the nearest minute) converted continuous drift into periodic 60-second backward jumps at minute boundaries; the drift source was unchanged.
+- **Root cause**: Two independent clocks. Any approach that derives a timestamp from `now() − counter` every poll inherits the divergence between those two clocks.
+- **Fix (reboot-detection latch)**: Compute the frozen timestamp exactly once — on the first poll, or when the counter drops by more than `UPTIME_REBOOT_MARGIN = 30` seconds (a genuine reset). Hold it unchanged thereafter. The re-latch trigger compares uptime-to-uptime across polls, which is immune to wall-clock divergence. Implemented in `coordinator.py`; sensors read pre-computed keys (`system_boot_time`, `conn_start_time`, `total_conn_start_time`) from the data dict. Six fields persisted to `entry.data` so the frozen values survive HA restarts.
+- **Three independent latches**: The Huawei project has three counters (`device_information.uptime`, `traffic_statistics.CurrentConnectTime`, `traffic_statistics.TotalConnectTime`), each with different reset semantics (router reboot / WAN reconnect / stats clear). Each requires its own latch state — do not share state between them.
+- **What does not work** (documented in `.notes/issues/uptime_timestamp_strategy_20260523.md`):
+  - Raw `now() − uptime` every poll: drifts continuously.
+  - Truncate to nearest minute: replaces drift with periodic 60-second backward jumps.
+  - Tolerance latch on timestamp delta (±30s): suppresses small jitter but not monotonic clock-rate divergence; accumulated drift re-trips the latch repeatedly.
+
+### GB vs GiB — Data Sensor Unit Correctness
+
+- **Pattern**: When HA declares `native_unit_of_measurement=UnitOfInformation.GIGABYTES`, the value must be in **decimal GB** (divide bytes by `1,000,000,000`). Dividing by `1024³` produces **GiB**, which HA treats as GB — causing ~7.4% underreporting.
+- **Example**: 133 GB actual → `133,000,000,000 / 1024³ ≈ 123.9` displayed as "124 GB" (wrong). `133,000,000,000 / 1,000,000,000 = 133.0` displayed as "133 GB" (correct).
+- **Rule**: Use `/ 1_000_000_000` for `GIGABYTES`, `/ 1_073_741_824` (i.e. `/ 1024**3`) only when the unit is explicitly `GIBIBYTES`. HA's `UnitOfInformation` has both; choose the one that matches the divisor.
+
 ## 5. Technical Pitfalls & Fixes
 
 - **Auth Error Handling**: Relying on string matching (e.g., `"password" in str(err)`) to detect login failures is brittle and breaks if library messages change.
@@ -182,3 +199,5 @@ _[1.0.3-dev3] — Added pitfall entries for Python 3.14 bare-tuple except syntax
 _[1.0.3-dev4] — Added success pattern for MAC-based stable unique ID with normalization. Added pitfall entry for HA `device_id` vs `entry_id` naming._
 
 _[1.1.1-dev12] — Updated Python 3.14 bare-tuple except pitfall entry with PEP 3111 clarification, ruff auto-format behavior, and `target-version` pinning guidance._
+
+_[1.1.1-dev15] — Added "Uptime Timestamp Stability — Reboot-Detection Latch" success pattern and "GB vs GiB — Data Sensor Unit Correctness" pattern._

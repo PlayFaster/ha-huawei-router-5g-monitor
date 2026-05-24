@@ -4,7 +4,6 @@ import ipaddress
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from datetime import timedelta
 from typing import Any, Final
 
 from homeassistant.components.sensor import (
@@ -27,7 +26,6 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
-from homeassistant.util import dt as dt_util
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
@@ -43,15 +41,6 @@ from .helpers import (
 _LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
-
-
-def _get_timestamp(seconds: Any) -> Any:
-    """Convert seconds offset to a timestamp, rounded to the nearest minute."""
-    sec = _safe_int(seconds)
-    if sec is None or sec < 0:
-        return None
-    raw_ts = dt_util.now() - timedelta(seconds=sec)
-    return raw_ts.replace(second=0, microsecond=0)
 
 
 def format_ipv6(value: Any) -> Any:
@@ -196,11 +185,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="uptime_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         group="system",
-        value_fn=lambda data: (
-            _get_timestamp(data.get("device_information", {}).get("uptime"))
-            if data
-            else None
-        ),
+        value_fn=lambda data: data.get("system_boot_time") if data else None,
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_duration",
@@ -223,11 +208,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="current_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         group="system",
-        value_fn=lambda data: (
-            _get_timestamp(data.get("traffic_statistics", {}).get("CurrentConnectTime"))
-            if data
-            else None
-        ),
+        value_fn=lambda data: data.get("conn_start_time") if data else None,
     ),
     HuaweiSensorEntityDescription(
         key="total_connection_time",
@@ -250,11 +231,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="total_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         group="system",
-        value_fn=lambda data: (
-            _get_timestamp(data.get("traffic_statistics", {}).get("TotalConnectTime"))
-            if data
-            else None
-        ),
+        value_fn=lambda data: data.get("total_conn_start_time") if data else None,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -1030,7 +1007,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
                     )
                     or 0
                 )
-                / (1024**3),
+                / 1_000_000_000,
                 2,
             )
             if data and data.get("month_statistics", {}).get("CurrentMonthDownload")
@@ -1069,7 +1046,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
                     )
                     or 0
                 )
-                / (1024**3),
+                / 1_000_000_000,
                 2,
             )
             if data and data.get("month_statistics", {}).get("CurrentMonthUpload")
