@@ -1,6 +1,5 @@
 """Button platform for Huawei Router 5G Monitor."""
 
-import logging
 from dataclasses import dataclass
 
 from homeassistant.components.button import (
@@ -10,14 +9,13 @@ from homeassistant.components.button import (
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
-
-_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
@@ -94,7 +92,7 @@ class HuaweiRebootButton(HuaweiButton):
         try:
             await self.coordinator.api.reboot()
         except Exception as err:
-            _LOGGER.error("%s: Reboot failed: %s", self._entry.title, err)
+            raise HomeAssistantError(f"Reboot failed: {err}") from err
 
 
 class HuaweiClearTrafficButton(HuaweiButton):
@@ -106,6 +104,4 @@ class HuaweiClearTrafficButton(HuaweiButton):
             await self.coordinator.api.clear_traffic_statistics()
             await self.coordinator.async_request_refresh()
         except Exception as err:
-            _LOGGER.error(
-                "%s: Clear traffic statistics failed: %s", self._entry.title, err
-            )
+            raise HomeAssistantError(f"Clear traffic statistics failed: {err}") from err

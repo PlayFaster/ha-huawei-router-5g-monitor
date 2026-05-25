@@ -4,6 +4,39 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev19] - 2026-05-25
+
+### Fixed
+
+- **`button.py` `async_press` handlers now raise `HomeAssistantError` on failure**: `HuaweiRebootButton` and `HuaweiClearTrafficButton` previously caught API exceptions, logged them, and returned silently — meaning automations calling `button.press` would succeed with no indication of failure. Both handlers now `raise HomeAssistantError(...) from err`, consistent with the service handler pattern (`send_sms`, `delete_sms`, etc.). `logging` import and `_LOGGER` removed from `button.py` as no longer needed.
+
+### Changed
+
+- **`action-exceptions` IQS compliance PARTIAL→DONE**: Closes the last Silver tier gap for `huawei_router_5g`. Scorecard updated (DONE 46→47, PARTIAL 1→0). `ha_quality_standard.md` v1.9.1 and `next_steps_20260525.md` updated accordingly.
+- **`test_button.py` error-path tests updated**: `test_reboot_button_press_error` and `test_clear_traffic_button_press_error` now assert `HomeAssistantError` is raised (with match strings) rather than asserting no exception propagates.
+
+## [1.1.1-dev18] - 2026-05-25
+
+### Added
+
+- **6 entities documented in all_sensors.md**: Mobile Data (Switch), Preferred Network Mode (Select), SIM Card Status (Binary Sensor), Roaming Status (Binary Sensor), 5G Uplink Frequency (Sensor), 5G Downlink Frequency (Sensor) — all were present in HA output but missing from documentation.
+
+### Changed
+
+- **IQS compliance matrix (v1.9.0)**: Full SCAN=Full pass for `huawei_router_5g`. `action-exceptions` downgraded DONE→PARTIAL (button `async_press` handlers log errors but do not raise `HomeAssistantError`). Scorecard updated (DONE 47→46, PARTIAL 0→1).
+- **quality_scale.yaml corrected**: `brands` and `integration-owner` changed from `exempt` to `done` (both are implemented). `async-dependency` and `inject-websession` added as `todo` (were missing from Platinum tier).
+- **all_sensors.md entity counts updated**: System 19→22, Signal 46→49 to reflect newly documented entities.
+
+### Fixed
+
+- **SMS key backtick formatting in all_sensors.md**: 4 rows in the SMS Device section had malformed Key fields (`key"` instead of `` `key` ``) causing incorrect markdown rendering.
+
+## [1.1.1-dev17] - 2026-05-24
+
+### Changed
+
+- **Documentation**: Additional updates to README, more automation examples, more icons. Consistency with ZTE project README.
+
 ## [1.1.1-dev16] - 2026-05-24
 
 ### Added

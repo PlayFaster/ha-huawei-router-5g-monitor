@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.huawei_router_5g.button import (
     CLEAR_TRAFFIC_DESCRIPTION,
@@ -33,13 +34,14 @@ async def test_reboot_button_press(mock_coordinator, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_reboot_button_press_error(mock_coordinator, mock_config_entry):
-    """Test that reboot errors are caught and do not propagate."""
+    """Test that reboot API errors raise HomeAssistantError."""
     mock_api = MagicMock()
     mock_api.reboot = AsyncMock(side_effect=Exception("Reboot fail"))
     mock_coordinator.api = mock_api
 
     button = HuaweiRebootButton(mock_coordinator, mock_config_entry, REBOOT_DESCRIPTION)
-    await button.async_press()  # should not raise
+    with pytest.raises(HomeAssistantError, match="Reboot failed"):
+        await button.async_press()
 
 
 def test_reboot_button_device_info(mock_coordinator, mock_config_entry):
@@ -75,7 +77,7 @@ async def test_clear_traffic_button_press(mock_coordinator, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_clear_traffic_button_press_error(mock_coordinator, mock_config_entry):
-    """Test that clear traffic errors are caught and do not propagate."""
+    """Test that clear traffic API errors raise HomeAssistantError."""
     mock_api = MagicMock()
     mock_api.clear_traffic_statistics = AsyncMock(side_effect=Exception("Clear fail"))
     mock_coordinator.api = mock_api
@@ -83,7 +85,8 @@ async def test_clear_traffic_button_press_error(mock_coordinator, mock_config_en
     button = HuaweiClearTrafficButton(
         mock_coordinator, mock_config_entry, CLEAR_TRAFFIC_DESCRIPTION
     )
-    await button.async_press()  # should not raise
+    with pytest.raises(HomeAssistantError, match="Clear traffic statistics failed"):
+        await button.async_press()
     mock_coordinator.async_request_refresh.assert_not_called()
 
 

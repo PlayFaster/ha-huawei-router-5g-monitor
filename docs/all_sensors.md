@@ -1,13 +1,13 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 112+ entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 118+ entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 19 | Core router info, WAN configuration, and global integration settings. |
-| **Signal** | 46 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
+| **System** | 22 | Core router info, WAN configuration, and global integration settings. |
+| **Signal** | 49 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
 | **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
@@ -16,7 +16,7 @@ This document provides a comprehensive list of all 112+ entities currently imple
 
 ---
 
-## 1. System Sub-Device (19 Entities)
+## 1. System Sub-Device (22 Entities)
 
 _Group: `system`_
 
@@ -33,7 +33,7 @@ _Group: `system`_
 | Connection Uptime | `current_connection_timestamp` | Sensor | Timestamp | - | Calculated as `now() - current_connection_time`. |
 | Total Duration | `total_connection_time` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Total Uptime | `total_connection_timestamp` | Sensor | Timestamp | Diagnostic | Moved to Diagnostic. Calculated as `now() - total_connection_time`. |
-| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
+| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** Data may not be available in all configurations. |
 | Primary DNS Server | `primary_dns` | Sensor | - | Diagnostic |  |
 | Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic |  |
 | Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic |  |
@@ -41,10 +41,13 @@ _Group: `system`_
 | Reboot | `reboot` | Button | - | - |  |
 | Polling Interval | `polling_interval` | Number | s | Config | Range: 30s - 3600s. Persists in options. |
 | Pause Polling | `pause_polling` | Switch | - | Config | State persists in `ConfigEntry.options`. |
+| Mobile Data | `mobile_data` | Switch | — | Config | Toggle mobile data connection on/off. |
+| Preferred Network Mode | `preferred_network_mode` | Select | — | Config | Control network mode selection. |
+| SIM Card Status | `sim_card_status` | Binary Sensor | — | Diagnostic | ON if SIM card is detected and active. |
 
 ---
 
-## 2. Signal Sub-Device (46 Entities)
+## 2. Signal Sub-Device (49 Entities)
 
 _Group: `signal`_
 
@@ -99,6 +102,9 @@ _Group: `signal`_
 | 5G ENDC Active | `endc_status` | Binary | - | - | Renamed from 5G Active. ON if EN-DC is active. |
 | 5G Restricted | `endc_restricted` | Binary | - | Diagnostic | ON if 5G is restricted by the carrier. |
 | Mobile Connection | `mobile_connection` | Binary | - | Diagnostic | ON if mobile data is connected. |
+| Roaming Status | `roaming_status` | Binary Sensor | — | Diagnostic | ON if roaming is active. |
+| 5G Uplink Frequency | `5g_uplink_frequency` | Sensor | MHz | Diagnostic | `nruplinkfrequency` field, scaled. |
+| 5G Downlink Frequency | `5g_downlink_frequency` | Sensor | MHz | Diagnostic | `nrdownlinkfrequency` field, scaled. |
 
 ---
 
@@ -117,10 +123,10 @@ _Group: `data`_
 | Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
 | Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. |
 | Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. |
-| Day Used | `current_day_used` | Sensor | Bytes | - | Traffic used today. |
+| Day Used | `current_day_used` | Sensor | Bytes | - | Traffic used today. Other display units may be used (e.g. GB). |
 | Month Download | `month_download` | Sensor | Bytes | - |  |
 | Month Download (GB) | `month_download_gb` | Sensor | GB | - | Rounded to 2 decimals. |
-| Month Upload | `month_upload` | Sensor | Bytes | - |  |
+| Month Upload | `month_upload` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
 | Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | Rounded to 2 decimals. |
 | Month Total | `month_total` | Sensor | Bytes | - |  |
 | Clear Traffic Statistics | `clear_traffic` | Button | - | - | Resets traffic counters. |
@@ -139,10 +145,10 @@ _Group: `sms`_
 | Total (Device) | `sms_total` | Sensor | - | Diagnostic | Total stored on device. |
 | Unread (Device) | `sms_unread_device` | Sensor | - | Diagnostic |  |
 | Inbox (Device) | `sms_inbox_device` | Sensor | - | Diagnostic |  |
-| Outbox (Device) | `sms_outbox_device" | Sensor | - | Diagnostic |  |
-| Drafts (Device) | `sms_drafts_device" | Sensor | - | Diagnostic |  |
-| Deleted (Device) | `sms_deleted_device" | Sensor | - | Diagnostic |  |
-| Capacity (Device) | `sms_capacity_device" | Sensor | - | Diagnostic |  |
+| Outbox (Device) | `sms_outbox_device` | Sensor | - | Diagnostic |  |
+| Drafts (Device) | `sms_drafts_device` | Sensor | - | Diagnostic |  |
+| Deleted (Device) | `sms_deleted_device` | Sensor | - | Diagnostic |  |
+| Capacity (Device) | `sms_capacity_device` | Sensor | - | Diagnostic |  |
 | Unread (SIM) | `sms_unread_sim` | Sensor | - | Diagnostic |  |
 | Inbox (SIM) | `sms_inbox_sim` | Sensor | - | Diagnostic |  |
 | Outbox (SIM) | `sms_outbox_sim` | Sensor | - | Diagnostic |  |
@@ -214,3 +220,9 @@ The `Last Msg` sensor contains:
 - `date`: Timestamp from the router.
 - `index`: Internal router message index.
 - `unread`: Boolean flag.
+
+---
+
+## Version Control
+
+- **v1.0.0** (2026-05-25) - Initial version. Added 6 undocumented entities, fixed SMS key formatting, updated unit/unknown-state notes, entity counts synced with HA output.
