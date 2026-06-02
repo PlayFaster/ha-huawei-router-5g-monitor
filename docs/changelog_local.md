@@ -4,6 +4,16 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev21] - 2026-06-02
+
+### Fixed
+
+- **Proactive & Reactive Session Stability**: Implemented proactive inactivity-based session resetting (100-second threshold) and a reactive auto-retry wrapper in `HuaweiRouter5GAPI` to prevent `100003: No rights (needs login)` errors during SMS actions.
+- **`asyncio.to_thread` Mock Compatibility**: Wrapped operations in a zero-argument lambda to prevent `TypeError` when test mocks expect `asyncio.to_thread` to receive only one positional argument.
+- **Python Exception Syntax**: Fixed syntax errors on Python 3.12–3.13 by parenthesizing exception tuples (`except (ValueError, TypeError):`) in `helpers.py` and `sensor.py`.
+- **Undefined Name `HuaweiRouter5GOptionsFlow`**: Resolved `F821` undefined name lint error in `config_flow.py` by adding `from __future__ import annotations`.
+- **Mypy Strict return type**: Resolved mypy strict type check error in `api.py` by casting the `get_sms_list` return value to `dict[str, Any]`.
+
 ## [1.1.1-dev20] - 2026-05-25
 
 ### Changed

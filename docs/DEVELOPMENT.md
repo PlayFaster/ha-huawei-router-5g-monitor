@@ -178,6 +178,10 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _This is NOT fixed_: Be aware that investigating this will results in incorrect analysis that the root cause is `diagnostic` vs `sensor` or the presence of `state_class` . This is wrong. Further investigation required, low priority.
 - **IPv6 DNS Gaps (v1.0.1-dev22)**: While IPv4 DNS was tracked, IPv6 DNS was missing, leading to incomplete network visibility on modern dual-stack connections.
   - _Fix_: Added `primary_ipv6_dns` and `secondary_ipv6_dns` sensors reading from the `monitoring_status` endpoint.
+- **Session Expiration during Service Calls (v1.1.1-dev21)**: Calling SMS or other device services after ~2 minutes of inactivity resulted in a `100003: No rights (needs login)` error due to the router's session expiring.
+  - _Fix_: Implemented proactive inactivity-based session resetting (100-second threshold) in `_ensure_client()` and a reactive retry wrapper `_execute_with_retry` that catches `ResponseErrorLoginRequiredException` and codes `125002`/`125003`/`100003`, resets the client, and automatically retries the operation once.
+- **`asyncio.to_thread` Mock Compatibility (v1.1.1-dev21)**: Unit test mocks that stub `asyncio.to_thread` with custom lambda syntax (e.g. `lambda fn, **kwargs: fn(**kwargs)`) would fail with `TypeError` when `asyncio.to_thread` was invoked with extra positional arguments like `asyncio.to_thread(func, client)`.
+  - _Fix_: Wrapped the client function in a zero-argument lambda: `asyncio.to_thread(lambda: func(client))`. This ensures exactly one positional argument is passed, preserving compatibility with all unit test mocking styles.
 
 ## 6. Environment Constraints
 
@@ -201,3 +205,5 @@ _[1.0.3-dev4] — Added success pattern for MAC-based stable unique ID with norm
 _[1.1.1-dev12] — Updated Python 3.14 bare-tuple except pitfall entry with PEP 3111 clarification, ruff auto-format behavior, and `target-version` pinning guidance._
 
 _[1.1.1-dev15] — Added "Uptime Timestamp Stability — Reboot-Detection Latch" success pattern and "GB vs GiB — Data Sensor Unit Correctness" pattern._
+
+_[1.1.1-dev21] — Added "Session Expiration during Service Calls" and "asyncio.to_thread Mock Compatibility" pitfall entries._
