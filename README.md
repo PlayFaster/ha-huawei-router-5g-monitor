@@ -13,9 +13,26 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 > - **This integration is for you if** you want the core integration's features _plus_ any of the following:
 >   - **Polling control** — Pause polling and adjust the scan interval dynamically from the HA UI or via automation.
 >   - **Connected client tracking** — dynamically created `device_tracker` entities for every discovered LAN/WLAN client.
->   - **SMS Management** — View the most recently received message content and attributes directly in HA.
+>   - **SMS Management** — View the most recently received or sent message content and attributes directly in HA.
 >
 > This project builds on the excellent work of [Salamek/huawei-lte-api](https://github.com/Salamek/huawei-lte-api) and the Home Assistant core [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) integration.
+
+- [Huawei Router 5G Monitor for Home Assistant](#huawei-router-5g-monitor-for-home-assistant)
+  - [🔧 Compatibility \& Tested Devices](#-compatibility--tested-devices)
+  - [🏠 Use Cases](#-use-cases)
+  - [✅ Features](#-features)
+  - [🔍 What You Get](#-what-you-get)
+  - [💡 Example Automations](#-example-automations)
+  - [📸 Screenshots](#-screenshots)
+  - [📥 Installation](#-installation)
+  - [⚙️ Configuration](#️-configuration)
+  - [🏗️ Under the Hood - Technical Architecture](#️-under-the-hood---technical-architecture)
+  - [❓ FAQ \& Troubleshooting](#-faq--troubleshooting)
+  - [🗑️ Removal](#️-removal)
+  - [⚠️ Known Limitations /❔ What's Missing?](#️-known-limitations--whats-missing)
+  - [📝 Maintenance Status](#-maintenance-status)
+  - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
+  - [📄 License](#-license-)
 
 ## 🔧 Compatibility & Tested Devices
 
@@ -38,7 +55,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 ## 🏠 Use Cases
 
 - **Signal Monitoring**: Near-real-time and historical 5G/LTE signal data enable the monitoring of router performance.
-  - **Best Signal**: Use signal diagnostics (RSRP, SNR) to optimize the physical placement or orientation of your router.
+  - **Best Signal**: Use signal diagnostics (RSRP, SINR) to optimize the physical placement or orientation of your router.
   - **Performance Tracking**: Use signal history to check whether the performance from your 5G/LTE ISP is stable or changing.
   - **Connection Quality**: Know if your router has dropped to a lower capability 4G/LTE only connection.
 - **Data Cap Management**: Create automations to get notified when you reach 80% or 90% of your monthly data limit to avoid unexpected overage charges on limited 5G plans.
@@ -53,7 +70,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 >
 > - **Polling Control**: A Pause Polling switch and a configurable, dynamically adjustable scan interval — set it from the UI or drive it via automation.
 > - **Connected Client Tracking**: Automatically creates `device_tracker` entities for every discovered LAN/WLAN client, dynamically updated as devices join and leave.
-> - **SMS Management**: Most recent SMS as text sensor, all SMS inbox counts, actions to read, send and delete SMS.
+> - **SMS Management**: Most recent SMS as text sensor, all SMS inbox counts, actions to read, send, and delete SMS.
 
 ### 📡 Advanced 5G/LTE Diagnostics
 
@@ -80,7 +97,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 This integration features **dynamic polling**, the ability to pause polling completely or to change the polling interval.
 
 - **Pause Polling**: Switch to halt polling when you need uninterrupted access to the router's web UI (Huawei only allows a single active login session).
-- **Configurable Update Interval**: Dynamically adjust the scan interval (30s to 1 hour) via a number entity or automation.
+- **Configurable Update Interval**: Dynamically adjust the scan interval (30s to 1 hour, default `180` seconds) via a number entity or automation.
 
 > [!TIP]
 >
@@ -92,7 +109,7 @@ This integration features **dynamic polling**, the ability to pause polling comp
 
 Provides unread SMS count and latest message content sensors, a `huawei_router_5g_sms_received` event for automation triggers, and four service actions for full programmatic control.
 
-- The `Recent Msg` sensor displays the most recent message received **OR** _sent_.
+- The `Last Msg` sensor displays the most recent message received **OR** _sent_.
 - In the examples below, the `entry_id:` of your router, where required, is drop-down menu selectable from the editor GUI.
 
 > The `delete_all_sms` service action below provides programmatic cleanup of your inbox, and accepts a `keep_last` parameter to preserve recent messages.
@@ -514,6 +531,24 @@ After installation, open **Settings > Devices & Services > Huawei Router 5G Moni
 | Username | Router login username.                                      |
 | Password | Admin password (update if changed on the router).           |
 
+### 🎛️ Runtime Controls & Settings (Entities)
+
+Rather than hiding settings in configuration menus, several configuration parameters are exposed directly as Home Assistant control entities, allowing you to monitor and control them from dashboards or automations:
+
+#### 📡 Network Settings (System Device)
+
+- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select the preferred network mode dynamically. Options include `Auto`, `4G Only`, `5G Only`, `4G/3G/2G Auto`, etc.
+
+#### ⚙️ Router Administration & Polling (System Device)
+
+- **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Switch to halt polling to allow exclusive access to the router web UI.
+- **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
+- **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
+
+#### 🛜 WiFi & Client Settings (WiFi Device)
+
+- **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
+
 ## 🏗️ Under the Hood - Technical Architecture
 
 ### 🔄 Data Polling & 3-Strike Resilience 🩹
@@ -540,14 +575,24 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 
 ## ❓ FAQ & Troubleshooting
 
-### 🔌 **"Failed to connect to router" Error**
+### 🔌 Connection & Authentication
 
-- Verify the IP address is correct (the Huawei default is `192.168.8.1`)
-- Confirm the username is `admin`
-- Verify the password is correct (case-sensitive)
-- Ensure the router is powered on and not currently rebooting
+#### **"Failed to connect to router" Error**
 
-### ❔ **Some sensors showing "Unknown"**
+- Verify the IP address is correct (the Huawei default is `192.168.8.1`).
+- Confirm the username is `admin`.
+- Verify the password is correct (case-sensitive).
+- Ensure the router is powered on and not currently rebooting.
+
+#### 🔒 **Why can't I access the router web UI while this integration is running?**
+
+- Huawei routers are generally tolerant of concurrent sessions (e.g., via the web UI and Home Assistant), but it can be an issue.
+- Use the **Pause Polling** switch in Home Assistant to halt polling and free up the session.
+- Resume polling when you are done with the web UI.
+
+### 📊 Diagnostics & Entity Values
+
+#### ❔ **Some sensors showing "Unknown"**
 
 - Most sensors showing okay with some unknown **is expected behaviour**.
   - The integration fetches everything it can from the router API.
@@ -555,7 +600,7 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
   - 5G NR sensors will show "Unknown" when the router is operating in LTE-only mode.
   - These sensors can be disabled to avoid clutter.
 
-### 🛑 **All sensors showing "Unavailable" or "Unknown"**
+#### 🛑 **All sensors showing "Unavailable" or "Unknown"**
 
 - This is normal during a router reboot or if the router is temporarily unreachable.
   - The integration will automatically recover once the connection is restored.
@@ -563,12 +608,6 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
   - Ensure you can log into the router's web UI (confirms it is up and the password is correct).
   - Check your Home Assistant logs for specific error messages.
   - Delete and re-add the integration.
-
-### 🔒 **Why can't I access the router web UI while this integration is running?**
-
-- Huawei routers are generally tolerant of concurrent sessions (e.g. via the web UI and Home Assistant), but it can be an issue.
-- Use the **Pause Polling** switch in Home Assistant to halt polling and free up the session.
-- Resume polling when you are done with the web UI.
 
 ## 🗑️ Removal
 
@@ -590,6 +629,7 @@ To fully uninstall (HACS):
 ## ⚠️ Known Limitations /❔ What's Missing?
 
 - **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
+- **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
 
 ## 📝 Maintenance Status
 
