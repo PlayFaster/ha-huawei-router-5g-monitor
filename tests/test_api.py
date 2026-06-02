@@ -1,5 +1,6 @@
 """Tests for the Huawei Router 5G API client."""
 
+from datetime import datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1304,3 +1305,105 @@ async def test_get_data_sms_count_safe_int_none():
         ascending=False,
         unread_preferred=True,
     )
+
+
+# ---------------------------------------------------------------------------
+# _ensure_client() — session expiry path (lines 114-115)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_resets_on_inactivity():
+    """Test _ensure_client resets client when last_activity >100s ago."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._last_activity = datetime.now() - timedelta(seconds=200)
+
+    new_client = MagicMock()
+
+    async def _mock_login():
+        api._client = new_client
+
+    with patch.object(api, "_login_internal", new=AsyncMock(side_effect=_mock_login)):
+        result = await api._ensure_client()
+
+    assert result is new_client
+
+
+# ---------------------------------------------------------------------------
+# _execute_with_retry() — retry and re-raise paths (lines 150-163)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_execute_with_retry_retries_on_login_required():
+    """Test _execute_with_retry retries after ResponseErrorLoginRequiredException."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    call_count = 0
+
+    def mock_fn(client):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ResponseErrorLoginRequiredException("Login required", "100001")
+        return "retried_ok"
+
+    with (
+        patch.object(api, "_ensure_client", return_value=mock_client),
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+    ):
+        result = await api._execute_with_retry(mock_fn)
+
+    assert result == "retried_ok"
+    assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_execute_with_retry_retries_on_expiry_error_code():
+    """Test _execute_with_retry retries on ResponseErrorException with expiry code."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    call_count = 0
+
+    def mock_fn(client):
+        nonlocal call_count
+        call_count += 1
+        if call_count == 1:
+            raise ResponseErrorException("Session expired", "125002")
+        return "retried_ok"
+
+    with (
+        patch.object(api, "_ensure_client", return_value=mock_client),
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+    ):
+        result = await api._execute_with_retry(mock_fn)
+
+    assert result == "retried_ok"
+    assert call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_execute_with_retry_raises_non_expiry_error():
+    """Test _execute_with_retry re-raises non-expiry ResponseErrorException."""
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    def mock_fn(client):
+        raise ResponseErrorException("Other error", "1")
+
+    with (
+        patch.object(api, "_ensure_client", return_value=mock_client),
+        patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+        pytest.raises(ResponseErrorException, match="Other error"),
+    ):
+        await api._execute_with_retry(mock_fn)
