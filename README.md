@@ -11,9 +11,9 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 > - **Most users** with a Huawei LTE/5G router should use the official [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) core integration — it is well-maintained, broadly compatible, and fully supported.
 > - **If you only want SMS features** on top of the core integration, consider pairing it with [@william-aqn's huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended) component.
 > - **This integration is for you if** you want the core integration's features _plus_ any of the following:
->   - **Polling control** — pause polling and adjust the scan interval dynamically from the HA UI or via automation.
+>   - **Polling control** — Pause polling and adjust the scan interval dynamically from the HA UI or via automation.
 >   - **Connected client tracking** — dynamically created `device_tracker` entities for every discovered LAN/WLAN client.
->   - **SMS Management** — view the most recently received message content and attributes directly in HA.
+>   - **SMS Management** — View the most recently received message content and attributes directly in HA.
 >
 > This project builds on the excellent work of [Salamek/huawei-lte-api](https://github.com/Salamek/huawei-lte-api) and the Home Assistant core [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) integration.
 
@@ -37,7 +37,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 ## 🏠 Use Cases
 
-- **Signal Monitoring**: Near real-time and historical 5G/LTE signal data allows monitoring of router performance.
+- **Signal Monitoring**: Near-real-time and historical 5G/LTE signal data enable the monitoring of router performance.
   - **Best Signal**: Use signal diagnostics (RSRP, SNR) to optimize the physical placement or orientation of your router.
   - **Performance Tracking**: Use signal history to check whether the performance from your 5G/LTE ISP is stable or changing.
   - **Connection Quality**: Know if your router has dropped to a lower capability 4G/LTE only connection.
@@ -190,7 +190,7 @@ Fires automatically when a new incoming SMS is detected. Use as an automation tr
 | `date` | Text | Date/time of the message. |
 | `index` | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
 
-## 📊 What You Get
+## 🔍 What You Get
 
 This integration provides **112+ entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**.
 
@@ -216,6 +216,52 @@ This integration provides **112+ entities** (depending on your firmware) organiz
 > - If you never use the Router's SMS you may not need the SMS sub-device
 > - Devices and their entities can be disabled from the main device page - (⋮ menu) "Disable Device".
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
+
+### 📊 Long Term Statistics (LTS)
+
+Home Assistant stores Long Term Statistics for numeric sensors that have a `state_class` set. This integration enables LTS only for sensors where long-term trend data is genuinely useful:
+
+| Sensors with LTS enabled | Why |
+| :-- | :-- |
+| LTE & 5G signal metrics (RSRP, RSRQ, RSSI, SINR) | Track connection quality trends over time |
+| Signal Bars (LTE & 5G) | Coarse signal summary over time |
+| Monthly data usage (Download, Upload, Total) | Monitor data consumption month-over-month |
+| Lifetime totals (Total Download, Upload, Data) | Cumulative lifetime traffic |
+| Day Used | Daily usage accumulation |
+| Connected clients (WiFi, Wired, Total) | Track client count trends over time |
+| LTE & 5G CQI | Channel quality indicator trends |
+| 5G Rank | MIMO rank over time |
+| SMS Unread / Total Msg | Aggregate message volume |
+| SMS Total (Device) / Unread (Device) | Per-device storage tracking |
+
+The following sensors have **no LTS** to avoid unnecessary database growth:
+
+| Sensor | Reason |
+| :-- | :-- |
+| Download / Upload Rate | Instantaneous readings — history at poll intervals has limited analytical value |
+| Max Download / Upload Rate | Session maximum, resets; not useful for long-term trends |
+| Connection Upload / Download | Resets on every reconnect — session-scoped |
+| Connection / Total Connection Duration | Connection time counters; not insightful for LTS |
+| Month Download / Upload (GB) | Redundant with the Bytes versions for LTS; HA can display bytes in any unit |
+| LTE & 5G Frequencies | Static carrier frequencies — rarely change |
+| LTE & 5G Bandwidths | Static channel bandwidths |
+| Battery | Always ~100% when plugged in |
+| SMS diagnostic sub-counters (inbox, outbox, drafts, etc.) | Per-bank storage counts — no trend value |
+
+> [!TIP]
+>
+> **Want to add a sensor to Long Term Statistics?**
+>
+> Add a `state_class` override via [Manual Customization](https://www.home-assistant.io/integrations/homeassistant/#manual-customization) in your `configuration.yaml`. For example, to track Download Rate in LTS:
+>
+> ```yaml
+> homeassistant:
+>   customize:
+>     sensor.huawei_5g_data_download_rate:
+>       state_class: measurement
+> ```
+>
+> Restart Home Assistant after saving. The sensor will begin accumulating LTS from that point forward.
 
 ## 💡 Example Automations
 
@@ -259,9 +305,9 @@ actions:
       keep_last: 5
 ```
 
-#### 📜 Fetch and Process Inbox via Script
+#### 📜 Fetch and Process Inbox via Automation
 
-Example of using the `get_sms_list` action response in a script to count messages from a specific sender.
+Example of using the `get_sms_list` action response in an automation to count messages from a specific sender.
 
 ```yaml
 alias: "SMS: Count OTP Messages"
@@ -441,8 +487,8 @@ actions:
 ### 💾 Manual Installation
 
 1. Download the [latest release](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases).
-2. Copy the `custom_components/huawei_router_5g` folder to your Home Assistant `custom_components` directory.
-3. Restart Home Assistant.
+2. Copy the `custom_components/huawei_router_5g` folder to your Home Assistant `custom_components` directory
+3. Restart Home Assistant
 4. Go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor"
 
 ## ⚙️ Configuration
@@ -490,7 +536,7 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 
 ### ⏱️ Dynamic Polling & Standard System Options
 
-- **Both Available**: The integration provides dynamic polling controls to pause polling or change the polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
+- **Both Available**: The integration provides dynamic polling controls, to pause polling or change polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
 
 ## ❓ FAQ & Troubleshooting
 

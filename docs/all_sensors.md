@@ -121,13 +121,13 @@ _Group: `data`_
 | Upload Rate | `current_upload_rate` | Sensor | B/s | - | Current upload speed. |
 | Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
 | Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
-| Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. |
-| Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. |
+| Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. Resets on reconnect. No LTS. |
+| Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. Resets on reconnect. No LTS. |
 | Day Used | `current_day_used` | Sensor | Bytes | - | Traffic used today. Other display units may be used (e.g. GB). |
 | Month Download | `month_download` | Sensor | Bytes | - |  |
-| Month Download (GB) | `month_download_gb` | Sensor | GB | - | Rounded to 2 decimals. |
+| Month Download (GB) | `month_download_gb` | Sensor | GB | - | Rounded to 2 decimals. No LTS (use `month_download` bytes sensor for LTS). |
 | Month Upload | `month_upload` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
-| Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | Rounded to 2 decimals. |
+| Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | Rounded to 2 decimals. No LTS (use `month_upload` bytes sensor for LTS). |
 | Month Total | `month_total` | Sensor | Bytes | - |  |
 | Clear Traffic Statistics | `clear_traffic` | Button | - | - | Resets traffic counters. |
 
@@ -226,3 +226,4 @@ The `Last Msg` sensor contains:
 ## Version Control
 
 - **v1.0.0** (2026-05-25) - Initial version. Added 6 undocumented entities, fixed SMS key formatting, updated unit/unknown-state notes, entity counts synced with HA output.
+- **v1.1.1-dev20** (2026-05-25) - Updated Connection Upload/Download, Month Download/Upload GB notes to reflect removal of state_class (No LTS).

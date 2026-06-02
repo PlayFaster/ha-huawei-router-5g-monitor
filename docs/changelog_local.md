@@ -4,6 +4,12 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev20] - 2026-05-25
+
+### Changed
+
+- **Sensors**: Removed `state_class` from 32 sensors to prevent non-critical sensors from generating Long Term Statistics entries. Removed from: `battery`, `current_connection_duration`, `total_connection_time` (system); `lte_uplink_frequency`, `lte_downlink_frequency`, `lte_uplink_bandwidth`, `lte_downlink_bandwidth`, `5g_uplink_frequency`, `5g_downlink_frequency`, `5g_uplink_bandwidth`, `5g_downlink_bandwidth` (signal); `current_download_rate`, `current_upload_rate`, `max_download_rate`, `max_upload_rate`, `current_connection_upload`, `current_connection_download`, `month_download_gb`, `month_upload_gb` (data); `sms_inbox_device`, `sms_outbox_device`, `sms_drafts_device`, `sms_deleted_device`, `sms_capacity_device`, `sms_unread_sim`, `sms_inbox_sim`, `sms_outbox_sim`, `sms_drafts_sim`, `sms_capacity_sim`, `sms_messages_sim`, `sms_new` (SMS).
+
 ## [1.1.1-dev19] - 2026-05-25
 
 ### Fixed
