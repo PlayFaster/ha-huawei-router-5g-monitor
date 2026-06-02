@@ -1,5 +1,7 @@
 """Config flow for Huawei Router 5G Monitor integration."""
 
+from __future__ import annotations
+
 import logging
 from collections.abc import Callable, Mapping
 from typing import Any

@@ -89,7 +89,7 @@ def parse_signal_value(val: Any) -> float | None:
             break
     try:
         return float(s)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return None
 
 
@@ -116,7 +116,7 @@ def _parse_complex_int(val: Any) -> Any:
         f_val = parse_signal_value(s_val)
         if f_val is not None:
             return int(f_val)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         pass
     return s_val
 
