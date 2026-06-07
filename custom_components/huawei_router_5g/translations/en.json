@@ -1,5 +1,4 @@
 {
-  "title": "Huawei Router 5G Monitor",
   "config": {
     "step": {
       "user": {
@@ -19,24 +18,6 @@
     },
     "abort": {
       "already_configured": "Device is already configured"
-    }
-  },
-  "options": {
-    "step": {
-      "init": {
-        "title": "Reconfigure Huawei Router 5G Monitor",
-        "data": {
-          "name": "Integration Name",
-          "host": "Router URL (e.g. http://192.168.8.1)",
-          "username": "Username (optional)",
-          "password": "Password"
-        }
-      }
-    },
-    "error": {
-      "cannot_connect": "Failed to connect to router. Check the URL/IP address.",
-      "invalid_auth": "Invalid credentials. Please check your username and password.",
-      "unknown": "Unexpected error occurred."
     }
   },
   "entity": {
@@ -169,5 +150,24 @@
     "number": {
       "polling_interval": { "name": "Polling Interval" }
     }
-  }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Reconfigure Huawei Router 5G Monitor",
+        "data": {
+          "name": "Integration Name",
+          "host": "Router URL (e.g. http://192.168.8.1)",
+          "username": "Username (optional)",
+          "password": "Password"
+        }
+      }
+    },
+    "error": {
+      "cannot_connect": "Failed to connect to router. Check the URL/IP address.",
+      "invalid_auth": "Invalid credentials. Please check your username and password.",
+      "unknown": "Unexpected error occurred."
+    }
+  },
+  "title": "Huawei Router 5G Monitor"
 }

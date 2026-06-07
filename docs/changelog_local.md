@@ -4,12 +4,328 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1] - 2026-06-07 - Release
+
+### Summary
+
+- v1.1.1 is clean-up and bug-fixes, no new features.
+- Fixed a timestamp bug and removed several sensors from long term statistics.
+
+### Fixed
+
+- **Integration startup failure on HA reboot**: Eliminated a transient import race in the `url_normalize` → `idna` → `uts46data` dependency chain. On cold HA startup, the integration could fail with `ImportError: cannot import name 'uts46data'` and would not recover without a full HA restart. Replaced with a stdlib-only URL normalisation helper.
+- **HA 2026.6 deprecation warning**: Updated `ScannerEntity` import to the canonical `homeassistant.components.device_tracker` path, eliminating the HA 2026.6 startup warning and preventing a hard failure when the deprecated alias is removed in HA 2027.6.
+- **SMS actions failing after inactivity**: Calling SMS services (`send_sms`, `delete_sms`, etc.) after ~2 minutes of inactivity resulted in `100003: No rights` errors. Fixed with proactive session reset (100-second inactivity threshold) and automatic single retry on session expiry.
+- **Uptime/connection timestamp drift**: Replaced the polling-based uptime calculation (which recomputed `now() − uptime` on every poll) with a reboot-detection latch. Boot and connection start times are now computed once and frozen, eliminating clock-rate drift and backward jumps at minute boundaries.
+- **Startup validation warning**: Added the required `CONFIG_SCHEMA` declaration to `__init__.py`, resolving a hassfest validation warning on integration setup.
+- **Button failures invisible to automations**: Reboot and Clear Traffic buttons previously caught API errors silently. Both now raise `HomeAssistantError` so automations can detect and respond to failures.
+- **Device tracker crash resilience**: Replaced broad try-except blocks in `device_tracker.py` with explicit `None` guards matching the pattern used by all other platforms.
+- **Diagnostics crash on early query**: Added a `coordinator.data or {}` guard in `diagnostics.py` — previously, opening the diagnostics panel before the first successful poll caused a crash.
+
+### Changed
+
+- **Dynamic entity icons**: All entity icons migrated to HA's `icons.json` translation system. Signal bars (1–3), battery (10–100%), and SMS unread sensors now display context-aware icons that change automatically based on sensor value or state.
+- **Long-term statistics cleanup**: Removed `state_class` from 32 sensors that were incorrectly generating Long Term Statistics entries — specifically frequency/bandwidth sensors, SMS count sensors, connection duration sensors, and data rate sensors. These sensors report instantaneous or cumulative values that are not suitable for HA's statistics pipeline.
+
+## [1.1.1-dev24] - 2026-06-07
+
+### Added
+
+- **100% Project-Wide Test Coverage**: Closed the last 10 uncovered statements across 5 source files by writing 10 new tests in existing test files. No source code files were modified.
+  - `switch.py` (3): Normalization when `Ssid` is a single dict in `_is_on` and `extra_state_attributes`, and fallthrough `return {}` when no guest SSID is found.
+  - `number.py` (2): `async_will_remove_from_hass` entity lifecycle cleanup — both with and without a pending `_refresh_task`.
+  - `binary_sensor.py` (3): Single-dict `Ssid` normalization for `HuaweiWifi24GStatusSensor` and `HuaweiWifi5GStatusSensor`; `data=None` guard for `HuaweiEndcRestrictedSensor`.
+  - `config_flow.py` (1): Successful reauth path — `async_step_reauth` when a valid config entry exists.
+  - `device_tracker.py` (1): `_host_data` returns `None` when `coordinator.data` is `None`.
+  - Total coverage: 99% → 100% (1420/1420 statements). All 383 tests passing.
+
+## [1.1.1-dev23] - 2026-06-07
+
+### Fixed
+
+- **`ScannerEntity` Import — mypy / ruff / Line-Length Deadlock Resolved**: The `# type: ignore[attr-defined]` suppress comment introduced in dev22 was landing on the wrong line and therefore never suppressed the error. The full chain of causation:
+  1. **Why the import is multi-line**: The single-line form (`from homeassistant.components.device_tracker import ScannerEntity  # type: ignore[attr-defined]`) is 95 characters — over the 88-char `line-length` limit. ruff therefore always expands it to multi-line.
+
+  2. **What ruff does to the comment on expansion**: When ruff expands a single-line import to multi-line form, it moves any trailing comment from the import statement onto the last imported member line. The result was:
+
+     ```python
+     from homeassistant.components.device_tracker import (
+         ScannerEntity,  # type: ignore[attr-defined]   ← comment on member line (line 7)
+     )
+     ```
+
+  3. **Where mypy attributes the error**: mypy reports `[attr-defined]` on the `from` line (the statement opener, line 6), not on the member line (line 7). A `# type: ignore` comment on line 7 has no effect on an error reported on line 6 — mypy's line-matching is exact. So the error was never suppressed and pre-commit mypy failed.
+
+  4. **Why this was also a contradiction in the earlier config**: In the config before dev23, the `homeassistant.*` override lacked `no_implicit_reexport = true`, so basic mypy (no `--strict`) never raised `[attr-defined]` at all. That made the `# type: ignore[attr-defined]` simultaneously needed (strict mode) and unused (basic mode), triggering `[unused-ignore]` in basic mode. Adding `no_implicit_reexport = true` to the override (see Changed below) resolved the basic/strict split — both modes now raise `[attr-defined]`, so the ignore is always in use.
+
+  5. **The fix**: Use the multi-line form with the `# type: ignore[attr-defined]` on the `from (` line, not the member line:
+
+     ```python
+     from homeassistant.components.device_tracker import (  # type: ignore[attr-defined]
+         ScannerEntity,
+     )
+     ```
+
+     Verified in the devcontainer: running `ruff format` on this exact form returns "1 file already formatted" — ruff does not move a comment that is already on the `from (` line (it only moves comments to the member line when _expanding_ a single-line import). Running mypy against this form returns "no issues found" — the suppress comment is on the same line as the reported error.
+
+  6. **`warn_unused_ignores = false` override removed**: The per-file override for `custom_components.huawei_router_5g.device_tracker` that disabled `warn_unused_ignores` was removed. It was only needed while basic and strict mypy disagreed on whether `[attr-defined]` fired. With `no_implicit_reexport = true` now applied consistently, both modes raise the error and the ignore is always used — the override served no further purpose.
+
+### Changed
+
+- **`pyproject.toml` — mypy Configuration Realigned with HA's Internal `mypy.ini`**: The project's `[tool.mypy]` section has been restructured to closely match HA's auto-generated `mypy.ini` (produced by `script/hassfest -p mypy_config`). This ensures the pre-commit mypy hook, and the project's basic `mypy custom_components/` check, run under materially the same conditions as HA's own integration quality checks. The goal is for any type errors caught here to be errors HA itself would also catch — and vice versa.
+
+  **Flags added** (HA applies these globally; the project previously lacked them):
+
+  | Flag | Why added |
+  | --- | --- |
+  | `platform = "linux"` | Matches HA's platform assumption; eliminates platform-specific type divergence |
+  | `local_partial_types = true` | Prevents deferred variable typing (e.g. `x = []` with no annotation) |
+  | `strict_bytes = true` | Stricter bytes/str distinction |
+  | `warn_incomplete_stub = true` | Surfaces partially-typed stubs that could produce misleading "no error" results |
+  | `disallow_incomplete_defs = true` | Flags functions with only some arguments annotated |
+  | `disallow_untyped_calls = true` | Flags calls into untyped functions (catches missing annotations in third-party wrappers) |
+  | `enable_error_code = ["deprecated", "ignore-without-code", "redundant-self", "truthy-iterable"]` | HA's four enabled codes. Notably `ignore-without-code` requires every `# type: ignore` to carry a specific error code — bare `# type: ignore` comments are now an error |
+
+  **Flag changed**:
+
+  | Before | After | Why |
+  | --- | --- | --- |
+  | `ignore_missing_imports = true` | `disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]` | HA's approach is targeted error-code suppression rather than a blanket flag. Effect is functionally similar for missing stubs but matches HA's convention exactly |
+
+  **Flag removed**:
+
+  | Flag | Why removed |
+  | --- | --- |
+  | `disallow_any_generics = true` (global) | HA only applies this to ~10 specific HA core modules (auth, core, helpers), not globally. Keeping it global made the project stricter than HA on generics without a matching rationale |
+
+  **`homeassistant.*` override updated**:
+
+  | Change | Detail |
+  | --- | --- |
+  | Removed `implicit_reexport = true` | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*` |
+  | Added `no_implicit_reexport = true` | Matches HA's own `[mypy-homeassistant.*] no_implicit_reexport = true` exactly. HA explicitly enforces that its modules only export names declared in `__all__`. Setting this in the project's override causes both basic and strict mypy to apply the same rule when the project imports from HA — surfacing cases where HA's public API surface doesn't match its declared exports (such as the `ScannerEntity` gap) |
+  | Kept `ignore_errors = true` | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness |
+  | Kept `follow_imports = "silent"` | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast |
+
+  **Net result**: both `mypy custom_components/` (basic) and `mypy custom_components/ --strict` pass with zero errors. The pre-commit mypy hook (which runs basic mode) is now consistent with HA's own integration quality checks.
+
+  **Note**: `ScannerEntity` is re-exported in `homeassistant/components/device_tracker/__init__.py` via `from .config_entry import ScannerEntity  # noqa: F401` without `__all__`. HA's own mypy (`no_implicit_reexport = true` for `homeassistant.*`) would reject this if HA's internal code used the public path — which is why HA's own code imports `ScannerEntity` from `config_entry` directly. The `# type: ignore[attr-defined]` in `device_tracker.py` documents this HA inconsistency and should be removed once HA adds `ScannerEntity` to `device_tracker/__all__`.
+
+## [1.1.1-dev22] - 2026-06-07
+
+### Fixed
+
+- **`url_normalize` Startup Race Eliminated**: Replaced the `url_normalize` third-party library with a private `_normalize_router_url()` helper in `api.py` using stdlib `urllib.parse`. The `url_normalize` → `idna` → `uts46data` import chain was susceptible to a transient Python module initialization race during HA's concurrent startup, causing `ImportError: cannot import name 'uts46data'` on reboot. The integration would not recover without a full HA restart. The stdlib replacement covers all real-world router URL forms (bare IP, missing scheme, trailing slash, uppercase scheme, port) with no external dependencies and no UTS46 exposure.
+- **`ScannerEntity` Deprecation Warning Suppressed**: Updated `device_tracker.py` to import `ScannerEntity` from `homeassistant.components.device_tracker` (the canonical path since HA 2026.6) rather than the deprecated alias at `homeassistant.components.device_tracker.config_entry`. Eliminates the HA 2026.6 log warning; prevents a hard failure when the alias is removed in HA 2027.6.
+- **`manifest.json` Requirements**: Removed `url-normalize==3.0.0` from `requirements` following the stdlib replacement above.
+
+### Added
+
+- **`test_normalize_router_url` Parametrised Test**: Added 7-case test in `test_api.py` covering bare IP, well-formed URL, trailing slash, uppercase scheme, port-only (no scheme), port with scheme, and leading/trailing whitespace — replacing the implicit coverage that `url_normalize` provided via its own library tests.
+
+### Changed
+
+- **README Emoji Consistency**: Replaced all VS16 compound emoji in headings and ToC links with always-colour single-codepoint alternatives (`⚙️`→`🔧`, `🗑️`→`❌`, `⚠️`→`❗`, `⏱️`→`🔁`, `✉️`→`💬`, `⏯️`→`🔁`, `🛠️`→`🔩`, `🎛️`→`🔘`); moved License badge out of heading; standardised Use Cases icon to `🎯`.
+
+## [1.1.1-dev21] - 2026-06-02
+
+### Fixed
+
+- **Proactive & Reactive Session Stability**: Implemented proactive inactivity-based session resetting (100-second threshold) and a reactive auto-retry wrapper in `HuaweiRouter5GAPI` to prevent `100003: No rights (needs login)` errors during SMS actions.
+- **`asyncio.to_thread` Mock Compatibility**: Wrapped operations in a zero-argument lambda to prevent `TypeError` when test mocks expect `asyncio.to_thread` to receive only one positional argument.
+- **Python Exception Syntax**: Fixed syntax errors on Python 3.12–3.13 by parenthesizing exception tuples (`except (ValueError, TypeError):`) in `helpers.py` and `sensor.py`.
+- **Undefined Name `HuaweiRouter5GOptionsFlow`**: Resolved `F821` undefined name lint error in `config_flow.py` by adding `from __future__ import annotations`.
+- **Mypy Strict return type**: Resolved mypy strict type check error in `api.py` by casting the `get_sms_list` return value to `dict[str, Any]`.
+
+## [1.1.1-dev20] - 2026-05-25
+
+### Changed
+
+- **Sensors**: Removed `state_class` from 32 sensors to prevent non-critical sensors from generating Long Term Statistics entries. Removed from: `battery`, `current_connection_duration`, `total_connection_time` (system); `lte_uplink_frequency`, `lte_downlink_frequency`, `lte_uplink_bandwidth`, `lte_downlink_bandwidth`, `5g_uplink_frequency`, `5g_downlink_frequency`, `5g_uplink_bandwidth`, `5g_downlink_bandwidth` (signal); `current_download_rate`, `current_upload_rate`, `max_download_rate`, `max_upload_rate`, `current_connection_upload`, `current_connection_download`, `month_download_gb`, `month_upload_gb` (data); `sms_inbox_device`, `sms_outbox_device`, `sms_drafts_device`, `sms_deleted_device`, `sms_capacity_device`, `sms_unread_sim`, `sms_inbox_sim`, `sms_outbox_sim`, `sms_drafts_sim`, `sms_capacity_sim`, `sms_messages_sim`, `sms_new` (SMS).
+
+## [1.1.1-dev19] - 2026-05-25
+
+### Fixed
+
+- **`button.py` `async_press` handlers now raise `HomeAssistantError` on failure**: `HuaweiRebootButton` and `HuaweiClearTrafficButton` previously caught API exceptions, logged them, and returned silently — meaning automations calling `button.press` would succeed with no indication of failure. Both handlers now `raise HomeAssistantError(...) from err`, consistent with the service handler pattern (`send_sms`, `delete_sms`, etc.). `logging` import and `_LOGGER` removed from `button.py` as no longer needed.
+
+### Changed
+
+- **`action-exceptions` IQS compliance PARTIAL→DONE**: Closes the last Silver tier gap for `huawei_router_5g`. Scorecard updated (DONE 46→47, PARTIAL 1→0). `ha_quality_standard.md` v1.9.1 and `next_steps_20260525.md` updated accordingly.
+- **`test_button.py` error-path tests updated**: `test_reboot_button_press_error` and `test_clear_traffic_button_press_error` now assert `HomeAssistantError` is raised (with match strings) rather than asserting no exception propagates.
+
+## [1.1.1-dev18] - 2026-05-25
+
+### Added
+
+- **6 entities documented in all_sensors.md**: Mobile Data (Switch), Preferred Network Mode (Select), SIM Card Status (Binary Sensor), Roaming Status (Binary Sensor), 5G Uplink Frequency (Sensor), 5G Downlink Frequency (Sensor) — all were present in HA output but missing from documentation.
+
+### Changed
+
+- **IQS compliance matrix (v1.9.0)**: Full SCAN=Full pass for `huawei_router_5g`. `action-exceptions` downgraded DONE→PARTIAL (button `async_press` handlers log errors but do not raise `HomeAssistantError`). Scorecard updated (DONE 47→46, PARTIAL 0→1).
+- **quality_scale.yaml corrected**: `brands` and `integration-owner` changed from `exempt` to `done` (both are implemented). `async-dependency` and `inject-websession` added as `todo` (were missing from Platinum tier).
+- **all_sensors.md entity counts updated**: System 19→22, Signal 46→49 to reflect newly documented entities.
+
+### Fixed
+
+- **SMS key backtick formatting in all_sensors.md**: 4 rows in the SMS Device section had malformed Key fields (`key"` instead of `` `key` ``) causing incorrect markdown rendering.
+
+## [1.1.1-dev17] - 2026-05-24
+
+### Changed
+
+- **Documentation**: Additional updates to README, more automation examples, more icons. Consistency with ZTE project README.
+
+## [1.1.1-dev16] - 2026-05-24
+
+### Added
+
+- **Coordinator test coverage to 100%**: Added 8 new test functions for uptime latch blocks (system boot time, connection start time, total connection origin — each with first-latch and reboot-detection scenarios) and the timeout-after-max-failures `UpdateFailed` path. coordinator.py coverage raised from 79% to 100%, total project coverage to 99%.
+
+## [1.1.1-dev15] - 2026-05-24
+
+### Fixed
+
+- **Uptime timestamp drift**: Replaced `_get_timestamp()` (naive `now() − uptime` recomputed every poll) with a reboot-detection latch in the coordinator for all three timestamp sensors (`uptime_timestamp`, `current_connection_timestamp`, `total_connection_timestamp`). Boot/start times are now computed once and frozen; the latch re-fires only when the counter drops by more than 30 seconds (genuine reset). Eliminates clock-rate divergence drift and the minute-boundary backward jumps caused by the prior truncation approach. Six latch fields persisted to `entry.data` so timestamps survive HA restarts.
+- **`month_download_gb` / `month_upload_gb` GB/GiB mismatch**: Both sensors were dividing bytes by `1024³` (producing GiB) while declaring `native_unit_of_measurement=GIGABYTES` (GB). Corrected divisor to `1,000,000,000` — fixes ~7.4% underreporting (e.g. actual 133 GB was displayed as 124 GB).
+- **`dict` → `dict[str, Any]` mypy `[type-arg]` error** in `coordinator.py` on the `entry_data_updates` local variable.
+
+## [1.1.1-dev14] - 2026-05-24 - Unreleased
+
+### Changed
+
+- **Dependabot**: Bump PlayFaster/.github shared validation from v1.02 to v1.04
+- **Dependabot**: Bump [zizmor](https://github.com/zizmorcore/zizmor-pre-commit) from v1.24.1 to 1.25.2
+- **Dependabot**: Bump [python-typing](https://github.com/cdce8p/python-typing-update) from v0.6.0 to 0.8.1
+
+## [1.1.1-dev12] - 2026-05-11
+
+### Added
+
+- **Code Review**: Carried out a code review, implemented several improvements.
+
+### Changed
+
+- **Extracted `FETCH_TIMEOUT` constant**: Moved the hardcoded 30-second fetch timeout value from `coordinator.py` to a named constant `FETCH_TIMEOUT = 30` in `const.py` for discoverability and reuse.
+
+### Fixed
+
+- **Duplicate assert in `api.py`**: Removed a duplicate `assert client is not None` statement — copy-paste error with no runtime impact.
+- **Diagnostics None guard**: Added `coordinator.data or {}` guard in `diagnostics.py` to prevent crash if diagnostics is queried before the first successful coordinator poll. Updated test assertion accordingly.
+- **Device tracker exception handling**: Replaced overly broad try-except blocks in `device_tracker.py` with `isinstance` guards and early-return `None` checks. The old code wrapped `.get()` chains that already supplied default empty dicts — the try-except was dead code for normal data shapes but masked the real issue when `coordinator.data` was `None`. Added explicit `if not data` guards in both `_get_entities()` and `_host_data()` matching the pattern used by all other platforms.
+
+### Documentation
+
+- **Updated `DEVELOPMENT.md`**: Clarified Python 3.14 `except A, B:` comma syntax behavior — it is now valid multi-catch per PEP 3111 on Python 3.14+, but ruff with `target-version = "py314"` will auto-format to it. Added guidance on pinning `target-version = "py313"` for backward compatibility.
+
+## [1.1.1-dev11] - 2026-05-11
+
+### Changed
+
+- **Final icons.json cleanup**: Removed last inline `icon=` declarations from `select.py` and `button.py` — all entity icons are now served exclusively via `icons.json`. Previous rounds had already migrated `sensor.py`, `binary_sensor.py`, and `switch.py`; this completes the migration for all 6 entity types (sensor, binary_sensor, switch, select, button, number).
+
+### Fixed
+
+- **Test assertions aligned with icons.json approach**: Updated 4 icon assertions in `test_binary_sensor.py` and `test_coverage_ext.py` to expect `sensor.icon is None` — icons are now resolved by the HA frontend from `icons.json`, not via Python `@property icon`. The `HuaweiBestConnectionSensor` no longer declares an inline `icon` property.
+
+## [1.1.1-dev10] - 2026-05-11
+
+### Changed
+
+- **IQS Platinum**: With icons.json and strict typing the IQS scale is now "near-platinum", with the major caveats that (i) IQS does not apply to cusomt components and (ii) several standards are N/A but still a very positive indicator.
+- **Project Structure Document**: Updated the project structure document to v1.2.4.
+
+## [1.1.1-dev9] - 2026-05-11
+
+### Added
+
+- IQS Standards Review carried out. Added next steps document and implemented icons.json based on it.
+- **Full Implementation of `icons.json`**: Achieved IQS Gold compliance for `icon-translations` by moving all entity icons to a centralized translation-based system.
+- **Dynamic Icons**: Added dynamic state-based icons for 5G connectivity (`best_connection`), SMS storage status, and roaming.
+- **Range-Based Icons**: Added dynamic icons for battery (10-100%) and signal bars (1-3) that change automatically based on the sensor value.
+- **SMS Inbox-State Icons**: Added dynamic switching for `sms_unread` sensors, showing `mdi:message-badge` when unread messages are present.
+
+### Changed
+
+- **Removed Hardcoded Icons**: Refactored `sensor.py`, `binary_sensor.py`, and `switch.py` to remove redundant `icon="..."` arguments in favor of translation keys.
+- **`README.md` Terminology Update**: Updated all documentation references from "Services" to modern Home Assistant **"Actions"** terminology; updated SMS service examples to use `action` blocks.
+- **Documentation Enhancement**: Added specific tested firmware version `11.0.2.11(H1352SP2C00)` to the hardware compatibility section.
+- **IQS Tracking Updated**: Updated `quality_scale.yaml` and family compliance matrix to reflect 100% completion of `strict-typing` (Platinum) and `icon-translations` (Gold).
+
+### Fixed
+
+- **Initial Icon Mapping Gaps**: Resolved missing icon definitions for `sms_storage_full`, `endc_restricted`, `current_connection_duration`, and `total_connection_time` identified during implementation validation.
+
+## [1.1.1-dev8] - 2026-05-11
+
+### Changed
+
+- **Devcontainer mount consolidation**: Moved `.notes` and `.shared` mounts from `devcontainer.json` to `docker-compose.yml` — mounts with absolute paths are unreliable in Docker Compose mode when declared in `devcontainer.json`; compose-file volumes are authoritative for the compose service.
+- **HA core mounted for mypy**: Mounted HA core source (`C:/Local/Code/ha_core/core` → `/ha_core`) into the devcontainer via `docker-compose.yml` as read-only, so mypy can resolve HA type stubs without installing the full HA package.
+- **`mypy_path` configured**: Added `mypy_path = "/ha_core"` to `[tool.mypy]` in `pyproject.toml` to point mypy at the mounted HA source.
+- **mypy scoped to custom component**: Added `[[tool.mypy.overrides]]` for `homeassistant.*` with `ignore_errors = true` and `follow_imports = "silent"` to prevent mypy from checking and reporting errors from HA core files while still using them for type resolution.
+
+### Fixed
+
+- **10 `[type-arg]` strict mypy errors**: Replaced bare `dict` annotations with `dict[str, Any]` across `helpers.py` (3), `sensor.py` (2), `config_flow.py` (2), `__init__.py` (3).
+
+## [1.1.1-dev7] - 2026-05-11
+
+### Changed
+
+- **HA Core stubs mounted in devcontainer**: Mounted HA core files into the devcontainer at `/ha_core` so mypy can resolve HA type stubs. This surfaced 33 previously hidden strict mypy errors that were blocked by missing type information. pro
+
+### Fixed
+
+- **33 Strict Mypy Errors Resolved**: All remaining strict mypy errors fixed across 7 files (`coordinator.py`, `switch.py`, `sensor.py`, `select.py`, `number.py`, `device_tracker.py`, `config_flow.py`). Key fixes: removed 3 redundant `cast()` calls and annotated `last_update_success_time` as `datetime | None` in `coordinator.py`; corrected `EntityCategory` import path to `homeassistant.const` (4 files); used `NumberMode.SLIDER` enum instead of string `"slider"` in `number.py`; corrected `ScannerEntity` import to `device_tracker.config_entry` and added `# type: ignore[misc]` for `@final device_info` override in `device_tracker.py`; replaced `FlowResult` with `ConfigFlowResult` return type, added null-safety asserts, changed parameter type to `Mapping[str, Any]`, and moved `callback` import to `homeassistant.core` in `config_flow.py`.
+
+## [1.1.1-dev6] - 2026-05-11
+
+### Changed
+
+- Added HA core files to Devcon as a mount to try to get the remaining mypy strict errors resolved.
+
+### Fixed
+
+- **11 Mypy Errors Resolved (batch 1)**: Fixed `no-untyped-call` in `api.py` by extracting fetcher list to a typed `list[tuple[str, Callable[[], Any]]]` variable; fixed 3× `no-any-return` in `coordinator.py` via `cast("dict[str, Any]", self.data)`; fixed `no-any-return` in `switch.py` via `bool()` wrapper, `device_tracker.py` via `str(ip)` wrapper, and `binary_sensor.py` via `str(value)` wrapper; fixed `untyped-decorator` in `config_flow.py` via typed `_ha_callback` alias; fixed 3× `no-any-return` in `__init__.py` via `cast` for `entry.runtime_data` and `bool()` for `unload_ok`.
+- **10 Mypy Errors Resolved (batch 2)**: Fixed missing type arguments for bare `dict` annotations (`type-arg`) across `helpers.py` (3), `sensor.py` (2), `config_flow.py` (2), `__init__.py` (3) — added `[str, Any]` type parameters to all generic `dict` usages in function signatures.
+
+## [1.1.1-dev5] - 2026-05-10
+
+### Fixed
+
+- **`CONFIG_SCHEMA` hassfest warning**: Added `CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)` to `__init__.py`. Integrations that implement `async_setup` must declare one of `CONFIG_SCHEMA`, `PLATFORM_SCHEMA`, or `PLATFORM_SCHEMA_BASE`; using `config_entry_only_config_schema` is the correct choice for UI-only (config entry) integrations and surfaces a clear error if YAML setup is attempted.
+- **Duplicate sensor unique ID errors**: Removed duplicate `month_upload` and `month_upload_gb` entries from `SENSOR_TYPES` in `sensor.py`. Both descriptors were defined twice identically, causing HA to log `"ID already exists — ignoring"` warnings at startup and silently drop those two sensors. Likely introduced via accidental copy-paste during the mypy fix session (dev4).
+
+## [1.1.1-dev4] - 2026-05-10
+
+### Fixed
+
+- **71 Mypy Errors Resolved**: Comprehensive type annotation fixes across 11 source files (`api.py`, `config_flow.py`, `sensor.py`, `switch.py`, `number.py`, `select.py`, `helpers.py`, `coordinator.py`, `device_tracker.py`, `button.py`, `binary_sensor.py`). Key fixes: added missing parameter/return type annotations; narrowed `Client | None` union throughout `api.py` using assertion-driven pattern; corrected `set_net_mode` keyword arguments to match library API (`lteband`/`networkband`/`networkmode`); typed `_refresh_task` as `asyncio.Task[None] | None` to resolve unreachable code in `number.py`; added `or 0` guard for `_safe_int` division in `month_download_gb`/`month_upload_gb` sensors.
+
+## [1.1.1-dev3] - 2026-05-10
+
+### Changed Dev Tooling
+
+- **Shared Reusable CI Workflow**: Created `PlayFaster/.github` organisation repo containing a parameterised reusable workflow (`validate.yaml`, named "Validate (Shared)"). All 8 validation jobs (`hassfest`, `hacs_val`, `py_val`, `test_val`, `file_val`, `codespell`, `zizmor`, `mypy_val`) now live in the shared repo and are called by each integration via a thin caller. Changes to validation logic propagate to all 4 projects on the next CI run without per-project edits.
+- **Thin Caller Workflow**: Replaced the 270-line inline `.github/workflows/validate.yaml` with a ~30-line caller that delegates to the shared workflow via `uses: PlayFaster/.github/.github/workflows/validate.yaml@main`. Permissions correctly scoped: `contents: read` at workflow level, `contents: write` and `pull-requests: write` at job level (required by `test_val` for coverage badge and PR comments).
+- **Shared Workflow Concurrency**: Reusable workflow uses `${{ github.workflow }}-${{ github.ref }}-${{ github.repository }}` as its concurrency group, preventing cross-repo cancellation when multiple integrations trigger simultaneously.
+- **Shared Workflow Dependabot**: Added `dependabot.yml` to `PlayFaster/.github` tracking the `github-actions` ecosystem weekly, keeping SHA pins in the shared workflow current.
+- **Pre-commit: Suppress Inapplicable Hooks**: Added `stages: [manual]` to the `no-commit-to-branch` hook — direct commits to `main`/`dev` are the working pattern for this project, so the hook is retained for explicit use but removed from the default commit flow. Added `exclude: \.yamllint$` to the `yamllint` hook to prevent it from linting its own config file (which lacks `---` and uses CRLF).
+- **VS Code Tasks**: Added `Zizmor: Fix (Safe Auto-Fix)` task (`zizmor --fix .github/`) for applying zizmor's safe auto-fixes on demand. Added `Pre-commit: Autoupdate Hooks` task (`pre-commit autoupdate`) for updating all hook `rev:` pins to their latest releases. Neither task is wired into `Fix All` or `Validate All`.
+
+## [1.1.1-dev1] - 2026-05-07
+
+### Changed
+
+- **Readme**: Changed the top level info in readme to line up with GitHub description.
+
 ## [1.1.0] - 2026-05-07 - Release
 
 ### Changed
 
 - **Under the Hood**: Significant code clean-up.
-- **Unique ID via MAC**: Changed to have the Unique IDz generated from MAC not IP.
+- **Unique ID via MAC**: Changed to have the Unique IDs generated from MAC not IP.
 - **Automation Examples**: Updated the automation examples.
 
 ## [1.1.0-rc2] - 2026-05-07

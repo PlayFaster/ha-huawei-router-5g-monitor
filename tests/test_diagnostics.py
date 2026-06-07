@@ -245,8 +245,8 @@ async def test_async_get_config_entry_diagnostics_empty_data():
     assert "coordinator_data" in result
     # Should still call async_redact_data with None data
     assert mock_redact.call_count == 2
-    # Second call should have None as data
-    assert mock_redact.call_args_list[1][0][0] is None
+    # Second call should have empty dict (None guarded by coordinator.data or {})
+    assert mock_redact.call_args_list[1][0][0] == {}
 
 
 @pytest.mark.asyncio

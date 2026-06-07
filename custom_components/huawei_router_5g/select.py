@@ -6,7 +6,11 @@ from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
-from homeassistant.helpers.entity import EntityCategory
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
@@ -43,7 +47,6 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
     HuaweiSelectEntityDescription(
         key="network_mode",
         translation_key="network_mode",
-        icon="mdi:settings-transfer",
         options=list(NETWORK_MODE_MAPPING.keys()),
         entity_category=EntityCategory.CONFIG,
         group="system",
@@ -61,7 +64,11 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the select platform."""
     coordinator = entry.runtime_data
     async_add_entities(
@@ -88,7 +95,7 @@ class HuaweiRouterSelect(
         self._attr_unique_id = f"{coordinator.entry.unique_id}_{description.key}"
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self.entity_description.group)
 

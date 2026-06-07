@@ -3,7 +3,13 @@
 import logging
 from typing import Any
 
-from homeassistant.components.device_tracker import ScannerEntity
+from homeassistant.components.device_tracker import (  # type: ignore[attr-defined]
+    ScannerEntity,
+)
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
@@ -14,22 +20,27 @@ PARALLEL_UPDATES = 0
 _LOGGER = logging.getLogger(__name__)
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the device tracker platform."""
     coordinator = entry.runtime_data
 
     # Initialize tracked devices
     tracked_macs = set()
 
-    def _get_entities():
-        new_entities = []
+    def _get_entities() -> list[HuaweiRouterDeviceTracker]:
+        new_entities: list[HuaweiRouterDeviceTracker] = []
         data = coordinator.data
+        if not data:
+            return new_entities
         hosts = []
         for key in ["lan_host_info", "wlan_host_list"]:
-            try:
-                hosts.extend(data.get(key, {}).get("Hosts", {}).get("Host", []))
-            except AttributeError, KeyError, TypeError:
-                continue
+            hosts_data = data.get(key)
+            if isinstance(hosts_data, dict):
+                hosts.extend(hosts_data.get("Hosts", {}).get("Host", []))
 
         for host in hosts:
             mac = host.get("MacAddress")
@@ -42,7 +53,7 @@ async def async_setup_entry(hass, entry, async_add_entities):
     async_add_entities(_get_entities(), True)
 
     # Register listener for new devices
-    def _async_update_listener():
+    def _async_update_listener() -> None:
         new_entities = _get_entities()
         if new_entities:
             async_add_entities(new_entities, True)
@@ -67,12 +78,13 @@ class HuaweiRouterDeviceTracker(
     def _host_data(self) -> dict[str, Any] | None:
         """Get host data from coordinator."""
         data = self.coordinator.data
+        if not data:
+            return None
         hosts = []
         for key in ["lan_host_info", "wlan_host_list"]:
-            try:
-                hosts.extend(data.get(key, {}).get("Hosts", {}).get("Host", []))
-            except AttributeError, KeyError, TypeError:
-                continue
+            hosts_data = data.get(key)
+            if isinstance(hosts_data, dict):
+                hosts.extend(hosts_data.get("Hosts", {}).get("Host", []))
         return next((h for h in hosts if h.get("MacAddress") == self._mac), None)
 
     @property
@@ -99,7 +111,7 @@ class HuaweiRouterDeviceTracker(
         if host:
             ip = host.get("IpAddress")
             if ip:
-                return ip.split(";")[0]
+                return str(ip).split(";")[0]
         return None
 
     @property
@@ -127,7 +139,7 @@ class HuaweiRouterDeviceTracker(
             "address_source": host.get("AddressSource"),
         }
 
-    @property
-    def device_info(self) -> dict[str, Any]:
+    @property  # type: ignore[misc]
+    def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, "clients")

@@ -1,6 +1,7 @@
 """The Huawei Router 5G Monitor integration."""
 
 import logging
+from typing import Any, cast
 
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
@@ -18,6 +19,8 @@ from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import parse_sms_list
 
 _LOGGER = logging.getLogger(__name__)
+
+CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
 
 SERVICE_SEND_SMS_SCHEMA = vol.Schema(
     {
@@ -70,7 +73,7 @@ PLATFORMS = [
 
 
 def _get_coordinator(
-    hass: HomeAssistant, call_data: dict
+    hass: HomeAssistant, call_data: dict[str, Any]
 ) -> HuaweiRouter5GDataUpdateCoordinator:
     """Get coordinator from service call data."""
     entry_id = call_data.get("entry_id")
@@ -78,14 +81,14 @@ def _get_coordinator(
         entry = hass.config_entries.async_get_entry(entry_id)
         if entry and entry.domain == DOMAIN:
             if hasattr(entry, "runtime_data") and entry.runtime_data:
-                return entry.runtime_data
+                return cast(HuaweiRouter5GDataUpdateCoordinator, entry.runtime_data)
             raise HomeAssistantError(f"Router {entry.title} is not ready")
 
     # Fallback to first available entry if no specific ID provided
     entries = hass.config_entries.async_entries(DOMAIN)
     for entry in entries:
         if hasattr(entry, "runtime_data") and entry.runtime_data:
-            return entry.runtime_data
+            return cast(HuaweiRouter5GDataUpdateCoordinator, entry.runtime_data)
 
     raise HomeAssistantError("No active Huawei Router 5G entries found")
 
@@ -137,7 +140,7 @@ async def async_delete_all_sms(hass: HomeAssistant, call: ServiceCall) -> None:
         raise HomeAssistantError(f"Failed to delete all SMS: {err}") from err
 
 
-async def async_get_sms_list(hass: HomeAssistant, call: ServiceCall) -> dict:
+async def async_get_sms_list(hass: HomeAssistant, call: ServiceCall) -> dict[str, Any]:
     """Service to get SMS list with response."""
     coordinator = _get_coordinator(hass, call.data)
     page = call.data["page"]
@@ -165,7 +168,7 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def _handle_delete_all_sms(call: ServiceCall) -> None:
         await async_delete_all_sms(hass, call)
 
-    async def _handle_get_sms_list(call: ServiceCall) -> dict:
+    async def _handle_get_sms_list(call: ServiceCall) -> dict[str, Any]:
         return await async_get_sms_list(hass, call)
 
     hass.services.async_register(
@@ -277,4 +280,4 @@ async def async_unload_entry(
 
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
-    return unload_ok
+    return bool(unload_ok)

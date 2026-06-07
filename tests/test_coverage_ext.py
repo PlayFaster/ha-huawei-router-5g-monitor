@@ -132,8 +132,8 @@ def test_sensor_month_total(mock_coordinator, mock_config_entry):
 
 
 def test_sensor_month_upload_gb(mock_coordinator, mock_config_entry):
-    """Test month_upload_gb converts bytes to GB."""
-    mock_coordinator.data = {"month_statistics": {"CurrentMonthUpload": "1073741824"}}
+    """Test month_upload_gb converts bytes to GB (1,000,000,000 bytes → 1.0 GB)."""
+    mock_coordinator.data = {"month_statistics": {"CurrentMonthUpload": "1000000000"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "month_upload_gb")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == 1.0
@@ -183,16 +183,16 @@ def test_sensor_device_info_fallback_host_signal_group(
 
 
 def test_best_connection_icon_off(mock_coordinator, mock_config_entry):
-    """Icon is cellular-1 when 5G is not active."""
+    """Icon is None (icons.json handles state-based icons at frontend level)."""
     mock_coordinator.data = {"device_signal": {"band": "20MHz(B1)"}}
     sensor = HuaweiBestConnectionSensor(
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )
-    assert sensor.icon == "mdi:signal-cellular-1"
+    assert sensor.icon is None
 
 
 def test_best_connection_icon_on(mock_coordinator, mock_config_entry):
-    """Icon is 5g when all health gates pass."""
+    """Icon is None (icons.json handles state-based icons at frontend level)."""
     mock_coordinator.data = {
         "device_signal": {
             "band": "20MHz(B1) + 10MHz(N78)",
@@ -203,7 +203,7 @@ def test_best_connection_icon_on(mock_coordinator, mock_config_entry):
     sensor = HuaweiBestConnectionSensor(
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )
-    assert sensor.icon == "mdi:signal-5g"
+    assert sensor.icon is None
 
 
 # ---------------------------------------------------------------------------

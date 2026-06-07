@@ -1,10 +1,16 @@
 """Config flow for Huawei Router 5G Monitor integration."""
 
+from __future__ import annotations
+
 import logging
+from collections.abc import Callable, Mapping
+from typing import Any
 
 import voluptuous as vol
 from homeassistant import config_entries
+from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow
 
 from .api import HuaweiAuthError, HuaweiConnectionError, HuaweiRouter5GAPI
@@ -14,7 +20,7 @@ from .helpers import get_router_model
 _LOGGER = logging.getLogger(__name__)
 
 
-def _user_schema(defaults: dict) -> vol.Schema:
+def _user_schema(defaults: Mapping[str, Any]) -> vol.Schema:
     """Return the user/options form schema, pre-filled with defaults."""
     return vol.Schema(
         {
@@ -28,7 +34,7 @@ def _user_schema(defaults: dict) -> vol.Schema:
     )
 
 
-async def _validate_credentials(user_input: dict) -> dict:
+async def _validate_credentials(user_input: dict[str, Any]) -> dict[str, Any]:
     """Validate router credentials and return basic device info."""
     api = HuaweiRouter5GAPI(
         user_input[CONF_HOST],
@@ -56,12 +62,17 @@ async def _validate_credentials(user_input: dict) -> dict:
         await api.logout()
 
 
-class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
+class HuaweiRouter5GConfigFlow(
+    config_entries.ConfigFlow,
+    domain=DOMAIN,
+):
     """Handle a config flow for Huawei Router 5G Monitor."""
 
     VERSION = 2
 
-    async def async_step_user(self, user_input=None):
+    async def async_step_user(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle the initial setup step."""
         errors = {}
 
@@ -94,7 +105,7 @@ class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reauth(self, entry_data):
+    async def async_step_reauth(self, entry_data: dict[str, Any]) -> ConfigFlowResult:
         """Handle reauthentication."""
         self._reauth_entry = self.hass.config_entries.async_get_entry(
             self.context["entry_id"]
@@ -103,9 +114,12 @@ class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             return self.async_abort(reason="entry_not_found")
         return await self.async_step_reauth_confirm()
 
-    async def async_step_reauth_confirm(self, user_input=None):
+    async def async_step_reauth_confirm(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Dialog that informs the user that reauth is required."""
         errors = {}
+        assert self._reauth_entry is not None
         if user_input is not None:
             try:
                 await _validate_credentials(user_input)
@@ -133,10 +147,13 @@ class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
-    async def async_step_reconfigure(self, user_input=None):
+    async def async_step_reconfigure(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Handle reconfiguration."""
         errors = {}
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
+        assert entry is not None
 
         if user_input is not None:
             try:
@@ -160,9 +177,13 @@ class HuaweiRouter5GConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
             errors=errors,
         )
 
+    _ha_callback: Callable[[Callable[..., Any]], Callable[..., Any]] = callback
+
     @staticmethod
-    @config_entries.callback
-    def async_get_options_flow(entry):
+    @_ha_callback
+    def async_get_options_flow(
+        entry: config_entries.ConfigEntry,
+    ) -> HuaweiRouter5GOptionsFlow:
         """Return the options flow handler."""
         return HuaweiRouter5GOptionsFlow(entry)
 
@@ -174,7 +195,9 @@ class HuaweiRouter5GOptionsFlow(config_entries.OptionsFlow):
         """Initialize the options flow."""
         self._entry = entry
 
-    async def async_step_init(self, user_input=None):
+    async def async_step_init(
+        self, user_input: dict[str, Any] | None = None
+    ) -> ConfigFlowResult:
         """Manage the options — reconfigure host, username, password."""
         errors = {}
 

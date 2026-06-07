@@ -1,11 +1,14 @@
 """Shared helpers for the Huawei Router 5G Monitor integration."""
 
 import logging
-from typing import Any
+from typing import TYPE_CHECKING, Any
 
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from .const import DOMAIN
+
+if TYPE_CHECKING:
+    from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -58,7 +61,7 @@ _NETWORK_TYPE_MAP: dict[str, str] = {
 NR_NETWORK_TYPES: frozenset[str] = frozenset({"51", "52", "71", "101"})
 
 
-def get_router_model(device_info: dict | None) -> str:
+def get_router_model(device_info: dict[str, Any] | None) -> str:
     """Extract the router model from device_information dict.
 
     Returns 'Huawei Router' if no model name is found.
@@ -86,7 +89,7 @@ def parse_signal_value(val: Any) -> float | None:
             break
     try:
         return float(s)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         return None
 
 
@@ -113,7 +116,7 @@ def _parse_complex_int(val: Any) -> Any:
         f_val = parse_signal_value(s_val)
         if f_val is not None:
             return int(f_val)
-    except ValueError, TypeError:
+    except (ValueError, TypeError):
         pass
     return s_val
 
@@ -137,7 +140,9 @@ def get_network_type_label(code: str | None) -> str | None:
     return _NETWORK_TYPE_MAP.get(str(code), f"Unknown ({code})")
 
 
-def build_device_info(coordinator, group: str) -> DeviceInfo:
+def build_device_info(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, group: str
+) -> DeviceInfo:
     """Build standardized DeviceInfo dict for platforms."""
     group_names = {
         "system": "System",
@@ -225,7 +230,9 @@ def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:
     ]
 
 
-def find_ssid_by_path(ssids: list[dict], path_fragment: str) -> dict | None:
+def find_ssid_by_path(
+    ssids: list[dict[str, Any]], path_fragment: str
+) -> dict[str, Any] | None:
     """Find an SSID dict based on its internal ID path fragment."""
     for ssid in ssids:
         if path_fragment in str(ssid.get("ID", "")):
@@ -233,7 +240,7 @@ def find_ssid_by_path(ssids: list[dict], path_fragment: str) -> dict | None:
     return None
 
 
-def is_ssid_on(ssids: list[dict], path_fragment: str) -> bool | None:
+def is_ssid_on(ssids: list[dict[str, Any]], path_fragment: str) -> bool | None:
     """Check if a specific radio path is enabled."""
     ssid = find_ssid_by_path(ssids, path_fragment)
     if ssid:

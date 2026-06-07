@@ -5,6 +5,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
@@ -243,6 +244,222 @@ async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
     assert "11_2024-05-01 10:01:00" in coordinator.fired_sms_hashes
     assert "12_2024-05-01 10:01:00" in coordinator.fired_sms_hashes
     assert mock_fire.call_count == 2
+
+
+@pytest.mark.asyncio
+async def test_coordinator_init_restores_uptime_state(mock_hass, mock_config_entry):
+    """Test that uptime/boot state is restored from entry.data at init."""
+    object.__setattr__(
+        mock_config_entry,
+        "data",
+        {
+            **mock_config_entry.data,
+            "system_boot_time": "2024-01-01T00:00:00",
+            "last_system_uptime": "3600",
+            "conn_start_time": "2024-01-01T01:00:00",
+            "last_conn_uptime": "1800",
+            "total_conn_start_time": "2024-01-01T02:00:00",
+            "last_total_conn_time": "7200",
+        },
+    )
+    mock_api = MagicMock()
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+
+    assert coordinator._system_boot_time == dt_util.parse_datetime(
+        "2024-01-01T00:00:00"
+    )
+    assert coordinator._last_system_uptime == 3600
+    assert coordinator._conn_start_time == dt_util.parse_datetime("2024-01-01T01:00:00")
+    assert coordinator._last_conn_uptime == 1800
+    assert coordinator._total_conn_start_time == dt_util.parse_datetime(
+        "2024-01-01T02:00:00"
+    )
+    assert coordinator._last_total_conn_time == 7200
+
+
+@pytest.mark.asyncio
+async def test_coordinator_system_uptime_first_latch(
+    mock_hass, mock_config_entry, freezer
+):
+    """Test that system boot time is latched on first run."""
+    freezer.move_to("2024-06-15 12:00:00")
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={
+            "device_information": {"DeviceName": "B535", "uptime": "3600"},
+        }
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    await coordinator._async_update_data()
+
+    expected = dt_util.parse_datetime("2024-06-15 11:00:00+00:00")
+    assert coordinator._system_boot_time == expected
+    assert coordinator._last_system_uptime == 3600
+    mock_hass.config_entries.async_update_entry.assert_called()
+
+
+@pytest.mark.asyncio
+async def test_coordinator_system_uptime_reboot_detected(
+    mock_hass, mock_config_entry, freezer, caplog
+):
+    """Test that a significant uptime drop triggers reboot detection."""
+    freezer.move_to("2024-06-15 13:00:00")
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={
+            "device_information": {"DeviceName": "B535", "uptime": "30"},
+        }
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    coordinator._system_boot_time = dt_util.parse_datetime("2024-06-15 11:00:00+00:00")
+    coordinator._last_system_uptime = 3600
+    coordinator.data = {"device_information": {"DeviceName": "B535"}}
+
+    caplog.set_level(logging.DEBUG)
+    await coordinator._async_update_data()
+
+    expected = dt_util.parse_datetime("2024-06-15 12:59:30+00:00")
+    assert coordinator._system_boot_time == expected
+    assert coordinator._last_system_uptime == 30
+    assert "System boot time latched" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_coordinator_connection_uptime_first_latch(
+    mock_hass, mock_config_entry, freezer
+):
+    """Test that connection start time is latched on first run."""
+    freezer.move_to("2024-06-15 12:00:00")
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={
+            "device_information": {"DeviceName": "B535"},
+            "traffic_statistics": {"CurrentConnectTime": "1800"},
+        }
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    await coordinator._async_update_data()
+
+    expected = dt_util.parse_datetime("2024-06-15 11:30:00+00:00")
+    assert coordinator._conn_start_time == expected
+    assert coordinator._last_conn_uptime == 1800
+
+
+@pytest.mark.asyncio
+async def test_coordinator_connection_uptime_reboot_detected(
+    mock_hass, mock_config_entry, freezer, caplog
+):
+    """Test that a significant connection time drop triggers reboot detection."""
+    freezer.move_to("2024-06-15 13:00:00")
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={
+            "device_information": {"DeviceName": "B535"},
+            "traffic_statistics": {"CurrentConnectTime": "10"},
+        }
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    coordinator._conn_start_time = dt_util.parse_datetime("2024-06-15 11:00:00+00:00")
+    coordinator._last_conn_uptime = 3600
+    coordinator.data = {"device_information": {"DeviceName": "B535"}}
+
+    caplog.set_level(logging.DEBUG)
+    await coordinator._async_update_data()
+
+    expected = dt_util.parse_datetime("2024-06-15 12:59:50+00:00")
+    assert coordinator._conn_start_time == expected
+    assert "Connection start time latched" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_coordinator_total_conn_uptime_first_latch(
+    mock_hass, mock_config_entry, freezer
+):
+    """Test that total connection start time is latched on first run."""
+    freezer.move_to("2024-06-15 12:00:00")
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={
+            "device_information": {"DeviceName": "B535"},
+            "traffic_statistics": {"TotalConnectTime": "86400"},
+        }
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    await coordinator._async_update_data()
+
+    expected = dt_util.parse_datetime("2024-06-14 12:00:00+00:00")
+    assert coordinator._total_conn_start_time == expected
+    assert coordinator._last_total_conn_time == 86400
+
+
+@pytest.mark.asyncio
+async def test_coordinator_total_conn_uptime_reboot_detected(
+    mock_hass, mock_config_entry, freezer, caplog
+):
+    """Test that a significant total connect time drop triggers reboot detection."""
+    freezer.move_to("2024-06-15 15:00:00")
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={
+            "device_information": {"DeviceName": "B535"},
+            "traffic_statistics": {"TotalConnectTime": "5"},
+        }
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    coordinator._total_conn_start_time = dt_util.parse_datetime(
+        "2024-06-15 10:00:00+00:00"
+    )
+    coordinator._last_total_conn_time = 7200
+    coordinator.data = {"device_information": {"DeviceName": "B535"}}
+
+    caplog.set_level(logging.DEBUG)
+    await coordinator._async_update_data()
+
+    expected = dt_util.parse_datetime("2024-06-15 14:59:55+00:00")
+    assert coordinator._total_conn_start_time == expected
+    assert "Total connection start time latched" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_coordinator_timeout_after_max_failures(
+    mock_hass, mock_config_entry, caplog
+):
+    """Test that a timeout after maximum failures raises UpdateFailed."""
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(side_effect=TimeoutError("Request timed out"))
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    coordinator.data = {"device_information": {"DeviceName": "B535"}}
+    coordinator.consecutive_failures = 3
+
+    caplog.set_level(logging.ERROR)
+
+    with pytest.raises(UpdateFailed, match="API request timed out"):
+        await coordinator._async_update_data()
+
+    assert coordinator.consecutive_failures == 4
 
 
 @pytest.fixture

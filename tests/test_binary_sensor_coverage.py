@@ -143,3 +143,36 @@ def test_other_sensors(mock_coordinator):
     assert lte_ca.is_on is True
     mock_coordinator.data = {"device_signal": {"band": "B3"}}
     assert lte_ca.is_on is False
+
+
+def test_wifi_24g_single_ssid_dict(mock_coordinator):
+    """Test 2.4G WiFi sensor with Ssid as a single dict."""
+    sensor = HuaweiWifi24GStatusSensor(mock_coordinator, MagicMock(), MagicMock())
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}
+            }
+        }
+    }
+    assert sensor.is_on is True
+
+
+def test_wifi_5g_single_ssid_dict(mock_coordinator):
+    """Test 5G WiFi sensor with Ssid as a single dict."""
+    sensor = HuaweiWifi5GStatusSensor(mock_coordinator, MagicMock(), MagicMock())
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": {"Index": "1", "WifiEnable": "1", "wifiisguestnetwork": "0"}
+            }
+        }
+    }
+    assert sensor.is_on is True
+
+
+def test_endc_restricted_no_data(mock_coordinator):
+    """Test endc restricted sensor returns None when data is None."""
+    sensor = HuaweiEndcRestrictedSensor(mock_coordinator, MagicMock(), MagicMock())
+    mock_coordinator.data = None
+    assert sensor.is_on is None

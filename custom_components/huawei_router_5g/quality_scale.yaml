@@ -4,8 +4,8 @@
 rules:
   # Bronze Tier
   action-setup: done
-  appropriate-polling: exempt # User-configurable interval is intentional
-  brands: exempt
+  appropriate-polling: done
+  brands: done
   common-modules: done
   config-flow: done
   config-flow-test-coverage: done
@@ -28,7 +28,7 @@ rules:
   docs-configuration-parameters: done
   docs-installation-parameters: done
   entity-unavailable: done
-  integration-owner: exempt
+  integration-owner: done
   log-when-unavailable: done
   parallel-updates: done
   reauthentication-flow: done
@@ -56,3 +56,8 @@ rules:
   reconfiguration-flow: done
   repair-issues: done
   stale-devices: exempt
+
+  # Platinum Tier
+  async-dependency: todo
+  inject-websession: todo
+  strict-typing: done

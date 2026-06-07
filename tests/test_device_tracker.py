@@ -213,3 +213,13 @@ async def test_device_tracker_setup_entry_malformed_initial():
     async_add_entities = MagicMock()
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once_with([], True)
+
+
+def test_device_tracker_no_data(mock_coordinator):
+    """Test tracker returns None properties when coordinator data is None."""
+    tracker = HuaweiRouterDeviceTracker(mock_coordinator, "MAC1")
+    mock_coordinator.data = None
+
+    assert tracker.hostname is None
+    assert tracker.is_connected is False
+    assert tracker.ip_address is None

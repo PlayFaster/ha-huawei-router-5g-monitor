@@ -1,6 +1,5 @@
 """Button platform for Huawei Router 5G Monitor."""
 
-import logging
 from dataclasses import dataclass
 
 from homeassistant.components.button import (
@@ -8,12 +7,15 @@ from homeassistant.components.button import (
     ButtonEntity,
     ButtonEntityDescription,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers.device_registry import DeviceInfo
+from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
-
-_LOGGER = logging.getLogger(__name__)
 
 PARALLEL_UPDATES = 0
 
@@ -28,7 +30,6 @@ class HuaweiButtonEntityDescription(ButtonEntityDescription):
 REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
     key="reboot",
     translation_key="reboot",
-    icon="mdi:restart",
     device_class=ButtonDeviceClass.RESTART,
     group="system",
 )
@@ -36,12 +37,15 @@ REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
 CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
     key="clear_traffic",
     translation_key="clear_traffic",
-    icon="mdi:chart-line-variant",
     group="data",
 )
 
 
-async def async_setup_entry(hass, entry, async_add_entities):
+async def async_setup_entry(
+    hass: HomeAssistant,
+    entry: ConfigEntry,
+    async_add_entities: AddEntitiesCallback,
+) -> None:
     """Set up the button platform."""
     coordinator: HuaweiRouter5GDataUpdateCoordinator = entry.runtime_data
 
@@ -65,7 +69,7 @@ class HuaweiButton(
     def __init__(
         self,
         coordinator: HuaweiRouter5GDataUpdateCoordinator,
-        entry,
+        entry: ConfigEntry,
         description: HuaweiButtonEntityDescription,
     ) -> None:
         """Initialize the button."""
@@ -75,7 +79,7 @@ class HuaweiButton(
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
 
     @property
-    def device_info(self):
+    def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self.entity_description.group)
 
@@ -88,7 +92,7 @@ class HuaweiRebootButton(HuaweiButton):
         try:
             await self.coordinator.api.reboot()
         except Exception as err:
-            _LOGGER.error("%s: Reboot failed: %s", self._entry.title, err)
+            raise HomeAssistantError(f"Reboot failed: {err}") from err
 
 
 class HuaweiClearTrafficButton(HuaweiButton):
@@ -100,6 +104,4 @@ class HuaweiClearTrafficButton(HuaweiButton):
             await self.coordinator.api.clear_traffic_statistics()
             await self.coordinator.async_request_refresh()
         except Exception as err:
-            _LOGGER.error(
-                "%s: Clear traffic statistics failed: %s", self._entry.title, err
-            )
+            raise HomeAssistantError(f"Clear traffic statistics failed: {err}") from err

@@ -49,7 +49,7 @@ def test_best_connection_5g_active(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )
     assert sensor.is_on is True
-    assert sensor.icon == "mdi:signal-5g"
+    assert sensor.icon is None
 
 
 def test_best_connection_5g_inactive_no_nr_band(mock_coordinator, mock_config_entry):
@@ -64,7 +64,7 @@ def test_best_connection_5g_inactive_no_nr_band(mock_coordinator, mock_config_en
         mock_coordinator, mock_config_entry, BEST_CONN_DESCRIPTION
     )
     assert sensor.is_on is False
-    assert sensor.icon == "mdi:signal-cellular-1"
+    assert sensor.icon is None
 
 
 def test_best_connection_lte_unhealthy(mock_coordinator, mock_config_entry):

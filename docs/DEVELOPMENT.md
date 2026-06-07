@@ -100,6 +100,35 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Entity Category Optimization**: Strategically utilizing `EntityCategory.DIAGNOSTIC` for granular infrastructure metrics (e.g., secondary frequency bands, per-bank SMS capacity) while keeping actionable or highly readable metrics (e.g., Signal Bars, SMS Unread) in the primary entity list to balance depth with UI cleanliness.
 - **Multi-Stage Quality Gate Pattern**: The `best_connection` binary sensor demonstrates deriving a stable composite quality indicator from multiple metrics rather than a single API field. A 3-stage AND gate (NR band assignment → LTE anchor health → 5G leg health) using OR-of-thresholds within each stage prevents false negatives when individual metrics are borderline. This pattern is robust to the H165-383's `network_type` reporting `"LTE"` even in active NSA 5G mode, and to `sc_band` returning null. Documented in `docs/best_connection_logic.md`.
 
+### Icon Translation Architecture (v1.1.1-dev9)
+
+- **Pattern**: Centralized all entity icons in `icons.json` using the Home Assistant icon translation engine. Removed hardcoded `icon="..."` arguments from Python `EntityDescription` objects.
+- **Logic**:
+  - **Fallback**: Every entity defines a `default` icon in the JSON mapping.
+  - **Dynamic States**: Binary sensors (like `wifi_status` or `best_connection`) use `state` mappings to toggle between different icons based on ON/OFF status.
+  - **Dynamic Ranges**: Numeric sensors (like `battery` or `signal_bars`) use `range` mappings. The frontend automatically selects the icon for the highest range value that is less than or equal to the current state.
+- **Benefit**:
+  - **Decoupling**: Visual presentation is separated from business logic, making the Python code significantly cleaner and easier to read.
+  - **IQS Compliance**: Achieved Gold-tier compliance for the `icon-translations` rule.
+  - **Reactive UI**: Provides a more "alive" experience with icons that reflect signal strength and connectivity states without custom Python property overhead.
+
+### Uptime Timestamp Stability — Reboot-Detection Latch (v1.1.1-dev15)
+
+- **Problem**: All three uptime timestamp sensors (`uptime_timestamp`, `current_connection_timestamp`, `total_connection_timestamp`) used `_get_timestamp()` in `sensor.py`, which recomputed `now() − uptime_seconds` on every poll. Because the router's internal uptime counter and HA's wall clock tick at slightly different rates (crystal oscillator / NTP divergence), the computed boot time crept monotonically in one direction — visible as several minutes of drift over hours without any actual restart. A prior truncation fix (round to the nearest minute) converted continuous drift into periodic 60-second backward jumps at minute boundaries; the drift source was unchanged.
+- **Root cause**: Two independent clocks. Any approach that derives a timestamp from `now() − counter` every poll inherits the divergence between those two clocks.
+- **Fix (reboot-detection latch)**: Compute the frozen timestamp exactly once — on the first poll, or when the counter drops by more than `UPTIME_REBOOT_MARGIN = 30` seconds (a genuine reset). Hold it unchanged thereafter. The re-latch trigger compares uptime-to-uptime across polls, which is immune to wall-clock divergence. Implemented in `coordinator.py`; sensors read pre-computed keys (`system_boot_time`, `conn_start_time`, `total_conn_start_time`) from the data dict. Six fields persisted to `entry.data` so the frozen values survive HA restarts.
+- **Three independent latches**: The Huawei project has three counters (`device_information.uptime`, `traffic_statistics.CurrentConnectTime`, `traffic_statistics.TotalConnectTime`), each with different reset semantics (router reboot / WAN reconnect / stats clear). Each requires its own latch state — do not share state between them.
+- **What does not work** (documented in `.notes/issues/uptime_timestamp_strategy_20260523.md`):
+  - Raw `now() − uptime` every poll: drifts continuously.
+  - Truncate to nearest minute: replaces drift with periodic 60-second backward jumps.
+  - Tolerance latch on timestamp delta (±30s): suppresses small jitter but not monotonic clock-rate divergence; accumulated drift re-trips the latch repeatedly.
+
+### GB vs GiB — Data Sensor Unit Correctness
+
+- **Pattern**: When HA declares `native_unit_of_measurement=UnitOfInformation.GIGABYTES`, the value must be in **decimal GB** (divide bytes by `1,000,000,000`). Dividing by `1024³` produces **GiB**, which HA treats as GB — causing ~7.4% underreporting.
+- **Example**: 133 GB actual → `133,000,000,000 / 1024³ ≈ 123.9` displayed as "124 GB" (wrong). `133,000,000,000 / 1,000,000,000 = 133.0` displayed as "133 GB" (correct).
+- **Rule**: Use `/ 1_000_000_000` for `GIGABYTES`, `/ 1_073_741_824` (i.e. `/ 1024**3`) only when the unit is explicitly `GIBIBYTES`. HA's `UnitOfInformation` has both; choose the one that matches the divisor.
+
 ## 5. Technical Pitfalls & Fixes
 
 - **Auth Error Handling**: Relying on string matching (e.g., `"password" in str(err)`) to detect login failures is brittle and breaks if library messages change.
@@ -125,8 +154,8 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Refactored service handlers into explicit `async def` wrappers that `await` the implementation before returning.
 - **HA `device_id` vs `entry_id` — Different Things**: In Home Assistant, `device_id` is a reserved term for the **device registry** UUID (the internal ID of a device entity like "Huawei Router System"). A `config_entry_id` (or `entry_id`) is the ID of a config entry. These are completely different objects. Using `device_id` as a service parameter name when the value is actually a config entry ID misleads users and breaks type safety — automations built with the HA device picker would pass the wrong value type.
   - _Fix_: Name service fields `entry_id` when they expect `hass.config_entries.async_get_entry()` to resolve them. Use the `config_entry` selector in `services.yaml` (not the `device` selector) so the UI presents the correct picker.
-- **Python 3.14 Bare-Tuple Except Syntax**: The `except A, B:` form (Python 2 style) generates a `SyntaxWarning` in Python 3.14 because the interpreter parses it as `except A, (B):` — catching `A` and binding the exception to the name `B`. It still compiles and runs, but silently catches only the first exception type.
-  - _Fix_: Always use `except (A, B):` with explicit parentheses when catching multiple exception types.
+- **Python 3.14 Bare-Tuple Except Syntax — Nuance Update**: The `except A, B:` form (Python 2 style) generates a `SyntaxWarning` in Python 3.12–3.13 because the interpreter parses it as `except A, (B):` — catching only `A` and binding the exception to the name `B`. However, **Python 3.14 (PEP 3111) changed the grammar** to treat `except A, B:` as valid multi-catch (catching both `A` and `B`). Additionally, `ruff` with `target-version = "py314"` will auto-format `except (A, B):` back to `except A, B:`.
+  - _Fix_: Always use `except (A, B):` with explicit parentheses when catching multiple exception types. To prevent ruff from reverting to the comma form, pin `target-version = "py313"` in `pyproject.toml` under `[tool.ruff]`. This ensures backward compatibility with HA versions running Python <3.14.
 - **Operator Precedence Trap (`or 0 > 0`)**: The expression `x or 0 > 0` evaluates as `x or (0 > 0)` — i.e., `x or False` — which always reduces to `bool(x)`. The parenthesisation `(x or 0) > 0` is required to get "treat `None` as 0, then compare". This pattern appears naturally when guard-banding a nullable integer against a threshold.
   - _Fix_: When using `or 0` as a None-guard before a comparison, always wrap the entire `or` expression in parentheses: `(val or 0) > threshold`.
 - **Debounce Task Lifecycle (`async_will_remove_from_hass`)**: Entities that schedule background `asyncio` tasks (e.g., debounced refresh) must cancel them on removal. Without this, the task holds a reference to the coordinator and fires after the entity is gone, causing "entity not found" log noise.
@@ -149,6 +178,33 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _This is NOT fixed_: Be aware that investigating this will results in incorrect analysis that the root cause is `diagnostic` vs `sensor` or the presence of `state_class` . This is wrong. Further investigation required, low priority.
 - **IPv6 DNS Gaps (v1.0.1-dev22)**: While IPv4 DNS was tracked, IPv6 DNS was missing, leading to incomplete network visibility on modern dual-stack connections.
   - _Fix_: Added `primary_ipv6_dns` and `secondary_ipv6_dns` sensors reading from the `monitoring_status` endpoint.
+- **Session Expiration during Service Calls (v1.1.1-dev21)**: Calling SMS or other device services after ~2 minutes of inactivity resulted in a `100003: No rights (needs login)` error due to the router's session expiring.
+  - _Fix_: Implemented proactive inactivity-based session resetting (100-second threshold) in `_ensure_client()` and a reactive retry wrapper `_execute_with_retry` that catches `ResponseErrorLoginRequiredException` and codes `125002`/`125003`/`100003`, resets the client, and automatically retries the operation once.
+- **`asyncio.to_thread` Mock Compatibility (v1.1.1-dev21)**: Unit test mocks that stub `asyncio.to_thread` with custom lambda syntax (e.g. `lambda fn, **kwargs: fn(**kwargs)`) would fail with `TypeError` when `asyncio.to_thread` was invoked with extra positional arguments like `asyncio.to_thread(func, client)`.
+  - _Fix_: Wrapped the client function in a zero-argument lambda: `asyncio.to_thread(lambda: func(client))`. This ensures exactly one positional argument is passed, preserving compatibility with all unit test mocking styles.
+- **`url_normalize` / `idna` UTS46 Startup Race (v1.1.1-dev22)**: On HA reboot, the integration occasionally failed with `ImportError: cannot import name 'uts46data' from 'idna.uts46data'`. The file existed on disk but the module was partially initialized — a Python import-system race caused by HA loading many integrations concurrently during cold startup. The `url_normalize` library triggers this via `idna.encode(p, uts46=True)`, which lazily loads the large `uts46data` generated module. A partially initialized module gets cached in `sys.modules`, so the integration could not recover via manual reload — only a full HA restart (fresh Python process) cleared it.
+  - _Fix_: Replaced `url_normalize` entirely with a private `_normalize_router_url()` helper using `urllib.parse.urlparse` / `urlunparse` (stdlib, no external deps). For local router IP/hostname URLs, stdlib covers 100% of real-world input forms (bare IP, missing scheme, trailing slash, uppercase scheme, non-default port). The `url-normalize==3.0.0` requirement was removed from `manifest.json`. The pattern to follow: avoid third-party libraries that eagerly or lazily load large Unicode data tables at import time when a stdlib equivalent exists.
+- **`ScannerEntity` Import Path Deprecated in HA 2026.6 (v1.1.1-dev22)**: HA 2026.6 deprecated the `homeassistant.components.device_tracker.config_entry.ScannerEntity` alias, triggering a log warning on every startup. The alias will be removed in HA 2027.6.
+  - _Fix_: Import `ScannerEntity` from `homeassistant.components.device_tracker` (the canonical top-level path). When HA deprecates a platform submodule import, the fix is always to move the import to the parent module. Watch for similar patterns in other platform files (e.g., `binary_sensor`, `sensor`, `switch`) if HA continues this consolidation pattern in future releases.
+
+- **mypy Configuration Alignment with HA's Internal `mypy.ini` (v1.1.1-dev23)**: When aligning a custom component's mypy config with HA's own `mypy.ini` (auto-generated by `script/hassfest -p mypy_config`), several non-obvious interactions apply:
+  - HA's global mypy config does **not** include `disallow_any_generics = true`. Setting it globally in the project makes the project stricter than HA on generics, which can cause the project to reject patterns HA itself allows. Apply this flag only to specific modules if needed, or remove it from the global section.
+  - HA uses `disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]` rather than `ignore_missing_imports = true`. These are subtly different: `ignore_missing_imports` is a blanket flag; the `disable_error_code` approach is targeted and aligns with HA's convention.
+  - HA enables `enable_error_code = ["deprecated", "ignore-without-code", "redundant-self", "truthy-iterable"]`. The `ignore-without-code` code is particularly important: it requires every `# type: ignore` comment to carry a specific error code (e.g. `# type: ignore[attr-defined]`). Bare `# type: ignore` comments become errors.
+  - HA sets `no_implicit_reexport = true` for `homeassistant.*` modules via `[mypy-homeassistant.*]`. Applying this in the project's `homeassistant.*` override (alongside `ignore_errors = true` and `follow_imports = "silent"`) replicates HA's own policy and ensures the project's mypy checks catch the same import-surface inconsistencies HA itself would catch. Without this, basic mypy (no `--strict`) allows implicit re-exports from HA modules while strict mypy rejects them — creating a mode-dependent split that makes `# type: ignore` comments simultaneously needed and unused depending on which mode runs.
+  - _Pattern_: To verify HA's actual config, read `/ha_core/mypy.ini` from inside the devcontainer. This file is auto-generated and is the ground truth. Do not infer HA's mypy configuration from documentation — it changes with HA releases.
+- **ruff / mypy Comment Placement Deadlock on Multi-Line Imports (v1.1.1-dev23)**: A `# type: ignore[code]` comment suppresses a mypy error only on the **exact line** where mypy reports the error. For multi-line parenthesised imports, mypy always attributes errors (`[attr-defined]`, `[import-untyped]`, etc.) to the **`from` line** (the line containing the `from` keyword and the opening parenthesis), never to the member lines. ruff, when expanding a single-line import to multi-line (due to line length), moves any trailing comment from the import statement to the **last member line**. This creates a deadlock when the import line is over the length limit:
+  - Single-line with comment → over length limit → ruff expands to multi-line → comment moves to member line → mypy error on `from` line is not suppressed → pre-commit mypy fails
+  - Adding the comment back to the single-line form → over length limit → ruff expands again → loop repeats
+  - _Fix_: Use the multi-line form with the `# type: ignore` comment on the `from (` line (not on any member line):
+
+    ```python
+    from homeassistant.components.device_tracker import (  # type: ignore[attr-defined]
+        ScannerEntity,
+    )
+    ```
+
+    ruff does **not** move a comment that is already on the `from (` line — it only moves comments during initial expansion of single-line imports. Verified: `ruff format` on this exact form returns "already formatted". mypy correctly sees the comment on the same line as the reported error and suppresses it. The `from (` line in this form is 83 chars (within the 88-char limit), so ruff has no reason to reformat it, and cannot collapse it back to single-line (the single-line form would be 95 chars). This placement is stable.
 
 ## 6. Environment Constraints
 
@@ -168,3 +224,13 @@ The project was built from the ground up using the latest "PlayFaster" standards
 _[1.0.3-dev3] — Added pitfall entries for Python 3.14 bare-tuple except syntax, operator precedence (`or 0 > 0`), and debounce task lifecycle (`async_will_remove_from_hass`)._
 
 _[1.0.3-dev4] — Added success pattern for MAC-based stable unique ID with normalization. Added pitfall entry for HA `device_id` vs `entry_id` naming._
+
+_[1.1.1-dev22] — Added pitfall entries for `url_normalize`/`idna` UTS46 startup import race and `ScannerEntity` import path deprecation (HA 2026.6)._
+
+_[1.1.1-dev23] — Added pitfall entries for mypy configuration alignment with HA's internal `mypy.ini` and the ruff/mypy comment-placement deadlock on multi-line imports._
+
+_[1.1.1-dev12] — Updated Python 3.14 bare-tuple except pitfall entry with PEP 3111 clarification, ruff auto-format behavior, and `target-version` pinning guidance._
+
+_[1.1.1-dev15] — Added "Uptime Timestamp Stability — Reboot-Detection Latch" success pattern and "GB vs GiB — Data Sensor Unit Correctness" pattern._
+
+_[1.1.1-dev21] — Added "Session Expiration during Service Calls" and "asyncio.to_thread Mock Compatibility" pitfall entries._
