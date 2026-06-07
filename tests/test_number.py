@@ -204,9 +204,7 @@ async def test_async_will_remove_from_hass_with_task(
 
 
 @pytest.mark.asyncio
-async def test_async_will_remove_from_hass_no_task(
-    mock_coordinator, mock_config_entry
-):
+async def test_async_will_remove_from_hass_no_task(mock_coordinator, mock_config_entry):
     """Test async_will_remove_from_hass when no refresh task exists."""
     entity = HuaweiPollingInterval(
         mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180

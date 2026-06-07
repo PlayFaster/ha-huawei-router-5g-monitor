@@ -115,9 +115,7 @@ def test_guest_wifi_is_on_single_ssid_dict(mock_coordinator, mock_config_entry):
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {
             "Ssids": {
-                "Ssid": {
-                    "Index": "2", "WifiEnable": "1", "wifiisguestnetwork": "1"
-                }
+                "Ssid": {"Index": "2", "WifiEnable": "1", "wifiisguestnetwork": "1"}
             }
         }
     }
@@ -156,9 +154,7 @@ def test_guest_wifi_extra_state_attributes_no_guest_ssid(
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {
             "Ssids": {
-                "Ssid": [
-                    {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}
-                ]
+                "Ssid": [{"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}]
             }
         }
     }

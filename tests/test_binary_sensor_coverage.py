@@ -151,9 +151,7 @@ def test_wifi_24g_single_ssid_dict(mock_coordinator):
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {
             "Ssids": {
-                "Ssid": {
-                    "Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"
-                }
+                "Ssid": {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}
             }
         }
     }
@@ -166,9 +164,7 @@ def test_wifi_5g_single_ssid_dict(mock_coordinator):
     mock_coordinator.data = {
         "wlan_multi_basic_settings": {
             "Ssids": {
-                "Ssid": {
-                    "Index": "1", "WifiEnable": "1", "wifiisguestnetwork": "0"
-                }
+                "Ssid": {"Index": "1", "WifiEnable": "1", "wifiisguestnetwork": "0"}
             }
         }
     }

@@ -4,6 +4,20 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+---
+
+## [1.1.1-dev24] - 2026-06-07
+
+### Added
+
+- **100% Project-Wide Test Coverage**: Closed the last 10 uncovered statements across 5 source files by writing 10 new tests in existing test files. No source code files were modified.
+  - `switch.py` (3): Normalization when `Ssid` is a single dict in `_is_on` and `extra_state_attributes`, and fallthrough `return {}` when no guest SSID is found.
+  - `number.py` (2): `async_will_remove_from_hass` entity lifecycle cleanup — both with and without a pending `_refresh_task`.
+  - `binary_sensor.py` (3): Single-dict `Ssid` normalization for `HuaweiWifi24GStatusSensor` and `HuaweiWifi5GStatusSensor`; `data=None` guard for `HuaweiEndcRestrictedSensor`.
+  - `config_flow.py` (1): Successful reauth path — `async_step_reauth` when a valid config entry exists.
+  - `device_tracker.py` (1): `_host_data` returns `None` when `coordinator.data` is `None`.
+  - Total coverage: 99% → 100% (1420/1420 statements). All 383 tests passing.
+
 ## [1.1.1-dev23] - 2026-06-07
 
 ### Fixed
