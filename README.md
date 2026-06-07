@@ -19,20 +19,20 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 - [Huawei Router 5G Monitor for Home Assistant](#huawei-router-5g-monitor-for-home-assistant)
   - [🔧 Compatibility \& Tested Devices](#-compatibility--tested-devices)
-  - [🏠 Use Cases](#-use-cases)
+  - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
   - [💡 Example Automations](#-example-automations)
   - [📸 Screenshots](#-screenshots)
   - [📥 Installation](#-installation)
-  - [⚙️ Configuration](#️-configuration)
-  - [🏗️ Under the Hood - Technical Architecture](#️-under-the-hood---technical-architecture)
+  - [🔧 Configuration](#-configuration)
+  - [🔨 Under the Hood - Technical Architecture](#-under-the-hood---technical-architecture)
   - [❓ FAQ \& Troubleshooting](#-faq--troubleshooting)
-  - [🗑️ Removal](#️-removal)
-  - [⚠️ Known Limitations /❔ What's Missing?](#️-known-limitations--whats-missing)
+  - [❌ Removal](#-removal)
+  - [❗ Known Limitations /❔ What's Missing?](#-known-limitations--whats-missing)
   - [📝 Maintenance Status](#-maintenance-status)
   - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
-  - [📄 License](#-license-)
+  - [📄 License](#-license)
 
 ## 🔧 Compatibility & Tested Devices
 
@@ -52,7 +52,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 - Minimum: Home Assistant **2025.1**
 - Minimum Python: **3.12+** (this is built into and handled by HA, but relevant for non-standard installs).
 
-## 🏠 Use Cases
+## 🎯 Use Cases
 
 - **Signal Monitoring**: Near-real-time and historical 5G/LTE signal data enable the monitoring of router performance.
   - **Best Signal**: Use signal diagnostics (RSRP, SINR) to optimize the physical placement or orientation of your router.
@@ -92,7 +92,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 - **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
 - **100% Local**: No cloud account or internet access required.
 
-### ⏱️ Dynamic Polling
+### 🔁 Dynamic Polling
 
 This integration features **dynamic polling**, the ability to pause polling completely or to change the polling interval.
 
@@ -105,7 +105,7 @@ This integration features **dynamic polling**, the ability to pause polling comp
 >
 > - Set it to 30 seconds during periods of heavy use, to examine connection quality or when you need to receive new SMS messages quickly, and set it higher afterwards, to avoid taxing the router and your Home Assistant database.
 
-### ✉️ SMS Management Actions
+### 💬 SMS Management Actions
 
 Provides unread SMS count and latest message content sensors, a `huawei_router_5g_sms_received` event for automation triggers, and four service actions for full programmatic control.
 
@@ -284,7 +284,7 @@ The following sensors have **no LTS** to avoid unnecessary database growth:
 
 Entity IDs below use the default prefix huawei_5g. If you set a custom name during setup, or have renamed since, replace huawei_5g with your configured prefix.
 
-### ✉️ SMS Examples
+### 💬 SMS Examples
 
 #### 📨 Forward Incoming SMS to Mobile
 
@@ -453,7 +453,7 @@ actions:
         - 5G CQI: {{ states('sensor.huawei_5g_signal_5g_cqi') }}
 ```
 
-### ⏯️ Auto-Resume Polling
+### 🔁 Auto-Resume Polling
 
 Ensure polling is turned back on automatically if someone forgets to resume it after managing the router.
 
@@ -508,7 +508,7 @@ actions:
 3. Restart Home Assistant
 4. Go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor"
 
-## ⚙️ Configuration
+## 🔧 Configuration
 
 ### 🔧 Initial Setup
 
@@ -519,7 +519,7 @@ Setup is handled entirely via the UI. You will need the same details that you us
 - **Password** — Admin password for the router web interface
 - **Name** — Custom prefix for all devices and entities (default: `Huawei 5G`). This determines entity IDs — e.g. the default produces `sensor.huawei_5g_data_month_total`. Change this if you have multiple routers or prefer a different naming scheme.
 
-### 🛠️ Runtime Options
+### 🔩 Runtime Options
 
 After installation, open **Settings > Devices & Services > Huawei Router 5G Monitor > Configure** to adjust:
 
@@ -531,7 +531,7 @@ After installation, open **Settings > Devices & Services > Huawei Router 5G Moni
 | Username | Router login username.                                      |
 | Password | Admin password (update if changed on the router).           |
 
-### 🎛️ Runtime Controls & Settings (Entities)
+### 🔘 Runtime Controls & Settings (Entities)
 
 Rather than hiding settings in configuration menus, several configuration parameters are exposed directly as Home Assistant control entities, allowing you to monitor and control them from dashboards or automations:
 
@@ -539,7 +539,7 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 - **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select the preferred network mode dynamically. Options include `Auto`, `4G Only`, `5G Only`, `4G/3G/2G Auto`, etc.
 
-#### ⚙️ Router Administration & Polling (System Device)
+#### 🔧 Router Administration & Polling (System Device)
 
 - **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Switch to halt polling to allow exclusive access to the router web UI.
 - **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
@@ -549,7 +549,7 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 - **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
 
-## 🏗️ Under the Hood - Technical Architecture
+## 🔨 Under the Hood - Technical Architecture
 
 ### 🔄 Data Polling & 3-Strike Resilience 🩹
 
@@ -569,7 +569,7 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 - **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
 - **Data Validation**: Router values are checked for validity against defined guard limits. Out-of-range sensor values (e.g., impossible signal metrics) are ignored or marked as unknown to ensure data integrity.
 
-### ⏱️ Dynamic Polling & Standard System Options
+### 🔁 Dynamic Polling & Standard System Options
 
 - **Both Available**: The integration provides dynamic polling controls, to pause polling or change polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
 
@@ -609,7 +609,7 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
   - Check your Home Assistant logs for specific error messages.
   - Delete and re-add the integration.
 
-## 🗑️ Removal
+## ❌ Removal
 
 To remove the integration from Home Assistant:
 
@@ -626,7 +626,7 @@ To fully uninstall (HACS):
 4. Restart Home Assistant.
 5. Home Assistant automatically removes all associated entities and device entries from the registry when the integration is deleted.
 
-## ⚠️ Known Limitations /❔ What's Missing?
+## ❗ Known Limitations /❔ What's Missing?
 
 - **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
 - **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
@@ -651,7 +651,9 @@ This integration stands on the shoulders of several excellent open-source projec
 
 ---
 
-## 📄 License [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
+## 📄 License
+
+[![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
 This project is licensed under the Apache License, Version 2.0. See [LICENSE](LICENSE) for details.
 
