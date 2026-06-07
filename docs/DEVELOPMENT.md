@@ -206,6 +206,9 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
     ruff does **not** move a comment that is already on the `from (` line — it only moves comments during initial expansion of single-line imports. Verified: `ruff format` on this exact form returns "already formatted". mypy correctly sees the comment on the same line as the reported error and suppresses it. The `from (` line in this form is 83 chars (within the 88-char limit), so ruff has no reason to reformat it, and cannot collapse it back to single-line (the single-line form would be 95 chars). This placement is stable.
 
+- **VS16 Compound Emoji in README Headings (2026-06-08)**: Using VS16 compound emoji (e.g., `⚙️`, `🏗️`, `⚠️`, `🗑️`) in README headings causes Table of Contents links to silently 404. GitHub's anchor generator strips VS16 bytes (U+FE0F) when computing heading slugs, but Markdown tooling includes them in `href` values. The mismatch is completely invisible in source editors — the heading renders fine and GitHub preview looks correct, but clicking a ToC link jumps nowhere.
+  - _Fix_: Replace all VS16 compound emoji in headings and their corresponding ToC `href` values with always-colour single-codepoint alternatives (e.g., 🔧 🔩 ❌ ❗ 🔄 💬). See root `CLAUDE.md` → "Shared Markdown Notes" for the full replacement table and detection script.
+
 ## 6. Environment Constraints
 
 - **Async Wrapper**: While `huawei-lte-api` is primarily synchronous, this integration wraps all calls in `hass.async_add_executor_job` or uses the library's async capabilities where available to ensure the HA event loop is never blocked.
@@ -234,3 +237,5 @@ _[1.1.1-dev12] — Updated Python 3.14 bare-tuple except pitfall entry with PEP 
 _[1.1.1-dev15] — Added "Uptime Timestamp Stability — Reboot-Detection Latch" success pattern and "GB vs GiB — Data Sensor Unit Correctness" pattern._
 
 _[1.1.1-dev21] — Added "Session Expiration during Service Calls" and "asyncio.to_thread Mock Compatibility" pitfall entries._
+
+_[2026-06-08] — Added VS16 compound emoji in README headings pitfall entry._
