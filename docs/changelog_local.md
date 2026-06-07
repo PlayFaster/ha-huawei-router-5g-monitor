@@ -4,6 +4,22 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev22] - 2026-06-07
+
+### Fixed
+
+- **`url_normalize` Startup Race Eliminated**: Replaced the `url_normalize` third-party library with a private `_normalize_router_url()` helper in `api.py` using stdlib `urllib.parse`. The `url_normalize` → `idna` → `uts46data` import chain was susceptible to a transient Python module initialization race during HA's concurrent startup, causing `ImportError: cannot import name 'uts46data'` on reboot. The integration would not recover without a full HA restart. The stdlib replacement covers all real-world router URL forms (bare IP, missing scheme, trailing slash, uppercase scheme, port) with no external dependencies and no UTS46 exposure.
+- **`ScannerEntity` Deprecation Warning Suppressed**: Updated `device_tracker.py` to import `ScannerEntity` from `homeassistant.components.device_tracker` (the canonical path since HA 2026.6) rather than the deprecated alias at `homeassistant.components.device_tracker.config_entry`. Eliminates the HA 2026.6 log warning; prevents a hard failure when the alias is removed in HA 2027.6.
+- **`manifest.json` Requirements**: Removed `url-normalize==3.0.0` from `requirements` following the stdlib replacement above.
+
+### Added
+
+- **`test_normalize_router_url` Parametrised Test**: Added 7-case test in `test_api.py` covering bare IP, well-formed URL, trailing slash, uppercase scheme, port-only (no scheme), port with scheme, and leading/trailing whitespace — replacing the implicit coverage that `url_normalize` provided via its own library tests.
+
+### Changed
+
+- **README Emoji Consistency**: Replaced all VS16 compound emoji in headings and ToC links with always-colour single-codepoint alternatives (`⚙️`→`🔧`, `🗑️`→`❌`, `⚠️`→`❗`, `⏱️`→`🔁`, `✉️`→`💬`, `⏯️`→`🔁`, `🛠️`→`🔩`, `🎛️`→`🔘`); moved License badge out of heading; standardised Use Cases icon to `🎯`.
+
 ## [1.1.1-dev21] - 2026-06-02
 
 ### Fixed

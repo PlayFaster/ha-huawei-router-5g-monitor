@@ -182,6 +182,10 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Implemented proactive inactivity-based session resetting (100-second threshold) in `_ensure_client()` and a reactive retry wrapper `_execute_with_retry` that catches `ResponseErrorLoginRequiredException` and codes `125002`/`125003`/`100003`, resets the client, and automatically retries the operation once.
 - **`asyncio.to_thread` Mock Compatibility (v1.1.1-dev21)**: Unit test mocks that stub `asyncio.to_thread` with custom lambda syntax (e.g. `lambda fn, **kwargs: fn(**kwargs)`) would fail with `TypeError` when `asyncio.to_thread` was invoked with extra positional arguments like `asyncio.to_thread(func, client)`.
   - _Fix_: Wrapped the client function in a zero-argument lambda: `asyncio.to_thread(lambda: func(client))`. This ensures exactly one positional argument is passed, preserving compatibility with all unit test mocking styles.
+- **`url_normalize` / `idna` UTS46 Startup Race (v1.1.1-dev22)**: On HA reboot, the integration occasionally failed with `ImportError: cannot import name 'uts46data' from 'idna.uts46data'`. The file existed on disk but the module was partially initialized — a Python import-system race caused by HA loading many integrations concurrently during cold startup. The `url_normalize` library triggers this via `idna.encode(p, uts46=True)`, which lazily loads the large `uts46data` generated module. A partially initialized module gets cached in `sys.modules`, so the integration could not recover via manual reload — only a full HA restart (fresh Python process) cleared it.
+  - _Fix_: Replaced `url_normalize` entirely with a private `_normalize_router_url()` helper using `urllib.parse.urlparse` / `urlunparse` (stdlib, no external deps). For local router IP/hostname URLs, stdlib covers 100% of real-world input forms (bare IP, missing scheme, trailing slash, uppercase scheme, non-default port). The `url-normalize==3.0.0` requirement was removed from `manifest.json`. The pattern to follow: avoid third-party libraries that eagerly or lazily load large Unicode data tables at import time when a stdlib equivalent exists.
+- **`ScannerEntity` Import Path Deprecated in HA 2026.6 (v1.1.1-dev22)**: HA 2026.6 deprecated the `homeassistant.components.device_tracker.config_entry.ScannerEntity` alias, triggering a log warning on every startup. The alias will be removed in HA 2027.6.
+  - _Fix_: Import `ScannerEntity` from `homeassistant.components.device_tracker` (the canonical top-level path). When HA deprecates a platform submodule import, the fix is always to move the import to the parent module. Watch for similar patterns in other platform files (e.g., `binary_sensor`, `sensor`, `switch`) if HA continues this consolidation pattern in future releases.
 
 ## 6. Environment Constraints
 
@@ -201,6 +205,8 @@ The project was built from the ground up using the latest "PlayFaster" standards
 _[1.0.3-dev3] — Added pitfall entries for Python 3.14 bare-tuple except syntax, operator precedence (`or 0 > 0`), and debounce task lifecycle (`async_will_remove_from_hass`)._
 
 _[1.0.3-dev4] — Added success pattern for MAC-based stable unique ID with normalization. Added pitfall entry for HA `device_id` vs `entry_id` naming._
+
+_[1.1.1-dev22] — Added pitfall entries for `url_normalize`/`idna` UTS46 startup import race and `ScannerEntity` import path deprecation (HA 2026.6)._
 
 _[1.1.1-dev12] — Updated Python 3.14 bare-tuple except pitfall entry with PEP 3111 clarification, ruff auto-format behavior, and `target-version` pinning guidance._
 
