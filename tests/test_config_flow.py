@@ -377,6 +377,25 @@ async def test_config_flow_reauth_entry_not_found():
 
 
 @pytest.mark.asyncio
+async def test_config_flow_reauth_entry_found():
+    """Test async_step_reauth when entry is found (proceeds to reauth_confirm)."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "old",
+    }
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+    flow.context = {"entry_id": "valid_entry"}
+
+    result = await flow.async_step_reauth(None)
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reauth_confirm"
+
+
+@pytest.mark.asyncio
 async def test_config_flow_reauth_confirm_invalid_auth():
     """Test async_step_reauth_confirm with invalid auth."""
     flow = HuaweiRouter5GConfigFlow()

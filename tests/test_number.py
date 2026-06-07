@@ -180,3 +180,37 @@ async def test_number_setup_entry_default_interval():
     await async_setup_entry(hass, entry, async_add_entities)
     entities = async_add_entities.call_args[0][0]
     assert entities[0].native_value == 180
+
+
+# ---------------------------------------------------------------------------
+# HuaweiPollingInterval — lifecycle
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_async_will_remove_from_hass_with_task(
+    mock_coordinator, mock_config_entry
+):
+    """Test that async_will_remove_from_hass cancels pending debounce."""
+    entity = HuaweiPollingInterval(
+        mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180
+    )
+    entity.hass = MagicMock()
+    entity._refresh_task = MagicMock()
+
+    await entity.async_will_remove_from_hass()
+
+    entity._refresh_task.cancel.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_async_will_remove_from_hass_no_task(
+    mock_coordinator, mock_config_entry
+):
+    """Test async_will_remove_from_hass when no refresh task exists."""
+    entity = HuaweiPollingInterval(
+        mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180
+    )
+    entity.hass = MagicMock()
+
+    await entity.async_will_remove_from_hass()  # should not raise

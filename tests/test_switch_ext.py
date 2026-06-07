@@ -105,3 +105,61 @@ async def test_guest_wifi_switch(mock_coordinator, mock_config_entry):
     }
     assert switch.is_on is True
     assert switch.extra_state_attributes["ssid"] == "GuestSSID"
+
+
+def test_guest_wifi_is_on_single_ssid_dict(mock_coordinator, mock_config_entry):
+    """Test is_on when Ssid is a single dict (not list)."""
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": {
+                    "Index": "2", "WifiEnable": "1", "wifiisguestnetwork": "1"
+                }
+            }
+        }
+    }
+    assert switch.is_on is True
+
+
+def test_guest_wifi_extra_state_attributes_single_ssid_dict(
+    mock_coordinator, mock_config_entry
+):
+    """Test extra_state_attributes when Ssid is a single dict."""
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": {
+                    "Index": "2",
+                    "WifiEnable": "1",
+                    "wifiisguestnetwork": "1",
+                    "WifiSsid": "GuestDict",
+                }
+            }
+        }
+    }
+    assert switch.extra_state_attributes == {"ssid": "GuestDict"}
+
+
+def test_guest_wifi_extra_state_attributes_no_guest_ssid(
+    mock_coordinator, mock_config_entry
+):
+    """Test extra_state_attributes when no SSID is a guest network."""
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {"Index": "0", "WifiEnable": "1", "wifiisguestnetwork": "0"}
+                ]
+            }
+        }
+    }
+    assert switch.extra_state_attributes == {}
