@@ -16,6 +16,7 @@ from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
     HuaweiConnectionError,
     HuaweiRouter5GAPI,
+    _normalize_router_url,
 )
 
 # ---------------------------------------------------------------------------
@@ -25,6 +26,35 @@ from custom_components.huawei_router_5g.api import (
 
 def _make_api() -> HuaweiRouter5GAPI:
     return HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
+
+
+# ---------------------------------------------------------------------------
+# _normalize_router_url()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("host", "expected"),
+    [
+        # Bare IP — scheme must be added
+        ("192.168.8.1", "http://192.168.8.1"),
+        # Already well-formed — unchanged
+        ("http://192.168.8.1", "http://192.168.8.1"),
+        # Trailing slash — stripped
+        ("http://192.168.8.1/", "http://192.168.8.1"),
+        # Uppercase scheme — lowercased
+        ("HTTP://192.168.8.1", "http://192.168.8.1"),
+        # Non-default port — preserved
+        ("192.168.8.1:8080", "http://192.168.8.1:8080"),
+        # Port already in URL — preserved
+        ("http://192.168.8.1:8080/", "http://192.168.8.1:8080"),
+        # Leading/trailing whitespace — stripped
+        ("  http://192.168.8.1  ", "http://192.168.8.1"),
+    ],
+)
+def test_normalize_router_url(host: str, expected: str) -> None:
+    """_normalize_router_url produces a clean http(s) URL in all common forms."""
+    assert _normalize_router_url(host) == expected
 
 
 # ---------------------------------------------------------------------------

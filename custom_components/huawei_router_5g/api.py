@@ -7,6 +7,7 @@ import logging
 from collections.abc import Callable
 from datetime import datetime
 from typing import Any, cast
+from urllib.parse import urlparse, urlunparse
 
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
@@ -17,11 +18,26 @@ from huawei_lte_api.exceptions import (
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
-from url_normalize import url_normalize
 
 from .helpers import _safe_int
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _normalize_router_url(host: str) -> str:
+    """Normalize a host/URL string to a clean http(s) URL for huawei-lte-api.
+
+    Handles bare IP addresses, optional scheme, uppercase schemes, and trailing
+    slashes.  Intentionally avoids the ``url_normalize`` / ``idna`` stack to
+    eliminate the UTS46 import-race that can occur during HA startup.
+    """
+    host = host.strip()
+    if "://" not in host:
+        host = f"http://{host}"
+    parsed = urlparse(host)
+    return urlunparse(
+        (parsed.scheme.lower(), parsed.netloc, parsed.path.rstrip("/"), "", "", "")
+    )
 
 
 class HuaweiConnectionError(Exception):
@@ -42,7 +58,7 @@ class HuaweiRouter5GAPI:
         password: str,
     ) -> None:
         """Initialize the API."""
-        self.url = url_normalize(host, default_scheme="http")
+        self.url = _normalize_router_url(host)
         self.username = username
         self.password = password
         self._connection: Connection | None = None
