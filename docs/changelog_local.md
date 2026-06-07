@@ -9,10 +9,10 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ### Fixed
 
 - **`ScannerEntity` Import — mypy / ruff / Line-Length Deadlock Resolved**: The `# type: ignore[attr-defined]` suppress comment introduced in dev22 was landing on the wrong line and therefore never suppressed the error. The full chain of causation:
-
   1. **Why the import is multi-line**: The single-line form (`from homeassistant.components.device_tracker import ScannerEntity  # type: ignore[attr-defined]`) is 95 characters — over the 88-char `line-length` limit. ruff therefore always expands it to multi-line.
 
   2. **What ruff does to the comment on expansion**: When ruff expands a single-line import to multi-line form, it moves any trailing comment from the import statement onto the last imported member line. The result was:
+
      ```python
      from homeassistant.components.device_tracker import (
          ScannerEntity,  # type: ignore[attr-defined]   ← comment on member line (line 7)
@@ -24,12 +24,14 @@ This document tracks technical shifts, architectural decisions, and detailed imp
   4. **Why this was also a contradiction in the earlier config**: In the config before dev23, the `homeassistant.*` override lacked `no_implicit_reexport = true`, so basic mypy (no `--strict`) never raised `[attr-defined]` at all. That made the `# type: ignore[attr-defined]` simultaneously needed (strict mode) and unused (basic mode), triggering `[unused-ignore]` in basic mode. Adding `no_implicit_reexport = true` to the override (see Changed below) resolved the basic/strict split — both modes now raise `[attr-defined]`, so the ignore is always in use.
 
   5. **The fix**: Use the multi-line form with the `# type: ignore[attr-defined]` on the `from (` line, not the member line:
+
      ```python
      from homeassistant.components.device_tracker import (  # type: ignore[attr-defined]
          ScannerEntity,
      )
      ```
-     Verified in the devcontainer: running `ruff format` on this exact form returns "1 file already formatted" — ruff does not move a comment that is already on the `from (` line (it only moves comments to the member line when *expanding* a single-line import). Running mypy against this form returns "no issues found" — the suppress comment is on the same line as the reported error.
+
+     Verified in the devcontainer: running `ruff format` on this exact form returns "1 file already formatted" — ruff does not move a comment that is already on the `from (` line (it only moves comments to the member line when _expanding_ a single-line import). Running mypy against this form returns "no issues found" — the suppress comment is on the same line as the reported error.
 
   6. **`warn_unused_ignores = false` override removed**: The per-file override for `custom_components.huawei_router_5g.device_tracker` that disabled `warn_unused_ignores` was removed. It was only needed while basic and strict mypy disagreed on whether `[attr-defined]` fired. With `no_implicit_reexport = true` now applied consistently, both modes raise the error and the ignore is always used — the override served no further purpose.
 

@@ -197,11 +197,13 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - Single-line with comment → over length limit → ruff expands to multi-line → comment moves to member line → mypy error on `from` line is not suppressed → pre-commit mypy fails
   - Adding the comment back to the single-line form → over length limit → ruff expands again → loop repeats
   - _Fix_: Use the multi-line form with the `# type: ignore` comment on the `from (` line (not on any member line):
+
     ```python
     from homeassistant.components.device_tracker import (  # type: ignore[attr-defined]
         ScannerEntity,
     )
     ```
+
     ruff does **not** move a comment that is already on the `from (` line — it only moves comments during initial expansion of single-line imports. Verified: `ruff format` on this exact form returns "already formatted". mypy correctly sees the comment on the same line as the reported error and suppresses it. The `from (` line in this form is 83 chars (within the 88-char limit), so ruff has no reason to reformat it, and cannot collapse it back to single-line (the single-line form would be 95 chars). This placement is stable.
 
 ## 6. Environment Constraints
