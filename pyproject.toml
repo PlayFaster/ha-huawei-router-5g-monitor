@@ -93,16 +93,6 @@ ignore_errors = true
 follow_imports = "silent"
 no_implicit_reexport = true
 
-# ScannerEntity is re-exported in homeassistant.components.device_tracker.__init__
-# without __all__, so strict mode raises [attr-defined] on the import. HA's own
-# mypy would flag the same if internal code used the public path — it doesn't.
-# warn_unused_ignores is disabled here because basic mode never raises [attr-defined]
-# (no --no-implicit-reexport), making the type: ignore unused in that mode.
-# Remove this override once HA adds __all__ to device_tracker/__init__.py.
-[[tool.mypy.overrides]]
-module = ["custom_components.huawei_router_5g.device_tracker"]
-warn_unused_ignores = false
-
 [tool.coverage.run]
 source = ["custom_components"]
 

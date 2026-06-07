@@ -4,6 +4,76 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.1-dev23] - 2026-06-07
+
+### Fixed
+
+- **`ScannerEntity` Import — mypy / ruff / Line-Length Deadlock Resolved**: The `# type: ignore[attr-defined]` suppress comment introduced in dev22 was landing on the wrong line and therefore never suppressed the error. The full chain of causation:
+
+  1. **Why the import is multi-line**: The single-line form (`from homeassistant.components.device_tracker import ScannerEntity  # type: ignore[attr-defined]`) is 95 characters — over the 88-char `line-length` limit. ruff therefore always expands it to multi-line.
+
+  2. **What ruff does to the comment on expansion**: When ruff expands a single-line import to multi-line form, it moves any trailing comment from the import statement onto the last imported member line. The result was:
+     ```python
+     from homeassistant.components.device_tracker import (
+         ScannerEntity,  # type: ignore[attr-defined]   ← comment on member line (line 7)
+     )
+     ```
+
+  3. **Where mypy attributes the error**: mypy reports `[attr-defined]` on the `from` line (the statement opener, line 6), not on the member line (line 7). A `# type: ignore` comment on line 7 has no effect on an error reported on line 6 — mypy's line-matching is exact. So the error was never suppressed and pre-commit mypy failed.
+
+  4. **Why this was also a contradiction in the earlier config**: In the config before dev23, the `homeassistant.*` override lacked `no_implicit_reexport = true`, so basic mypy (no `--strict`) never raised `[attr-defined]` at all. That made the `# type: ignore[attr-defined]` simultaneously needed (strict mode) and unused (basic mode), triggering `[unused-ignore]` in basic mode. Adding `no_implicit_reexport = true` to the override (see Changed below) resolved the basic/strict split — both modes now raise `[attr-defined]`, so the ignore is always in use.
+
+  5. **The fix**: Use the multi-line form with the `# type: ignore[attr-defined]` on the `from (` line, not the member line:
+     ```python
+     from homeassistant.components.device_tracker import (  # type: ignore[attr-defined]
+         ScannerEntity,
+     )
+     ```
+     Verified in the devcontainer: running `ruff format` on this exact form returns "1 file already formatted" — ruff does not move a comment that is already on the `from (` line (it only moves comments to the member line when *expanding* a single-line import). Running mypy against this form returns "no issues found" — the suppress comment is on the same line as the reported error.
+
+  6. **`warn_unused_ignores = false` override removed**: The per-file override for `custom_components.huawei_router_5g.device_tracker` that disabled `warn_unused_ignores` was removed. It was only needed while basic and strict mypy disagreed on whether `[attr-defined]` fired. With `no_implicit_reexport = true` now applied consistently, both modes raise the error and the ignore is always used — the override served no further purpose.
+
+### Changed
+
+- **`pyproject.toml` — mypy Configuration Realigned with HA's Internal `mypy.ini`**: The project's `[tool.mypy]` section has been restructured to closely match HA's auto-generated `mypy.ini` (produced by `script/hassfest -p mypy_config`). This ensures the pre-commit mypy hook, and the project's basic `mypy custom_components/` check, run under materially the same conditions as HA's own integration quality checks. The goal is for any type errors caught here to be errors HA itself would also catch — and vice versa.
+
+  **Flags added** (HA applies these globally; the project previously lacked them):
+
+  | Flag | Why added |
+  | --- | --- |
+  | `platform = "linux"` | Matches HA's platform assumption; eliminates platform-specific type divergence |
+  | `local_partial_types = true` | Prevents deferred variable typing (e.g. `x = []` with no annotation) |
+  | `strict_bytes = true` | Stricter bytes/str distinction |
+  | `warn_incomplete_stub = true` | Surfaces partially-typed stubs that could produce misleading "no error" results |
+  | `disallow_incomplete_defs = true` | Flags functions with only some arguments annotated |
+  | `disallow_untyped_calls = true` | Flags calls into untyped functions (catches missing annotations in third-party wrappers) |
+  | `enable_error_code = ["deprecated", "ignore-without-code", "redundant-self", "truthy-iterable"]` | HA's four enabled codes. Notably `ignore-without-code` requires every `# type: ignore` to carry a specific error code — bare `# type: ignore` comments are now an error |
+
+  **Flag changed**:
+
+  | Before | After | Why |
+  | --- | --- | --- |
+  | `ignore_missing_imports = true` | `disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]` | HA's approach is targeted error-code suppression rather than a blanket flag. Effect is functionally similar for missing stubs but matches HA's convention exactly |
+
+  **Flag removed**:
+
+  | Flag | Why removed |
+  | --- | --- |
+  | `disallow_any_generics = true` (global) | HA only applies this to ~10 specific HA core modules (auth, core, helpers), not globally. Keeping it global made the project stricter than HA on generics without a matching rationale |
+
+  **`homeassistant.*` override updated**:
+
+  | Change | Detail |
+  | --- | --- |
+  | Removed `implicit_reexport = true` | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*` |
+  | Added `no_implicit_reexport = true` | Matches HA's own `[mypy-homeassistant.*] no_implicit_reexport = true` exactly. HA explicitly enforces that its modules only export names declared in `__all__`. Setting this in the project's override causes both basic and strict mypy to apply the same rule when the project imports from HA — surfacing cases where HA's public API surface doesn't match its declared exports (such as the `ScannerEntity` gap) |
+  | Kept `ignore_errors = true` | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness |
+  | Kept `follow_imports = "silent"` | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast |
+
+  **Net result**: both `mypy custom_components/` (basic) and `mypy custom_components/ --strict` pass with zero errors. The pre-commit mypy hook (which runs basic mode) is now consistent with HA's own integration quality checks.
+
+  **Note**: `ScannerEntity` is re-exported in `homeassistant/components/device_tracker/__init__.py` via `from .config_entry import ScannerEntity  # noqa: F401` without `__all__`. HA's own mypy (`no_implicit_reexport = true` for `homeassistant.*`) would reject this if HA's internal code used the public path — which is why HA's own code imports `ScannerEntity` from `config_entry` directly. The `# type: ignore[attr-defined]` in `device_tracker.py` documents this HA inconsistency and should be removed once HA adds `ScannerEntity` to `device_tracker/__all__`.
+
 ## [1.1.1-dev22] - 2026-06-07
 
 ### Fixed
