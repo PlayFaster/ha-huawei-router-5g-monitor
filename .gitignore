@@ -47,6 +47,7 @@ uv.lock
 .comp/
 .notes
 .shared
+.obsidian/
 .notes/
 .shared/
 loc_only/
@@ -57,3 +58,4 @@ loc_only/
 .aiexclude
 .aider*
 CLAUDE.md
+.claude/
