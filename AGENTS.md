@@ -60,14 +60,14 @@ pre-commit run --all-files
 
 ```bash
 # YAML lint
-yamllint -c .shared/validate-configs/.yamllint <file>
+yamllint -c .validate/.yamllint <file>
 
 # HA hassfest (runs via Docker)
 # Use the VS Code task: "HA: Hassfest Validation"
 
 # Prettier formatting for JSON/YAML/Markdown
-prettier --config .shared/validate-configs/.prettierrc.json --check .
-prettier --config .shared/validate-configs/.prettierrc.json --write .
+prettier --config .validate/.prettierrc.json --check .
+prettier --config .validate/.prettierrc.json --write .
 ```
 
 VS Code tasks in `.vscode/tasks.json` wrap all of these. The "Validate All" task runs the full suite sequentially. The "Fix All" task runs all auto-repair tools.
@@ -216,6 +216,18 @@ Additional tools useful during development:
 Test dependencies are in `.validate/requirements_test.txt`. The primary test library is `pytest-homeassistant-custom-component`, which provides HA fixtures (`hass`, `MockConfigEntry`, etc.).
 
 Validation reports are written to the `.reports/` directory (gitignored outputs from lint/test runs).
+
+### Skill Prompts
+
+Three reusable prompts are available via `.shared/prompts/` for working within this devcontainer:
+
+| Prompt | Purpose |
+| :-- | :-- |
+| `devcon_run_gen.md` | Run any single command inside the container |
+| `devcon_run_and_fix.md` | Full test + lint cycle: pytest, ruff, prettier, validate — with auto-fix |
+| `devcon_coverage.md` | Coverage report, target file selection, and new test writing |
+
+Container identity values (`CONTAINER_NAME`, `PROJECT_DIR`) are in `.devcontainer/.env`.
 
 ## Known Open Issue
 

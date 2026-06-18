@@ -4,6 +4,27 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.2-dev4] - 2026-06-18 - Unreleased
+
+### Summary
+
+- **CI Validation Overhaul**: Major overhaul of the local (tasks.json) and online (github.com CI) Validation system
+
+### Changed
+
+- **dev-workbench**: Moved CI Validation and Sync to dev-workbench system, with major restructure of files and folders.
+- **CI Local Tasks**: Reordered local tasks.json, added color for pass/fail.
+- **CI Validation Bump**: Shared CI validation bumped to v2.0.3. No user changes in this release, background/infrastructure only.
+- **CI Validation Bump**: Shared CI validation bumped from v2.0.1 to v2.0.2
+- **CI Coverage Report**: Removed the pytest coverage report as it required extra permissions and is separate to the coverage badge, which is what is really required.
+- **CodeQL**: CodeQL shared config and local caller modified to detail permissions to that Zizmor will pass
+- **CodeQL**: Added a shared CodeQL validation config to the shared validation repo, pulled into each project, incl this one.
+- **Validation Config**: Fixed use of .prettierrc.json
+- **Link Check**: Updated markdown-link-check to ignore .notes/ and .shared/ links in projects as these are excluded.
+- **Validation Config**: Changed from .prettierrc.js to .prettierrc.json to allow GitHub.com CodeQL to run without errors
+- **.gitignore**: Multiple updates to .gitignore
+- **AGENTS.md**: Added AGENTS.md to repo root
+
 ## [1.1.2-dev2] - 2026-06-11 - Unreleased
 
 ### Changed
@@ -14,7 +35,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
   - .validate/requirements_test.txt pulled as generic, with all tools pinned to versions, and requirements_custom.txt used to add project specific items.
   - As part of the sync, docker-compose.yml and devcontainer.json are now generic, with a .env file holding project specific info and a docker-compose.override.yml holding additional, project specific steps.
   - HA Manifest and HACS schema files updated.
-  - Ruff updated from 0.15.12 to 0.15.15
+- **DependaBot**: Bumped Ruff from 0.15.12 to 0.15.16
 
 ## [1.1.1] - 2026-06-07 - Release
 
