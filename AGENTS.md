@@ -97,7 +97,7 @@ Do not install or run these tools on the host as a workaround.
 
 ### Core Data Flow
 
-```
+```text
 api.py (HuaweiRouter5GAPI)
   → wraps huawei-lte-api (synchronous) using asyncio.to_thread / hass.async_add_executor_job
   → asyncio.Lock serializes all router calls (prevents "Busy" / 110001 errors)
@@ -126,6 +126,7 @@ Entities are assigned to one of six sub-devices via `build_device_info(coordinat
 ### Startup Pattern (Zero-Blocking)
 
 `async_setup_entry` in `__init__.py`:
+
 1. Creates `HuaweiRouter5GAPI` and `HuaweiRouter5GDataUpdateCoordinator`
 2. Pre-registers the System and Clients sub-devices in the device registry
 3. Forwards all platforms immediately (entities appear in HA at startup using metadata from `entry.data`)
@@ -142,7 +143,7 @@ SMS services (`send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`) are re
 - **`entry.data`**: Immutable-ish identity — MAC address (normalized to lowercase, no colons), model, sw_version, hw_version. Used as the unique_id base.
 - **`entry.options`**: Runtime-mutable settings — host URL, username, password, scan_interval, stop_polling flag.
 
-The unique_id for the config entry is the normalized MAC (`001122aabbcc` format). All entity `unique_id`s derive from this: `{entry.unique_id}_{sensor_key}`.
+The unique*id for the config entry is the normalized MAC (`001122aabbcc` format). All entity `unique_id`s derive from this: `{entry.unique_id}*{sensor_key}`.
 
 ### WiFi Radio Discovery
 
@@ -184,6 +185,7 @@ All entity icons are centralized in `custom_components/huawei_router_5g/icons.js
 ### Windows Test Environment
 
 `conftest.py` applies two patches for Windows compatibility:
+
 - `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())` — avoids ProactorEventLoop pipe issues with pytest
 - Monkeypatches `pytest_socket.disable_socket` to a no-op — avoids `SocketBlockedError` from internal asyncio pipes
 
@@ -202,14 +204,15 @@ When the devcontainer is running, the `ha-mcp-dev` MCP server automatically conn
 
 **After any modification, follow the post-modification process** — see [`.shared/prompts/post_mod_process.md`](.shared/prompts/post_mod_process.md). Specify a `SCOPE` when invoking it:
 
-| SCOPE | What runs |
-| :------- | :-------- |
-| `None` | Changes only — no validation |
-| `Basic` | HA restart + error check + lint/format fixes |
-| `Full` | Basic + mypy (standard) + pytest (fix failing tests only) |
-| `Complete` | Full + pre-commit --all-files + mypy --strict |
+| SCOPE      | What runs                                                 |
+| :--------- | :-------------------------------------------------------- |
+| `None`     | Changes only — no validation                              |
+| `Basic`    | HA restart + error check + lint/format fixes              |
+| `Full`     | Basic + mypy (standard) + pytest (fix failing tests only) |
+| `Complete` | Full + pre-commit --all-files + mypy --strict             |
 
 Additional tools useful during development:
+
 - `ha_get_state` / `ha_search_entities` — verify entity states and attributes after a reload
 - `ha_call_service` — trigger service calls (e.g. `homeassistant.update_entity`) to exercise platform callbacks directly
 
