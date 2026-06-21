@@ -25,7 +25,7 @@ jobs:
       contents: write # Required by test_val for coverage badge gist update
       pull-requests: write # Required by test_val for PR comments
     # Branch @main v1.0.4
-    uses: PlayFaster/.github/.github/workflows/validate.yaml@48a56341fe6d575def0f9162742cf60342b0b759
+    uses: PlayFaster/.github/.github/workflows/validate.yaml@c0375e1f91acb78cad274932bb2d003985df53aa
     with:
       component_name: huawei_router_5g
       gist_id: b5cb47f2b37e140da07eefd17ac19721
