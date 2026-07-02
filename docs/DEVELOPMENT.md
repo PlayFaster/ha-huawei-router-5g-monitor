@@ -16,9 +16,9 @@ The integration follows the standard Home Assistant Custom Component pattern, op
 - **`sensor.py`**: Defines 100+ entities using declarative `value_fn` callbacks. Handles complex unit conversions (e.g., Duration to ISO Timestamp) and applies guard bands.
 - **`binary_sensor.py`**: Maps boolean states such as connection status, LTE carrier aggregation, and unread SMS presence.
 - **`switch.py`**: Implements "Pause Polling" to stop API calls without disabling the integration.
-- **`button.py`**: Triggers stateless actions such as Reboot and Clear SMS.
+- **`button.py`**: Triggers stateless actions such as Refresh Now, Reboot, and Clear Traffic Statistics. "Refresh Now" forces an immediate coordinator poll via `async_request_refresh()`, complementing the Pause Polling switch and the configurable polling interval.
 - **`number.py`**: Provides UI control over the refresh interval with persistent storage in `ConfigEntry` options.
-- **`config_flow.py`**: Manages initial setup and reconfiguration, implementing the "Flat Identity" pattern by persisting hardware metadata (Model, MAC, Version) at boot.
+- **`config_flow.py`**: Manages initial setup and reconfiguration, implementing the "Flat Identity" pattern by persisting hardware metadata (Model, MAC, Version) at boot. Normalises the host input (`_clean_host`) before storage, and on edit screens leaves credential fields blank (masked, never pre-filled) — restoring the stored password on a blank submit via `_merge_credentials`, so the password can be re-set without ever being displayed.
 - **`helpers.py`**: Contains robust parsers for SMS lists and technical metric sanitization (e.g., stripping 'dBm', 'MHz' suffixes).
 
 ## 3. Historical Architectural Shifts
@@ -209,6 +209,11 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **VS16 Compound Emoji in README Headings (2026-06-08)**: Using VS16 compound emoji (e.g., `⚙️`, `🏗️`, `⚠️`, `🗑️`) in README headings causes Table of Contents links to silently 404. GitHub's anchor generator strips VS16 bytes (U+FE0F) when computing heading slugs, but Markdown tooling includes them in `href` values. The mismatch is completely invisible in source editors — the heading renders fine and GitHub preview looks correct, but clicking a ToC link jumps nowhere.
   - _Fix_: Replace all VS16 compound emoji in headings and their corresponding ToC `href` values with always-colour single-codepoint alternatives (e.g., 🔧 🔩 ❌ ❗ 🔄 💬). See root `CLAUDE.md` → "Shared Markdown Notes" for the full replacement table and detection script.
 
+- **Doubled `configuration_url` from Stored Host Scheme (v1.1.2-dev5)**: The default host in the config flow was `http://192.168.8.1` (scheme included), and the API layer's `_normalize_router_url` re-adds a scheme at runtime — so the raw value was stored as-is in `entry.options`. Because `__init__.py` builds the **root** System device link as `configuration_url=f"http://{host}"`, storing `http://192.168.8.1` produced `http://http://192.168.8.1`. (The sub-devices were unaffected — `build_device_info` uses `coordinator.api.url`, the already-normalised URL.)
+  - _Fix_: Added `_clean_host()` to `config_flow.py` and applied it at the top of all four steps (user, reconfigure, reauth, options) so only the bare host is persisted. The API layer still re-adds the scheme, so connectivity is unchanged. This is a PlayFaster standard — see `shared/SharedNotes/dev_std/dev_standards.md` Section 9.
+- **Stored Password Exposed on Reconfigure (v1.1.2-dev5)**: Pre-filling the password field from `entry.options` on the Reconfigure/Options/Reauth screens meant the stored secret was sent to the browser as a masked value — and could be revealed with the UI eye icon.
+  - _Fix_: Split the config-flow schema into `_user_schema` (setup) and `_edit_schema` (edit). Edit screens use a masked `TextSelector` (`TextSelectorType.PASSWORD`) and leave the password blank; `_merge_credentials()` restores the stored value on a blank submit, so the field can re-set the password without ever displaying it. A `data_description` under the field tells the user "Leave blank to keep the current password." The reconfigure step was also changed to merge into existing options rather than replace them, preserving `scan_interval` / `stop_polling`. See `shared/SharedNotes/dev_std/dev_standards.md` Section 9.
+
 ## 6. Environment Constraints
 
 - **Async Wrapper**: While `huawei-lte-api` is primarily synchronous, this integration wraps all calls in `hass.async_add_executor_job` or uses the library's async capabilities where available to ensure the HA event loop is never blocked.
@@ -239,3 +244,5 @@ _[1.1.1-dev15] — Added "Uptime Timestamp Stability — Reboot-Detection Latch"
 _[1.1.1-dev21] — Added "Session Expiration during Service Calls" and "asyncio.to_thread Mock Compatibility" pitfall entries._
 
 _[2026-06-08] — Added VS16 compound emoji in README headings pitfall entry._
+
+_[1.1.2-dev5] (2026-07-02) — Documented config-flow host normalisation (doubled `configuration_url` fix) and the blank/masked password-on-edit pattern (stored secret no longer exposed via the eye icon). Added the "Refresh Now" button (immediate coordinator refresh)._

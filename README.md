@@ -209,7 +209,7 @@ Fires automatically when a new incoming SMS is detected. Use as an automation tr
 
 ## 🔍 What You Get
 
-This integration provides **112+ entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**.
+This integration provides **121+ entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**.
 
 > [!NOTE]
 >
@@ -217,7 +217,7 @@ This integration provides **112+ entities** (depending on your firmware) organiz
 
 | Sub-Device | Entity Types (+disabled) | Key Metrics | Disabled by Default |
 | :-- | :-- | :-- | :-- |
-| ⚙️ **System** | 7 Sensors, 1 Binary Sensor, 2 Switches, 1 Button, 1 Select, 1 Number (+5) | Firmware, WAN/LAN IPs, Uptime timestamps, Mobile Data, Pause Polling, Network Mode, Polling Interval | Uptime Duration, Connection Duration, Total Connection Duration, WAN IPv6 Address, Battery |
+| ⚙️ **System** | 7 Sensors, 1 Binary Sensor, 2 Switches, 2 Buttons, 1 Select, 1 Number (+5) | Firmware, WAN/LAN IPs, Uptime timestamps, Refresh Now, Mobile Data, Pause Polling, Network Mode, Polling Interval | Uptime Duration, Connection Duration, Total Connection Duration, WAN IPv6 Address, Battery |
 | 📶 **Signal** | 44 Sensors, 6 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, Bands, Frequency | LTE RSSI, Bandwidth, 5G Block Error Rate |
 | 📈 **Data** | 15 Sensors, 1 Button | Monthly Usage, Near-real-time Speed, Connection Usage, Daily Usage | Max Upload/Download Rates |
 | ✉️ **SMS** | 17 Sensors, 1 Binary Sensor (+1) | Unread Count, Inbox/Outbox/Drafts Counts, Last Received Message Content & Attributes | SMS Storage Full |

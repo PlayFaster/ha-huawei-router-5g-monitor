@@ -1,22 +1,22 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 118+ entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 119+ entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 22 | Core router info, WAN configuration, and global integration settings. |
+| **System** | 23 | Core router info, WAN configuration, and global integration settings. |
 | **Signal** | 49 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
 | **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
 | **Clients** | 4+ | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **112+** |  |
+| **Total** | **113+** |  |
 
 ---
 
-## 1. System Sub-Device (22 Entities)
+## 1. System Sub-Device (23 Entities)
 
 _Group: `system`_
 
@@ -38,6 +38,7 @@ _Group: `system`_
 | Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic |  |
 | Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic |  |
 | Secondary IPv6 DNS Server | `secondary_ipv6_dns` | Sensor | - | Diagnostic |  |
+| Refresh Now | `refresh` | Button | - | Config | Forces an immediate poll cycle. Complements Pause Polling and the polling interval. |
 | Reboot | `reboot` | Button | - | - |  |
 | Polling Interval | `polling_interval` | Number | s | Config | Range: 30s - 3600s. Persists in options. |
 | Pause Polling | `pause_polling` | Switch | - | Config | State persists in `ConfigEntry.options`. |
@@ -227,3 +228,4 @@ The `Last Msg` sensor contains:
 
 - **v1.0.0** (2026-05-25) - Initial version. Added 6 undocumented entities, fixed SMS key formatting, updated unit/unknown-state notes, entity counts synced with HA output.
 - **v1.1.1-dev20** (2026-05-25) - Updated Connection Upload/Download, Month Download/Upload GB notes to reflect removal of state_class (No LTS).
+- **v1.1.2-dev5** (2026-07-02) - Added the "Refresh Now" button (System sub-device) for on-demand coordinator refresh, raising System count from 22 to 23 and total from 112+ to 113+.

@@ -13,8 +13,48 @@ from custom_components.huawei_router_5g.api import (
 from custom_components.huawei_router_5g.config_flow import (
     HuaweiRouter5GConfigFlow,
     HuaweiRouter5GOptionsFlow,
+    _clean_host,
+    _merge_credentials,
     _validate_credentials,
 )
+
+# ---------------------------------------------------------------------------
+# _clean_host / _merge_credentials
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("192.168.8.1", "192.168.8.1"),
+        ("  192.168.8.1  ", "192.168.8.1"),
+        ("http://192.168.8.1", "192.168.8.1"),
+        ("https://192.168.8.1/", "192.168.8.1"),
+        ("http://192.168.8.1///", "192.168.8.1"),
+    ],
+)
+def test_clean_host(raw, expected):
+    """Test that host entries are normalised to a bare host."""
+    assert _clean_host(raw) == expected
+
+
+def test_merge_credentials_blank_password_uses_stored():
+    """A blank password falls back to the stored value."""
+    merged = _merge_credentials(
+        {CONF_HOST: "192.168.8.1", CONF_PASSWORD: ""},
+        {CONF_HOST: "192.168.8.1", CONF_PASSWORD: "stored"},
+    )
+    assert merged[CONF_PASSWORD] == "stored"
+
+
+def test_merge_credentials_new_password_overrides_stored():
+    """A supplied password replaces the stored value."""
+    merged = _merge_credentials(
+        {CONF_HOST: "192.168.8.1", CONF_PASSWORD: "new"},
+        {CONF_HOST: "192.168.8.1", CONF_PASSWORD: "stored"},
+    )
+    assert merged[CONF_PASSWORD] == "new"
+
 
 # ---------------------------------------------------------------------------
 # _validate_credentials
@@ -633,3 +673,97 @@ async def test_config_flow_reconfigure_success():
     assert result["reason"] == "reconfigure_successful"
     flow.hass.config_entries.async_update_entry.assert_called_once()
     flow.hass.config_entries.async_reload.assert_called_once_with("test_entry_id")
+
+
+# ---------------------------------------------------------------------------
+# Host normalisation & blank-password retention
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_user_step_strips_url_host():
+    """Test that a URL entered as host is normalised before being stored."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow.hass.config_entries.async_entry_for_domain_unique_id.return_value = None
+
+    user_input = {
+        CONF_HOST: "https://192.168.8.1/",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "password",
+    }
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        return_value={"mac": "DC:71:96:11:22:33", "model": "B535s-232"},
+    ):
+        result = await flow.async_step_user(user_input)
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["options"][CONF_HOST] == "192.168.8.1"
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_blank_password_keeps_stored():
+    """Test that a blank password on reconfigure retains the stored value."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.hass.config_entries.async_reload = AsyncMock()
+    flow.context = {"entry_id": "test_entry_id"}
+    entry = MagicMock()
+    entry.entry_id = "test_entry_id"
+    entry.options = {
+        CONF_HOST: "192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "stored_password",
+    }
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+    # User leaves the password blank and only changes the host format
+    user_input = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "",
+    }
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        return_value={},
+    ):
+        result = await flow.async_step_reconfigure(user_input)
+
+    assert result["type"] == FlowResultType.ABORT
+    _, kwargs = flow.hass.config_entries.async_update_entry.call_args
+    assert kwargs["options"][CONF_PASSWORD] == "stored_password"
+    assert kwargs["options"][CONF_HOST] == "192.168.8.1"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_blank_password_keeps_stored():
+    """Test that a blank password on the options flow retains the stored value."""
+    entry = MagicMock()
+    entry.title = "My Huawei Router"
+    entry.options = {
+        CONF_HOST: "192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "stored_password",
+    }
+
+    flow = HuaweiRouter5GOptionsFlow(entry)
+    flow.hass = MagicMock()
+
+    user_input = {
+        CONF_HOST: "192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "",
+    }
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        return_value={},
+    ):
+        result = await flow.async_step_init(user_input)
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"][CONF_PASSWORD] == "stored_password"

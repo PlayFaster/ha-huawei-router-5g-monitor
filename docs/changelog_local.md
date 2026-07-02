@@ -4,6 +4,38 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.2-dev5] - 2026-07-02 - Unreleased
+
+### Summary
+
+- **Config Flow Hardening & Refresh Button**: Normalised host input before storage, stopped exposing the stored password on edit screens, and added a "Refresh Now" button.
+
+### Added
+
+- **Refresh Now Button**: New System sub-device button that triggers an immediate coordinator refresh (`async_request_refresh`), complementing the existing Pause Polling switch and configurable polling interval.
+
+### Changed
+
+- **Host Normalisation in Config Flow**: Added `_clean_host()` and applied it to all four config-flow steps (user, reconfigure, reauth, options) so a scheme prefix (`http://`/`https://`) or trailing slash entered in the Host field is stripped before it is stored in `entry.options`. Prevents the doubled root device `configuration_url` (`http://{host}` → `http://http://192.168.8.1`) that resulted from the default host including a scheme. The API layer's `_normalize_router_url` re-adds the scheme at runtime, so connectivity is unaffected.
+- **Password No Longer Exposed on Edit Screens**: Split the config-flow schema into setup (`_user_schema`) and edit (`_edit_schema`). The password now uses a masked `TextSelector` and is left blank on Reconfigure/Options/Reauth — the stored value is never pre-filled or revealable via the UI eye icon. A blank submission keeps the stored password via `_merge_credentials()`; entering a value changes it.
+- **Field Helper Text**: Added `data_description` guidance under the password field on the Reconfigure/Options screens ("Leave blank to keep the current password, or enter a new one to change it.").
+- **Reconfigure Preserves Runtime Options**: `async_step_reconfigure` now merges into existing options (`{**entry.options, **merged}`) instead of replacing them, so `scan_interval` / `stop_polling` are no longer dropped when the connection details are reconfigured.
+
+- **YAML Lint**: Added "document-start: disable" to .yamllint rule file, to stop warns/fails for "no --- at document start", which brings it in line with Home Assistant.
+- **YAML Files**: Updated YAML files to remove any "---" document starts added.
+- **Tasks.json**: Updated tasks.json, via hosts-tooling so that YAML-Lint only runs on git tracked files.
+- **.gitignore**: Added scratch folders
+
+### Tests
+
+- Added coverage for host cleaning, credential merge, URL-host stripping in the user flow, blank-password retention (reconfigure + options), and the new Refresh Now button. Updated the button setup test to expect three entities.
+
+### Bumps
+
+- **Validate Bump**: Updated `ruff` from 0.15.16 to 0.15.19
+- **Validate Bump**: Bumped `pytest-homeassistant-custom-component` from 0.13.326 to 0.13.344
+- **Validate Bump**: Bumped `check-jsonschema` from 0.37.2 to 0.37.4
+
 ## [1.1.2-dev4] - 2026-06-18 - Unreleased
 
 ### Summary
