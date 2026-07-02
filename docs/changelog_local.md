@@ -4,6 +4,29 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.2-dev6] - 2026-07-02 - Unreleased
+
+### Summary
+
+- **Suggested Display Units & Precision**: Applied Home Assistant's `suggested_unit_of_measurement` / `suggested_display_precision` to 23 sensors so the UI shows friendly units and sensible decimal places while native values (used for long-term statistics) stay canonical.
+
+### Changed
+
+- **Data Size Sensors (Bytes → GB)**: `total_download`, `total_upload`, `total_data`, `month_download`, `month_upload`, `month_total` suggest `GIGABYTES` at precision **1** (totals/monthly); `current_day_used`, `current_connection_upload`, `current_connection_download` suggest `GIGABYTES` at precision **2** (daily/session). Native unit stays `BYTES`.
+- **Data Rate Sensors (B/s → Mbit/s)**: `current_download_rate`, `current_upload_rate`, `max_download_rate`, `max_upload_rate` suggest `MEGABITS_PER_SECOND` at precision **2**. Native unit stays `BYTES_PER_SECOND`.
+- **Duration Sensors (s → h)**: `uptime`, `current_connection_duration`, `total_connection_time` suggest `HOURS` at precision **1**. Native unit stays `SECONDS`.
+- **Frequency / Bandwidth (MHz)**: the 4 LTE/5G frequency and 4 LTE/5G bandwidth sensors now round to **0** decimal places (`suggested_display_precision=0`); unit unchanged (`MEGAHERTZ`).
+- **Signal Strength (dBm)**: `rsrp`, `rssi`, `nr_rsrp` round to **0** decimal places; unit unchanged. (RSRQ/SINR in dB left fractional.)
+
+### Notes
+
+- Native units are unchanged in every case — only the display hint is added, so long-term statistics and the guard-band limits (defined in native units) are unaffected.
+- The legacy `month_download_gb` / `month_upload_gb` sensors (already GB, disabled by default) were intentionally left as-is.
+
+### Tests
+
+- Added parametrized coverage asserting the suggested unit/precision on all 23 affected sensors.
+
 ## [1.1.2-dev5] - 2026-07-02 - Unreleased
 
 ### Summary

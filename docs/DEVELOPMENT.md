@@ -129,6 +129,17 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Example**: 133 GB actual → `133,000,000,000 / 1024³ ≈ 123.9` displayed as "124 GB" (wrong). `133,000,000,000 / 1,000,000,000 = 133.0` displayed as "133 GB" (correct).
 - **Rule**: Use `/ 1_000_000_000` for `GIGABYTES`, `/ 1_073_741_824` (i.e. `/ 1024**3`) only when the unit is explicitly `GIBIBYTES`. HA's `UnitOfInformation` has both; choose the one that matches the divisor.
 
+### Suggested Display Units & Precision (v1.1.2-dev6)
+
+- **Pattern**: Keep sensors in their **canonical native unit** (`BYTES`, `BYTES_PER_SECOND`, `SECONDS`, `MEGAHERTZ`, `dBm`) so long-term statistics and guard-band limits stay unit-stable, then add `suggested_unit_of_measurement` / `suggested_display_precision` to control the **display** only. HA stores/accumulates the native value and renders in the suggested unit — the user can still override per-entity in the UI. This is the preferred approach over the legacy `_gb` value-fn conversion sensors (which pre-scale in Python and cannot be re-based for statistics). See `shared/SharedNotes/dev_std/dev_standards.md` Section 5.
+- **Applied mapping** (23 sensors):
+  - Data size `BYTES` → `GIGABYTES`; precision **1** for totals/monthly, **2** for daily/session.
+  - Data rate `BYTES_PER_SECOND` → `MEGABITS_PER_SECOND`; precision **2**.
+  - Duration `SECONDS` → `HOURS`; precision **1**.
+  - Frequency/bandwidth `MEGAHERTZ` → precision **0** (no unit change).
+  - Signal strength `dBm` (`rsrp`/`rssi`/`nr_rsrp`) → precision **0** (no unit change); `rsrq`/`sinr` in `dB` left fractional.
+- **Gotcha**: `suggested_unit_of_measurement` must be in the **same HA unit class** as the native unit (`DATA_SIZE`, `DATA_RATE`, `DURATION`, `FREQUENCY`), or HA silently ignores the hint. When only precision changes (frequency, dBm), omit `suggested_unit_of_measurement` entirely.
+
 ## 5. Technical Pitfalls & Fixes
 
 - **Auth Error Handling**: Relying on string matching (e.g., `"password" in str(err)`) to detect login failures is brittle and breaks if library messages change.
@@ -246,3 +257,5 @@ _[1.1.1-dev21] — Added "Session Expiration during Service Calls" and "asyncio.
 _[2026-06-08] — Added VS16 compound emoji in README headings pitfall entry._
 
 _[1.1.2-dev5] (2026-07-02) — Documented config-flow host normalisation (doubled `configuration_url` fix) and the blank/masked password-on-edit pattern (stored secret no longer exposed via the eye icon). Added the "Refresh Now" button (immediate coordinator refresh)._
+
+_[1.1.2-dev6] (2026-07-02) — Added "Suggested Display Units & Precision" success pattern. Applied `suggested_unit_of_measurement` / `suggested_display_precision` to 23 sensors (data size → GB, data rate → Mbit/s, duration → hours, frequency/bandwidth and dBm → 0 dp)._

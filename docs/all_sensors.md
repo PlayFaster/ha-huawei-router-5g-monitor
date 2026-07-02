@@ -222,6 +222,21 @@ The `Last Msg` sensor contains:
 - `index`: Internal router message index.
 - `unread`: Boolean flag.
 
+### Suggested Display Units & Precision
+
+Sensors are stored in their canonical **native** unit (so long-term statistics and guard bands are stable) but carry a display hint via `suggested_unit_of_measurement` / `suggested_display_precision`. The value shown in the UI can still be overridden per-entity.
+
+| Sensors | Native | Suggested display | Precision |
+| :-- | :-- | :-- | :-- |
+| `total_download`, `total_upload`, `total_data`, `month_download`, `month_upload`, `month_total` | Bytes | GB | 1 |
+| `current_day_used`, `current_connection_upload`, `current_connection_download` | Bytes | GB | 2 |
+| `current_download_rate`, `current_upload_rate`, `max_download_rate`, `max_upload_rate` | B/s | Mbit/s | 2 |
+| `uptime`, `current_connection_duration`, `total_connection_time` | s | h | 1 |
+| LTE/5G uplink & downlink **frequency** and **bandwidth** (8 sensors) | MHz | MHz (unchanged) | 0 |
+| `rsrp`, `rssi`, `nr_rsrp` | dBm | dBm (unchanged) | 0 |
+
+> The legacy `month_download_gb` / `month_upload_gb` sensors already report GB (disabled by default) and are intentionally left unchanged.
+
 ---
 
 ## Version Control
@@ -229,3 +244,4 @@ The `Last Msg` sensor contains:
 - **v1.0.0** (2026-05-25) - Initial version. Added 6 undocumented entities, fixed SMS key formatting, updated unit/unknown-state notes, entity counts synced with HA output.
 - **v1.1.1-dev20** (2026-05-25) - Updated Connection Upload/Download, Month Download/Upload GB notes to reflect removal of state_class (No LTS).
 - **v1.1.2-dev5** (2026-07-02) - Added the "Refresh Now" button (System sub-device) for on-demand coordinator refresh, raising System count from 22 to 23 and total from 112+ to 113+.
+- **v1.1.2-dev6** (2026-07-02) - Added suggested display units/precision to 23 sensors (data size → GB, data rate → Mbit/s, duration → hours, frequency/bandwidth and dBm → 0 dp). No entity count change. Added the "Suggested Display Units & Precision" reference table.
