@@ -4,6 +4,24 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.2-dev7] - 2026-07-02 - Unreleased
+
+### Summary
+
+- **Explicit `config_entry` on the Coordinator**: Pass the config entry explicitly to `DataUpdateCoordinator` so Home Assistant reliably honours the "Enable polling for changes" system option and to satisfy the upcoming HA requirement (implicit `ContextVar` detection is being removed in HA 2026.8).
+
+### Changed
+
+- **Coordinator `config_entry`**: `HuaweiRouter5GDataUpdateCoordinator` now passes `config_entry=entry` to `super().__init__()`. This makes `self.config_entry` explicit, which is what HA core's `_schedule_refresh()` checks (`config_entry.pref_disable_polling`) to stop scheduled polling when the user sets **System options → "Enable polling for changes" = OFF**. Manual updates (`homeassistant.update_entity`, "Refresh Now", Pause-Polling off→on) still fetch. No behaviour change on current HA — it removes reliance on implicit context detection, which HA logs as an error from **2026.8**. (Minimum HA is already 2025.1, so no version bump was needed.)
+
+### Tests
+
+- Added a coordinator test asserting `coordinator.config_entry is entry`.
+
+### Bumps
+
+- **Shared .github CI Validation**: Bump .github Shared CI Validation via SHA from v2.0.4 to v2.0.5 (PR #21)
+
 ## [1.1.2-dev6] - 2026-07-02 - Unreleased
 
 ### Summary
@@ -55,7 +73,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Bumps
 
-- **Validate Bump**: Updated `ruff` from 0.15.16 to 0.15.19
+- **Validate Bump**: Updated `ruff` from 0.15.16 to 0.15.19 (PR #16)
 - **Validate Bump**: Bumped `pytest-homeassistant-custom-component` from 0.13.326 to 0.13.344
 - **Validate Bump**: Bumped `check-jsonschema` from 0.37.2 to 0.37.4
 

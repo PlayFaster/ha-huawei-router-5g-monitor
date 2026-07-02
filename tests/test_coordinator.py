@@ -471,3 +471,12 @@ def mock_hass():
     hass.config_entries = MagicMock()
     hass.config_entries.async_update_entry = MagicMock()
     return hass
+
+
+@pytest.mark.asyncio
+async def test_coordinator_config_entry_associated(mock_hass, mock_config_entry):
+    """Coordinator passes config_entry to base so HA honours pref_disable_polling."""
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, MagicMock()
+    )
+    assert coordinator.config_entry is mock_config_entry
