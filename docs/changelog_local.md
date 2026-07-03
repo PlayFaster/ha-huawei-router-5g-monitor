@@ -4,6 +4,12 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.2-dev9] - 2026-07-03 - Unreleased
+
+### Bumps
+
+- **Validate Bump**: Update Ruff from 0.15.19 to 0.15.20
+
 ## [1.1.2-dev8] - 2026-07-03 - Unreleased
 
 ### Changed
