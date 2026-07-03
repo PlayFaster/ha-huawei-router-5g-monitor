@@ -115,21 +115,21 @@ _Group: `data`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| Total Download | `total_download` | Sensor | Bytes | - | Lifetime total download. |
-| Total Upload | `total_upload` | Sensor | Bytes | - | Lifetime total upload. |
-| Total Data | `total_data` | Sensor | Bytes | - | Lifetime total traffic. |
-| Download Rate | `current_download_rate` | Sensor | B/s | - | Current download speed. |
-| Upload Rate | `current_upload_rate` | Sensor | B/s | - | Current upload speed. |
+| Total Download | `total_download` | Sensor | Bytes | - | Lifetime total download. Other display units may be used (e.g. GB). |
+| Total Upload | `total_upload` | Sensor | Bytes | - | Lifetime total upload. Other display units may be used (e.g. GB). |
+| Total Data | `total_data` | Sensor | Bytes | - | Lifetime total traffic. Other display units may be used (e.g. GB). |
+| Download Rate | `current_download_rate` | Sensor | B/s | - | Current download speed. Other display units may be used (e.g. Mbit/s). |
+| Upload Rate | `current_upload_rate` | Sensor | B/s | - | Current upload speed. Other display units may be used (e.g. Mbit/s). |
 | Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
 | Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
-| Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. Resets on reconnect. No LTS. |
-| Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. Resets on reconnect. No LTS. |
+| Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. Resets on reconnect. No LTS. Other display units may be used (e.g. GB). |
+| Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. Resets on reconnect. No LTS. Other display units may be used (e.g. GB). |
 | Day Used | `current_day_used` | Sensor | Bytes | - | Traffic used today. Other display units may be used (e.g. GB). |
-| Month Download | `month_download` | Sensor | Bytes | - |  |
+| Month Download | `month_download` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
 | Month Download (GB) | `month_download_gb` | Sensor | GB | - | Rounded to 2 decimals. No LTS (use `month_download` bytes sensor for LTS). |
 | Month Upload | `month_upload` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
 | Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | Rounded to 2 decimals. No LTS (use `month_upload` bytes sensor for LTS). |
-| Month Total | `month_total` | Sensor | Bytes | - |  |
+| Month Total | `month_total` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
 | Clear Traffic Statistics | `clear_traffic` | Button | - | - | Resets traffic counters. |
 
 ---
@@ -158,6 +158,10 @@ _Group: `sms`_
 | Total (SIM) | `total_sim` | Sensor | - | Diagnostic |  |
 | In Process | `in_process` | Sensor | - | Diagnostic | Transient notification counter. |
 | SMS Storage Full | `sms_storage_full` | Binary | - | Diagnostic |  |
+| Send Sms | `send_sms` | Service | — | — | Send an SMS message via the router. |
+| Delete Sms | `delete_sms` | Service | — | — | Delete an SMS message by its index. |
+| Delete All Sms | `delete_all_sms` | Service | — | — | Delete all SMS messages from the router inbox. |
+| Get Sms List | `get_sms_list` | Service | — | — | Fetch a list of SMS messages from the router. |
 
 ---
 

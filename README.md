@@ -350,25 +350,25 @@ actions:
 
 ### 🚨 Data Usage Alert
 
-Monitor your data consumption and get notified when you approach your monthly limit. If you change the display unit of data sensors (e.g. from Bytes to GB), you must change the numbers below as well.
+Monitor your data consumption and get notified when you approach your monthly limit. The example below assumes the data sensors display in **GB**. If your sensors are not in GB, check their unit and adjust the thresholds and templates accordingly.
 
 ```yaml
 alias: "Data: Usage Alert"
 triggers:
   - trigger: numeric_state
     entity_id: sensor.huawei_5g_data_day_used
-    above: 10000000000 # 10 GB (in bytes)
+    above: 10 # 10 GB
   - trigger: numeric_state
     entity_id: sensor.huawei_5g_data_month_total
-    above: 100000000000 # 100 GB (in bytes)
+    above: 100 # 100 GB
 actions:
   - action: notify.mobile_app_your_phone
     data:
       title: "High Data Usage Alert"
       message: |
         Significant data usage detected:
-        Today: {{ states('sensor.huawei_5g_data_day_used') | multiply(0.000000001) | round(2) }} GB
-        This Month: {{ states('sensor.huawei_5g_data_month_total') | multiply(0.000000001) | round(2) }} GB
+        Today: {{ states('sensor.huawei_5g_data_day_used') | round(2) }} GB
+        This Month: {{ states('sensor.huawei_5g_data_month_total') | round(2) }} GB
 ```
 
 ### 🩺 System Health & Connectivity Alerts
