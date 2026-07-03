@@ -9,6 +9,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ### Changed
 
 - **SMS Actions Default to the Sole Router**: The `delete_sms`, `delete_all_sms`, and `get_sms_list` actions no longer require `entry_id`. When exactly one router is configured it is selected automatically; with more than one configured, `entry_id` is required and omitting it now raises a clear "specify entry_id" error instead of silently acting on an arbitrary router (`send_sms` already behaved this way). Implemented by relaxing the three service schemas and `services.yaml` to optional, and tightening `_get_coordinator` to auto-select only when a single entry is loaded. Added a test for the multiple-entry guard (single-entry fallback was already covered).
+- **Documentation**: Updated the README to align as closely as possible with the ZTE 5G Monitor README.
 
 ## [1.1.3-dev1] - 2026-07-03 - Unreleased
 

@@ -24,7 +24,9 @@ delete_sms:
   description: Delete an SMS message by its index.
   fields:
     entry_id:
-      description: The router to use. Defaults to your only router; required if more than one is configured.
+      description:
+        The router to use. Defaults to your only router; required if more than one is
+        configured.
       required: false
       selector:
         config_entry:
@@ -41,7 +43,9 @@ delete_all_sms:
   description: Delete all SMS messages from the router inbox.
   fields:
     entry_id:
-      description: The router to use. Defaults to your only router; required if more than one is configured.
+      description:
+        The router to use. Defaults to your only router; required if more than one is
+        configured.
       required: false
       selector:
         config_entry:
@@ -59,7 +63,9 @@ get_sms_list:
   description: Fetch a list of SMS messages from the router.
   fields:
     entry_id:
-      description: The router to use. Defaults to your only router; required if more than one is configured.
+      description:
+        The router to use. Defaults to your only router; required if more than one is
+        configured.
       required: false
       selector:
         config_entry:

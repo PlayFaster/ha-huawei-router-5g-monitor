@@ -138,8 +138,8 @@ data:
 
 Delete a single SMS by its storage index. Use the `index` field from `get_sms_list` or from the `huawei_router_5g_sms_received` event.
 
-| Parameter  | Required | Description                                           |
-| :--------- | :------- | :---------------------------------------------------- |
+| Parameter | Required | Description |
+| :-- | :-- | :-- |
 | `entry_id` | No | The router to use. Defaults to your only router; required if more than one is configured. |
 | `index` | **Yes** | Storage index of the message to delete (integer ≥ 0). |
 
@@ -170,12 +170,12 @@ data:
 
 Fetch a list of SMS messages. Supports **Action Responses** — use the output directly in automations and scripts.
 
-| Parameter  | Required | Default | Range     | Description                 |
-| :--------- | :------- | :------ | :-------- | :-------------------------- |
+| Parameter | Required | Default | Range | Description |
+| :-- | :-- | :-- | :-- | :-- |
 | `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
-| `page`     | No       | `1`     | 1–100     | Page number for pagination. |
-| `count`    | No       | `20`    | 1–50      | Messages per page.          |
-| `box_type` | No       | `1`     | See below | Mailbox to read from.       |
+| `page` | No | `1` | 1–100 | Page number for pagination. |
+| `count` | No | `20` | 1–50 | Messages per page. |
+| `box_type` | No | `1` | See below | Mailbox to read from. |
 
 **`box_type` values:** `1` Local Inbox · `2` Local Sent · `3` Local Draft · `4` Local Trash · `5` SIM Inbox · `6` SIM Sent · `7` SIM Draft · `8` Mix Inbox · `9` Mix Sent · `10` Mix Draft
 
