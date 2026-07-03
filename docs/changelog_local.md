@@ -4,6 +4,12 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.2-dev8] - 2026-07-03 - Unreleased
+
+### Changed
+
+- Made sensors User Capacity (wifi_capacity), Month Download (GB) (month_download_gb), and Month Upload (GB) (month_upload_gb) disabled-by-default for new installs.
+
 ## [1.1.2-dev7] - 2026-07-02 - Unreleased
 
 ### Summary
