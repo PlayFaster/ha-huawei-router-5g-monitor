@@ -58,7 +58,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - **Best Signal**: Use signal diagnostics (RSRP, SINR) to optimize the physical placement or orientation of your router.
   - **Performance Tracking**: Use signal history to check whether the performance from your 5G/LTE ISP is stable or changing.
   - **Connection Quality**: Know if your router has dropped to a lower capability 4G/LTE only connection.
-- **Data Cap Management**: Create automations to get notified when you reach 80% or 90% of your monthly data limit to avoid unexpected overage charges on limited 5G plans.
+- **Data Cap Management**: Create automations to get notified when your usage crosses a threshold you set (for example, as you approach your monthly data limit) to avoid unexpected overage charges on limited 5G plans.
 - **Smart SMS Gateway**: Use your router as a notification bridge; for example, forward home security alerts to your phone via SMS if your primary internet connection goes down.
   - **Obligatory Warning**: It is _**YOUR**_ responsibility to understand whether having your Router send SMS messages is going to incur an extra charge from your ISP.
 
@@ -217,13 +217,13 @@ This integration provides **121+ entities** (depending on your firmware) organiz
 
 | Sub-Device | Entity Types (+disabled) | Key Metrics | Disabled by Default |
 | :-- | :-- | :-- | :-- |
-| ⚙️ **System** | 7 Sensors, 1 Binary Sensor, 2 Switches, 2 Buttons, 1 Select, 1 Number (+5) | Firmware, WAN/LAN IPs, Uptime timestamps, Refresh Now, Mobile Data, Pause Polling, Network Mode, Polling Interval | Uptime Duration, Connection Duration, Total Connection Duration, WAN IPv6 Address, Battery |
-| 📶 **Signal** | 44 Sensors, 6 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, Bands, Frequency | LTE RSSI, Bandwidth, 5G Block Error Rate |
-| 📈 **Data** | 15 Sensors, 1 Button | Monthly Usage, Near-real-time Speed, Connection Usage, Daily Usage | Max Upload/Download Rates |
-| ✉️ **SMS** | 17 Sensors, 1 Binary Sensor (+1) | Unread Count, Inbox/Outbox/Drafts Counts, Last Received Message Content & Attributes | SMS Storage Full |
-| 🛜 **WiFi** | 1 Sensor, 4 Binary Sensors, 1 Switch | WiFi Connected, User Capacity, Guest WiFi toggle & SSID attribute | Secondary DNS Server, IPv6 DNS Servers |
-| 👥 **Clients** | 3 Sensors, 1+ Device Tracker | Total Connected, Wired Connected, Dynamically tracked LAN/WLAN Clients | None |
-| 🛠️ **SMS Actions** | 4 Actions | Send, Delete, and List SMS | — |
+| 🔧 **System** | 12 Sensors, 1 Binary Sensor, 2 Switches, 2 Buttons, 1 Select, 1 Number (+4) | Firmware, WAN/LAN IPs, DNS Servers, Uptime timestamps, Refresh Now, Mobile Data, Pause Polling, Network Mode, Polling Interval | Uptime Duration, Connection Duration, Total Connection Duration, Battery |
+| 📶 **Signal** | 44 Sensors, 6 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, Bands, Frequency | None |
+| 📈 **Data** | 11 Sensors, 1 Button (+4) | Monthly Usage, Near-real-time Speed, Connection Usage, Daily Usage | Max Download Rate, Max Upload Rate, Month Download (GB), Month Upload (GB) |
+| 💬 **SMS** | 17 Sensors, 1 Binary Sensor (+1) | Unread Count, Inbox/Outbox/Drafts Counts, Last Received Message Content & Attributes | SMS Storage Full |
+| 🛜 **WiFi** | 4 Binary Sensors, 1 Switch (+1) | User Capacity, Guest WiFi toggle & SSID attribute | User Capacity |
+| 👥 **Clients** | 3 Sensors, 1+ Device Tracker | Total Connected, Wired Connected, WiFi Connected, Dynamically tracked LAN/WLAN Clients | None |
+| 🔩 **SMS Actions** | 4 Actions | Send, Delete, and List SMS | — |
 
 > [!TIP]
 >

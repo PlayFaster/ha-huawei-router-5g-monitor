@@ -6,4 +6,3 @@ check-jsonschema==0.37.4
 codespell==2.4.2
 huawei-lte-api==1.11.0
 url-normalize==3.0.0
-

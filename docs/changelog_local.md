@@ -21,6 +21,12 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 - **Password No Longer Exposed on Edit Screens**: The password field is no longer pre-filled or revealable on the Reconfigure/Options/Reauth screens — leave it blank to keep the current password, or enter a new value to change it.
 - **Host Field Normalization**: A scheme (`http://`) or trailing slash entered in the Host field is now stripped before storage, preventing a malformed device link (e.g. `http://http://192.168.8.1`).
 
+## [1.1.2-dev10] - 2026-07-03 - Unreleased
+
+### Changed
+
+- **Documentation**: Updated the README screenshots to include Refresh Now button and with higher resolution. Updated all_sensors.md and README.md to correctly reflect sensor counts and groups.
+
 ## [1.1.2-dev9] - 2026-07-03 - Unreleased
 
 ### Bumps
