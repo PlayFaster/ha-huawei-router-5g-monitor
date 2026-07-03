@@ -17,7 +17,10 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 >
 > This project builds on the excellent work of [Salamek/huawei-lte-api](https://github.com/Salamek/huawei-lte-api) and the Home Assistant core [Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/) integration.
 
+## 📋 Table of Contents
+
 - [Huawei Router 5G Monitor for Home Assistant](#huawei-router-5g-monitor-for-home-assistant)
+  - [📋 Table of Contents](#-table-of-contents)
   - [🔧 Compatibility \& Tested Devices](#-compatibility--tested-devices)
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
@@ -26,7 +29,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [📸 Screenshots](#-screenshots)
   - [📥 Installation](#-installation)
   - [🔧 Configuration](#-configuration)
-  - [🔨 Under the Hood - Technical Architecture](#-under-the-hood---technical-architecture)
+  - [🔩 Under the Hood - Technical Architecture](#-under-the-hood---technical-architecture)
   - [❓ FAQ \& Troubleshooting](#-faq--troubleshooting)
   - [❌ Removal](#-removal)
   - [❗ Known Limitations /❔ What's Missing?](#-known-limitations--whats-missing)
@@ -92,7 +95,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 - **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
 - **100% Local**: No cloud account or internet access required.
 
-### 🔁 Dynamic Polling
+### 🔄 Dynamic Polling
 
 This integration features **dynamic polling**, the ability to pause polling completely or to change the polling interval.
 
@@ -137,8 +140,8 @@ Delete a single SMS by its storage index. Use the `index` field from `get_sms_li
 
 | Parameter  | Required | Description                                           |
 | :--------- | :------- | :---------------------------------------------------- |
-| `entry_id` | **Yes**  | The router to use.                                    |
-| `index`    | **Yes**  | Storage index of the message to delete (integer ≥ 0). |
+| `entry_id` | No | The router to use. Defaults to your only router; required if more than one is configured. |
+| `index` | **Yes** | Storage index of the message to delete (integer ≥ 0). |
 
 ```yaml
 action: huawei_router_5g.delete_sms
@@ -153,7 +156,7 @@ Bulk delete SMS messages from the router inbox.
 
 | Parameter | Required | Default | Range | Description |
 | :-- | :-- | :-- | :-- | :-- |
-| `entry_id` | **Yes** | — | — | The router to use. |
+| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
 | `keep_last` | No | `0` | 0–50 | Number of most recent messages to preserve. `0` deletes all. |
 
 ```yaml
@@ -169,7 +172,7 @@ Fetch a list of SMS messages. Supports **Action Responses** — use the output d
 
 | Parameter  | Required | Default | Range     | Description                 |
 | :--------- | :------- | :------ | :-------- | :-------------------------- |
-| `entry_id` | **Yes**  | —       | —         | The router to use.          |
+| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
 | `page`     | No       | `1`     | 1–100     | Page number for pagination. |
 | `count`    | No       | `20`    | 1–50      | Messages per page.          |
 | `box_type` | No       | `1`     | See below | Mailbox to read from.       |
@@ -371,35 +374,6 @@ actions:
         This Month: {{ states('sensor.huawei_5g_data_month_total') | round(2) }} GB
 ```
 
-### 🩺 System Health & Connectivity Alerts
-
-Monitor for router reboots or connection resets by watching the uptime and connection duration sensors.
-
-```yaml
-alias: "System: Router Reboot or Reset Alert"
-triggers:
-  - trigger: template
-    value_template: |
-      {% set uptime = states('sensor.huawei_5g_system_uptime') | as_datetime %} {{ uptime is not none and (now() - uptime).total_seconds() < 120 }}
-    id: reboot # Trigger if uptime is less than 2 minutes (indicates a recent reboot)
-  - trigger: template
-    value_template: |
-      {% set conn = states('sensor.huawei_5g_system_connection_uptime') | as_datetime %} {{ conn is not none and (now() - conn).total_seconds() < 120 }}
-    id: reconnect # Trigger if connection duration is less than 2 minutes (indicates a recent reconnect)
-actions:
-  - action: notify.mobile_app_your_phone
-    data:
-      title: "Huawei Router Notification"
-      message: >
-        {% if trigger.id == "reboot" %}
-          The router has rebooted. 
-          System Uptime: {{ states('sensor.huawei_5g_system_uptime') }}
-        {% else %}
-          The mobile connection was reset/reconnected.
-          Connection Uptime: {{ states('sensor.huawei_5g_system_connection_uptime') }}
-        {% endif %}
-```
-
 ### 📶 Signal Quality Alert
 
 Monitor for poor connection quality based on 5G status, signal bars, and link quality (CQI).
@@ -451,6 +425,35 @@ actions:
         - 5G Bars: {{ states('sensor.huawei_5g_signal_5g_signal_bars') }}
         - LTE Bars: {{ states('sensor.huawei_5g_signal_signal_bars') }}
         - 5G CQI: {{ states('sensor.huawei_5g_signal_5g_cqi') }}
+```
+
+### 🩺 System Health & Connectivity Alerts
+
+Monitor for router reboots or connection resets by watching the uptime and connection duration sensors.
+
+```yaml
+alias: "System: Router Reboot or Reset Alert"
+triggers:
+  - trigger: template
+    value_template: |
+      {% set uptime = states('sensor.huawei_5g_system_uptime') | as_datetime %} {{ uptime is not none and (now() - uptime).total_seconds() < 120 }}
+    id: reboot # Trigger if uptime is less than 2 minutes (indicates a recent reboot)
+  - trigger: template
+    value_template: |
+      {% set conn = states('sensor.huawei_5g_system_connection_uptime') | as_datetime %} {{ conn is not none and (now() - conn).total_seconds() < 120 }}
+    id: reconnect # Trigger if connection duration is less than 2 minutes (indicates a recent reconnect)
+actions:
+  - action: notify.mobile_app_your_phone
+    data:
+      title: "Huawei Router Notification"
+      message: >
+        {% if trigger.id == "reboot" %}
+          The router has rebooted. 
+          System Uptime: {{ states('sensor.huawei_5g_system_uptime') }}
+        {% else %}
+          The mobile connection was reset/reconnected.
+          Connection Uptime: {{ states('sensor.huawei_5g_system_connection_uptime') }}
+        {% endif %}
 ```
 
 ### 🔁 Auto-Resume Polling
@@ -550,7 +553,7 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 - **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
 
-## 🔨 Under the Hood - Technical Architecture
+## 🔩 Under the Hood - Technical Architecture
 
 ### 🔄 Data Polling & 3-Strike Resilience 🩹
 
@@ -568,9 +571,10 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 
 - **MAC-Based Identity**: The integration uses the router's unique hardware MAC address as the primary key. This ensures that even if your router's IP address changes (DHCP), Home Assistant will track the same device and preserve your history and automations.
 - **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
+- **Reconfiguration**: If you change your router's IP or password, use the **Reconfigure** button on the integration card to update settings without losing any data.
 - **Data Validation**: Router values are checked for validity against defined guard limits. Out-of-range sensor values (e.g., impossible signal metrics) are ignored or marked as unknown to ensure data integrity.
 
-### 🔁 Dynamic Polling & Standard System Options
+### 🔄 Dynamic Polling & Standard System Options
 
 - **Both Available**: The integration provides dynamic polling controls, to pause polling or change polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
 
@@ -629,6 +633,7 @@ To fully uninstall (HACS):
 
 ## ❗ Known Limitations /❔ What's Missing?
 
+- **Firmware Dependencies**: API feature availability varies by ISP and firmware builds.
 - **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
 - **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
 

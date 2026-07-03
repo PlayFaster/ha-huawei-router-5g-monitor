@@ -109,6 +109,21 @@ async def test_get_coordinator_not_found(mock_hass):
 
 
 @pytest.mark.asyncio
+async def test_get_coordinator_multiple_entries(mock_hass):
+    """Test _get_coordinator requires entry_id when more than one router is loaded."""
+    from custom_components.huawei_router_5g import _get_coordinator
+
+    entry_a = MagicMock()
+    entry_a.runtime_data = MagicMock()
+    entry_b = MagicMock()
+    entry_b.runtime_data = MagicMock()
+    mock_hass.config_entries.async_entries.return_value = [entry_a, entry_b]
+
+    with pytest.raises(HomeAssistantError, match="specify entry_id"):
+        _get_coordinator(mock_hass, {})
+
+
+@pytest.mark.asyncio
 async def test_async_send_sms_service(mock_hass, mock_coordinator, mock_config_entry):
     """Test the send_sms service handler."""
     mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
