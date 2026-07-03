@@ -1,22 +1,22 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 118+ entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 121 entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 22 | Core router info, WAN configuration, and global integration settings. |
-| **Signal** | 49 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
+| **System** | 23 | Core router info, WAN configuration, and global integration settings. |
+| **Signal** | 52 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
-| **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
-| **Clients** | 4+ | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **112+** |  |
+| **WiFi** | 6 | Wireless radio status, capacity, and guest network controls. |
+| **Clients** | 6 | Connected LAN/WLAN devices and aggregate connectivity counters. |
+| **Total** | **121** |  |
 
 ---
 
-## 1. System Sub-Device (22 Entities)
+## 1. System Sub-Device (23 Entities)
 
 _Group: `system`_
 
@@ -38,6 +38,7 @@ _Group: `system`_
 | Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic |  |
 | Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic |  |
 | Secondary IPv6 DNS Server | `secondary_ipv6_dns` | Sensor | - | Diagnostic |  |
+| Refresh Now | `refresh` | Button | - | Config | Forces an immediate poll cycle. Complements Pause Polling and the polling interval. |
 | Reboot | `reboot` | Button | - | - |  |
 | Polling Interval | `polling_interval` | Number | s | Config | Range: 30s - 3600s. Persists in options. |
 | Pause Polling | `pause_polling` | Switch | - | Config | State persists in `ConfigEntry.options`. |
@@ -47,7 +48,7 @@ _Group: `system`_
 
 ---
 
-## 2. Signal Sub-Device (49 Entities)
+## 2. Signal Sub-Device (52 Entities)
 
 _Group: `signal`_
 
@@ -114,21 +115,21 @@ _Group: `data`_
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| Total Download | `total_download` | Sensor | Bytes | - | Lifetime total download. |
-| Total Upload | `total_upload` | Sensor | Bytes | - | Lifetime total upload. |
-| Total Data | `total_data` | Sensor | Bytes | - | Lifetime total traffic. |
-| Download Rate | `current_download_rate` | Sensor | B/s | - | Current download speed. |
-| Upload Rate | `current_upload_rate` | Sensor | B/s | - | Current upload speed. |
+| Total Download | `total_download` | Sensor | Bytes | - | Lifetime total download. Other display units may be used (e.g. GB). |
+| Total Upload | `total_upload` | Sensor | Bytes | - | Lifetime total upload. Other display units may be used (e.g. GB). |
+| Total Data | `total_data` | Sensor | Bytes | - | Lifetime total traffic. Other display units may be used (e.g. GB). |
+| Download Rate | `current_download_rate` | Sensor | B/s | - | Current download speed. Other display units may be used (e.g. Mbit/s). |
+| Upload Rate | `current_upload_rate` | Sensor | B/s | - | Current upload speed. Other display units may be used (e.g. Mbit/s). |
 | Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
 | Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
-| Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. Resets on reconnect. No LTS. |
-| Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. Resets on reconnect. No LTS. |
+| Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. Resets on reconnect. No LTS. Other display units may be used (e.g. GB). |
+| Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. Resets on reconnect. No LTS. Other display units may be used (e.g. GB). |
 | Day Used | `current_day_used` | Sensor | Bytes | - | Traffic used today. Other display units may be used (e.g. GB). |
-| Month Download | `month_download` | Sensor | Bytes | - |  |
-| Month Download (GB) | `month_download_gb` | Sensor | GB | - | Rounded to 2 decimals. No LTS (use `month_download` bytes sensor for LTS). |
+| Month Download | `month_download` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
+| Month Download (GB) | `month_download_gb` | Sensor | GB | - | **Disabled by default.** Rounded to 2 decimals. No LTS (use `month_download` bytes sensor for LTS). |
 | Month Upload | `month_upload` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
-| Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | Rounded to 2 decimals. No LTS (use `month_upload` bytes sensor for LTS). |
-| Month Total | `month_total` | Sensor | Bytes | - |  |
+| Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | **Disabled by default.** Rounded to 2 decimals. No LTS (use `month_upload` bytes sensor for LTS). |
+| Month Total | `month_total` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
 | Clear Traffic Statistics | `clear_traffic` | Button | - | - | Resets traffic counters. |
 
 ---
@@ -156,11 +157,15 @@ _Group: `sms`_
 | Capacity (SIM) | `sms_capacity_sim` | Sensor | - | Diagnostic |  |
 | Total (SIM) | `total_sim` | Sensor | - | Diagnostic |  |
 | In Process | `in_process` | Sensor | - | Diagnostic | Transient notification counter. |
-| SMS Storage Full | `sms_storage_full` | Binary | - | Diagnostic |  |
+| SMS Storage Full | `sms_storage_full` | Binary | - | Diagnostic | **Disabled by default.** |
+| Send Sms | `send_sms` | Service | — | — | Send an SMS message via the router. |
+| Delete Sms | `delete_sms` | Service | — | — | Delete an SMS message by its index. |
+| Delete All Sms | `delete_all_sms` | Service | — | — | Delete all SMS messages from the router inbox. |
+| Get Sms List | `get_sms_list` | Service | — | — | Fetch a list of SMS messages from the router. |
 
 ---
 
-## 5. WiFi Sub-Device (7 Entities)
+## 5. WiFi Sub-Device (6 Entities)
 
 _Group: `wifi`_
 
@@ -170,16 +175,12 @@ _Group: `wifi`_
 | 2.4GHz Status | `wifi24g_status` | Binary | Diagnostic |  |
 | 5GHz Status | `wifi5g_status` | Binary | Diagnostic |  |
 | Single SSID Mode | `single_ssid_mode` | Binary | Diagnostic | ON if 2.4GHz/5GHz merged. |
-| User Capacity | `wifi_capacity` | Sensor | Diagnostic | Max supported users. |
-| Single SSID Mode | `single_ssid_mode` | Switch | Config | Toggle Band Steering. |
-| Main Switch | `wifi_main` | Switch | Config | Master toggle (Single SSID mode only). |
-| 2.4GHz | `wifi_24g` | Switch | Config | 2.4GHz toggle (Separate mode only). |
-| 5GHz | `wifi_5g` | Switch | Config | 5GHz toggle (Separate mode only). |
+| User Capacity | `wifi_capacity` | Sensor | Diagnostic | **Disabled by default.** Max supported users. |
 | Guest Network | `wifi_guest_network` | Switch | Config | Toggle for guest SSID. |
 
 ---
 
-## 6. Clients Sub-Device (4+ Entities)
+## 6. Clients Sub-Device (6 Entities)
 
 _Group: `clients`_
 
@@ -221,9 +222,28 @@ The `Last Msg` sensor contains:
 - `index`: Internal router message index.
 - `unread`: Boolean flag.
 
+### Suggested Display Units & Precision
+
+Sensors are stored in their canonical **native** unit (so long-term statistics and guard bands are stable) but carry a display hint via `suggested_unit_of_measurement` / `suggested_display_precision`. The value shown in the UI can still be overridden per-entity.
+
+| Sensors | Native | Suggested display | Precision |
+| :-- | :-- | :-- | :-- |
+| `total_download`, `total_upload`, `total_data`, `month_download`, `month_upload`, `month_total` | Bytes | GB | 1 |
+| `current_day_used`, `current_connection_upload`, `current_connection_download` | Bytes | GB | 2 |
+| `current_download_rate`, `current_upload_rate`, `max_download_rate`, `max_upload_rate` | B/s | Mbit/s | 2 |
+| `uptime`, `current_connection_duration`, `total_connection_time` | s | h | 1 |
+| LTE/5G uplink & downlink **frequency** and **bandwidth** (8 sensors) | MHz | MHz (unchanged) | 0 |
+| `rsrp`, `rssi`, `nr_rsrp` | dBm | dBm (unchanged) | 0 |
+
+> The legacy `month_download_gb` / `month_upload_gb` sensors already report GB (disabled by default) and are intentionally left unchanged.
+
 ---
 
 ## Version Control
 
 - **v1.0.0** (2026-05-25) - Initial version. Added 6 undocumented entities, fixed SMS key formatting, updated unit/unknown-state notes, entity counts synced with HA output.
 - **v1.1.1-dev20** (2026-05-25) - Updated Connection Upload/Download, Month Download/Upload GB notes to reflect removal of state_class (No LTS).
+- **v1.1.2-dev5** (2026-07-02) - Added the "Refresh Now" button (System sub-device) for on-demand coordinator refresh, raising System count from 22 to 23 and total from 112+ to 113+.
+- **v1.1.2-dev6** (2026-07-02) - Added suggested display units/precision to 23 sensors (data size → GB, data rate → Mbit/s, duration → hours, frequency/bandwidth and dBm → 0 dp). No entity count change. Added the "Suggested Display Units & Precision" reference table.
+- **v1.1.2-dev7** (2026-07-03) - Added `**Disabled by default.**` markers to the remaining registry-disabled sensors (`wifi_capacity`, `month_download_gb`, `month_upload_gb`, `sms_storage_full`). Added SMS services.
+- **v1.1.2-dev8** (2026-07-03) - Fixed summary totals and sub-device header counts (121 total entities). Removed stale WiFi switch entities (`wifi_main`, `wifi_24g`, `wifi_5g`, and switch `single_ssid_mode`) from the manifest.

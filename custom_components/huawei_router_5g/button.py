@@ -8,6 +8,7 @@ from homeassistant.components.button import (
     ButtonEntityDescription,
 )
 from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
@@ -26,6 +27,13 @@ class HuaweiButtonEntityDescription(ButtonEntityDescription):
 
     group: str = "system"
 
+
+REFRESH_DESCRIPTION = HuaweiButtonEntityDescription(
+    key="refresh",
+    translation_key="refresh",
+    entity_category=EntityCategory.CONFIG,
+    group="system",
+)
 
 REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
     key="reboot",
@@ -51,6 +59,7 @@ async def async_setup_entry(
 
     async_add_entities(
         [
+            HuaweiRefreshButton(coordinator, entry, REFRESH_DESCRIPTION),
             HuaweiRebootButton(coordinator, entry, REBOOT_DESCRIPTION),
             HuaweiClearTrafficButton(coordinator, entry, CLEAR_TRAFFIC_DESCRIPTION),
         ],
@@ -82,6 +91,14 @@ class HuaweiButton(
     def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self.entity_description.group)
+
+
+class HuaweiRefreshButton(HuaweiButton):
+    """Button to trigger an immediate data refresh."""
+
+    async def async_press(self) -> None:
+        """Handle the button press — trigger an immediate coordinator refresh."""
+        await self.coordinator.async_request_refresh()
 
 
 class HuaweiRebootButton(HuaweiButton):

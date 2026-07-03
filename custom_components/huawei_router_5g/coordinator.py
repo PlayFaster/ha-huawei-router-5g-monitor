@@ -86,6 +86,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         super().__init__(
             hass,
             _LOGGER,
+            config_entry=entry,
             name=f"{entry.title} Data",
             update_interval=timedelta(seconds=scan_interval),
         )

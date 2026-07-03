@@ -12,6 +12,11 @@ from homeassistant.config_entries import ConfigFlowResult
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import callback
 from homeassistant.data_entry_flow import AbortFlow
+from homeassistant.helpers.selector import (
+    TextSelector,
+    TextSelectorConfig,
+    TextSelectorType,
+)
 
 from .api import HuaweiAuthError, HuaweiConnectionError, HuaweiRouter5GAPI
 from .const import CONF_NAME, DEFAULT_NAME, DOMAIN
@@ -20,8 +25,26 @@ from .helpers import get_router_model
 _LOGGER = logging.getLogger(__name__)
 
 
+def _clean_host(host: str) -> str:
+    """Strip protocol prefix and trailing slashes from a host entry.
+
+    The API layer re-adds a scheme via ``_normalize_router_url``, so only the
+    bare host is stored. This keeps the device ``configuration_url`` (built as
+    ``http://{host}``) from doubling up (e.g. ``http://http://192.168.8.1``).
+    """
+    clean = host.strip()
+    if "://" in clean:
+        clean = clean.split("://", 1)[1]
+    return clean.rstrip("/")
+
+
+def _password_selector() -> TextSelector:
+    """Return a masked password text selector."""
+    return TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD))
+
+
 def _user_schema(defaults: Mapping[str, Any]) -> vol.Schema:
-    """Return the user/options form schema, pre-filled with defaults."""
+    """Return the initial setup schema. The password field is masked."""
     return vol.Schema(
         {
             vol.Optional(CONF_NAME, default=defaults.get(CONF_NAME, DEFAULT_NAME)): str,
@@ -29,9 +52,37 @@ def _user_schema(defaults: Mapping[str, Any]) -> vol.Schema:
                 CONF_HOST, default=defaults.get(CONF_HOST, "http://192.168.8.1")
             ): str,
             vol.Optional(CONF_USERNAME, default=defaults.get(CONF_USERNAME, "")): str,
-            vol.Required(CONF_PASSWORD, default=defaults.get(CONF_PASSWORD, "")): str,
+            vol.Required(CONF_PASSWORD, default=""): _password_selector(),
         }
     )
+
+
+def _edit_schema(defaults: Mapping[str, Any]) -> vol.Schema:
+    """Return the reconfigure/reauth/options schema.
+
+    The password field is intentionally left blank so the stored value cannot
+    be retrieved via the UI eye-icon. Leave it blank to keep the existing
+    password, or enter a new value to change it. Non-sensitive fields (name,
+    host, username) are pre-filled for convenience.
+    """
+    return vol.Schema(
+        {
+            vol.Optional(CONF_NAME, default=defaults.get(CONF_NAME, DEFAULT_NAME)): str,
+            vol.Required(CONF_HOST, default=defaults.get(CONF_HOST, "")): str,
+            vol.Optional(CONF_USERNAME, default=defaults.get(CONF_USERNAME, "")): str,
+            vol.Optional(CONF_PASSWORD, default=""): _password_selector(),
+        }
+    )
+
+
+def _merge_credentials(
+    user_input: dict[str, Any], existing: Mapping[str, Any]
+) -> dict[str, Any]:
+    """Fill a blank password field from the existing stored value."""
+    merged = dict(user_input)
+    if not (merged.get(CONF_PASSWORD) or "").strip():
+        merged[CONF_PASSWORD] = existing.get(CONF_PASSWORD) or ""
+    return merged
 
 
 async def _validate_credentials(user_input: dict[str, Any]) -> dict[str, Any]:
@@ -77,6 +128,7 @@ class HuaweiRouter5GConfigFlow(
         errors = {}
 
         if user_input is not None:
+            user_input[CONF_HOST] = _clean_host(user_input[CONF_HOST])
             try:
                 info = await _validate_credentials(user_input)
 
@@ -121,11 +173,13 @@ class HuaweiRouter5GConfigFlow(
         errors = {}
         assert self._reauth_entry is not None
         if user_input is not None:
+            user_input[CONF_HOST] = _clean_host(user_input[CONF_HOST])
+            merged = _merge_credentials(user_input, self._reauth_entry.options)
             try:
-                await _validate_credentials(user_input)
+                await _validate_credentials(merged)
 
                 updated_options = dict(self._reauth_entry.options)
-                updated_options.update(user_input)
+                updated_options.update(merged)
 
                 self.hass.config_entries.async_update_entry(
                     self._reauth_entry, options=updated_options
@@ -143,7 +197,7 @@ class HuaweiRouter5GConfigFlow(
 
         return self.async_show_form(
             step_id="reauth_confirm",
-            data_schema=_user_schema(self._reauth_entry.options),
+            data_schema=_edit_schema(self._reauth_entry.options),
             errors=errors,
         )
 
@@ -156,10 +210,14 @@ class HuaweiRouter5GConfigFlow(
         assert entry is not None
 
         if user_input is not None:
+            user_input[CONF_HOST] = _clean_host(user_input[CONF_HOST])
+            merged = _merge_credentials(user_input, entry.options)
             try:
-                await _validate_credentials(user_input)
+                await _validate_credentials(merged)
 
-                self.hass.config_entries.async_update_entry(entry, options=user_input)
+                self.hass.config_entries.async_update_entry(
+                    entry, options={**entry.options, **merged}
+                )
                 await self.hass.config_entries.async_reload(entry.entry_id)
                 return self.async_abort(reason="reconfigure_successful")
 
@@ -173,7 +231,7 @@ class HuaweiRouter5GConfigFlow(
 
         return self.async_show_form(
             step_id="reconfigure",
-            data_schema=_user_schema(entry.options),
+            data_schema=_edit_schema(entry.options),
             errors=errors,
         )
 
@@ -202,17 +260,19 @@ class HuaweiRouter5GOptionsFlow(config_entries.OptionsFlow):
         errors = {}
 
         if user_input is not None:
+            user_input[CONF_HOST] = _clean_host(user_input[CONF_HOST])
+            merged = _merge_credentials(user_input, self._entry.options)
             try:
-                await _validate_credentials(user_input)
+                await _validate_credentials(merged)
 
-                new_name = user_input.get(CONF_NAME, DEFAULT_NAME)
+                new_name = merged.get(CONF_NAME, DEFAULT_NAME)
                 if new_name != self._entry.title:
                     self.hass.config_entries.async_update_entry(
                         self._entry, title=new_name
                     )
 
                 updated_options = dict(self._entry.options)
-                updated_options.update(user_input)
+                updated_options.update(merged)
 
                 return self.async_create_entry(title="", data=updated_options)
 
@@ -226,6 +286,6 @@ class HuaweiRouter5GOptionsFlow(config_entries.OptionsFlow):
 
         return self.async_show_form(
             step_id="init",
-            data_schema=_user_schema(self._entry.options),
+            data_schema=_edit_schema(self._entry.options),
             errors=errors,
         )

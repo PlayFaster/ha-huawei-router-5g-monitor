@@ -8,11 +8,40 @@ from homeassistant.exceptions import HomeAssistantError
 from custom_components.huawei_router_5g.button import (
     CLEAR_TRAFFIC_DESCRIPTION,
     REBOOT_DESCRIPTION,
+    REFRESH_DESCRIPTION,
     HuaweiClearTrafficButton,
     HuaweiRebootButton,
+    HuaweiRefreshButton,
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
+
+# ---------------------------------------------------------------------------
+# HuaweiRefreshButton
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_refresh_button_press(mock_coordinator, mock_config_entry):
+    """Test that pressing refresh triggers an immediate coordinator refresh."""
+    button = HuaweiRefreshButton(
+        mock_coordinator, mock_config_entry, REFRESH_DESCRIPTION
+    )
+    await button.async_press()
+
+    mock_coordinator.async_request_refresh.assert_called_once()
+
+
+def test_refresh_button_device_info(mock_coordinator, mock_config_entry):
+    """Test device_info for the refresh button is in the system group."""
+    button = HuaweiRefreshButton(
+        mock_coordinator, mock_config_entry, REFRESH_DESCRIPTION
+    )
+    mac = "DC:71:96:11:22:33"
+    info = button.device_info
+    assert info["identifiers"] == {(DOMAIN, f"{mac}_system")}
+    assert "via_device" not in info
+
 
 # ---------------------------------------------------------------------------
 # HuaweiRebootButton
@@ -120,4 +149,4 @@ async def test_button_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 2
+    assert len(entities) == 3

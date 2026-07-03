@@ -4,6 +4,7 @@ from datetime import UTC
 from unittest.mock import MagicMock
 
 import pytest
+from homeassistant.const import UnitOfDataRate, UnitOfInformation, UnitOfTime
 from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -106,6 +107,67 @@ def test_sensor_rsrp_guard_band_min(mock_coordinator, mock_config_entry):
     desc = next(d for d in SENSOR_TYPES if d.key == "rsrp")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value is None
+
+
+# ---------------------------------------------------------------------------
+# Suggested display unit / precision
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("key", "suggested_unit", "precision"),
+    [
+        # Data size (Bytes -> GB): daily/session precision 2, monthly/totals 1
+        ("total_download", UnitOfInformation.GIGABYTES, 1),
+        ("total_upload", UnitOfInformation.GIGABYTES, 1),
+        ("total_data", UnitOfInformation.GIGABYTES, 1),
+        ("month_download", UnitOfInformation.GIGABYTES, 1),
+        ("month_upload", UnitOfInformation.GIGABYTES, 1),
+        ("month_total", UnitOfInformation.GIGABYTES, 1),
+        ("current_day_used", UnitOfInformation.GIGABYTES, 2),
+        ("current_connection_upload", UnitOfInformation.GIGABYTES, 2),
+        ("current_connection_download", UnitOfInformation.GIGABYTES, 2),
+        # Data rate (B/s -> Mbit/s), precision 2
+        ("current_download_rate", UnitOfDataRate.MEGABITS_PER_SECOND, 2),
+        ("current_upload_rate", UnitOfDataRate.MEGABITS_PER_SECOND, 2),
+        ("max_download_rate", UnitOfDataRate.MEGABITS_PER_SECOND, 2),
+        ("max_upload_rate", UnitOfDataRate.MEGABITS_PER_SECOND, 2),
+        # Duration (s -> h), precision 1
+        ("uptime", UnitOfTime.HOURS, 1),
+        ("current_connection_duration", UnitOfTime.HOURS, 1),
+        ("total_connection_time", UnitOfTime.HOURS, 1),
+    ],
+)
+def test_sensor_suggested_unit_and_precision(key, suggested_unit, precision):
+    """Sensors with a unit conversion carry the expected suggested unit/precision."""
+    desc = next(d for d in SENSOR_TYPES if d.key == key)
+    assert desc.suggested_unit_of_measurement == suggested_unit
+    assert desc.suggested_display_precision == precision
+
+
+@pytest.mark.parametrize(
+    "key",
+    [
+        # Frequency / bandwidth in MHz -> 0 decimals (no unit change)
+        "lte_uplink_frequency",
+        "lte_downlink_frequency",
+        "5g_uplink_frequency",
+        "5g_downlink_frequency",
+        "lte_uplink_bandwidth",
+        "lte_downlink_bandwidth",
+        "5g_uplink_bandwidth",
+        "5g_downlink_bandwidth",
+        # Signal strength in dBm -> 0 decimals
+        "rsrp",
+        "rssi",
+        "nr_rsrp",
+    ],
+)
+def test_sensor_zero_precision_no_unit_change(key):
+    """MHz frequency/bandwidth and dBm signal sensors round to 0 dp, unit unchanged."""
+    desc = next(d for d in SENSOR_TYPES if d.key == key)
+    assert desc.suggested_display_precision == 0
+    assert desc.suggested_unit_of_measurement is None
 
 
 def test_sensor_rsrp_guard_band_max(mock_coordinator, mock_config_entry):

@@ -4,6 +4,147 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.2] - 2026-07-03 - Release
+
+### Added
+
+- **Refresh Now Button**: New System sub-device button that triggers an immediate data refresh.
+
+### Changed
+
+- **Display Units & Precision**: 23 sensors now display expected units and decimal places (data sizes in GB, data rates in Mbit/s, durations in hours, rounded signal/frequency values) while native values used for long-term statistics stay unchanged.
+- **Polling Toggle Future Ready**: Turning off "Enable polling for changes" in the entry's system options now reliably stops scheduled polling and will satisfy the upcoming HA requirement (implicit `ContextVar` detection is being removed in HA 2026.8).
+- **Disabled-by-Default Sensors**: User Capacity, Month Download (GB), and Month Upload (GB) are now disabled by default for new installs.
+
+### Fixed
+
+- **Password No Longer Exposed on Edit Screens**: The password field is no longer pre-filled or revealable on the Reconfigure/Options/Reauth screens — leave it blank to keep the current password, or enter a new value to change it.
+- **Host Field Normalization**: A scheme (`http://`) or trailing slash entered in the Host field is now stripped before storage, preventing a malformed device link (e.g. `http://http://192.168.8.1`).
+
+## [1.1.2-dev10] - 2026-07-03 - Unreleased
+
+### Changed
+
+- **Documentation**: Updated the README screenshots to include Refresh Now button and with higher resolution. Updated all_sensors.md and README.md to correctly reflect sensor counts and groups.
+
+## [1.1.2-dev9] - 2026-07-03 - Unreleased
+
+### Bumps
+
+- **Validate Bump**: Update Ruff from 0.15.19 to 0.15.20
+
+## [1.1.2-dev8] - 2026-07-03 - Unreleased
+
+### Changed
+
+- **Disabled-by-Default Sensors**: Made sensors User Capacity (wifi_capacity), Month Download (GB) (month_download_gb), and Month Upload (GB) (month_upload_gb) disabled-by-default for new installs.
+
+## [1.1.2-dev7] - 2026-07-02 - Unreleased
+
+### Summary
+
+- **Explicit `config_entry` on the Coordinator**: Pass the config entry explicitly to `DataUpdateCoordinator` so Home Assistant reliably honours the "Enable polling for changes" system option and to satisfy the upcoming HA requirement (implicit `ContextVar` detection is being removed in HA 2026.8).
+
+### Changed
+
+- **Coordinator `config_entry`**: `HuaweiRouter5GDataUpdateCoordinator` now passes `config_entry=entry` to `super().__init__()`. This makes `self.config_entry` explicit, which is what HA core's `_schedule_refresh()` checks (`config_entry.pref_disable_polling`) to stop scheduled polling when the user sets **System options → "Enable polling for changes" = OFF**. Manual updates (`homeassistant.update_entity`, "Refresh Now", Pause-Polling off→on) still fetch. No behaviour change on current HA — it removes reliance on implicit context detection, which HA logs as an error from **2026.8**. (Minimum HA is already 2025.1, so no version bump was needed.)
+
+### Tests
+
+- Added a coordinator test asserting `coordinator.config_entry is entry`.
+
+### Bumps
+
+- **Shared .github CI Validation**: Bump .github Shared CI Validation via SHA from v2.0.4 to v2.0.5 (PR #21)
+
+## [1.1.2-dev6] - 2026-07-02 - Unreleased
+
+### Summary
+
+- **Suggested Display Units & Precision**: Applied Home Assistant's `suggested_unit_of_measurement` / `suggested_display_precision` to 23 sensors so the UI shows friendly units and sensible decimal places while native values (used for long-term statistics) stay canonical.
+
+### Changed
+
+- **Data Size Sensors (Bytes → GB)**: `total_download`, `total_upload`, `total_data`, `month_download`, `month_upload`, `month_total` suggest `GIGABYTES` at precision **1** (totals/monthly); `current_day_used`, `current_connection_upload`, `current_connection_download` suggest `GIGABYTES` at precision **2** (daily/session). Native unit stays `BYTES`.
+- **Data Rate Sensors (B/s → Mbit/s)**: `current_download_rate`, `current_upload_rate`, `max_download_rate`, `max_upload_rate` suggest `MEGABITS_PER_SECOND` at precision **2**. Native unit stays `BYTES_PER_SECOND`.
+- **Duration Sensors (s → h)**: `uptime`, `current_connection_duration`, `total_connection_time` suggest `HOURS` at precision **1**. Native unit stays `SECONDS`.
+- **Frequency / Bandwidth (MHz)**: the 4 LTE/5G frequency and 4 LTE/5G bandwidth sensors now round to **0** decimal places (`suggested_display_precision=0`); unit unchanged (`MEGAHERTZ`).
+- **Signal Strength (dBm)**: `rsrp`, `rssi`, `nr_rsrp` round to **0** decimal places; unit unchanged. (RSRQ/SINR in dB left fractional.)
+
+### Notes
+
+- Native units are unchanged in every case — only the display hint is added, so long-term statistics and the guard-band limits (defined in native units) are unaffected.
+- The legacy `month_download_gb` / `month_upload_gb` sensors (already GB, disabled by default) were intentionally left as-is.
+
+### Tests
+
+- Added parametrized coverage asserting the suggested unit/precision on all 23 affected sensors.
+
+## [1.1.2-dev5] - 2026-07-02 - Unreleased
+
+### Summary
+
+- **Config Flow Hardening & Refresh Button**: Normalised host input before storage, stopped exposing the stored password on edit screens, and added a "Refresh Now" button.
+
+### Added
+
+- **Refresh Now Button**: New System sub-device button that triggers an immediate coordinator refresh (`async_request_refresh`), complementing the existing Pause Polling switch and configurable polling interval.
+
+### Changed
+
+- **Host Normalisation in Config Flow**: Added `_clean_host()` and applied it to all four config-flow steps (user, reconfigure, reauth, options) so a scheme prefix (`http://`/`https://`) or trailing slash entered in the Host field is stripped before it is stored in `entry.options`. Prevents the doubled root device `configuration_url` (`http://{host}` → `http://http://192.168.8.1`) that resulted from the default host including a scheme. The API layer's `_normalize_router_url` re-adds the scheme at runtime, so connectivity is unaffected.
+- **Password No Longer Exposed on Edit Screens**: Split the config-flow schema into setup (`_user_schema`) and edit (`_edit_schema`). The password now uses a masked `TextSelector` and is left blank on Reconfigure/Options/Reauth — the stored value is never pre-filled or revealable via the UI eye icon. A blank submission keeps the stored password via `_merge_credentials()`; entering a value changes it.
+- **Field Helper Text**: Added `data_description` guidance under the password field on the Reconfigure/Options screens ("Leave blank to keep the current password, or enter a new one to change it.").
+- **Reconfigure Preserves Runtime Options**: `async_step_reconfigure` now merges into existing options (`{**entry.options, **merged}`) instead of replacing them, so `scan_interval` / `stop_polling` are no longer dropped when the connection details are reconfigured.
+
+- **YAML Lint**: Added "document-start: disable" to .yamllint rule file, to stop warns/fails for "no --- at document start", which brings it in line with Home Assistant.
+- **YAML Files**: Updated YAML files to remove any "---" document starts added.
+- **Tasks.json**: Updated tasks.json, via hosts-tooling so that YAML-Lint only runs on git tracked files.
+- **.gitignore**: Added scratch folders
+
+### Tests
+
+- Added coverage for host cleaning, credential merge, URL-host stripping in the user flow, blank-password retention (reconfigure + options), and the new Refresh Now button. Updated the button setup test to expect three entities.
+
+### Bumps
+
+- **Validate Bump**: Updated `ruff` from 0.15.16 to 0.15.19 (PR #16)
+- **Validate Bump**: Bumped `pytest-homeassistant-custom-component` from 0.13.326 to 0.13.344
+- **Validate Bump**: Bumped `check-jsonschema` from 0.37.2 to 0.37.4
+
+## [1.1.2-dev4] - 2026-06-18 - Unreleased
+
+### Summary
+
+- **CI Validation Overhaul**: Major overhaul of the local (tasks.json) and online (github.com CI) Validation system
+
+### Changed
+
+- **dev-workbench**: Moved CI Validation and Sync to dev-workbench system, with major restructure of files and folders.
+- **CI Local Tasks**: Reordered local tasks.json, added color for pass/fail.
+- **CI Validation Bump**: Shared CI validation bumped to v2.0.3. No user changes in this release, background/infrastructure only.
+- **CI Validation Bump**: Shared CI validation bumped from v2.0.1 to v2.0.2
+- **CI Coverage Report**: Removed the pytest coverage report as it required extra permissions and is separate to the coverage badge, which is what is really required.
+- **CodeQL**: CodeQL shared config and local caller modified to detail permissions to that Zizmor will pass
+- **CodeQL**: Added a shared CodeQL validation config to the shared validation repo, pulled into each project, incl this one.
+- **Validation Config**: Fixed use of .prettierrc.json
+- **Link Check**: Updated markdown-link-check to ignore .notes/ and .shared/ links in projects as these are excluded.
+- **Validation Config**: Changed from .prettierrc.js to .prettierrc.json to allow GitHub.com CodeQL to run without errors
+- **.gitignore**: Multiple updates to .gitignore
+- **AGENTS.md**: Added AGENTS.md to repo root
+
+## [1.1.2-dev2] - 2026-06-11 - Unreleased
+
+### Changed
+
+- **Validation Sync**: Moved to a better system and process to keep validation (lint/format/test) tools in sync, across PlayFaster projects and between the projects and what Home Assistant uses.
+  - .validate/version_matrix.json added as the definitive source of tool version use.
+  - Several Env: entries added to .vscode/tasks.json for tool sync and checking.
+  - .validate/requirements_test.txt pulled as generic, with all tools pinned to versions, and requirements_custom.txt used to add project specific items.
+  - As part of the sync, docker-compose.yml and devcontainer.json are now generic, with a .env file holding project specific info and a docker-compose.override.yml holding additional, project specific steps.
+  - HA Manifest and HACS schema files updated.
+- **DependaBot**: Bumped Ruff from 0.15.12 to 0.15.16
+
 ## [1.1.1] - 2026-06-07 - Release
 
 ### Summary

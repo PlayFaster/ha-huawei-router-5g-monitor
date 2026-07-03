@@ -16,9 +16,9 @@ The integration follows the standard Home Assistant Custom Component pattern, op
 - **`sensor.py`**: Defines 100+ entities using declarative `value_fn` callbacks. Handles complex unit conversions (e.g., Duration to ISO Timestamp) and applies guard bands.
 - **`binary_sensor.py`**: Maps boolean states such as connection status, LTE carrier aggregation, and unread SMS presence.
 - **`switch.py`**: Implements "Pause Polling" to stop API calls without disabling the integration.
-- **`button.py`**: Triggers stateless actions such as Reboot and Clear SMS.
+- **`button.py`**: Triggers stateless actions such as Refresh Now, Reboot, and Clear Traffic Statistics. "Refresh Now" forces an immediate coordinator poll via `async_request_refresh()`, complementing the Pause Polling switch and the configurable polling interval.
 - **`number.py`**: Provides UI control over the refresh interval with persistent storage in `ConfigEntry` options.
-- **`config_flow.py`**: Manages initial setup and reconfiguration, implementing the "Flat Identity" pattern by persisting hardware metadata (Model, MAC, Version) at boot.
+- **`config_flow.py`**: Manages initial setup and reconfiguration, implementing the "Flat Identity" pattern by persisting hardware metadata (Model, MAC, Version) at boot. Normalises the host input (`_clean_host`) before storage, and on edit screens leaves credential fields blank (masked, never pre-filled) — restoring the stored password on a blank submit via `_merge_credentials`, so the password can be re-set without ever being displayed.
 - **`helpers.py`**: Contains robust parsers for SMS lists and technical metric sanitization (e.g., stripping 'dBm', 'MHz' suffixes).
 
 ## 3. Historical Architectural Shifts
@@ -90,6 +90,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **High-Fidelity Logging**: Utilizing `_LOGGER.exception()` for all critical failure paths ensures full tracebacks are available in Home Assistant logs for remote debugging, while downgrading transient session timeouts to `DEBUG` keeps logs clean for end-users.
 - **Architectural Consolidation**: Extracting highly duplicated properties like `device_info` into centralized helpers (e.g., `build_device_info`) to enforce DRY principles across 7+ platform files.
 - **Modern Data Management**: Utilizing `ConfigEntry.runtime_data` to store the `DataUpdateCoordinator`. This removes the need for managing a complex `hass.data[DOMAIN]` dictionary and provides native Home Assistant support for type-safe data access.
+- **Explicit Coordinator `config_entry` (HA polling option)**: Pass `config_entry=entry` to `DataUpdateCoordinator.__init__`. HA core's `_schedule_refresh()` reads `self.config_entry.pref_disable_polling` — the flag behind the "Enable polling for changes" system option — and skips arming the next timer when it's OFF (manual `update_entity` / "Refresh Now" still fetch via `async_request_refresh`, which ignores the flag). Passing the entry explicitly is also required going forward: HA deprecated implicit `ContextVar` detection and reports it as an error from **2026.8** (the argument dates from **2024.8**). Orthogonal to the "Pause Polling" switch (`CONF_STOP_POLLING`), which short-circuits `_async_update_data` to cached data for _all_ triggers. Full write-up: `.shared/info/sys_options_enable_polling.md`.
 - **Parallel Update Coordination**: Explicitly setting `PARALLEL_UPDATES = 0` in all platform files. This informs Home Assistant that the coordinator handles update orchestration internally, eliminating redundant update overhead.
 - **Domain-Level Service Architecture**: Registering integration services (like `send_sms`) in `async_setup` rather than `async_setup_entry`. This ensures services are registered exactly once for the entire domain, regardless of how many router instances are configured.
 - **Actionable Service Feedback**: Ensuring all services raise `HomeAssistantError` with descriptive messages upon failure. This allows Home Assistant automations and scripts to detect execution errors and provides users with meaningful feedback in the UI.
@@ -128,6 +129,17 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Pattern**: When HA declares `native_unit_of_measurement=UnitOfInformation.GIGABYTES`, the value must be in **decimal GB** (divide bytes by `1,000,000,000`). Dividing by `1024³` produces **GiB**, which HA treats as GB — causing ~7.4% underreporting.
 - **Example**: 133 GB actual → `133,000,000,000 / 1024³ ≈ 123.9` displayed as "124 GB" (wrong). `133,000,000,000 / 1,000,000,000 = 133.0` displayed as "133 GB" (correct).
 - **Rule**: Use `/ 1_000_000_000` for `GIGABYTES`, `/ 1_073_741_824` (i.e. `/ 1024**3`) only when the unit is explicitly `GIBIBYTES`. HA's `UnitOfInformation` has both; choose the one that matches the divisor.
+
+### Suggested Display Units & Precision (v1.1.2-dev6)
+
+- **Pattern**: Keep sensors in their **canonical native unit** (`BYTES`, `BYTES_PER_SECOND`, `SECONDS`, `MEGAHERTZ`, `dBm`) so long-term statistics and guard-band limits stay unit-stable, then add `suggested_unit_of_measurement` / `suggested_display_precision` to control the **display** only. HA stores/accumulates the native value and renders in the suggested unit — the user can still override per-entity in the UI. This is the preferred approach over the legacy `_gb` value-fn conversion sensors (which pre-scale in Python and cannot be re-based for statistics). See `shared/SharedNotes/dev_std/dev_standards.md` Section 5.
+- **Applied mapping** (23 sensors):
+  - Data size `BYTES` → `GIGABYTES`; precision **1** for totals/monthly, **2** for daily/session.
+  - Data rate `BYTES_PER_SECOND` → `MEGABITS_PER_SECOND`; precision **2**.
+  - Duration `SECONDS` → `HOURS`; precision **1**.
+  - Frequency/bandwidth `MEGAHERTZ` → precision **0** (no unit change).
+  - Signal strength `dBm` (`rsrp`/`rssi`/`nr_rsrp`) → precision **0** (no unit change); `rsrq`/`sinr` in `dB` left fractional.
+- **Gotcha**: `suggested_unit_of_measurement` must be in the **same HA unit class** as the native unit (`DATA_SIZE`, `DATA_RATE`, `DURATION`, `FREQUENCY`), or HA silently ignores the hint. When only precision changes (frequency, dBm), omit `suggested_unit_of_measurement` entirely.
 
 ## 5. Technical Pitfalls & Fixes
 
@@ -206,6 +218,14 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
     ruff does **not** move a comment that is already on the `from (` line — it only moves comments during initial expansion of single-line imports. Verified: `ruff format` on this exact form returns "already formatted". mypy correctly sees the comment on the same line as the reported error and suppresses it. The `from (` line in this form is 83 chars (within the 88-char limit), so ruff has no reason to reformat it, and cannot collapse it back to single-line (the single-line form would be 95 chars). This placement is stable.
 
+- **VS16 Compound Emoji in README Headings (2026-06-08)**: Using VS16 compound emoji (e.g., `⚙️`, `🏗️`, `⚠️`, `🗑️`) in README headings causes Table of Contents links to silently 404. GitHub's anchor generator strips VS16 bytes (U+FE0F) when computing heading slugs, but Markdown tooling includes them in `href` values. The mismatch is completely invisible in source editors — the heading renders fine and GitHub preview looks correct, but clicking a ToC link jumps nowhere.
+  - _Fix_: Replace all VS16 compound emoji in headings and their corresponding ToC `href` values with always-colour single-codepoint alternatives (e.g., 🔧 🔩 ❌ ❗ 🔄 💬). See root `CLAUDE.md` → "Shared Markdown Notes" for the full replacement table and detection script.
+
+- **Doubled `configuration_url` from Stored Host Scheme (v1.1.2-dev5)**: The default host in the config flow was `http://192.168.8.1` (scheme included), and the API layer's `_normalize_router_url` re-adds a scheme at runtime — so the raw value was stored as-is in `entry.options`. Because `__init__.py` builds the **root** System device link as `configuration_url=f"http://{host}"`, storing `http://192.168.8.1` produced `http://http://192.168.8.1`. (The sub-devices were unaffected — `build_device_info` uses `coordinator.api.url`, the already-normalised URL.)
+  - _Fix_: Added `_clean_host()` to `config_flow.py` and applied it at the top of all four steps (user, reconfigure, reauth, options) so only the bare host is persisted. The API layer still re-adds the scheme, so connectivity is unchanged. This is a PlayFaster standard — see `shared/SharedNotes/dev_std/dev_standards.md` Section 9.
+- **Stored Password Exposed on Reconfigure (v1.1.2-dev5)**: Pre-filling the password field from `entry.options` on the Reconfigure/Options/Reauth screens meant the stored secret was sent to the browser as a masked value — and could be revealed with the UI eye icon.
+  - _Fix_: Split the config-flow schema into `_user_schema` (setup) and `_edit_schema` (edit). Edit screens use a masked `TextSelector` (`TextSelectorType.PASSWORD`) and leave the password blank; `_merge_credentials()` restores the stored value on a blank submit, so the field can re-set the password without ever displaying it. A `data_description` under the field tells the user "Leave blank to keep the current password." The reconfigure step was also changed to merge into existing options rather than replace them, preserving `scan_interval` / `stop_polling`. See `shared/SharedNotes/dev_std/dev_standards.md` Section 9.
+
 ## 6. Environment Constraints
 
 - **Async Wrapper**: While `huawei-lte-api` is primarily synchronous, this integration wraps all calls in `hass.async_add_executor_job` or uses the library's async capabilities where available to ensure the HA event loop is never blocked.
@@ -234,3 +254,11 @@ _[1.1.1-dev12] — Updated Python 3.14 bare-tuple except pitfall entry with PEP 
 _[1.1.1-dev15] — Added "Uptime Timestamp Stability — Reboot-Detection Latch" success pattern and "GB vs GiB — Data Sensor Unit Correctness" pattern._
 
 _[1.1.1-dev21] — Added "Session Expiration during Service Calls" and "asyncio.to_thread Mock Compatibility" pitfall entries._
+
+_[2026-06-08] — Added VS16 compound emoji in README headings pitfall entry._
+
+_[1.1.2-dev5] (2026-07-02) — Documented config-flow host normalisation (doubled `configuration_url` fix) and the blank/masked password-on-edit pattern (stored secret no longer exposed via the eye icon). Added the "Refresh Now" button (immediate coordinator refresh)._
+
+_[1.1.2-dev6] (2026-07-02) — Added "Suggested Display Units & Precision" success pattern. Applied `suggested_unit_of_measurement` / `suggested_display_precision` to 23 sensors (data size → GB, data rate → Mbit/s, duration → hours, frequency/bandwidth and dBm → 0 dp)._
+
+_[1.1.2-dev7] (2026-07-02) — Documented passing `config_entry=entry` to the coordinator (honours the "Enable polling for changes" system option via `pref_disable_polling`; required as HA removes implicit context detection in 2026.8)._
