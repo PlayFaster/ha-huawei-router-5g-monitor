@@ -4,7 +4,7 @@
 
 ### Added
 
-- **Refresh Now Button**: New System sub-device button that triggers an immediate data refresh.
+- **Refresh Now Button**: New System button that triggers an immediate data refresh, complementing the existing Pause Polling switch and configurable polling interval.
 
 ### Changed
 

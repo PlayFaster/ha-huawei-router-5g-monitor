@@ -4,6 +4,12 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.3-dev1] - 2026-07-03 - Unreleased
+
+### Changed
+
+- **Docs**: Minor updates to README and CHANGELOG to align with changes made in ZTE Project docs.
+
 ## [1.1.2] - 2026-07-03 - Release
 
 ### Added

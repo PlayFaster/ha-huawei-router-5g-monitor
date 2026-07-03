@@ -353,14 +353,14 @@ actions:
 Monitor your data consumption and get notified when you approach your monthly limit. The example below assumes the data sensors display in **GB**. If your sensors are not in GB, check their unit and adjust the thresholds and templates accordingly.
 
 ```yaml
-alias: "Data: Usage Alert"
+alias: "Huawei: High Data Usage Alert"
 triggers:
   - trigger: numeric_state
     entity_id: sensor.huawei_5g_data_day_used
-    above: 10 # 10 GB
+    above: 10 # 10 GB - use 10000000000 if the sensor displays Bytes (B)
   - trigger: numeric_state
     entity_id: sensor.huawei_5g_data_month_total
-    above: 100 # 100 GB
+    above: 500 # 500 GB - use 500000000000 if the sensor displays Bytes (B)
 actions:
   - action: notify.mobile_app_your_phone
     data:
@@ -543,6 +543,7 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 - **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Switch to halt polling to allow exclusive access to the router web UI.
 - **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
+- **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch).
 - **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
 
 #### 🛜 WiFi & Client Settings (WiFi Device)
