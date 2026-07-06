@@ -4,6 +4,18 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.3-dev3] - 2026-07-06 - Unreleased
+
+### Changed
+
+- **IQS Validation**: `dev-workbench` script `iqs_static_check.py` added via `tasks.json` now checks for Home Assistant Integration Quality Scale ( IQS ) compliance to 7 basic IQS rules.
+- **Dev-WorkBench**: Updated the Check Drift script to account for the situation where the HA Core version online is ahead of the local version (dev-workbench v2.1.0-dev9).
+- **Documentation**: Updated README.md , re-ordered some sections for logical flow and readability.
+
+### Bumps
+
+- **Validate Bump**: Bumped `pytest-homeassistant-custom-component` from 0.13.344 to 0.13.345
+
 ## [1.1.3-dev2] - 2026-07-03 - Unreleased
 
 ### Changed

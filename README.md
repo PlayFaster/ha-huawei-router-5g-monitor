@@ -25,14 +25,14 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
+  - [� Screenshots](#-screenshots)
   - [💡 Example Automations](#-example-automations)
-  - [📸 Screenshots](#-screenshots)
   - [📥 Installation](#-installation)
   - [🔧 Configuration](#-configuration)
   - [🔩 Under the Hood - Technical Architecture](#-under-the-hood---technical-architecture)
   - [❓ FAQ \& Troubleshooting](#-faq--troubleshooting)
-  - [❌ Removal](#-removal)
   - [❗ Known Limitations /❔ What's Missing?](#-known-limitations--whats-missing)
+  - [❌ Removal](#-removal)
   - [📝 Maintenance Status](#-maintenance-status)
   - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
   - [📄 License](#-license)
@@ -283,6 +283,24 @@ The following sensors have **no LTS** to avoid unnecessary database growth:
 >
 > Restart Home Assistant after saving. The sensor will begin accumulating LTS from that point forward.
 
+## 📸 Screenshots
+
+### Integration Overview
+
+![Integration](.github/images/huawei_5g_integration_screen_mini.png)
+
+| Signal | System |
+| :-: | :-: |
+| ![Signal](.github/images/huawei_5g_signal_info.png) | ![System](.github/images/huawei_5g_sensor_control_info.png) |
+
+| Data | SMS |
+| :-: | :-: |
+| ![Data](.github/images/huawei_5g_data_info_mini.png) | ![SMS](.github/images/huawei_5g_sms_info.png) |
+
+| Setup | Clients |
+| :-: | :-: |
+| ![Setup](.github/images/huawei_5g_setup_info.png) | ![Clients](.github/images/huawei_5g_device_info_mini.png) |
+
 ## 💡 Example Automations
 
 Entity IDs below use the default prefix huawei_5g. If you set a custom name during setup, or have renamed since, replace huawei_5g with your configured prefix.
@@ -474,24 +492,6 @@ actions:
       entity_id: switch.huawei_5g_system_pause_polling
 ```
 
-## 📸 Screenshots
-
-### Integration Overview
-
-![Integration](.github/images/huawei_5g_integration_screen_mini.png)
-
-| Signal | System |
-| :-: | :-: |
-| ![Signal](.github/images/huawei_5g_signal_info.png) | ![System](.github/images/huawei_5g_sensor_control_info.png) |
-
-| Data | SMS |
-| :-: | :-: |
-| ![Data](.github/images/huawei_5g_data_info_mini.png) | ![SMS](.github/images/huawei_5g_sms_info.png) |
-
-| Setup | Clients |
-| :-: | :-: |
-| ![Setup](.github/images/huawei_5g_setup_info.png) | ![Clients](.github/images/huawei_5g_device_info_mini.png) |
-
 ## 📥 Installation
 
 ### ✨ HACS (Recommended)
@@ -614,6 +614,12 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
   - Check your Home Assistant logs for specific error messages.
   - Delete and re-add the integration.
 
+## ❗ Known Limitations /❔ What's Missing?
+
+- **Firmware Dependencies**: API feature availability varies by ISP and firmware builds.
+- **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
+- **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
+
 ## ❌ Removal
 
 To remove the integration from Home Assistant:
@@ -630,12 +636,6 @@ To fully uninstall (HACS):
 3. Click the **three dots** (⋮) at the top right and select **Remove**.
 4. Restart Home Assistant.
 5. Home Assistant automatically removes all associated entities and device entries from the registry when the integration is deleted.
-
-## ❗ Known Limitations /❔ What's Missing?
-
-- **Firmware Dependencies**: API feature availability varies by ISP and firmware builds.
-- **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
-- **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
 
 ## 📝 Maintenance Status
 
