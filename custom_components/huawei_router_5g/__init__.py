@@ -228,7 +228,7 @@ async def async_setup_entry(
     device_registry = dr.async_get(hass)
     host = conf[CONF_HOST]
     mac = entry.data.get("mac")
-    sub_id_prefix = mac if mac else f"host_{host}"
+    sub_id_prefix = mac or f"host_{host}"
 
     device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,

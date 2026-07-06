@@ -160,7 +160,7 @@ def build_device_info(
     from homeassistant.const import CONF_HOST
 
     host = coordinator.entry.options.get(CONF_HOST, "")
-    sub_id_prefix = mac if mac else f"host_{host}"
+    sub_id_prefix = mac or f"host_{host}"
 
     info = DeviceInfo(
         identifiers={(DOMAIN, f"{sub_id_prefix}_{group}")},
