@@ -171,7 +171,8 @@ class HuaweiRouter5GConfigFlow(
     ) -> ConfigFlowResult:
         """Dialog that informs the user that reauth is required."""
         errors = {}
-        assert self._reauth_entry is not None
+        if self._reauth_entry is None:
+            raise ValueError("Reauth entry is not initialized")
         if user_input is not None:
             user_input[CONF_HOST] = _clean_host(user_input[CONF_HOST])
             merged = _merge_credentials(user_input, self._reauth_entry.options)
@@ -207,7 +208,8 @@ class HuaweiRouter5GConfigFlow(
         """Handle reconfiguration."""
         errors = {}
         entry = self.hass.config_entries.async_get_entry(self.context["entry_id"])
-        assert entry is not None
+        if entry is None:
+            return self.async_abort(reason="entry_not_found")
 
         if user_input is not None:
             user_input[CONF_HOST] = _clean_host(user_input[CONF_HOST])

@@ -4,6 +4,16 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.3-dev4] - 2026-07-06 - Unreleased
+
+### Changed
+
+- **Ruff Compliance Alignment**: Resolved 24 static analysis lint warnings in the custom component and test files under stricter Home Assistant Core rules:
+  - **Exception Flow Refactoring (`TRY301` / `TRY300`)**: Isolated network data fetches from subsequent structure validation in `coordinator.py` and `api.py` to prevent raising exceptions inside try blocks. Moved return statements outside try blocks in `api.py`.
+  - **Timezone Awareness (`DTZ005`)**: Replaced all naive `datetime.now()` calls in `api.py` session updates and mock setup in `tests/test_api.py` with timezone-aware `datetime.now(UTC)` using the Python UTC alias.
+  - **Production Assertion Checks (`S101`)**: Replaced insecure assertions (`assert self.url is not None`) in `api.py` and `config_flow.py` with explicit check guards throwing `ValueError`.
+  - **Defensive Error Handling (`BLE001` / `TRY401`)**: Converted generic exception catches on entity actions to traceback-preserving `_LOGGER.exception()` or explicit debug logs. Removed redundant exception variables from `_LOGGER.exception()` formatting signatures in `select.py`.
+
 ## [1.1.3-dev3] - 2026-07-06 - Unreleased
 
 ### Changed

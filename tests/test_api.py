@@ -1,6 +1,6 @@
 """Tests for the Huawei Router 5G API client."""
 
-from datetime import datetime, timedelta
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -1348,7 +1348,7 @@ async def test_ensure_client_resets_on_inactivity():
     api = _make_api()
     api._client = MagicMock()
     api._connection = MagicMock()
-    api._last_activity = datetime.now() - timedelta(seconds=200)
+    api._last_activity = datetime.now(UTC) - timedelta(seconds=200)
 
     new_client = MagicMock()
 

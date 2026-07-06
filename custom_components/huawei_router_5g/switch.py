@@ -159,16 +159,16 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         try:
             await self.coordinator.api.set_mobile_data(True)
             await self.coordinator.async_request_refresh()
-        except Exception as err:
-            _LOGGER.error("%s: Enable mobile data failed: %s", self._entry.title, err)
+        except Exception:
+            _LOGGER.exception("%s: Enable mobile data failed", self._entry.title)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable mobile data."""
         try:
             await self.coordinator.api.set_mobile_data(False)
             await self.coordinator.async_request_refresh()
-        except Exception as err:
-            _LOGGER.error("%s: Disable mobile data failed: %s", self._entry.title, err)
+        except Exception:
+            _LOGGER.exception("%s: Disable mobile data failed", self._entry.title)
 
 
 class HuaweiGuestWifiSwitch(HuaweiSwitch):
@@ -194,8 +194,8 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         """Enable guest WiFi."""
         try:
             await self.coordinator.api.set_guest_wifi(True)
-        except Exception as err:
-            _LOGGER.error("%s: Enable guest WiFi failed: %s", self._entry.title, err)
+        except Exception:
+            _LOGGER.exception("%s: Enable guest WiFi failed", self._entry.title)
         finally:
             await self.coordinator.async_request_refresh()
 
@@ -203,8 +203,8 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         """Disable guest WiFi."""
         try:
             await self.coordinator.api.set_guest_wifi(False)
-        except Exception as err:
-            _LOGGER.error("%s: Disable guest WiFi failed: %s", self._entry.title, err)
+        except Exception:
+            _LOGGER.exception("%s: Disable guest WiFi failed", self._entry.title)
         finally:
             await self.coordinator.async_request_refresh()
 

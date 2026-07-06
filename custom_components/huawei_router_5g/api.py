@@ -5,7 +5,7 @@ from __future__ import annotations
 import asyncio
 import logging
 from collections.abc import Callable
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
 
@@ -64,7 +64,7 @@ class HuaweiRouter5GAPI:
         self._connection: Connection | None = None
         self._client: Client | None = None
         self._lock = asyncio.Lock()
-        self._last_activity = datetime.now()
+        self._last_activity = datetime.now(UTC)
 
     def _create_connection_sync(self) -> tuple[Connection, Client]:
         """Create a new Connection and Client (blocking, runs in thread).
@@ -72,7 +72,8 @@ class HuaweiRouter5GAPI:
         The Connection constructor triggers login automatically when
         credentials are provided.
         """
-        assert self.url is not None
+        if self.url is None:
+            raise ValueError("Router URL is not initialized")
         conn = Connection(
             self.url,
             username=self.username,
@@ -88,7 +89,7 @@ class HuaweiRouter5GAPI:
                 conn, client = await asyncio.to_thread(self._create_connection_sync)
                 self._connection = conn
                 self._client = client
-                self._last_activity = datetime.now()
+                self._last_activity = datetime.now(UTC)
             except (
                 LoginErrorPasswordWrongException,
                 LoginErrorUsernameWrongException,
@@ -110,8 +111,8 @@ class HuaweiRouter5GAPI:
                 await asyncio.to_thread(
                     self._connection.logout  # type: ignore[attr-defined]
                 )
-            except Exception as err:
-                _LOGGER.debug("Logout failed: %s", err)
+            except Exception:  # noqa: BLE001
+                _LOGGER.debug("Logout failed", exc_info=True)
             finally:
                 self._reset_client()
 
@@ -122,7 +123,7 @@ class HuaweiRouter5GAPI:
 
     async def _ensure_client(self) -> Client:
         """Create a client if one does not exist."""
-        now = datetime.now()
+        now = datetime.now(UTC)
         if (
             self._client is not None
             and (now - self._last_activity).total_seconds() > 100
@@ -132,7 +133,8 @@ class HuaweiRouter5GAPI:
 
         if self._client is None:
             await self._login_internal()
-        assert self._client is not None
+        if self._client is None:
+            raise HuaweiConnectionError("Failed to establish API client connection")
         return self._client
 
     async def _login_internal(self) -> None:
@@ -142,7 +144,7 @@ class HuaweiRouter5GAPI:
             conn, client = await asyncio.to_thread(self._create_connection_sync)
             self._connection = conn
             self._client = client
-            self._last_activity = datetime.now()
+            self._last_activity = datetime.now(UTC)
         except (
             LoginErrorPasswordWrongException,
             LoginErrorUsernameWrongException,
@@ -158,10 +160,10 @@ class HuaweiRouter5GAPI:
     async def _execute_with_retry(self, func: Callable[[Client], Any]) -> Any:
         """Execute operation on client, retrying once on session expiry."""
         client = await self._ensure_client()
+        res = None
         try:
             res = await asyncio.to_thread(lambda: func(client))
-            self._last_activity = datetime.now()
-            return res
+            self._last_activity = datetime.now(UTC)
         except (ResponseErrorLoginRequiredException, ResponseErrorException) as err:
             is_expired = isinstance(err, ResponseErrorLoginRequiredException)
             if not is_expired and isinstance(err, ResponseErrorException):
@@ -174,9 +176,10 @@ class HuaweiRouter5GAPI:
                 self._reset_client()
                 client = await self._ensure_client()
                 res = await asyncio.to_thread(lambda: func(client))
-                self._last_activity = datetime.now()
-                return res
-            raise
+                self._last_activity = datetime.now(UTC)
+            else:
+                raise
+        return res
 
     async def get_data(self) -> dict[str, Any]:
         """Fetch all available data from the router."""
@@ -186,7 +189,8 @@ class HuaweiRouter5GAPI:
             def _fetch() -> dict[str, Any]:
                 data: dict[str, Any] = {}
                 client = self._client
-                assert client is not None
+                if client is None:
+                    raise HuaweiConnectionError("API client not established")
 
                 fetch_tasks: list[tuple[str, Callable[[], Any]]] = [
                     ("device_information", lambda: client.device.information()),
@@ -283,10 +287,10 @@ class HuaweiRouter5GAPI:
 
                 return data
 
+            res = None
             try:
                 res = await asyncio.to_thread(_fetch)
-                self._last_activity = datetime.now()
-                return res
+                self._last_activity = datetime.now(UTC)
             except HuaweiAuthError:
                 self._reset_client()
                 raise
@@ -294,6 +298,7 @@ class HuaweiRouter5GAPI:
                 _LOGGER.exception("Failed to fetch router data")
                 self._reset_client()
                 raise HuaweiConnectionError(f"Data fetch failed: {err}") from err
+            return res
 
     async def reboot(self) -> None:
         """Reboot the router."""

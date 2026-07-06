@@ -260,11 +260,10 @@ async def async_setup_entry(
             await api.login()
             await coordinator.async_refresh()
             _LOGGER.info("%s: Background initialization complete.", entry.title)
-        except Exception as err:
-            _LOGGER.warning(
-                "%s: Background initialization failed (will retry): %s",
+        except Exception:
+            _LOGGER.exception(
+                "%s: Background initialization failed (will retry)",
                 entry.title,
-                err,
             )
 
     entry.async_create_background_task(

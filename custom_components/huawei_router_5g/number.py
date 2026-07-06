@@ -135,8 +135,8 @@ class HuaweiPollingInterval(
         except asyncio.CancelledError:
             # Task was cancelled because the user moved the slider again
             pass
-        except Exception as err:
-            _LOGGER.error("Failed to apply polling interval change: %s", err)
+        except Exception:
+            _LOGGER.exception("Failed to apply polling interval change")
 
     async def async_will_remove_from_hass(self) -> None:
         """Cancel any pending debounce task on removal."""
