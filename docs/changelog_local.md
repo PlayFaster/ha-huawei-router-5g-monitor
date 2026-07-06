@@ -4,10 +4,17 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.3-dev5] - 2026-07-06 - Unreleased
+
+### Changed
+
+- **PyTest Errors and Coverage**: The changes in dev4 below caused several of the existing PyTests to fail and also introduced new uncovered statements. Fixed and added tests to get to 100% coverage with all tests passing.
+
 ## [1.1.3-dev4] - 2026-07-06 - Unreleased
 
 ### Changed
 
+- **Ruff Checks Extended**: As of shared CI Dev-workbench v2.2.1, Ruff checks have been extended to align with Home Assistant. This involves INcluding a wide range of checks and then EXcluding several items because of the wider range. In this project, that lead to 24 issues to be addressed.
 - **Ruff Compliance Alignment**: Resolved 24 static analysis lint warnings in the custom component and test files under stricter Home Assistant Core rules:
   - **Exception Flow Refactoring (`TRY301` / `TRY300`)**: Isolated network data fetches from subsequent structure validation in `coordinator.py` and `api.py` to prevent raising exceptions inside try blocks. Moved return statements outside try blocks in `api.py`.
   - **Timezone Awareness (`DTZ005`)**: Replaced all naive `datetime.now()` calls in `api.py` session updates and mock setup in `tests/test_api.py` with timezone-aware `datetime.now(UTC)` using the Python UTC alias.

@@ -1057,6 +1057,58 @@ async def test_delete_sms_error():
 
 
 # ---------------------------------------------------------------------------
+# _create_connection_sync() — url is None (line 76)
+# ---------------------------------------------------------------------------
+
+
+def test_create_connection_sync_url_none():
+    """Test that _create_connection_sync raises when url is None."""
+    api = _make_api()
+    api.url = None
+
+    with pytest.raises(ValueError, match="Router URL is not initialized"):
+        api._create_connection_sync()
+
+
+# ---------------------------------------------------------------------------
+# _ensure_client() — login fails to set client (line 137)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_login_leaves_client_none():
+    """Test _ensure_client raises when _login_internal leaves client None."""
+    api = _make_api()
+    api._client = None
+
+    with (
+        patch.object(api, "_login_internal", new=AsyncMock()),
+        pytest.raises(
+            HuaweiConnectionError, match="Failed to establish API client connection"
+        ),
+    ):
+        await api._ensure_client()
+
+
+# ---------------------------------------------------------------------------
+# get_data() — client is None inside _fetch (line 193)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_data_client_none_in_fetch():
+    """Test get_data raises when client is None inside _fetch."""
+    api = _make_api()
+    api._client = None
+
+    with (
+        patch.object(api, "_ensure_client", new=AsyncMock()),
+        pytest.raises(HuaweiConnectionError, match="API client not established"),
+    ):
+        await api.get_data()
+
+
+# ---------------------------------------------------------------------------
 # Extra Coverage Tests
 # ---------------------------------------------------------------------------
 

@@ -676,8 +676,33 @@ async def test_config_flow_reconfigure_success():
 
 
 # ---------------------------------------------------------------------------
-# Host normalisation & blank-password retention
+# Edge cases — uncovered lines
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reauth_confirm_without_reauth_entry():
+    """Test async_step_reauth_confirm raises when _reauth_entry is None."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow._reauth_entry = None
+
+    with pytest.raises(ValueError, match="Reauth entry is not initialized"):
+        await flow.async_step_reauth_confirm(None)
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_entry_not_found():
+    """Test async_step_reconfigure aborts when entry is not found."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "unknown_entry"}
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=None)
+
+    result = await flow.async_step_reconfigure(None)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "entry_not_found"
 
 
 @pytest.mark.asyncio
