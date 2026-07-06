@@ -4,6 +4,12 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.3-dev6] - 2026-07-06 - Unreleased
+
+### Bumps
+
+- **Shared .github CI Validation**: Bump .github Shared CI Validation via SHA from v2.0.5 to v2.0.6
+
 ## [1.1.3-dev5] - 2026-07-06 - Unreleased
 
 ### Changed
