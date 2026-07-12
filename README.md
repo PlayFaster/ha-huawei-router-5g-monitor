@@ -25,7 +25,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
-  - [� Screenshots](#-screenshots)
+  - [📸 Screenshots](#-screenshots)
   - [💡 Example Automations](#-example-automations)
   - [📥 Installation](#-installation)
   - [🔧 Configuration](#-configuration)
@@ -234,7 +234,7 @@ This integration provides **121+ entities** (depending on your firmware) organiz
 >
 > - If you are running in Bridge Mode, you may not need the Clients sub-device
 > - If you never use the Router's SMS you may not need the SMS sub-device
-> - Devices and their entities can be disabled from the main device page - (⋮ menu) "Disable Device".
+> - Devices can be disabled from the main device page: (⋮ menu) > **Disable Device** which also disables all the device entities.
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
 
 ### 📊 Long Term Statistics (LTS)
@@ -599,7 +599,7 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 
 #### ❔ **Some sensors showing "Unknown"**
 
-- Most sensors showing okay with some unknown **is expected behaviour**.
+- Most sensors showing okay with some unknown **is expected behavior**.
   - The integration fetches everything it can from the router API.
   - Not every metric is provided by every ISP or network configuration.
   - 5G NR sensors will show "Unknown" when the router is operating in LTE-only mode.

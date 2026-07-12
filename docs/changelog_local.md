@@ -4,6 +4,17 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ---
 
+## [1.1.3-dev7] - 2026-07-12 - Unreleased
+
+### Bumps
+
+- **Validate Bump**: Bumped pytest-homeassistant-custom-component from 0.13.345 to 0.13.346
+
+### Changed
+
+- **Docs**: Minor fixes to README for alignment with other project READMEs (clarification on disabling devices and/vs. entities)
+- **Formats**: Codespell alignment, words like behavior and color etc.
+
 ## [1.1.3-dev6] - 2026-07-06 - Unreleased
 
 ### Bumps
@@ -95,7 +106,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Changed
 
-- **Coordinator `config_entry`**: `HuaweiRouter5GDataUpdateCoordinator` now passes `config_entry=entry` to `super().__init__()`. This makes `self.config_entry` explicit, which is what HA core's `_schedule_refresh()` checks (`config_entry.pref_disable_polling`) to stop scheduled polling when the user sets **System options → "Enable polling for changes" = OFF**. Manual updates (`homeassistant.update_entity`, "Refresh Now", Pause-Polling off→on) still fetch. No behaviour change on current HA — it removes reliance on implicit context detection, which HA logs as an error from **2026.8**. (Minimum HA is already 2025.1, so no version bump was needed.)
+- **Coordinator `config_entry`**: `HuaweiRouter5GDataUpdateCoordinator` now passes `config_entry=entry` to `super().__init__()`. This makes `self.config_entry` explicit, which is what HA core's `_schedule_refresh()` checks (`config_entry.pref_disable_polling`) to stop scheduled polling when the user sets **System options → "Enable polling for changes" = OFF**. Manual updates (`homeassistant.update_entity`, "Refresh Now", Pause-Polling off→on) still fetch. No behavior change on current HA — it removes reliance on implicit context detection, which HA logs as an error from **2026.8**. (Minimum HA is already 2025.1, so no version bump was needed.)
 
 ### Tests
 
@@ -132,7 +143,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Summary
 
-- **Config Flow Hardening & Refresh Button**: Normalised host input before storage, stopped exposing the stored password on edit screens, and added a "Refresh Now" button.
+- **Config Flow Hardening & Refresh Button**: Normalized host input before storage, stopped exposing the stored password on edit screens, and added a "Refresh Now" button.
 
 ### Added
 
@@ -140,7 +151,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Changed
 
-- **Host Normalisation in Config Flow**: Added `_clean_host()` and applied it to all four config-flow steps (user, reconfigure, reauth, options) so a scheme prefix (`http://`/`https://`) or trailing slash entered in the Host field is stripped before it is stored in `entry.options`. Prevents the doubled root device `configuration_url` (`http://{host}` → `http://http://192.168.8.1`) that resulted from the default host including a scheme. The API layer's `_normalize_router_url` re-adds the scheme at runtime, so connectivity is unaffected.
+- **Host Normalization in Config Flow**: Added `_clean_host()` and applied it to all four config-flow steps (user, reconfigure, reauth, options) so a scheme prefix (`http://`/`https://`) or trailing slash entered in the Host field is stripped before it is stored in `entry.options`. Prevents the doubled root device `configuration_url` (`http://{host}` → `http://http://192.168.8.1`) that resulted from the default host including a scheme. The API layer's `_normalize_router_url` re-adds the scheme at runtime, so connectivity is unaffected.
 - **Password No Longer Exposed on Edit Screens**: Split the config-flow schema into setup (`_user_schema`) and edit (`_edit_schema`). The password now uses a masked `TextSelector` and is left blank on Reconfigure/Options/Reauth — the stored value is never pre-filled or revealable via the UI eye icon. A blank submission keeps the stored password via `_merge_credentials()`; entering a value changes it.
 - **Field Helper Text**: Added `data_description` guidance under the password field on the Reconfigure/Options screens ("Leave blank to keep the current password, or enter a new one to change it.").
 - **Reconfigure Preserves Runtime Options**: `async_step_reconfigure` now merges into existing options (`{**entry.options, **merged}`) instead of replacing them, so `scan_interval` / `stop_polling` are no longer dropped when the connection details are reconfigured.
@@ -202,7 +213,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Fixed
 
-- **Integration startup failure on HA reboot**: Eliminated a transient import race in the `url_normalize` → `idna` → `uts46data` dependency chain. On cold HA startup, the integration could fail with `ImportError: cannot import name 'uts46data'` and would not recover without a full HA restart. Replaced with a stdlib-only URL normalisation helper.
+- **Integration startup failure on HA reboot**: Eliminated a transient import race in the `url_normalize` → `idna` → `uts46data` dependency chain. On cold HA startup, the integration could fail with `ImportError: cannot import name 'uts46data'` and would not recover without a full HA restart. Replaced with a stdlib-only URL normalization helper.
 - **HA 2026.6 deprecation warning**: Updated `ScannerEntity` import to the canonical `homeassistant.components.device_tracker` path, eliminating the HA 2026.6 startup warning and preventing a hard failure when the deprecated alias is removed in HA 2027.6.
 - **SMS actions failing after inactivity**: Calling SMS services (`send_sms`, `delete_sms`, etc.) after ~2 minutes of inactivity resulted in `100003: No rights` errors. Fixed with proactive session reset (100-second inactivity threshold) and automatic single retry on session expiry.
 - **Uptime/connection timestamp drift**: Replaced the polling-based uptime calculation (which recomputed `now() − uptime` on every poll) with a reboot-detection latch. Boot and connection start times are now computed once and frozen, eliminating clock-rate drift and backward jumps at minute boundaries.
@@ -310,11 +321,11 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Added
 
-- **`test_normalize_router_url` Parametrised Test**: Added 7-case test in `test_api.py` covering bare IP, well-formed URL, trailing slash, uppercase scheme, port-only (no scheme), port with scheme, and leading/trailing whitespace — replacing the implicit coverage that `url_normalize` provided via its own library tests.
+- **`test_normalize_router_url` Parametrized Test**: Added 7-case test in `test_api.py` covering bare IP, well-formed URL, trailing slash, uppercase scheme, port-only (no scheme), port with scheme, and leading/trailing whitespace — replacing the implicit coverage that `url_normalize` provided via its own library tests.
 
 ### Changed
 
-- **README Emoji Consistency**: Replaced all VS16 compound emoji in headings and ToC links with always-colour single-codepoint alternatives (`⚙️`→`🔧`, `🗑️`→`❌`, `⚠️`→`❗`, `⏱️`→`🔁`, `✉️`→`💬`, `⏯️`→`🔁`, `🛠️`→`🔩`, `🎛️`→`🔘`); moved License badge out of heading; standardised Use Cases icon to `🎯`.
+- **README Emoji Consistency**: Replaced all VS16 compound emoji in headings and ToC links with always-color single-codepoint alternatives (`⚙️`→`🔧`, `🗑️`→`❌`, `⚠️`→`❗`, `⏱️`→`🔁`, `✉️`→`💬`, `⏯️`→`🔁`, `🛠️`→`🔩`, `🎛️`→`🔘`); moved License badge out of heading; standardized Use Cases icon to `🎯`.
 
 ## [1.1.1-dev21] - 2026-06-02
 
@@ -376,7 +387,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ### Fixed
 
 - **Uptime timestamp drift**: Replaced `_get_timestamp()` (naive `now() − uptime` recomputed every poll) with a reboot-detection latch in the coordinator for all three timestamp sensors (`uptime_timestamp`, `current_connection_timestamp`, `total_connection_timestamp`). Boot/start times are now computed once and frozen; the latch re-fires only when the counter drops by more than 30 seconds (genuine reset). Eliminates clock-rate divergence drift and the minute-boundary backward jumps caused by the prior truncation approach. Six latch fields persisted to `entry.data` so timestamps survive HA restarts.
-- **`month_download_gb` / `month_upload_gb` GB/GiB mismatch**: Both sensors were dividing bytes by `1024³` (producing GiB) while declaring `native_unit_of_measurement=GIGABYTES` (GB). Corrected divisor to `1,000,000,000` — fixes ~7.4% underreporting (e.g. actual 133 GB was displayed as 124 GB).
+- **`month_download_gb` / `month_upload_gb` GB/GiB mismatch**: Both sensors were dividing bytes by `1024³` (producing GiB) while declaring `native_unit_of_measurement=GIGABYTES` (GB). Corrected divisor to `1,000,000,000` — fixes ~7.4% under-reporting (e.g. actual 133 GB was displayed as 124 GB).
 - **`dict` → `dict[str, Any]` mypy `[type-arg]` error** in `coordinator.py` on the `entry_data_updates` local variable.
 
 ## [1.1.1-dev14] - 2026-05-24 - Unreleased
@@ -421,7 +432,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Changed
 
-- **IQS Platinum**: With icons.json and strict typing the IQS scale is now "near-platinum", with the major caveats that (i) IQS does not apply to cusomt components and (ii) several standards are N/A but still a very positive indicator.
+- **IQS Platinum**: With icons.json and strict typing the IQS scale is now "near-platinum", with the major caveats that (i) IQS does not apply to custom components and (ii) several standards are N/A but still a very positive indicator.
 - **Project Structure Document**: Updated the project structure document to v1.2.4.
 
 ## [1.1.1-dev9] - 2026-05-11
@@ -496,7 +507,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Changed Dev Tooling
 
-- **Shared Reusable CI Workflow**: Created `PlayFaster/.github` organisation repo containing a parameterised reusable workflow (`validate.yaml`, named "Validate (Shared)"). All 8 validation jobs (`hassfest`, `hacs_val`, `py_val`, `test_val`, `file_val`, `codespell`, `zizmor`, `mypy_val`) now live in the shared repo and are called by each integration via a thin caller. Changes to validation logic propagate to all 4 projects on the next CI run without per-project edits.
+- **Shared Reusable CI Workflow**: Created `PlayFaster/.github` organization repo containing a parameterized reusable workflow (`validate.yaml`, named "Validate (Shared)"). All 8 validation jobs (`hassfest`, `hacs_val`, `py_val`, `test_val`, `file_val`, `codespell`, `zizmor`, `mypy_val`) now live in the shared repo and are called by each integration via a thin caller. Changes to validation logic propagate to all 4 projects on the next CI run without per-project edits.
 - **Thin Caller Workflow**: Replaced the 270-line inline `.github/workflows/validate.yaml` with a ~30-line caller that delegates to the shared workflow via `uses: PlayFaster/.github/.github/workflows/validate.yaml@main`. Permissions correctly scoped: `contents: read` at workflow level, `contents: write` and `pull-requests: write` at job level (required by `test_val` for coverage badge and PR comments).
 - **Shared Workflow Concurrency**: Reusable workflow uses `${{ github.workflow }}-${{ github.ref }}-${{ github.repository }}` as its concurrency group, preventing cross-repo cancellation when multiple integrations trigger simultaneously.
 - **Shared Workflow Dependabot**: Added `dependabot.yml` to `PlayFaster/.github` tracking the `github-actions` ecosystem weekly, keeping SHA pins in the shared workflow current.
@@ -535,7 +546,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Changed
 
-- **Test Coverage**: Improved test coverage including new test file for diagnistics.py.
+- **Test Coverage**: Improved test coverage including new test file for diagnostics.py.
 
 ## [1.1.0-dev1] - 2026-05-07
 
@@ -592,7 +603,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Added
 
-- **Quality Scale**: Added quality_scale.yaml into project folder to track compliance to Home Assistant Integration Quality Scale (IQS). As a custom component full compliance is not possible but this is a good mechanism to ensure alignment with Home Assistant best practise.
+- **Quality Scale**: Added quality_scale.yaml into project folder to track compliance to Home Assistant Integration Quality Scale (IQS). As a custom component full compliance is not possible but this is a good mechanism to ensure alignment with Home Assistant best practice.
 
 ## [1.0.2] - 2026-05-05 - Release
 
@@ -796,7 +807,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 ### Added
 
-- **Best Connection logic document**: Created `docs/best_connection_logic.md` as a detailed reference for the 3-stage quality gate algorithm, threshold rationale, idle-stability analysis, and H165-383-specific API field behaviour.
+- **Best Connection logic document**: Created `docs/best_connection_logic.md` as a detailed reference for the 3-stage quality gate algorithm, threshold rationale, idle-stability analysis, and H165-383-specific API field behavior.
 
 ### Changed
 
@@ -990,7 +1001,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ### Changed
 
 - **Robust Session Recovery**: Refactored `api.py` to use typed exceptions from the `huawei-lte-api` library (`ResponseErrorLoginRequiredException`, `ResponseErrorException`), enabling more reliable detection of session timeouts.
-- **Error Code Detection**: Implemented explicit monitoring for router error codes `100002` (Not logged in), `125002` (Session timeout), and `125003` (Token error) during data fetch cycles to trigger immediate re-authentication.
+- **Error Code Detection**: Implemented explicit monitoring for router error codes `100002` (Not logged in), `125002` (Session timeout), and `125003` (Token error) during data fetch cycles to trigger immediate reauthentication.
 
 ### Fixed
 
@@ -1029,7 +1040,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 ### Added
 
 - **Reliability Test Suite**: Implemented `tests/test_reliability_ext.py` to specifically target and verify the complex error handling and resilience logic.
-  - Added tests for mid-fetch session expiration and automatic re-authentication.
+  - Added tests for mid-fetch session expiration and automatic reauthentication.
   - Added tests for the **Critical Data Guard** to ensure partial responses are correctly rejected.
   - Verified `_LOGGER.exception()` tracebacks in critical failure paths.
 
@@ -1045,7 +1056,7 @@ This document tracks technical shifts, architectural decisions, and detailed imp
 
 - **Logging Strategy Refinement**: Implemented high-fidelity diagnostics across all platforms.
   - Switched to `_LOGGER.exception()` in all critical failure paths to provide full tracebacks in Home Assistant logs.
-  - Downgraded "Session Expired" mid-fetch warnings to `DEBUG` level to reduce log noise during normal re-authentication cycles.
+  - Downgraded "Session Expired" mid-fetch warnings to `DEBUG` level to reduce log noise during normal reauthentication cycles.
   - Verified strict credential sanitization in all debug log calls.
 
 ### Fixed
