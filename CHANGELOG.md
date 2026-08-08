@@ -14,8 +14,8 @@
 
 ### Fixed
 
-- **Password No Longer Exposed on Edit Screens**: The password field is no longer pre-filled or revealable on the Reconfigure/Options/Reauth screens — leave it blank to keep the current password, or enter a new value to change it.
-- **Host Field Normalization**: A scheme (`http://`) or trailing slash entered in the Host field is now stripped before storage, preventing a malformed device link (e.g. `http://http://192.168.8.1`).
+- **Edit screen credential security**: Configured the password field on configuration screens to be masked and blank by default, preventing the stored password from being pre-filled or exposed.
+- **Host URL sanitization**: Host input is now automatically sanitized to strip redundant prefixes or trailing slashes, preventing malformed device links.
 
 ## [1.1.1] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes
 
@@ -26,14 +26,14 @@
 
 ### Fixed
 
-- **Integration startup failure on HA reboot**: Eliminated a transient import race in the `url_normalize` → `idna` → `uts46data` dependency chain. On cold HA startup, the integration could fail with `ImportError: cannot import name 'uts46data'` and would not recover without a full HA restart. Replaced with a stdlib-only URL normalization helper.
-- **HA 2026.6 deprecation warning**: Updated `ScannerEntity` import to the canonical `homeassistant.components.device_tracker` path, eliminating the HA 2026.6 startup warning and preventing a hard failure when the deprecated alias is removed in HA 2027.6.
-- **SMS actions failing after inactivity**: Calling SMS services (`send_sms`, `delete_sms`, etc.) after ~2 minutes of inactivity resulted in `100003: No rights` errors. Fixed with proactive session reset (100-second inactivity threshold) and automatic single retry on session expiry.
-- **Uptime/connection timestamp drift**: Replaced the polling-based uptime calculation (which recomputed `now() − uptime` on every poll) with a reboot-detection latch. Boot and connection start times are now computed once and frozen, eliminating clock-rate drift and backward jumps at minute boundaries.
-- **Startup validation warning**: Added the required `CONFIG_SCHEMA` declaration to `__init__.py`, resolving a hassfest validation warning on integration setup.
-- **Button failures invisible to automations**: Reboot and Clear Traffic buttons previously caught API errors silently. Both now raise `HomeAssistantError` so automations can detect and respond to failures.
-- **Device tracker crash resilience**: Replaced broad try-except blocks in `device_tracker.py` with explicit `None` guards matching the pattern used by all other platforms.
-- **Diagnostics crash on early query**: Added a `coordinator.data or {}` guard in `diagnostics.py` — previously, opening the diagnostics panel before the first successful poll caused a crash.
+- **Startup dependency resilience**: Replaced the external URL normalization dependency with a standard-library helper to prevent transient import race failures during cold Home Assistant starts.
+- **Device tracker import paths**: Aligned `ScannerEntity` imports with canonical Home Assistant components paths to prevent deprecation warnings and ensure compatibility with future releases.
+- **SMS session handling**: Implemented proactive session resets and automatic retries on expired logins to prevent authorization errors during sporadic SMS service calls.
+- **Uptime tracking stability**: Latched the boot time calculation to prevent timestamp drift from independently ticking clocks, updating it only when a physical reboot drops the counter.
+- **Schema configuration compliance**: Added the required `CONFIG_SCHEMA` declaration to satisfy integration setup validation checks.
+- **Button error propagation**: Configured the Reboot and Clear Traffic buttons to propagate API failures to the UI and automations rather than swallowing errors silently.
+- **Device tracker stability**: Replaced broad exception blocks with target-specific guards to prevent potential tracker platform initialization crashes.
+- **Diagnostics query safety**: Added fallback guards to diagnostics generation to prevent potential crashes if queried before the initial integration coordinator update completes.
 
 ### Changed
 
@@ -66,8 +66,8 @@
 
 ### Fixed
 
-- **WiFi Status**: Fixed an issue where 2.4GHz and 5GHz WiFi status sensors did not always report correct status.
-- **Guest WiFi Toggle**: Fixed an issue where the Guest WiFi Network toggle switch did not always work.
+- **WiFi status reporting**: Resolved edge cases where the 2.4GHz and 5GHz WiFi status sensors could report out-of-sync states.
+- **Guest WiFi control toggling**: Improved communication reliability when toggling the Guest WiFi Network switch.
 
 ## [1.0.1] - 2026-05-03 - GitHub Release - Best Connection Sensor; `send_sms` Action
 
@@ -84,7 +84,7 @@
 
 ### Fixed
 
-- **Unknown States**: Resolved "Unknown" status for LTE Carrier Aggregation and 5G NR Band on modern firmware by deriving values from composite band strings.
+- **Band attributes mapping**: Improved band extraction logic to derive LTE Carrier Aggregation and 5G NR Band values from composite band strings on newer firmware.
 
 ### Initial Commit - 2026-05-01
 

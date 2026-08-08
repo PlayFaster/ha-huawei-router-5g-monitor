@@ -116,11 +116,15 @@ don't treat them as a pattern to replicate.
 - `EntityCategory.DIAGNOSTIC`: granular infrastructure metrics (secondary bands, per-bank SMS capacity, raw durations)
 - No category (primary list): actionable or highly readable metrics (signal bars, SMS unread count, data rates)
 
+## Remaining Work (Future — Separate Session)
+
+**Forward work lives in [docs/ROADMAP.md](docs/ROADMAP.md)** — refer there for planned items (such as the frequency unit selector open issue below), revisit parameters, and declined design decisions. Keep it there rather than here, so there is one place to look.
+
+---
+
 ## Development Environment
 
-Standard for all integration projects — see
-[shared conventions §3](.shared/dev_std/agent_conventions.md). Nothing about this project's
-environment differs.
+Standard for all integration projects — see [shared conventions §3](.shared/dev_std/agent_conventions.md). Nothing about this project's environment differs.
 
 ## Known Open Issue
 
