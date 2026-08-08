@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.1.2] - 2026-07-03 - Release
+## [1.1.2] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening
 
 ### Added
 
@@ -17,7 +17,7 @@
 - **Password No Longer Exposed on Edit Screens**: The password field is no longer pre-filled or revealable on the Reconfigure/Options/Reauth screens — leave it blank to keep the current password, or enter a new value to change it.
 - **Host Field Normalization**: A scheme (`http://`) or trailing slash entered in the Host field is now stripped before storage, preventing a malformed device link (e.g. `http://http://192.168.8.1`).
 
-## [1.1.1] - 2026-06-07 - Release
+## [1.1.1] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes
 
 ### Summary
 
@@ -40,7 +40,7 @@
 - **Dynamic entity icons**: All entity icons migrated to HA's `icons.json` translation system. Signal bars (1–3), battery (10–100%), and SMS unread sensors now display context-aware icons that change automatically based on sensor value or state.
 - **Long-term statistics cleanup**: Removed `state_class` from 32 sensors that were incorrectly generating Long Term Statistics entries — specifically frequency/bandwidth sensors, SMS count sensors, connection duration sensors, and data rate sensors. These sensors report instantaneous or cumulative values that are not suitable for HA's statistics pipeline.
 
-## [1.1.0] - 2026-05-07 - Release
+## [1.1.0] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up
 
 ### Changed
 
@@ -48,7 +48,7 @@
 - **Unique ID via MAC**: Changed to have the Unique IDs generated from MAC not IP.
 - **Automation Examples**: Updated the automation examples.
 
-## [1.0.2] - 2026-05-05 - Release
+## [1.0.2] - 2026-05-05 - Release - SMS Management, WiFi Sub-Device and Client Counts
 
 ### Added
 
@@ -69,7 +69,7 @@
 - **WiFi Status**: Fixed an issue where 2.4GHz and 5GHz WiFi status sensors did not always report correct status.
 - **Guest WiFi Toggle**: Fixed an issue where the Guest WiFi Network toggle switch did not always work.
 
-## [1.0.1] - 2026-05-03 - GitHub Release
+## [1.0.1] - 2026-05-03 - GitHub Release - Best Connection Sensor; `send_sms` Action
 
 ### Added
 
@@ -87,3 +87,22 @@
 - **Unknown States**: Resolved "Unknown" status for LTE Carrier Aggregation and 5G NR Band on modern firmware by deriving values from composite band strings.
 
 ### Initial Commit - 2026-05-01
+
+---
+
+### Format
+
+The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/), and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Entry structure — headers, titles, category headings and the split between this file and its counterpart — follows `.shared/dev_std/changelog_format.md`.
+
+---
+
+- [Changelog](#changelog)
+  - [\[1.1.2\] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening](#112---2026-07-03---release---refresh-now-button-display-units-config-flow-hardening)
+  - [\[1.1.1\] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes](#111---2026-06-07---release---startup-race-session-and-timestamp-fixes)
+  - [\[1.1.0\] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up](#110---2026-05-07---release---mac-based-unique-id-code-clean-up)
+  - [\[1.0.2\] - 2026-05-05 - Release - SMS Management, WiFi Sub-Device and Client Counts](#102---2026-05-05---release---sms-management-wifi-sub-device-and-client-counts)
+  - [\[1.0.1\] - 2026-05-03 - GitHub Release - Best Connection Sensor; `send_sms` Action](#101---2026-05-03---github-release---best-connection-sensor-send_sms-action)
+
+---

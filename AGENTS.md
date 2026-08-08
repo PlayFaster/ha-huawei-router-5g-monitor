@@ -2,96 +2,30 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
+> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md)
+> — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer
+> access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python
+> rules. That file is the single source of truth for everything shared across the integration
+> projects; this file covers only what is specific to **ha-huawei-router-5g-monitor**.
+
+---
+
+> [!CAUTION]
+>
+> **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: [`agent_conventions.md`](.shared/dev_std/agent_conventions.md).
+
 ## What This Integration Does
 
 A Home Assistant custom component (HACS integration) for monitoring Huawei LTE/5G routers. It wraps the `huawei-lte-api` library to provide signal metrics (RSRP, RSRQ, SINR), data usage tracking, SMS management, connected client device tracking, and polling controls. The component domain is `huawei_router_5g`.
 
-The integration provides 112+ entities grouped into six logical sub-devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**. It also exposes four SMS service actions (`send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`).
+Entities are grouped into six logical sub-devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**. It also exposes SMS service actions.
+
+> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and kept current against live HA by `sensor_review.md`. This file deliberately carries no entity counts or service descriptions.
 
 ## Commands
 
-All commands assume the devcontainer environment (Python 3.14, `/workspaces/ha-huawei-router-5g-monitor`). The `.venv` in the repo root contains test dependencies.
-
-### Tests
-
-```bash
-# Run all tests
-PYTHONPATH=. pytest tests/
-
-# Run a single test file
-PYTHONPATH=. pytest tests/test_sensor.py
-
-# Run a single test by name
-PYTHONPATH=. pytest tests/test_sensor.py::test_sensor_state
-
-# Run with coverage report
-PYTHONPATH=. pytest --cov --cov-report=term-missing tests/
-```
-
-### Linting & Formatting
-
-```bash
-# Lint (check only)
-ruff check .
-
-# Lint with auto-fix
-ruff check --fix .
-
-# Format (check only)
-ruff format --check .
-
-# Format (auto-fix)
-ruff format .
-
-# Type check
-mypy custom_components/
-
-# Strict type check
-mypy custom_components/ --strict
-
-# Spell check
-codespell .
-
-# All pre-commit hooks on all files
-pre-commit run --all-files
-```
-
-### Validation (requires devcontainer/Docker)
-
-```bash
-# YAML lint
-yamllint -c .validate/.yamllint <file>
-
-# HA hassfest (runs via Docker)
-# Use the VS Code task: "HA: Hassfest Validation"
-
-# Prettier formatting for JSON/YAML/Markdown
-prettier --config .validate/.prettierrc.json --check .
-prettier --config .validate/.prettierrc.json --write .
-```
-
-VS Code tasks in `.vscode/tasks.json` wrap all of these. The "Validate All" task runs the full suite sequentially. The "Fix All" task runs all auto-repair tools.
-
-### Install Test Dependencies
-
-```bash
-pip install -r .validate/requirements_test.txt
-```
-
-### Running tools from a Windows host
-
-These commands only work **inside** the devcontainer — HA imports `fcntl`, so `pytest` (and the other tools) cannot run on a Windows host directly. From Windows, run everything through `docker exec` against the running container. See [`.shared/prompts/devcon_run_gen.md`](.shared/prompts/devcon_run_gen.md) for the full mini-skill. Quick reference:
-
-```bash
-# Confirm the container is up first
-docker ps --filter "name=<CONTAINER_NAME>" --format "{{.Names}}"
-
-# Run a tool inside the container (-w sets the in-container working dir)
-docker exec -w /workspaces/<PROJECT_DIR> <CONTAINER_NAME> bash -c "PYTHONPATH=. pytest tests/"
-docker exec -w /workspaces/<PROJECT_DIR> <CONTAINER_NAME> bash -c "ruff check ."
-```
-
-Do not install or run these tools on the host as a workaround.
+Standard for all integration projects — see [shared conventions §2](.shared/dev_std/agent_conventions.md).
+Nothing about this project's commands differs.
 
 ## Architecture
 
@@ -136,7 +70,7 @@ Hardware identity (model, MAC, version) is loaded from `entry.data` at startup s
 
 ### Service Registration
 
-SMS services (`send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`) are registered in `async_setup` (domain-level), not `async_setup_entry`. This ensures they are registered exactly once regardless of how many router instances exist. Service handlers are explicit `async def` wrappers — using lambdas with async functions causes unawaited coroutine bugs for services with responses.
+SMS services are registered in `async_setup` (domain-level), not `async_setup_entry`. This ensures they are registered exactly once regardless of how many router instances exist. Service handlers are explicit `async def` wrappers — using lambdas with async functions causes unawaited coroutine bugs for services with responses.
 
 ### Config Entry Data vs. Options
 
@@ -159,22 +93,9 @@ Rather than hardcoded radio indices, `switch.py` / `binary_sensor.py` fetch all 
 
 ## Key Patterns & Conventions
 
-### Exception Tuple Syntax — Settled Decision
-
-Always use `except (A, B):` with explicit parentheses for multi-exception catches. Never use the bare-tuple form `except A, B:`.
-
-- **Do not flag or change this** — it has been researched and decided.
-- `except A, B:` silently catches only `A` on Python 3.12–3.13 (what HA runs on in production), making it a correctness issue, not just style.
-- `except (A, B):` is correct and unambiguous across Python 2.6 through 3.14+.
-- Full background: `shared/SharedNotes/info/py_exception_tuple_syntax/issue_summary.md`
-
-### Operator Precedence with `or 0`
-
-When using `or 0` as a None-guard before a numeric comparison: use `(val or 0) > threshold`, not `val or 0 > threshold` (which evaluates as `val or (0 > threshold)` = `val or False`).
-
-### Icon Architecture
-
-All entity icons are centralized in `custom_components/huawei_router_5g/icons.json` using HA's icon translation engine. Do not add hardcoded `icon="..."` arguments to `EntityDescription` objects. Use `default`, `state`, and `range` mappings in the JSON file instead.
+Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`, the centralized
+`icons.json` architecture, exception tuple syntax, `or 0` precedence, markdown emoji rules) are in
+[shared conventions §4–5](.shared/dev_std/agent_conventions.md). Project-specific additions:
 
 ### Frequency Field Scaling
 
@@ -182,12 +103,13 @@ All entity icons are centralized in `custom_components/huawei_router_5g/icons.js
 - `ulfrequency` / `dlfrequency` fields: divide by **1000** to get MHz (kHz → MHz), handled by `format_khz_to_mhz`
 - `ulbandwidth` / `dlbandwidth` fields: already in MHz, no scaling needed
 
-### Windows Test Environment
+### Windows Test Environment (unused)
 
-`conftest.py` applies two patches for Windows compatibility:
-
-- `asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())` — avoids ProactorEventLoop pipe issues with pytest
-- Monkeypatches `pytest_socket.disable_socket` to a no-op — avoids `SocketBlockedError` from internal asyncio pipes
+`tests/conftest.py` carries two deliberate Windows-compatibility patches (a
+`WindowsSelectorEventLoopPolicy` switch and a `pytest_socket.disable_socket` no-op), both guarded
+by `sys.platform == "win32"`. They were added on purpose but are **not exercised** — tests run
+inside the Linux devcontainer via `docker exec`. Unique to this project; leave them alone, and
+don't treat them as a pattern to replicate.
 
 ### Entity Category Usage
 
@@ -196,41 +118,9 @@ All entity icons are centralized in `custom_components/huawei_router_5g/icons.js
 
 ## Development Environment
 
-The project uses a VS Code devcontainer (`.devcontainer/`) running a Home Assistant instance for live testing. The devcontainer's `.devconfig/` folder contains a pre-configured HA instance that loads the integration automatically.
-
-### MCP Access (ha-mcp-dev)
-
-When the devcontainer is running, the `ha-mcp-dev` MCP server automatically connects to the HA instance inside it (`http://localhost:8123`). Use it to verify integration changes without leaving the editor.
-
-**After any modification, follow the post-modification process** — see [`.shared/prompts/post_mod_process.md`](.shared/prompts/post_mod_process.md). Specify a `SCOPE` when invoking it:
-
-| SCOPE      | What runs                                                 |
-| :--------- | :-------------------------------------------------------- |
-| `None`     | Changes only — no validation                              |
-| `Basic`    | HA restart + error check + lint/format fixes              |
-| `Full`     | Basic + mypy (standard) + pytest (fix failing tests only) |
-| `Complete` | Full + pre-commit --all-files + mypy --strict             |
-
-Additional tools useful during development:
-
-- `ha_get_state` / `ha_search_entities` — verify entity states and attributes after a reload
-- `ha_call_service` — trigger service calls (e.g. `homeassistant.update_entity`) to exercise platform callbacks directly
-
-Test dependencies are in `.validate/requirements_test.txt`. The primary test library is `pytest-homeassistant-custom-component`, which provides HA fixtures (`hass`, `MockConfigEntry`, etc.).
-
-Validation reports are written to the `.reports/` directory (gitignored outputs from lint/test runs).
-
-### Skill Prompts
-
-Three reusable prompts are available via `.shared/prompts/` for working within this devcontainer:
-
-| Prompt | Purpose |
-| :-- | :-- |
-| `devcon_run_gen.md` | Run any single command inside the container |
-| `devcon_run_and_fix.md` | Full test + lint cycle: pytest, ruff, prettier, validate — with auto-fix |
-| `devcon_coverage.md` | Coverage report, target file selection, and new test writing |
-
-Container identity values (`CONTAINER_NAME`, `PROJECT_DIR`) are in `.devcontainer/.env`.
+Standard for all integration projects — see
+[shared conventions §3](.shared/dev_std/agent_conventions.md). Nothing about this project's
+environment differs.
 
 ## Known Open Issue
 

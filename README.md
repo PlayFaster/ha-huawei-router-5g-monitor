@@ -388,8 +388,8 @@ actions:
       title: "High Data Usage Alert"
       message: |
         Significant data usage detected:
-        Today: {{ states('sensor.huawei_5g_data_day_used') | round(2) }} GB
-        This Month: {{ states('sensor.huawei_5g_data_month_total') | round(2) }} GB
+        Today: {{ states('sensor.huawei_5g_data_day_used') | float(0) | round(0) }} GB
+        This Month: {{ states('sensor.huawei_5g_data_month_total') | float(0) | round(0) }} GB
 ```
 
 ### 📶 Signal Quality Alert
@@ -404,7 +404,13 @@ triggers:
       - binary_sensor.huawei_5g_signal_5g_endc_active
       - binary_sensor.huawei_5g_signal_best_connection
     to: "off"
+    not_from:
+      - "unknown"
+      - "unavailable"
     for: "00:05:00"
+    note: |
+      Ignores unknown and unavailable states so router reboots or transient polling
+      failures do not trigger false degradation alerts.
   - trigger: numeric_state
     entity_id:
       - sensor.huawei_5g_signal_5g_signal_bars
@@ -642,6 +648,12 @@ To fully uninstall (HACS):
 This is a **personal project** that exists to fill a specific gap: polling control and connected client tracking on top of what the core Huawei LTE integration already does well. Users who do not need those specific features are encouraged to use the officially maintained [core integration](https://www.home-assistant.io/integrations/huawei_lte/) instead.
 
 Support and updates are provided on a **"best-effort"** basis only. While I use this integration daily and aim to keep it functional with the latest Home Assistant releases, I cannot guarantee immediate fixes for issues or compatibility with all router firmware versions.
+
+### 📖 Documentation Accuracy
+
+- This README is updated whenever the integration changes, and is intended to describe the current release accurately.
+- Two things can put it out of step: a passage this document missed during a revision, or a Home Assistant screen or setting that has been renamed or moved since it was written.
+- If you find either, please [open an issue](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/issues). It will be corrected.
 
 ---
 

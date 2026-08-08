@@ -3,9 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.data_entry_flow import AbortFlow, FlowResultType
-
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
     HuaweiConnectionError,
@@ -17,6 +14,8 @@ from custom_components.huawei_router_5g.config_flow import (
     _merge_credentials,
     _validate_credentials,
 )
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
 # ---------------------------------------------------------------------------
 # _clean_host / _merge_credentials
@@ -34,7 +33,7 @@ from custom_components.huawei_router_5g.config_flow import (
     ],
 )
 def test_clean_host(raw, expected):
-    """Test that host entries are normalised to a bare host."""
+    """Test that host entries are normalized to a bare host."""
     assert _clean_host(raw) == expected
 
 
@@ -707,7 +706,7 @@ async def test_reconfigure_entry_not_found():
 
 @pytest.mark.asyncio
 async def test_user_step_strips_url_host():
-    """Test that a URL entered as host is normalised before being stored."""
+    """Test that a URL entered as host is normalized before being stored."""
     flow = HuaweiRouter5GConfigFlow()
     flow.hass = MagicMock()
     flow.context = {}

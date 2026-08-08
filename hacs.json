@@ -1,5 +1,7 @@
 {
+  "filename": "huawei_router_5g.zip",
   "hide_default_branch": true,
   "name": "Huawei Router 5G Monitor",
-  "render_readme": true
+  "render_readme": true,
+  "zip_release": true
 }
