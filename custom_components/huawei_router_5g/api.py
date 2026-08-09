@@ -111,7 +111,7 @@ class HuaweiRouter5GAPI:
                 await asyncio.to_thread(
                     self._connection.logout  # type: ignore[attr-defined]
                 )
-            except Exception:  # noqa: BLE001
+            except Exception:
                 _LOGGER.debug("Logout failed", exc_info=True)
             finally:
                 self._reset_client()
@@ -384,7 +384,14 @@ class HuaweiRouter5GAPI:
                     list(payload.keys()),
                 )
                 try:
-                    client.wlan._session.post_set("wlan/multi-basic-settings", payload)
+                    # SLF001: huawei-lte-api exposes no public method for this
+                    # endpoint — `Wlan` has no multi-basic-settings setter, so
+                    # the session has to be reached directly. The AttributeError
+                    # handler below is the guard for the library changing its
+                    # internals; the alternative is not supporting guest WiFi.
+                    client.wlan._session.post_set(  # noqa: SLF001
+                        "wlan/multi-basic-settings", payload
+                    )
                 except AttributeError as err:
                     raise RuntimeError(
                         "huawei_lte_api internal API changed; "

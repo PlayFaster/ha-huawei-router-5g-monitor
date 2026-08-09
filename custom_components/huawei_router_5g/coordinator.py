@@ -47,6 +47,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         self.last_sms_timestamp: str | None = None
         self.fired_sms_hashes: set[str] = set()
 
+        # One-shot flag set by async_force_refresh so an explicit user action
+        # fetches even while polling is paused (dev_standards Section 13).
+        self._force_refresh_once = False
+
         # Reboot-detection latches — frozen timestamps for uptime-derived sensors.
         # Each is recomputed exactly once per genuine counter reset and then held.
         self._system_boot_time: datetime | None = None
@@ -91,16 +95,47 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=scan_interval),
         )
 
+    async def async_force_refresh(self) -> None:
+        """Force an immediate fetch, even while polling is paused.
+
+        Every explicit user action — Refresh Now, a control change, an SMS
+        service — must route through here rather than calling
+        ``async_request_refresh`` directly, or it is silently swallowed by the
+        pause short-circuit at exactly the moment the user wanted a fetch
+        (dev_standards Section 13). Scheduled polls still respect the pause.
+        """
+        self._force_refresh_once = True
+        try:
+            await self.async_request_refresh()
+        except Exception:
+            # The flag is consumed at the top of `_async_update_data`, so an
+            # update that never runs would leave it set and the next
+            # *scheduled* poll would fetch despite the pause. Self-correcting
+            # after one cycle, but Section 13 asks that every path out clears
+            # it.
+            self._force_refresh_once = False
+            raise
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the API with resilience and pause support."""
+        # Consume the one-shot force flag before anything can short-circuit.
+        forced = self._force_refresh_once
+        self._force_refresh_once = False
+
         is_paused = self.entry.options.get(CONF_STOP_POLLING, False)
         is_first_run = self.data is None
 
-        if is_paused and not is_first_run:
+        if is_paused and not is_first_run and not forced:
             _LOGGER.debug(
                 "%s: Polling is paused; returning cached data.", self.entry.title
             )
             return self.data
+
+        if forced and is_paused:
+            _LOGGER.debug(
+                "%s: Explicit user action; fetching despite paused polling.",
+                self.entry.title,
+            )
 
         data = None
         try:

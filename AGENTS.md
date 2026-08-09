@@ -2,11 +2,9 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
-> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md)
-> — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer
-> access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python
-> rules. That file is the single source of truth for everything shared across the integration
-> projects; this file covers only what is specific to **ha-huawei-router-5g-monitor**.
+> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md) — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-huawei-router-5g-monitor**.
+>
+> **[!] Note:** If you edit files inside directory junctions (`.notes/` or `.shared/`), do not run container validation on them. Validate them on the Windows host from the `shared/` folder.
 
 ---
 
@@ -24,8 +22,7 @@ Entities are grouped into six logical sub-devices: **System**, **Signal**, **Dat
 
 ## Commands
 
-Standard for all integration projects — see [shared conventions §2](.shared/dev_std/agent_conventions.md).
-Nothing about this project's commands differs.
+Standard for all integration projects — see [shared conventions §2](.shared/dev_std/agent_conventions.md). Nothing about this project's commands differs.
 
 ## Architecture
 
@@ -93,9 +90,7 @@ Rather than hardcoded radio indices, `switch.py` / `binary_sensor.py` fetch all 
 
 ## Key Patterns & Conventions
 
-Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`, the centralized
-`icons.json` architecture, exception tuple syntax, `or 0` precedence, markdown emoji rules) are in
-[shared conventions §4–5](.shared/dev_std/agent_conventions.md). Project-specific additions:
+Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`, the centralized `icons.json` architecture, exception tuple syntax, `or 0` precedence, markdown emoji rules) are in [shared conventions §4–5](.shared/dev_std/agent_conventions.md). Project-specific additions:
 
 ### Frequency Field Scaling
 
@@ -105,11 +100,7 @@ Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`,
 
 ### Windows Test Environment (unused)
 
-`tests/conftest.py` carries two deliberate Windows-compatibility patches (a
-`WindowsSelectorEventLoopPolicy` switch and a `pytest_socket.disable_socket` no-op), both guarded
-by `sys.platform == "win32"`. They were added on purpose but are **not exercised** — tests run
-inside the Linux devcontainer via `docker exec`. Unique to this project; leave them alone, and
-don't treat them as a pattern to replicate.
+`tests/conftest.py` carries two deliberate Windows-compatibility patches (a `WindowsSelectorEventLoopPolicy` switch and a `pytest_socket.disable_socket` no-op), both guarded by `sys.platform == "win32"`. They were added on purpose but are **not exercised** — tests run inside the Linux devcontainer via `docker exec`. Unique to this project; leave them alone, and don't treat them as a pattern to replicate.
 
 ### Entity Category Usage
 

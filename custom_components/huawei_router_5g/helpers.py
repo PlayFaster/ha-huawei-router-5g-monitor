@@ -1,10 +1,14 @@
 """Shared helpers for the Huawei Router 5G Monitor integration."""
 
-import logging
-from typing import TYPE_CHECKING, Any
+from __future__ import annotations
 
+import logging
+from typing import TYPE_CHECKING, Any, cast
+
+from homeassistant.const import CONF_HOST
 from homeassistant.helpers.device_registry import DeviceInfo
 
+from ._compat import via_device_link
 from .const import DOMAIN
 
 if TYPE_CHECKING:
@@ -157,8 +161,6 @@ def build_device_info(
 
     mac = coordinator.mac
     # Fallback to host from options if MAC is missing (should be rare)
-    from homeassistant.const import CONF_HOST
-
     host = coordinator.entry.options.get(CONF_HOST, "")
     sub_id_prefix = mac or f"host_{host}"
 
@@ -173,7 +175,19 @@ def build_device_info(
     )
 
     if group != "system":
-        info["via_device"] = (DOMAIN, f"{sub_id_prefix}_system")
+        # The `via_device` tuple is deprecated in HA 2026.8 and removed in
+        # 2027.8; `via_device_link` feature-detects and emits `via_device_id`
+        # where available. The registry and entry id are resolved from the
+        # coordinator so no new argument has to be threaded through every
+        # entity call site.
+        cast(dict[str, Any], info).update(
+            via_device_link(
+                coordinator.hass,
+                DOMAIN,
+                f"{sub_id_prefix}_system",
+                coordinator.entry.entry_id,
+            )
+        )
 
     return info
 

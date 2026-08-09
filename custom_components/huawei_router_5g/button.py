@@ -98,7 +98,7 @@ class HuaweiRefreshButton(HuaweiButton):
 
     async def async_press(self) -> None:
         """Handle the button press — trigger an immediate coordinator refresh."""
-        await self.coordinator.async_request_refresh()
+        await self.coordinator.async_force_refresh()
 
 
 class HuaweiRebootButton(HuaweiButton):
@@ -119,6 +119,6 @@ class HuaweiClearTrafficButton(HuaweiButton):
         """Handle the button press — clear traffic counters."""
         try:
             await self.coordinator.api.clear_traffic_statistics()
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
         except Exception as err:
             raise HomeAssistantError(f"Clear traffic statistics failed: {err}") from err

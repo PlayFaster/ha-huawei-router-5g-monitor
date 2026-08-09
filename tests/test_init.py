@@ -34,6 +34,7 @@ def mock_coordinator():
     coordinator = MagicMock()
     coordinator.api = MagicMock()
     coordinator.async_request_refresh = AsyncMock()
+    coordinator.async_force_refresh = AsyncMock()
     return coordinator
 
 
@@ -149,7 +150,7 @@ async def test_async_delete_sms_service(mock_hass, mock_coordinator, mock_config
     await async_delete_sms(mock_hass, call)
 
     mock_coordinator.api.delete_sms.assert_awaited_once_with(5)
-    mock_coordinator.async_request_refresh.assert_awaited_once()
+    mock_coordinator.async_force_refresh.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -173,7 +174,7 @@ async def test_async_delete_all_sms_service(
     await async_delete_all_sms(mock_hass, call)
 
     assert mock_coordinator.api.delete_sms.call_count == 2
-    mock_coordinator.async_request_refresh.assert_awaited_once()
+    mock_coordinator.async_force_refresh.assert_awaited_once()
 
 
 @pytest.mark.asyncio

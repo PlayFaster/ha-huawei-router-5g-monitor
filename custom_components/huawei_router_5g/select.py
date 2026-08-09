@@ -108,7 +108,7 @@ class HuaweiRouterSelect(
         """Change the selected option."""
         try:
             await self.entity_description.setter_fn(self.coordinator.api, option)
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
         except Exception:
             _LOGGER.exception(
                 "%s: Failed to set network mode to %s",

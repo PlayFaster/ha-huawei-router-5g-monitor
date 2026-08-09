@@ -13,6 +13,7 @@ from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers.typing import ConfigType
 from huawei_lte_api.enums.sms import BoxTypeEnum
 
+from ._compat import via_device_link
 from .api import HuaweiRouter5GAPI
 from .const import DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
@@ -118,7 +119,7 @@ async def async_delete_sms(hass: HomeAssistant, call: ServiceCall) -> None:
 
     try:
         await coordinator.api.delete_sms(index)
-        await coordinator.async_request_refresh()
+        await coordinator.async_force_refresh()
     except Exception as err:
         raise HomeAssistantError(f"Failed to delete SMS: {err}") from err
 
@@ -141,7 +142,7 @@ async def async_delete_all_sms(hass: HomeAssistant, call: ServiceCall) -> None:
         for msg in to_delete:
             await coordinator.api.delete_sms(msg["index"])
 
-        await coordinator.async_request_refresh()
+        await coordinator.async_force_refresh()
     except Exception as err:
         raise HomeAssistantError(f"Failed to delete all SMS: {err}") from err
 
@@ -241,13 +242,17 @@ async def async_setup_entry(
         configuration_url=f"http://{host}",
     )
 
+    # The `via_device` tuple is deprecated in HA 2026.8 and removed in 2027.8.
+    # `via_device_link` feature-detects and emits `via_device_id` where
+    # available. The System device is created immediately above, so the parent
+    # always resolves.
     device_registry.async_get_or_create(
         config_entry_id=entry.entry_id,
         identifiers={(DOMAIN, f"{sub_id_prefix}_clients")},
         name=f"{entry.title} Clients",
         manufacturer="Huawei",
         model=entry.data.get("model", "Huawei Router"),
-        via_device=(DOMAIN, f"{sub_id_prefix}_system"),
+        **via_device_link(hass, DOMAIN, f"{sub_id_prefix}_system", entry.entry_id),
     )
 
     # Forward platforms immediately so entities appear in HA at startup.

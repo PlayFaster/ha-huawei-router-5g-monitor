@@ -31,6 +31,7 @@ from custom_components.huawei_router_5g.switch import (
     MOBILE_DATA_DESCRIPTION,
     HuaweiMobileDataSwitch,
 )
+from tests.conftest import assert_is_root, assert_links_to_parent
 
 # ---------------------------------------------------------------------------
 # helpers — parse_signal_value edge cases
@@ -174,7 +175,7 @@ def test_sensor_device_info_fallback_host_signal_group(
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     info = sensor.device_info
     assert "host_http://192.168.8.1" in str(info["identifiers"])
-    assert "via_device" in info
+    assert_links_to_parent(info, "host_http://192.168.8.1_system")
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +220,7 @@ def test_mobile_data_switch_device_info(mock_coordinator, mock_config_entry):
     mac = "DC:71:96:11:22:33"
     info = switch.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_system")}
-    assert "via_device" not in info
+    assert_is_root(info)
 
 
 # ---------------------------------------------------------------------------

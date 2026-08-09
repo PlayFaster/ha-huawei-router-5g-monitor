@@ -14,6 +14,7 @@ from custom_components.huawei_router_5g.sensor import (
     HuaweiSensorEntityDescription,
     async_setup_entry,
 )
+from tests.conftest import assert_is_root, assert_links_to_parent
 
 # ---------------------------------------------------------------------------
 # System sensors
@@ -361,7 +362,7 @@ def test_sensor_device_info_system_group(mock_coordinator, mock_config_entry):
     info = sensor.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_system")}
     assert info["name"] == "My Huawei Router System"
-    assert "via_device" not in info
+    assert_is_root(info)
     assert info["manufacturer"] == "Huawei"
 
 
@@ -373,7 +374,7 @@ def test_sensor_device_info_signal_group(mock_coordinator, mock_config_entry):
     info = sensor.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_signal")}
     assert info["name"] == "My Huawei Router Signal"
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 def test_sensor_device_info_data_group(mock_coordinator, mock_config_entry):
@@ -384,7 +385,7 @@ def test_sensor_device_info_data_group(mock_coordinator, mock_config_entry):
     info = sensor.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_data")}
     assert info["name"] == "My Huawei Router Data"
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 def test_sensor_device_info_sms_group(mock_coordinator, mock_config_entry):
@@ -395,7 +396,7 @@ def test_sensor_device_info_sms_group(mock_coordinator, mock_config_entry):
     info = sensor.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_sms")}
     assert info["name"] == "My Huawei Router SMS"
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 def test_sensor_device_info_fallback_host(mock_coordinator, mock_config_entry):

@@ -136,7 +136,7 @@ class HuaweiPausePollingSwitch(HuaweiSwitch):
         self.async_write_ha_state()
 
         if not state:
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
 
 
 class HuaweiMobileDataSwitch(HuaweiSwitch):
@@ -158,7 +158,7 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         """Enable mobile data."""
         try:
             await self.coordinator.api.set_mobile_data(True)
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
         except Exception:
             _LOGGER.exception("%s: Enable mobile data failed", self._entry.title)
 
@@ -166,13 +166,18 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         """Disable mobile data."""
         try:
             await self.coordinator.api.set_mobile_data(False)
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
         except Exception:
             _LOGGER.exception("%s: Disable mobile data failed", self._entry.title)
 
 
 class HuaweiGuestWifiSwitch(HuaweiSwitch):
     """Switch to enable or disable the guest WiFi network."""
+
+    # dev_standards Section 14. The guest SSID is a static string republished
+    # on every poll; recording it adds a row per poll and puts the network name
+    # into long-term history.
+    _unrecorded_attributes = frozenset({"ssid"})
 
     @property
     def is_on(self) -> bool | None:
@@ -197,7 +202,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         except Exception:
             _LOGGER.exception("%s: Enable guest WiFi failed", self._entry.title)
         finally:
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable guest WiFi."""
@@ -206,7 +211,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         except Exception:
             _LOGGER.exception("%s: Disable guest WiFi failed", self._entry.title)
         finally:
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

@@ -3,6 +3,9 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.data_entry_flow import AbortFlow, FlowResultType
+
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
     HuaweiConnectionError,
@@ -14,8 +17,6 @@ from custom_components.huawei_router_5g.config_flow import (
     _merge_credentials,
     _validate_credentials,
 )
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
 # ---------------------------------------------------------------------------
 # _clean_host / _merge_credentials

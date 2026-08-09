@@ -66,6 +66,14 @@ class HuaweiRouterDeviceTracker(
 ):
     """Representation of a Huawei Router tracked device."""
 
+    # dev_standards Section 14. A device tracker publishes one entity per
+    # client on the network, so these attributes are written to the recorder
+    # once per client per poll. `associated_ssid` in particular is network
+    # topology that does not belong in long-term history.
+    _unrecorded_attributes = frozenset(
+        {"interface_type", "associated_ssid", "address_source"}
+    )
+
     def __init__(
         self, coordinator: HuaweiRouter5GDataUpdateCoordinator, mac: str
     ) -> None:

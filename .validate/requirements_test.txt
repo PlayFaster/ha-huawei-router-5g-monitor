@@ -13,4 +13,3 @@ mutmut==3.7.0
 
 huawei-lte-api==1.11.0
 url-normalize==3.0.0
-

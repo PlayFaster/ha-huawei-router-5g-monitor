@@ -12,6 +12,7 @@ from custom_components.huawei_router_5g.number import (
     HuaweiPollingInterval,
     async_setup_entry,
 )
+from tests.conftest import assert_is_root
 
 # ---------------------------------------------------------------------------
 # HuaweiPollingInterval — state
@@ -35,7 +36,7 @@ def test_polling_interval_device_info(mock_coordinator, mock_config_entry):
     info = entity.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_system")}
     assert info["manufacturer"] == "Huawei"
-    assert "via_device" not in info
+    assert_is_root(info)
 
 
 # ---------------------------------------------------------------------------
@@ -114,7 +115,7 @@ async def test_debounced_apply_persists_and_refreshes(
     entity.hass.config_entries.async_update_entry.assert_called_once()
     _, kwargs = entity.hass.config_entries.async_update_entry.call_args
     assert kwargs["options"][CONF_SCAN_INTERVAL] == 300
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -128,7 +129,7 @@ async def test_debounced_apply_cancelled(mock_coordinator, mock_config_entry):
     with patch("asyncio.sleep", new=AsyncMock(side_effect=asyncio.CancelledError)):
         await entity._async_debounced_apply(300)  # should not raise
 
-    mock_coordinator.async_request_refresh.assert_not_called()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio

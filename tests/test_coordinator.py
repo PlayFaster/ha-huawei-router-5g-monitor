@@ -480,3 +480,127 @@ async def test_coordinator_config_entry_associated(mock_hass, mock_config_entry)
         mock_hass, mock_config_entry, MagicMock()
     )
     assert coordinator.config_entry is mock_config_entry
+
+
+# ---------------------------------------------------------------------------
+# Section 13 — an explicit user action must fetch even while polling is paused
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_forced_refresh_fetches_while_polling_is_paused(
+    mock_hass, mock_config_entry, caplog
+):
+    """A forced cycle must bypass the pause short-circuit and really fetch.
+
+    This is the regression `dev_standards` Section 13 names by example: a
+    Refresh Now wired to a bare `async_request_refresh()` returns cached data
+    and reports success at exactly the moment the user asked for a fresh
+    reading. The distinction being asserted is *fetched vs. did not fetch* —
+    not that the call returned.
+    """
+    from custom_components.huawei_router_5g.const import CONF_STOP_POLLING
+
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={"device_information": {"DeviceName": "B535"}}
+    )
+    object.__setattr__(mock_config_entry, "options", {CONF_STOP_POLLING: True})
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    coordinator.data = {"cached": "data"}
+
+    caplog.set_level(logging.DEBUG)
+    coordinator._force_refresh_once = True
+    data = await coordinator._async_update_data()
+
+    assert mock_api.get_data.await_count == 1, "forced cycle did not reach the router"
+    assert data != {"cached": "data"}
+    assert data["device_information"]["DeviceName"] == "B535"
+    assert "fetching despite paused polling" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_force_flag_is_consumed_after_one_cycle(mock_hass, mock_config_entry):
+    """The flag is one-shot: the *next* scheduled poll must respect the pause.
+
+    A flag that survived its cycle would silently disable pausing altogether
+    after a single button press, which is a worse defect than the one being
+    fixed and would not be visible in any single-cycle test.
+    """
+    from custom_components.huawei_router_5g.const import CONF_STOP_POLLING
+
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={"device_information": {"DeviceName": "B535"}}
+    )
+    object.__setattr__(mock_config_entry, "options", {CONF_STOP_POLLING: True})
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    coordinator.data = {"cached": "data"}
+
+    coordinator._force_refresh_once = True
+    await coordinator._async_update_data()
+    assert coordinator._force_refresh_once is False
+    assert mock_api.get_data.await_count == 1
+
+    # Second cycle is a scheduled poll — it must be short-circuited.
+    second = await coordinator._async_update_data()
+    assert mock_api.get_data.await_count == 1, "scheduled poll fetched while paused"
+    assert second == coordinator.data
+
+
+@pytest.mark.asyncio
+async def test_async_force_refresh_sets_the_flag_then_requests(
+    mock_hass, mock_config_entry
+):
+    """`async_force_refresh` sets the flag *before* requesting the refresh.
+
+    Order matters: `async_request_refresh` can run the update inline, so a flag
+    set afterwards would arrive too late to be consumed by the cycle it was
+    meant for.
+    """
+    mock_api = MagicMock()
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+
+    seen: list[bool] = []
+
+    async def _capture() -> None:
+        seen.append(coordinator._force_refresh_once)
+
+    with patch.object(coordinator, "async_request_refresh", side_effect=_capture):
+        await coordinator.async_force_refresh()
+
+    assert seen == [True], "flag was not set before async_request_refresh was awaited"
+
+
+@pytest.mark.asyncio
+async def test_async_force_refresh_clears_the_flag_when_the_request_raises(
+    mock_hass, mock_config_entry
+):
+    """A failed request must not leave the flag set.
+
+    Otherwise the next *scheduled* poll inherits the force and fetches despite
+    the pause — self-correcting after one cycle, but Section 13 asks that every
+    path out clears it.
+    """
+    mock_api = MagicMock()
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+
+    with (
+        patch.object(
+            coordinator, "async_request_refresh", side_effect=RuntimeError("boom")
+        ),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        await coordinator.async_force_refresh()
+
+    assert coordinator._force_refresh_once is False

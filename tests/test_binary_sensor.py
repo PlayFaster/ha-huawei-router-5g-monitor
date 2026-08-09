@@ -30,6 +30,7 @@ from custom_components.huawei_router_5g.binary_sensor import (
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
+from tests.conftest import assert_links_to_parent
 
 # ---------------------------------------------------------------------------
 # HuaweiBestConnectionSensor
@@ -110,7 +111,7 @@ def test_best_connection_device_info(mock_coordinator, mock_config_entry):
     mac = "DC:71:96:11:22:33"
     assert info["identifiers"] == {(DOMAIN, f"{mac}_signal")}
     assert info["manufacturer"] == "Huawei"
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +189,7 @@ def test_sms_storage_full_device_info(mock_coordinator, mock_config_entry):
     info = sensor.device_info
     mac = "DC:71:96:11:22:33"
     assert info["identifiers"] == {(DOMAIN, f"{mac}_sms")}
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 def test_lte_ca_no_coordinator_data(mock_coordinator, mock_config_entry):

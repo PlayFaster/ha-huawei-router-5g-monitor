@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.1.3-dev10\] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused](#113-dev10---2026-08-09---four-statistics-corrupting-counters-via_device-deprecation-recorder-hygiene-refresh-while-paused)
   - [\[1.1.3-dev9\] - 2026-08-08 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#113-dev9---2026-08-08---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
   - [\[1.1.3-dev8\] - 2026-07-28 - Automation Example Glitch Guards \& Float Rounding in README](#113-dev8---2026-07-28---automation-example-glitch-guards--float-rounding-in-readme)
   - [\[1.1.3-dev7\] - 2026-07-12 - PHACC Bump; README Alignment and Codespell](#113-dev7---2026-07-12---phacc-bump-readme-alignment-and-codespell)
@@ -84,6 +85,41 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.1.3-dev10] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused
+
+Phase 0 of the August 2026 update plan — the four confirmed defects that no sibling project has. Two were causing harm every day; one has an external Home Assistant deadline. Tracked in `.notes/info/updates_202608/status_plan.md`.
+
+### Fixed
+
+- **Four resetting counters were walking long-term statistics backwards.** `current_day_used`, `month_download`, `month_upload` and `month_total` were declared `SensorStateClass.TOTAL`. Under `TOTAL`, Home Assistant recognizes a reset **only** from a `last_reset` attribute this integration has never published — so every daily and every billing-month rollover was recorded as one large negative delta and subtracted from the statistics sum. All four are now `TOTAL_INCREASING`, which detects the drop to zero itself and needs no attribute. `total_download`, `total_upload` and `total_data` were already correct and are unchanged.
+
+  **Existing history is not repaired by this change.** Home Assistant applies the new state class going forward only. Tools → Statistics offers a per-entity fix-up for the skewed periods.
+
+- **Refresh Now, and nine other explicit user actions, did nothing while Pause Polling was on.** The coordinator short-circuited on the pause flag before fetching, and every user-initiated refresh went through a bare `async_request_refresh()` — so the action reported success and returned cached data at exactly the moment a fresh reading was wanted. A one-shot `async_force_refresh()` now sets a force flag that is consumed at the top of the update cycle and bypasses the pause; **scheduled polls still respect it**. All eleven call sites are routed through it: Refresh Now, Clear Traffic Statistics, resume polling, mobile data on/off, guest WiFi on/off, network mode, polling interval, delete SMS and delete all SMS.
+
+- **The deprecated `via_device` identifier tuple is removed.** Home Assistant 2026.8 deprecates `DeviceInfo.via_device` and `async_get_device(identifiers=…)`; both are **removed in 2027.8**. A `_compat.py` shim, ported from `zte_router_5g` (originally `unifi_network_monitor`), feature-detects the replacement and emits a resolved `via_device_id` where available, falling back to the tuple on older Home Assistant. The integration stays floor-free — one behavior on 2026.7 and on post-2027.8 alike. Both call sites are converted: the sub-device builder in `helpers.py` and the Clients root registration in `__init__.py`.
+
+- **Every entity attribute was being written to the recorder on every state change.** The component declared no `_unrecorded_attributes` anywhere. The SMS sensor republished the sender's phone number, message date and index each poll; the device tracker republished interface type, associated SSID and address source **once per connected client per poll**; the guest WiFi switch republished a static SSID string. All are now declared unrecorded — none is a time series, and all three are visible as current state where they are useful.
+
+### Added
+
+- **`tests/test_entity_hygiene.py`** — coverage sweeps rather than mechanism tests, so they fail when the set grows rather than when a path changes:
+  - `test_no_sensor_uses_the_total_state_class`, backed by an **empty** `ALLOWED_TOTAL_STATE_CLASS`, so typing `TOTAL` into a new description is a test failure and exempting one is a reviewable act. With `test_allowed_total_state_class_has_no_dead_entries` so an exemption cannot outlive its sensor.
+  - `test_every_entity_publishing_attributes_declares_unrecorded`, which discovers entity classes by inspection rather than from a list, so a new platform cannot be added without the sweep seeing it.
+  - A "guard the guard" test beside each, because both sweeps pass vacuously if the set they inspect becomes empty.
+- **`tests/test_compat.py`** — both branches of each shim forced by patching the detection flag, since the suite only ever runs against one Home Assistant version.
+- **`assert_links_to_parent()` / `assert_is_root()` in `tests/conftest.py`.** Twelve tests asserted `info["via_device"] == (DOMAIN, …)` directly and were green only because the installed Home Assistant happened to take that branch. They now assert the link's **presence and exclusivity** rather than which key carries it. Verified non-vacuous by mutation: making the shim emit no link fails seven of them.
+- Four coordinator tests covering the force flag: that a forced cycle really reaches the router while paused, that the flag is consumed after one cycle so the next scheduled poll still respects the pause, that it is set before the refresh is awaited, and that it is cleared when the request raises.
+
+### Changed
+
+- **`helpers.py`** gains `from __future__ import annotations` and hoists the function-local `CONF_HOST` import to module scope, which also clears a `TC004` lint error.
+- **`api.py`** — the deliberate reach into `huawei_lte_api`'s session for the multi-basic-settings endpoint now carries an explicit `# noqa: SLF001` with its reasoning, rather than a project-local lint config change that the next shared sync would erase. A stale `# noqa: BLE001` on `logout` is removed.
+
+### Verification
+
+429 → **444 tests passing**, 100% line coverage, mypy standard and strict clean, `ruff check` clean (was 4 errors). Partial branches unchanged at **11** — none introduced by this work; closing them is the next phase.
 
 ## [1.1.3-dev9] - 2026-08-08 - CI Bumps; Github Zipfile; PyTest Branch & Mutation Testing
 
@@ -394,36 +430,36 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
   **Flags added** (HA applies these globally; the project previously lacked them):
 
-  | Flag                                                                                             | Why added                                                                                                                                                               |
-  | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `platform = "linux"`                                                                             | Matches HA's platform assumption; eliminates platform-specific type divergence                                                                                          |
-  | `local_partial_types = true`                                                                     | Prevents deferred variable typing (e.g. `x = []` with no annotation)                                                                                                    |
-  | `strict_bytes = true`                                                                            | Stricter bytes/str distinction                                                                                                                                          |
-  | `warn_incomplete_stub = true`                                                                    | Surfaces partially-typed stubs that could produce misleading "no error" results                                                                                         |
-  | `disallow_incomplete_defs = true`                                                                | Flags functions with only some arguments annotated                                                                                                                      |
-  | `disallow_untyped_calls = true`                                                                  | Flags calls into untyped functions (catches missing annotations in third-party wrappers)                                                                                |
+  | Flag | Why added |
+  | --- | --- |
+  | `platform = "linux"` | Matches HA's platform assumption; eliminates platform-specific type divergence |
+  | `local_partial_types = true` | Prevents deferred variable typing (e.g. `x = []` with no annotation) |
+  | `strict_bytes = true` | Stricter bytes/str distinction |
+  | `warn_incomplete_stub = true` | Surfaces partially-typed stubs that could produce misleading "no error" results |
+  | `disallow_incomplete_defs = true` | Flags functions with only some arguments annotated |
+  | `disallow_untyped_calls = true` | Flags calls into untyped functions (catches missing annotations in third-party wrappers) |
   | `enable_error_code = ["deprecated", "ignore-without-code", "redundant-self", "truthy-iterable"]` | HA's four enabled codes. Notably `ignore-without-code` requires every `# type: ignore` to carry a specific error code — bare `# type: ignore` comments are now an error |
 
   **Flag changed**:
 
-  | Before                          | After                                                                                 | Why                                                                                                                                                               |
-  | ------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Before | After | Why |
+  | --- | --- | --- |
   | `ignore_missing_imports = true` | `disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]` | HA's approach is targeted error-code suppression rather than a blanket flag. Effect is functionally similar for missing stubs but matches HA's convention exactly |
 
   **Flag removed**:
 
-  | Flag                                    | Why removed                                                                                                                                                                            |
-  | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Flag | Why removed |
+  | --- | --- |
   | `disallow_any_generics = true` (global) | HA only applies this to ~10 specific HA core modules (auth, core, helpers), not globally. Keeping it global made the project stricter than HA on generics without a matching rationale |
 
   **`homeassistant.*` override updated**:
 
-  | Change                              | Detail                                                                                                                                                                                                                                                                                                                                                                                                                |
-  | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Removed `implicit_reexport = true`  | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*`                                                                                                                                                                                                              |
+  | Change | Detail |
+  | --- | --- |
+  | Removed `implicit_reexport = true` | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*` |
   | Added `no_implicit_reexport = true` | Matches HA's own `[mypy-homeassistant.*] no_implicit_reexport = true` exactly. HA explicitly enforces that its modules only export names declared in `__all__`. Setting this in the project's override causes both basic and strict mypy to apply the same rule when the project imports from HA — surfacing cases where HA's public API surface doesn't match its declared exports (such as the `ScannerEntity` gap) |
-  | Kept `ignore_errors = true`         | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness                                                                                                                                                                                                                                                                 |
-  | Kept `follow_imports = "silent"`    | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast                                                                                                                                                                                                                                                                                                                  |
+  | Kept `ignore_errors = true` | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness |
+  | Kept `follow_imports = "silent"` | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast |
 
   **Net result**: both `mypy custom_components/` (basic) and `mypy custom_components/ --strict` pass with zero errors. The pre-commit mypy hook (which runs basic mode) is now consistent with HA's own integration quality checks.
 

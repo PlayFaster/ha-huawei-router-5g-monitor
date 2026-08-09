@@ -14,6 +14,7 @@ from custom_components.huawei_router_5g.switch import (
     HuaweiPausePollingSwitch,
     async_setup_entry,
 )
+from tests.conftest import assert_is_root
 
 # ---------------------------------------------------------------------------
 # HuaweiPausePollingSwitch
@@ -40,7 +41,7 @@ async def test_pause_polling_turn_on(mock_coordinator, mock_config_entry):
     _, kwargs = switch.hass.config_entries.async_update_entry.call_args
     assert kwargs["options"][CONF_STOP_POLLING] is True
     switch.async_write_ha_state.assert_called_once()
-    mock_coordinator.async_request_refresh.assert_not_called()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -61,7 +62,7 @@ async def test_pause_polling_turn_off(mock_coordinator, mock_config_entry):
 
     _, kwargs = switch.hass.config_entries.async_update_entry.call_args
     assert kwargs["options"][CONF_STOP_POLLING] is False
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 def test_pause_polling_is_on_from_options(mock_coordinator, mock_config_entry):
@@ -85,7 +86,7 @@ def test_pause_polling_device_info(mock_coordinator, mock_config_entry):
     mac = "DC:71:96:11:22:33"
     assert info["identifiers"] == {(DOMAIN, f"{mac}_system")}
     assert info["manufacturer"] == "Huawei"
-    assert "via_device" not in info
+    assert_is_root(info)
 
 
 # ---------------------------------------------------------------------------
@@ -142,7 +143,7 @@ async def test_mobile_data_turn_on(mock_coordinator, mock_config_entry):
     await switch.async_turn_on()
 
     mock_api.set_mobile_data.assert_called_once_with(True)
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -158,7 +159,7 @@ async def test_mobile_data_turn_off(mock_coordinator, mock_config_entry):
     await switch.async_turn_off()
 
     mock_api.set_mobile_data.assert_called_once_with(False)
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -173,7 +174,7 @@ async def test_mobile_data_turn_on_error(mock_coordinator, mock_config_entry):
     switch.hass = MagicMock()
 
     await switch.async_turn_on()  # should not raise
-    mock_coordinator.async_request_refresh.assert_not_called()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -188,7 +189,7 @@ async def test_mobile_data_turn_off_error(mock_coordinator, mock_config_entry):
     switch.hass = MagicMock()
 
     await switch.async_turn_off()  # should not raise
-    mock_coordinator.async_request_refresh.assert_not_called()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 def test_mobile_data_is_none_missing_val(mock_coordinator, mock_config_entry):
@@ -254,7 +255,7 @@ async def test_guest_wifi_turn_on(mock_coordinator, mock_config_entry):
     await switch.async_turn_on()
 
     mock_api.set_guest_wifi.assert_called_once_with(True)
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -270,7 +271,7 @@ async def test_guest_wifi_turn_off(mock_coordinator, mock_config_entry):
     await switch.async_turn_off()
 
     mock_api.set_guest_wifi.assert_called_once_with(False)
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -285,7 +286,7 @@ async def test_guest_wifi_turn_on_error(mock_coordinator, mock_config_entry):
     switch.hass = MagicMock()
 
     await switch.async_turn_on()  # should not raise
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -300,7 +301,7 @@ async def test_guest_wifi_turn_off_error(mock_coordinator, mock_config_entry):
     switch.hass = MagicMock()
 
     await switch.async_turn_off()  # should not raise
-    mock_coordinator.async_request_refresh.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_called_once()
 
 
 def test_guest_wifi_extra_attributes(mock_coordinator, mock_config_entry):

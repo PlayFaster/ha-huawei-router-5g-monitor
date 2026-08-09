@@ -986,7 +986,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
         suggested_display_precision=2,
         device_class=SensorDeviceClass.DATA_SIZE,
-        state_class=SensorStateClass.TOTAL,
+        # A daily counter is a resetting counter by definition. Under plain
+        # TOTAL, HA recognizes a reset only from a `last_reset` attribute this
+        # integration does not publish, so every rollover was recorded as a
+        # large negative delta and walked the long-term statistics sum
+        # backwards. See docs/changelog_local.md [1.1.3-dev10].
+        state_class=SensorStateClass.TOTAL_INCREASING,
         group="data",
         min_limit=0,
         max_limit=109951162777600,
@@ -1003,7 +1008,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
         suggested_display_precision=1,
         device_class=SensorDeviceClass.DATA_SIZE,
-        state_class=SensorStateClass.TOTAL,
+        # Monthly counter — resets on the billing rollover. See current_day_used.
+        state_class=SensorStateClass.TOTAL_INCREASING,
         group="data",
         min_limit=0,
         max_limit=109951162777600,
@@ -1044,7 +1050,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
         suggested_display_precision=1,
         device_class=SensorDeviceClass.DATA_SIZE,
-        state_class=SensorStateClass.TOTAL,
+        # Monthly counter — resets on the billing rollover. See current_day_used.
+        state_class=SensorStateClass.TOTAL_INCREASING,
         group="data",
         min_limit=0,
         max_limit=109951162777600,
@@ -1085,7 +1092,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
         suggested_display_precision=1,
         device_class=SensorDeviceClass.DATA_SIZE,
-        state_class=SensorStateClass.TOTAL,
+        # Monthly counter — resets on the billing rollover. See current_day_used.
+        state_class=SensorStateClass.TOTAL_INCREASING,
         group="data",
         min_limit=0,
         max_limit=109951162777600,
@@ -1329,6 +1337,32 @@ class HuaweiRouterSensor(
     _attr_has_entity_name = True
     _attr_should_poll = False
     entity_description: HuaweiSensorEntityDescription
+
+    # dev_standards Section 14. Without this, every attribute below is written
+    # to the recorder on every state change — and `last_sms` republishes the
+    # sender's phone number and the message metadata each poll, which is both
+    # a database-growth problem and a privacy one. None of these is useful as
+    # history: they are a snapshot that only makes sense alongside the current
+    # state.
+    _unrecorded_attributes = frozenset(
+        {
+            # sms_total
+            "local_unread",
+            "local_read",
+            "local_sent",
+            "local_outbox",
+            "local_draft",
+            "local_max",
+            "sim_unread",
+            "sim_read",
+            "sim_max",
+            # last_sms
+            "phone",
+            "date",
+            "index",
+            "unread",
+        }
+    )
 
     def __init__(
         self,

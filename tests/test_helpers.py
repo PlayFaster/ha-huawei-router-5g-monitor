@@ -14,6 +14,7 @@ from custom_components.huawei_router_5g.helpers import (
     parse_signal_value,
     parse_sms_list,
 )
+from tests.conftest import assert_is_root, assert_links_to_parent
 
 # ---------------------------------------------------------------------------
 # get_router_model
@@ -217,13 +218,13 @@ def test_build_device_info():
     info = build_device_info(coordinator, "system")
     assert info["identifiers"] == {(DOMAIN, "001122334455_system")}
     assert info["name"] == "My Router System"
-    assert "via_device" not in info
+    assert_is_root(info)
 
     # Test Signal Group (non-system)
     info = build_device_info(coordinator, "signal")
     assert info["identifiers"] == {(DOMAIN, "001122334455_signal")}
     assert info["name"] == "My Router Signal"
-    assert info["via_device"] == (DOMAIN, "001122334455_system")
+    assert_links_to_parent(info, "001122334455_system")
 
     # Test Fallback ID (no MAC)
     coordinator.mac = None
