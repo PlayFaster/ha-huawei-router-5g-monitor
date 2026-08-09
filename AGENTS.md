@@ -42,7 +42,8 @@ coordinator.py (HuaweiRouter5GDataUpdateCoordinator)
 
 platform files (sensor.py, binary_sensor.py, switch.py, etc.)
   → all extend CoordinatorEntity
-  → all set PARALLEL_UPDATES = 0 (coordinator handles scheduling)
+  → PARALLEL_UPDATES set per write path: 1 on button/switch/select
+    (they command the router), 0 elsewhere — see "Parallel Updates" below
   → use build_device_info() from helpers.py to target one of the six sub-devices
 ```
 
@@ -52,7 +53,23 @@ All sensors are defined as `EntityDescription` dataclasses with a `value_fn: Cal
 
 ### Sub-Device Organization
 
-Entities are assigned to one of six sub-devices via `build_device_info(coordinator, group)` in `helpers.py`. All non-system sub-devices use `via_device` pointing to the System sub-device. Device identifiers use the MAC address as the stable prefix (`{mac}_{group}`), falling back to `host_{url}_{group}`.
+Entities are assigned to one of six sub-devices via `build_device_info(coordinator, group)` in `helpers.py`. Every non-system sub-device links to the System sub-device as its parent, but **not via a hard-coded key** — the link goes through `_compat.via_device_link()`, which emits `via_device_id` on HA 2026.8+ and the legacy `via_device` tuple on 2026.7 and earlier. The tuple is deprecated in 2026.8 and **removed in 2027.8**; the shim keeps the integration floor-free.
+
+**Never assert `info["via_device"]` in a test** — it is green only on the HA version that happens to take that branch. Use `assert_links_to_parent()` / `assert_is_root()` from `tests/conftest.py`, which assert the link's presence and exclusivity rather than which key carries it.
+
+Device identifiers use the MAC address as the stable prefix (`{mac}_{group}`), falling back to `host_{url}_{group}`.
+
+### Parallel Updates
+
+`PARALLEL_UPDATES` follows **the write path**, not the platform's name:
+
+| Platform | Value | Why |
+| :-- | --: | :-- |
+| `button`, `switch`, `select` | **1** | Issue commands with a real-world effect. `api.py` serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the real safety mechanism and `1` states the same intent at the platform boundary. |
+| `number` | **0** | Deliberately unlike `zte_router_5g`, which sets `1` on every writable platform. The only number entity writes `ConfigEntry.options`, which HA owns — no session to tear down, no command to duplicate. |
+| `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only, coordinator-driven; nothing to serialize. |
+
+The table is pinned in `EXPECTED_PARALLEL_UPDATES` in `tests/test_entity_hygiene.py`, with a companion test that fails if a new platform appears the table does not cover. Change the constant and the test together.
 
 ### Startup Pattern (Zero-Blocking)
 

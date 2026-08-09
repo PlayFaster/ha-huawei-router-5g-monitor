@@ -544,6 +544,14 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="transmit_power",
         translation_key="transmit_power",
         group="signal",
+        # Documented in docs/value_min_max.md since the band was first written,
+        # but never actually implemented. `_parse_complex_float` returns the raw
+        # string for multi-carrier values ("PPusch:12dBm PPucch:5dBm"), and the
+        # guard's float() raises and passes those through untouched — so the
+        # band applies only to the simple-number case, which is the one an
+        # implausible reading appears in.
+        min_limit=-30,
+        max_limit=40,
         value_fn=lambda data: _parse_complex_float(_get_signal_value(data, "txpower")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -701,6 +709,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
         min_limit=0,
+        # Aligned with `5g_cqi_0`, which has carried [0, 16] since it shipped.
+        # The two are the same quantity on different radios and disagreed only
+        # because nobody had compared them.
+        max_limit=16,
         value_fn=lambda data: _safe_int(_get_signal_value(data, "cqi0")),
     ),
     # 5G Entities
@@ -789,6 +801,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="5g_transmit_power",
         translation_key="5g_transmit_power",
         group="signal",
+        # See transmit_power — documented, never implemented.
+        min_limit=-30,
+        max_limit=40,
         value_fn=lambda data: _parse_complex_float(
             _get_signal_value(data, "nrtxpower")
         ),

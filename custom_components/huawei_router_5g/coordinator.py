@@ -17,12 +17,16 @@ from .api import HuaweiAuthError, HuaweiRouter5GAPI
 from .const import (
     CONF_SCAN_INTERVAL,
     CONF_STOP_POLLING,
+    CRITICAL_ENDPOINT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
+    ENDPOINT_NAMES,
     FETCH_TIMEOUT,
+    HEALTH_STRIKE_LIMIT,
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
     REPAIR_NAMES,
+    SIGNAL_CONTRACT_KEYS,
 )
 from .helpers import get_router_model, parse_sms_list
 
@@ -54,6 +58,19 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # One-shot flag set by async_force_refresh so an explicit user action
         # fetches even while polling is paused (dev_standards Section 13).
         self._force_refresh_once = False
+
+        # Section 19 health state. Deliberately NOT stored in `self.data`,
+        # which is None before the first success and frozen at last-good values
+        # during an outage — a verdict held there could never describe the
+        # failure that stopped it being updated.
+        self._endpoint_strikes: dict[str, int] = {}
+        self.health_snapshot: dict[str, Any] = {
+            "severity": None,
+            "issues": [],
+            "degraded_capabilities": [],
+            "drift": [],
+            "last_good_update": None,
+        }
 
         # Reboot-detection latches — frozen timestamps for uptime-derived sensors.
         # Each is recomputed exactly once per genuine counter reset and then held.
@@ -98,6 +115,114 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             name=f"{entry.title} Data",
             update_interval=timedelta(seconds=scan_interval),
         )
+
+    def _healthy_snapshot(self) -> dict[str, Any]:
+        """Return a snapshot describing a healthy integration."""
+        return {
+            "severity": None,
+            "issues": [],
+            "degraded_capabilities": [],
+            "drift": [],
+            "last_good_update": (
+                self.last_update_success_time.isoformat()
+                if self.last_update_success_time
+                else None
+            ),
+        }
+
+    def update_health(
+        self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
+    ) -> None:
+        """Recompute the Section 19 health verdict.
+
+        Held as a coordinator attribute rather than inside `self.data`, which is
+        `None` before the first success and **frozen at the last good values**
+        during an outage — a verdict living there could never describe the
+        failure that stopped it being updated.
+
+        Wrapped so a malformed payload can never crash the update it is
+        diagnosing: on any internal error this degrades to "healthy/unknown"
+        and logs at debug.
+        """
+        try:
+            self.health_snapshot = self._compute_health(
+                data, failed=failed, cold_start=cold_start
+            )
+        except Exception:
+            _LOGGER.debug(
+                "%s: Health computation failed; reporting unknown.",
+                self.entry.title,
+                exc_info=True,
+            )
+            self.health_snapshot = self._healthy_snapshot()
+
+    def _compute_health(
+        self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
+    ) -> dict[str, Any]:
+        """Build the health snapshot. See `update_health` for the guarantees."""
+        snapshot = self._healthy_snapshot()
+
+        if failed:
+            # Cold start flags on the FIRST failure: there are no held values,
+            # so waiting out the strike budget leaves the user with a wholly
+            # unavailable integration and no explanation. At runtime the strike
+            # budget applies, so one blip raises no alarm.
+            if cold_start:
+                snapshot["severity"] = "error"
+                snapshot["issues"] = [
+                    "The router has never answered since this integration "
+                    "started. Check the host address and credentials."
+                ]
+            elif self.consecutive_failures >= HEALTH_STRIKE_LIMIT:
+                snapshot["severity"] = "error"
+                snapshot["issues"] = [
+                    f"No successful update in {self.consecutive_failures} "
+                    "consecutive attempts; the values shown are the last known "
+                    "good ones."
+                ]
+            return snapshot
+
+        if not data:
+            return snapshot
+
+        # 1. Capability degradation — an endpoint `api.get_data` silently
+        #    dropped. Strike-budgeted so a one-poll blip is not reported.
+        missing = [
+            key
+            for key in ENDPOINT_NAMES
+            if key != CRITICAL_ENDPOINT and key not in data
+        ]
+        for key in ENDPOINT_NAMES:
+            if key in missing:
+                self._endpoint_strikes[key] = self._endpoint_strikes.get(key, 0) + 1
+            else:
+                self._endpoint_strikes.pop(key, None)
+
+        degraded = sorted(
+            ENDPOINT_NAMES[key]
+            for key, strikes in self._endpoint_strikes.items()
+            if strikes >= HEALTH_STRIKE_LIMIT
+        )
+
+        # 2. Contract drift — a non-empty response that parses to nothing
+        #    meaningful. This is the direct catch for a firmware field rename,
+        #    and it is the highest-value check here.
+        drift: list[str] = []
+        signal = data.get("device_signal")
+        if isinstance(signal, dict) and signal:
+            if all(signal.get(k) in (None, "") for k in SIGNAL_CONTRACT_KEYS):
+                drift.append(
+                    "The router returned a signal block containing none of "
+                    f"{', '.join(SIGNAL_CONTRACT_KEYS)} — its firmware may have "
+                    "renamed these fields."
+                )
+
+        issues = [f"{name} is not responding." for name in degraded] + drift
+        snapshot["degraded_capabilities"] = degraded
+        snapshot["drift"] = drift
+        snapshot["issues"] = issues
+        snapshot["severity"] = "warning" if issues else None
+        return snapshot
 
     def clear_repairs(self) -> None:
         """Delete every repair issue this entry may have raised.
@@ -179,6 +304,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     else "timeout",
                     self.consecutive_failures,
                 )
+                self.update_health(None, failed=True, cold_start=False)
                 return self.data
 
             if isinstance(err, HuaweiAuthError):
@@ -193,6 +319,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     translation_placeholders={"entry_title": self.entry.title},
                     data={"entry_id": self.entry.entry_id},
                 )
+                self.update_health(None, failed=True, cold_start=self.data is None)
                 raise ConfigEntryAuthFailed("Authentication failed") from err
 
             error_msg = "API request timed out"
@@ -207,6 +334,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 translation_key="conn_error",
                 translation_placeholders={"entry_title": self.entry.title},
             )
+            self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed(error_msg) from err
 
         except Exception as err:
@@ -218,6 +346,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     self.consecutive_failures,
                     err,
                 )
+                self.update_health(None, failed=True, cold_start=False)
                 return self.data
 
             if is_paused:
@@ -225,15 +354,18 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "%s: Initial fetch failed while paused. Starting with empty data.",
                     self.entry.title,
                 )
+                self.update_health(None, failed=True, cold_start=True)
                 return {}
 
             _LOGGER.exception(
                 "%s: Connection lost. Marking entities unavailable.", self.entry.title
             )
+            self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed(f"Communication error: {err}") from err
 
         # Post-Fetch Processing & Validation (Outside the main try block)
         if not data or "device_information" not in data:
+            self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed("Critical data missing from fetch (e.g. device_info)")
 
         dev_info = data.get("device_information") or {}
@@ -281,6 +413,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         self.last_update_success_time = dt_util.now()
         self.consecutive_failures = 0
+
+        # Section 19: a success clears the verdict in the SAME cycle — never
+        # leave it `on` until some later poll.
+        self.update_health(data, failed=False, cold_start=False)
 
         # SMS Event Logic
         if "sms_list" in data:

@@ -1,6 +1,7 @@
 """Binary sensor platform for Huawei Router 5G Monitor."""
 
 from dataclasses import dataclass
+from typing import Any
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -116,6 +117,14 @@ ROAMING_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     group="signal",
 )
 
+INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="integration_health",
+    translation_key="integration_health",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="system",
+)
+
 SIM_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sim_status",
     translation_key="sim_status",
@@ -150,6 +159,9 @@ async def async_setup_entry(
             ),
             HuaweiRoamingSensor(coordinator, entry, ROAMING_DESCRIPTION),
             HuaweiSimStatusSensor(coordinator, entry, SIM_STATUS_DESCRIPTION),
+            HuaweiIntegrationHealthSensor(
+                coordinator, entry, INTEGRATION_HEALTH_DESCRIPTION
+            ),
         ]
     )
 
@@ -462,3 +474,62 @@ class HuaweiLteCaSensor(HuaweiBinarySensor):
         if not band or not isinstance(band, str):
             return None
         return "+" in band
+
+
+class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
+    """Section 19: the integration's own self-diagnosis.
+
+    Surfaces the failure Home Assistant does **not** catch — a poll that
+    succeeds while the data is wrong or a whole capability is quietly missing.
+    `api.get_data()` silently omits any optional endpoint that fails, so
+    "successful poll, absent capability" is this integration's characteristic
+    silent failure.
+    """
+
+    # The detail belongs in attributes, and none of it is a time series — a
+    # list of current issues has no meaning as history (Section 14).
+    _unrecorded_attributes = frozenset(
+        {
+            "severity",
+            "issues",
+            "degraded_capabilities",
+            "drift",
+            "last_good_update",
+        }
+    )
+
+    @property
+    def available(self) -> bool:
+        """Always available — that is the whole point of this entity.
+
+        The inherited `CoordinatorEntity.available` returns
+        `last_update_success`, which takes this sensor down at exactly the
+        moment it has something to say. A user reads `unavailable` as "this
+        sensor is broken", not "my router is down", so a health sensor that
+        disappears during an outage is worse than none: its silence is
+        indistinguishable from health.
+        """
+        return True
+
+    @property
+    def is_on(self) -> bool:
+        """Return True when the integration has a problem to report."""
+        return bool(self.coordinator.health_snapshot.get("issues"))
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the Section 19 attribute contract.
+
+        **These spellings are normative.** Users write templates against them,
+        so a project that spells one differently silently breaks every example
+        written for a sibling. `checks_failed`, `degraded` and `last_good_scan`
+        are prior spellings found in the field and are not valid.
+        """
+        snapshot = self.coordinator.health_snapshot
+        return {
+            "severity": snapshot.get("severity"),
+            "issues": list(snapshot.get("issues", [])),
+            "degraded_capabilities": list(snapshot.get("degraded_capabilities", [])),
+            "drift": list(snapshot.get("drift", [])),
+            "last_good_update": snapshot.get("last_good_update"),
+        }

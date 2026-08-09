@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.1.3-dev14\] - 2026-08-09 - Integration Health and Drift Detection; Guard Bands Reconciled](#113-dev14---2026-08-09---integration-health-and-drift-detection-guard-bands-reconciled)
   - [\[1.1.3-dev13\] - 2026-08-09 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards](#113-dev13---2026-08-09---action-icons-icon-and-parallel_updates-sweeps-secret-pre-fill-guards)
   - [\[1.1.3-dev12\] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten](#113-dev12---2026-08-09---silent-write-failures-orphaned-repairs-lost-debounced-writes-diagnostics-rewritten)
   - [\[1.1.3-dev11\] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed](#113-dev11---2026-08-09---zero-partial-branches-zero-assertion-tests-closed)
@@ -88,6 +89,48 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.1.3-dev14] - 2026-08-09 - Integration Health and Drift Detection; Guard Bands Reconciled
+
+Phase 2 (third part) of the August 2026 update plan. Huawei was the family's only outlier on `dev_standards` Section 19, and `docs/value_min_max.md` had never been checked against the code since it was written.
+
+### Added
+
+- **Integration Health binary sensor (`dev_standards` Section 19).** A diagnostic `problem` sensor on the System sub-device, surfacing the failure Home Assistant does **not** catch: a poll that _succeeds_ while the data is wrong.
+
+  That failure mode is specific and real here. `api.get_data()` fetches fifteen endpoints and **silently omits any optional one that fails** — only `device_information` raises. So SMS, WiFi clients, monthly usage or the network operator can each disappear from the payload while the integration reports a clean update and the affected sensors simply go blank. Nothing anywhere said so.
+
+  What it reports:
+  - **Capability degradation** — an endpoint absent for three consecutive polls, named in plain language (`SMS messages`, `WiFi clients`), not by raw endpoint key. Strike-budgeted so a single dropped poll raises no alarm.
+  - **Contract drift** — a `device_signal` block that is present and non-empty but carries **none** of `rsrp`, `rsrq`, `rssi`, `sinr`. That is the direct catch for a firmware field rename, and it is the highest-value check in the section. One recognized field is enough to clear it: a weak signal is not a renamed field.
+  - **Total outage** — flagged on the **first** failure at cold start (there are no held values, so waiting out the budget would leave the user with a wholly unavailable integration and no explanation), and on the **third** at runtime.
+
+  Three properties worth stating because each is easy to get wrong:
+  - **The sensor is never `unavailable`.** `available` returns `True` unconditionally. The inherited `CoordinatorEntity.available` returns `last_update_success`, which would take the sensor down at exactly the moment it has something to say — and a user reads `unavailable` as "this sensor is broken", not "my router is down".
+  - **The verdict is stored outside `coordinator.data`.** `data` is `None` before the first success and frozen at the last good values during an outage, so a verdict held there could never describe the failure that stopped it being updated. It lives on `coordinator.health_snapshot`, written on **both** the success and failure paths.
+  - **The health computation can never crash the poll it diagnoses.** It is wrapped; any internal error degrades to "healthy/unknown" and logs at debug.
+
+  The attribute names — `severity`, `issues`, `degraded_capabilities`, `drift`, `last_good_update` — are the **normative Section 19 contract**, not internal names. Users write templates against them, so a project spelling one differently silently breaks every example written for a sibling. Pinned by a test against the entity's own output.
+
+- **Guard-band coverage sweeps.** `test_every_numeric_sensor_has_a_guard_band` with an empty exemption allow-list and a dead-entry check. The rule is deliberately narrow — a sensor must declare bounds only when it carries a **unit or a state class**, i.e. when Home Assistant treats it as a measurement. A wider first draft on a sibling project flagged forty sensors where the sensors were right and the rule was wrong.
+
+### Fixed
+
+- **`docs/value_min_max.md` reconciled against the code for the first time, in both directions.** It had drifted badly:
+  - It documented guard bands on **Transmit Power** and **5G Transmit Power** (-30 to 40) that **did not exist in the code at all**. Now implemented. Note these fields can hold a multi-carrier string (`"PPusch:12dBm PPucch:5dBm"`), which the guard passes through untouched — the band applies to the simple-number case, which is where an implausible reading appears.
+  - It **omitted roughly twenty bands that did exist** — every frequency, every bandwidth, all four data rates, 5G rank and CQI.
+  - `cqi_0` carried a minimum but **no maximum**, while its 5G twin `5g_cqi_0` carried `[0, 16]`. The same quantity on different radios, disagreeing only because nobody had compared them. Aligned to `[0, 16]`.
+
+  The document is now a per-key table generated from source and **pinned by a test** (`test_value_min_max_doc_matches_the_code`) that fails on an undocumented band, a documented band that does not exist, and any value mismatch. Verified non-vacuous by mutation. This is the check that was structurally impossible before: a guard band is never published as a state or an attribute, so no live query can observe one.
+
+### Changed
+
+- **`AGENTS.md` and `docs/DEVELOPMENT.md` corrected.** Both still stated that every platform sets `PARALLEL_UPDATES = 0`, which stopped being true in `[1.1.3-dev13]`. `AGENTS.md` also described sub-device linking as using `via_device`, which stopped being true in `[1.1.3-dev10]`. Both now describe what the code does, and `AGENTS.md` gains the per-platform table and the standing direction never to assert `info["via_device"]` in a test.
+- Repair ids and the endpoint/health constants moved into `const.py` (`REPAIR_NAMES`, `ENDPOINT_NAMES`, `SIGNAL_CONTRACT_KEYS`, `HEALTH_STRIKE_LIMIT`), replacing literal domain strings in `coordinator.py`.
+
+### Verification
+
+**515 tests passing** (was 497), 100% line and branch coverage, 0 partials, assertion audit PASSED (0 of 453), mypy standard and strict clean, `ruff` clean.
 
 ## [1.1.3-dev13] - 2026-08-09 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards
 

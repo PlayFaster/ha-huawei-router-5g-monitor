@@ -396,3 +396,184 @@ def test_every_entity_platform_is_covered_by_the_decision() -> None:
         assert hasattr(module, "PARALLEL_UPDATES"), (
             f"{platform} does not declare PARALLEL_UPDATES at all"
         )
+
+
+# ---------------------------------------------------------------------------
+# Section 2.1 — guard bands, and a document that cannot drift again
+# ---------------------------------------------------------------------------
+
+# Sensors that carry a unit or a state class but deliberately ship without
+# bounds. Empty: there are none today. An entry here is a reviewable act.
+#
+# The rule is narrower than "every numeric sensor needs bounds" on purpose. A
+# first-draft version of this sweep on a sibling project demanded an upper
+# bound on every numeric sensor and flagged forty — counts, byte totals,
+# uptimes — where the sensors were right and the rule was wrong. An invented
+# ceiling on an unbounded quantity suppresses real data.
+UNGUARDED_ALLOWLIST: frozenset[str] = frozenset()
+
+
+def test_every_numeric_sensor_has_a_guard_band() -> None:
+    """A sensor Home Assistant treats as a measurement must declare bounds.
+
+    "Treated as a measurement" means it carries a unit or a state class. Those
+    are the values that reach long-term statistics, so an implausible reading
+    is permanent once recorded.
+
+    **If this fails, the new sensor needs a band, not an allow-list entry.**
+    Add one to `UNGUARDED_ALLOWLIST` only where a bound genuinely cannot be
+    stated — and note that a *minimum alone* is a band. Most counters have a
+    floor of zero and no meaningful ceiling.
+    """
+    offenders = [
+        d.key
+        for d in SENSOR_TYPES
+        if (d.native_unit_of_measurement is not None or d.state_class is not None)
+        and d.min_limit is None
+        and d.max_limit is None
+        and d.key not in UNGUARDED_ALLOWLIST
+    ]
+
+    assert not offenders, (
+        "sensors carrying a unit or state class with no guard band:\n"
+        + "\n".join(sorted(offenders))
+    )
+
+
+def test_unguarded_allowlist_has_no_dead_entries() -> None:
+    """An exemption must not outlive the sensor it exempts."""
+    keys = {d.key for d in SENSOR_TYPES}
+    stale = sorted(UNGUARDED_ALLOWLIST - keys)
+    assert not stale, (
+        "UNGUARDED_ALLOWLIST names sensors that no longer exist: " + ", ".join(stale)
+    )
+
+
+def _documented_bands() -> dict[str, tuple[float | None, float | None]]:
+    """Parse the band table out of `docs/value_min_max.md`.
+
+    Reads the shipped document rather than a copy in this file — a second copy
+    would agree with itself forever while the real document rotted.
+    """
+    import pathlib
+    import re
+
+    import custom_components.huawei_router_5g as component
+
+    path = (
+        pathlib.Path(component.__path__[0]).parent.parent / "docs" / "value_min_max.md"
+    )
+    row = re.compile(
+        r"^\|[^|]+\|\s*`([^`]+)`\s*\|\s*(—|`[^`]+`)\s*\|\s*(—|`[^`]+`)\s*\|"
+    )
+
+    bands: dict[str, tuple[float | None, float | None]] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = row.match(line)
+        if not match:
+            continue
+        key, lo, hi = match.groups()
+        bands[key] = (
+            None if lo == "—" else float(lo.strip("`")),
+            None if hi == "—" else float(hi.strip("`")),
+        )
+    return bands
+
+
+def test_value_min_max_doc_matches_the_code() -> None:
+    """`docs/value_min_max.md` and `sensor.py` must agree, in both directions.
+
+    This is the check that was structurally impossible before: a guard band is
+    never published as a state or an attribute, so **no live query can observe
+    one**. Only a static comparison can, and until this test existed the
+    document had never been reconciled since it was written.
+
+    What it had drifted into: two documented bands (`transmit_power`,
+    `5g_transmit_power`) that **did not exist in the code**, and roughly twenty
+    implemented bands that were undocumented.
+    """
+    documented = _documented_bands()
+    actual = {
+        d.key: (d.min_limit, d.max_limit)
+        for d in SENSOR_TYPES
+        if d.min_limit is not None or d.max_limit is not None
+    }
+
+    assert documented, "no band table found in docs/value_min_max.md — parser broken"
+
+    undocumented = sorted(set(actual) - set(documented))
+    assert not undocumented, (
+        "sensors with a guard band that docs/value_min_max.md does not list:\n"
+        + "\n".join(undocumented)
+    )
+
+    phantom = sorted(set(documented) - set(actual))
+    assert not phantom, (
+        "docs/value_min_max.md documents bands that do not exist in the code:\n"
+        + "\n".join(phantom)
+    )
+
+    mismatched = [
+        f"{key}: doc {documented[key]} vs code {actual[key]}"
+        for key in sorted(actual)
+        if documented[key] != actual[key]
+    ]
+    assert not mismatched, "guard bands disagree with the document:\n" + "\n".join(
+        mismatched
+    )
+
+
+# ---------------------------------------------------------------------------
+# Section 19 — the Integration Health attribute contract is published
+# ---------------------------------------------------------------------------
+
+# Normative spellings. Users write templates against these, so a project that
+# spells one differently is not a style variation — every automation example,
+# dashboard card and support answer written for a sibling project is silently
+# wrong against it. `checks_failed`, `degraded` and `last_good_scan` are prior
+# spellings found in the field and are NOT valid.
+SECTION_19_ATTRIBUTES = frozenset(
+    {"severity", "issues", "degraded_capabilities", "drift", "last_good_update"}
+)
+
+
+def test_integration_health_publishes_the_normative_attribute_names() -> None:
+    """Section 19's attribute names are a published contract, not an internal one.
+
+    Asserted against the entity's own output rather than against the
+    coordinator's snapshot dict, because the entity is what users read — a
+    rename in the property layer would not be caught otherwise.
+    """
+    from unittest.mock import MagicMock
+
+    from custom_components.huawei_router_5g.binary_sensor import (
+        INTEGRATION_HEALTH_DESCRIPTION,
+        HuaweiIntegrationHealthSensor,
+    )
+
+    coordinator = MagicMock()
+    coordinator.health_snapshot = {
+        "severity": None,
+        "issues": [],
+        "degraded_capabilities": [],
+        "drift": [],
+        "last_good_update": None,
+    }
+    sensor = HuaweiIntegrationHealthSensor(
+        coordinator, MagicMock(), INTEGRATION_HEALTH_DESCRIPTION
+    )
+
+    assert set(sensor.extra_state_attributes) == SECTION_19_ATTRIBUTES
+
+
+def test_integration_health_attributes_are_all_unrecorded() -> None:
+    """None of the health detail is a time series.
+
+    A list of *current* issues has no meaning as history, and recording it
+    writes a row per poll for the life of the integration.
+    """
+    from custom_components.huawei_router_5g.binary_sensor import (
+        HuaweiIntegrationHealthSensor,
+    )
+
+    assert HuaweiIntegrationHealthSensor._unrecorded_attributes >= SECTION_19_ATTRIBUTES
