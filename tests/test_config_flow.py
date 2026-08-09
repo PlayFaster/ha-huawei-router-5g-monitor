@@ -792,3 +792,105 @@ async def test_options_flow_blank_password_keeps_stored():
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PASSWORD] == "stored_password"
+
+
+@pytest.mark.asyncio
+async def test_validate_credentials_with_no_mac_in_device_information():
+    """A router that reports no MAC must yield `mac: None`, not crash.
+
+    All three MAC keys are optional and some firmware omits every one. The
+    normalization step is guarded by `if mac:`, and nothing had exercised the
+    guard's false side — so an unguarded `.lower()` would have raised
+    `AttributeError` inside the config flow, which surfaces to the user as
+    "unknown error" with no clue what happened.
+    """
+    with patch(
+        "custom_components.huawei_router_5g.config_flow.HuaweiRouter5GAPI"
+    ) as mock_api_class:
+        mock_api = mock_api_class.return_value
+        mock_api.login = AsyncMock()
+        mock_api.get_data = AsyncMock(
+            return_value={
+                "device_information": {
+                    "DeviceName": "B535s-232",
+                    "SoftwareVersion": "11.0.1.1",
+                    "HardwareVersion": "Ver.A",
+                    # No MacAddress1 / wan_mac_address / WanMacAddress.
+                }
+            }
+        )
+        mock_api.logout = AsyncMock()
+
+        result = await _validate_credentials(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "password",
+            }
+        )
+
+    assert result["mac"] is None
+    assert result["model"] == "B535s-232"
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_shows_the_form_before_any_input():
+    """Opening Reconfigure must render the form, not attempt a validation.
+
+    Every existing reconfigure test passed `user_input`, so the branch that
+    handles the *first* render — the one every user hits — was never taken.
+    """
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "stored",
+    }
+
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "known_entry"}
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials"
+    ) as validate:
+        result = await flow.async_step_reconfigure(None)
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    assert not result["errors"]
+    validate.assert_not_called(), "the form render must not talk to the router"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_leaves_the_title_alone_when_the_name_is_unchanged():
+    """Resubmitting Options without renaming must not rewrite the entry title.
+
+    `test_options_flow_title_update` covers the rename; the *unchanged* case is
+    the common one and was untested, so a mutation dropping the comparison —
+    updating the title on every save — would have passed. That is not
+    cosmetic: `async_update_entry` with a title triggers listeners and a
+    reload.
+    """
+    entry = MagicMock()
+    entry.title = "My Huawei Router"
+    entry.options = {CONF_HOST: "http://192.168.8.1", CONF_PASSWORD: "p"}
+
+    flow = HuaweiRouter5GOptionsFlow(entry)
+    flow.hass = MagicMock()
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        return_value={},
+    ):
+        result = await flow.async_step_init(
+            {
+                "name": "My Huawei Router",
+                CONF_HOST: "http://192.168.8.1",
+                CONF_PASSWORD: "p",
+            }
+        )
+
+    flow.hass.config_entries.async_update_entry.assert_not_called()
+    assert result["type"] == FlowResultType.CREATE_ENTRY

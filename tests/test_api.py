@@ -237,9 +237,22 @@ async def test_logout_clears_client():
 
 @pytest.mark.asyncio
 async def test_logout_no_connection():
-    """Test that logout is a no-op when not connected."""
+    """logout() with no connection must do nothing observable.
+
+    "It does not raise" was the whole of this test, which passes if logout
+    silently tears down state it should have left alone. Assert the no-op:
+    the client and connection stay as they were, and nothing was dispatched
+    to a thread.
+    """
     api = _make_api()
-    await api.logout()  # should not raise
+    api._client = None
+
+    with patch("asyncio.to_thread", new=AsyncMock()) as to_thread:
+        await api.logout()
+
+    to_thread.assert_not_called()
+    assert api._connection is None
+    assert api._client is None
 
 
 @pytest.mark.asyncio

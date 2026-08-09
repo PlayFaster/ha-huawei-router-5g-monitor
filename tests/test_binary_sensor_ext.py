@@ -67,3 +67,45 @@ def test_wifi_status_no_data(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, WIFI_24G_STATUS_DESCRIPTION
     )
     assert sensor.is_on is None
+
+
+def test_5g_status_name_fallback_skips_the_guest_network(
+    mock_coordinator, mock_config_entry
+):
+    """The 5 GHz name fallback must not match the guest network.
+
+    With no `Radio.2.Ssid.1` path present, `is_on` falls back to matching an
+    SSID whose name contains "5G" but not "2.4G", explicitly excluding guest
+    networks. Nothing exercised the guest-exclusion branch **while a real 5 GHz
+    SSID followed it**, so a mutation dropping the exclusion would have been
+    invisible: it would simply have returned the guest network's state.
+
+    Here the guest is enabled and the real 5 GHz radio is disabled, so matching
+    the wrong one gives the wrong answer rather than the same answer.
+    """
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "ID": "InternetGatewayDevice.X.Guest.1",
+                        "wifiisguestnetwork": "1",
+                        "WifiSsid": "Guest-5G",
+                        "WifiEnable": "1",
+                    },
+                    {
+                        "ID": "InternetGatewayDevice.X.Other.1",
+                        "wifiisguestnetwork": "0",
+                        "WifiSsid": "Home-5G",
+                        "WifiEnable": "0",
+                    },
+                ]
+            }
+        }
+    }
+
+    sensor = HuaweiWifi5GStatusSensor(
+        mock_coordinator, mock_config_entry, WIFI_5G_STATUS_DESCRIPTION
+    )
+
+    assert sensor.is_on is False, "the guest 5G network was matched instead"

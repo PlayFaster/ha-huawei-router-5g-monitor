@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.1.3-dev11\] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed](#113-dev11---2026-08-09---zero-partial-branches-zero-assertion-tests-closed)
   - [\[1.1.3-dev10\] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused](#113-dev10---2026-08-09---four-statistics-corrupting-counters-via_device-deprecation-recorder-hygiene-refresh-while-paused)
   - [\[1.1.3-dev9\] - 2026-08-08 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#113-dev9---2026-08-08---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
   - [\[1.1.3-dev8\] - 2026-07-28 - Automation Example Glitch Guards \& Float Rounding in README](#113-dev8---2026-07-28---automation-example-glitch-guards--float-rounding-in-readme)
@@ -85,6 +86,41 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.1.3-dev11] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed
+
+Phase 1 of the August 2026 update plan — the test baseline. No source changes; this phase is entirely about what the suite can see.
+
+### Added
+
+- **Branch coverage is now 100% — eleven partial branches closed with nine tests.** A partial branch is a conditional where only one side has ever been taken; line coverage cannot see them, which is how this project sat at 100% lines with eleven of them. **None of the eleven was dead code**, which independently confirms the same result on `wifi_ssid_monitor` (12 of 12), `zte_router_5g` (11 of 11) and `unifi_network_monitor` (33 of 33). No new `# pragma: no cover` was added — the pragma changes the denominator, so it raises the number without anything being tested.
+
+  The three largest were the uptime reboot-detection latches in `coordinator.py`. Every existing test hit the **first** poll, where all three latch; the steady-state path that runs on every subsequent poll was untested. The new test asserts the distinction that matters — the latched start times stay **frozen** rather than drifting forward each poll, which is what feeds the uptime-derived sensors.
+
+  The rest, each stated as the behavior it now guards:
+  - `device_tracker.py` — a malformed `lan_host_info` must not discard the clients in `wlan_host_list`. Written with two sources and the broken one **first**, so "skipped and continued" is distinguishable from "skipped and stopped".
+  - `device_tracker.py` — a poll that finds no new client must not call `async_add_entities` at all.
+  - `config_flow.py` — a router that reports no MAC under any of the three keys yields `mac: None` rather than an `AttributeError` surfacing as "unknown error".
+  - `config_flow.py` — opening Reconfigure renders the form without contacting the router. Every prior test passed `user_input`, so the branch every user hits first was never taken.
+  - `config_flow.py` — saving Options without renaming must not rewrite the entry title. `async_update_entry` with a title triggers listeners and a reload, so this is not cosmetic.
+  - `binary_sensor.py` — the 5 GHz name fallback must skip the guest network. Set up so the guest is **enabled** and the real 5 GHz radio **disabled**, so matching the wrong one gives a different answer rather than the same one.
+  - `switch.py` — the guest-SSID search walks past the primary SSIDs, in the order a real router lists them.
+  - `sensor.py` — a truncated `(N…` band segment is skipped and parsing continues to the next segment.
+
+### Changed
+
+- **The four zero-assertion tests are closed, with no allow-list.** Each asserted only that a call did not raise, which is satisfied equally by the code doing the wrong thing quietly:
+  - `test_debounced_apply_error` now asserts the write was **aborted rather than half-applied** — the coordinator interval is untouched, options are not rewritten and no refresh is requested. The previous form passed even if the failure came after persisting a value the user never confirmed.
+  - `test_async_will_remove_from_hass_no_task` now asserts the task slot is still empty, which separates "there was nothing to cancel" from "something was created and cancelled".
+  - Both `logout`-with-no-connection tests now assert the no-op is observable — nothing dispatched to a thread, connection and client left as they were.
+
+  `tests/zero_assertion_allowlist.txt` is deliberately **not** created. Every one of the four was expressible as a checkable outcome, which is what the audit's own guidance asks you to try before allow-listing.
+
+### Verification
+
+**453 tests passing** (was 444), **100% line and 100% branch coverage, 0 partial branches**, assertion audit **PASSED** (0 of 409), mypy standard and strict clean, `ruff` lint and format clean.
+
+**This closes the last blocker on a family-wide gate.** `fail_under = 100` in `dev-workbench/workbench/python/pyproject.toml` is synced into every project and is all-or-none by design; WiFi, ZTE and UniFi reached zero partials on 2026-08-05, -07 and -08 respectively, and Huawei was the remaining one. That workbench change is a separate, deliberate four-project edit and is **not** made here.
 
 ## [1.1.3-dev10] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused
 

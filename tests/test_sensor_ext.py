@@ -61,3 +61,20 @@ def test_sensor_uptime_timestamp_reads_coordinator_key(
     desc = next(d for d in SENSOR_TYPES if d.key == "uptime_timestamp")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value == frozen
+
+
+def test_nr_band_parse_skips_a_segment_with_no_closing_paren():
+    """A truncated `(N…` segment must be skipped, not abort the whole parse.
+
+    `_parse_nr_band_from_band` splits on `+` and looks for `(N…)` in each
+    segment. When a segment contains `(N` but no closing `)`, `rfind(")")`
+    returns -1 and the bounds check fails — the loop must move on to the next
+    segment rather than returning None. Nothing exercised that continue, so a
+    change turning it into an early `return None` would have been invisible.
+
+    Two segments with the malformed one **first** is what makes "skipped and
+    continued" distinguishable from "skipped and stopped".
+    """
+    from custom_components.huawei_router_5g.sensor import _parse_nr_band_from_band
+
+    assert _parse_nr_band_from_band("B1(N+B3(N78)") == "N78"

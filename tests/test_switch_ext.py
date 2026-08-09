@@ -159,3 +159,56 @@ def test_guest_wifi_extra_state_attributes_no_guest_ssid(
         }
     }
     assert switch.extra_state_attributes == {}
+
+
+def test_guest_wifi_skips_non_guest_ssids_before_finding_the_guest_one(
+    mock_coordinator, mock_config_entry
+):
+    """The guest-SSID search must walk past the primary SSIDs to reach the guest.
+
+    `is_on` loops the SSID list looking for `wifiisguestnetwork == "1"`. Every
+    existing test put the guest network first, so the *continue* was never
+    taken — "found it at position 0" and "searched the list" were
+    indistinguishable, and a mutation stopping the loop after one item would
+    have passed.
+
+    A real router lists the 2.4 GHz and 5 GHz primaries before the guest
+    network, which is the ordering asserted here.
+    """
+    from custom_components.huawei_router_5g.switch import (
+        GUEST_WIFI_DESCRIPTION,
+        HuaweiGuestWifiSwitch,
+    )
+
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "wifiisguestnetwork": "0",
+                        "WifiSsid": "Home-2.4G",
+                        "WifiEnable": "0",
+                    },
+                    {
+                        "wifiisguestnetwork": "0",
+                        "WifiSsid": "Home-5G",
+                        "WifiEnable": "0",
+                    },
+                    {
+                        "wifiisguestnetwork": "1",
+                        "WifiSsid": "Home-Guest",
+                        "WifiEnable": "1",
+                    },
+                ]
+            }
+        }
+    }
+
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+
+    # The two primaries are disabled and the guest is enabled, so a loop that
+    # stopped early would report False rather than True.
+    assert switch.is_on is True
+    assert switch.extra_state_attributes == {"ssid": "Home-Guest"}

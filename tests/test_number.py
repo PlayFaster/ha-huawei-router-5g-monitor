@@ -134,14 +134,25 @@ async def test_debounced_apply_cancelled(mock_coordinator, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_debounced_apply_error(mock_coordinator, mock_config_entry):
-    """Test that a non-cancel error inside the debounce is swallowed."""
+    """A failure inside the debounce must abort the write, not half-apply it.
+
+    "Should not raise" was the whole assertion, which is satisfied equally by
+    swallowing the error *after* persisting a value the user never confirmed.
+    What matters is that nothing downstream happened: the coordinator interval
+    is untouched, options are not rewritten, and no refresh is requested.
+    """
     entity = HuaweiPollingInterval(
         mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180
     )
     entity.hass = MagicMock()
+    interval_before = mock_coordinator.update_interval
 
     with patch("asyncio.sleep", new=AsyncMock(side_effect=Exception("Fail"))):
-        await entity._async_debounced_apply(300)  # should not raise
+        await entity._async_debounced_apply(300)
+
+    assert mock_coordinator.update_interval is interval_before
+    entity.hass.config_entries.async_update_entry.assert_not_called()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 # ---------------------------------------------------------------------------
@@ -206,10 +217,18 @@ async def test_async_will_remove_from_hass_with_task(
 
 @pytest.mark.asyncio
 async def test_async_will_remove_from_hass_no_task(mock_coordinator, mock_config_entry):
-    """Test async_will_remove_from_hass when no refresh task exists."""
+    """Removal with no pending debounce must leave the entity's state alone.
+
+    The previous form asserted only that it did not raise, which cannot tell
+    "there was no task to cancel" apart from "a task was created and
+    cancelled". Assert the slot is still empty.
+    """
     entity = HuaweiPollingInterval(
         mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180
     )
     entity.hass = MagicMock()
+    assert entity._refresh_task is None
 
-    await entity.async_will_remove_from_hass()  # should not raise
+    await entity.async_will_remove_from_hass()
+
+    assert entity._refresh_task is None

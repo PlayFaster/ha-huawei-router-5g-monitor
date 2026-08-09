@@ -224,3 +224,66 @@ def test_device_tracker_no_data(mock_coordinator):
     assert tracker.hostname is None
     assert tracker.is_connected is False
     assert tracker.ip_address is None
+
+
+@pytest.mark.asyncio
+async def test_setup_skips_a_non_dict_host_source_and_keeps_going():
+    """A malformed `lan_host_info` must not hide the clients in `wlan_host_list`.
+
+    The discovery loop iterates two keys and guards each with `isinstance(...,
+    dict)`. Nothing previously exercised the guard **failing on the first key
+    while the second still yields hosts**, so "skipped and continued" and
+    "skipped and stopped" were indistinguishable — the loop-guard shape that
+    needs two items with the unwanted one first.
+    """
+    hass = MagicMock()
+    entry = MagicMock()
+    entry.unique_id = "huawei_unique_123"
+    coordinator = MagicMock()
+    coordinator.entry = entry
+    coordinator.data = {
+        # A router that returns an error string here instead of an object.
+        "lan_host_info": "ERROR",
+        "wlan_host_list": {"Hosts": {"Host": [{"MacAddress": "WMAC1"}]}},
+    }
+    entry.runtime_data = coordinator
+
+    async_add_entities = MagicMock()
+    await async_setup_entry(hass, entry, async_add_entities)
+
+    entities = async_add_entities.call_args[0][0]
+    assert [e.mac_address for e in entities] == ["WMAC1"], (
+        "the wlan_host_list clients were dropped when lan_host_info was malformed"
+    )
+
+
+@pytest.mark.asyncio
+async def test_listener_does_not_call_add_entities_when_nothing_is_new():
+    """A poll that discovers no new client must not call `async_add_entities`.
+
+    Calling it with an empty list on every poll is harmless but wasteful, and
+    the guard that prevents it had never been exercised in the false direction.
+    """
+    hass = MagicMock()
+    entry = MagicMock()
+    entry.unique_id = "huawei_unique_123"
+    coordinator = MagicMock()
+    coordinator.entry = entry
+    coordinator.data = {
+        "lan_host_info": {"Hosts": {"Host": [{"MacAddress": "MAC1"}]}},
+        "wlan_host_list": {"Hosts": {"Host": []}},
+    }
+    entry.runtime_data = coordinator
+
+    async_add_entities = MagicMock()
+    await async_setup_entry(hass, entry, async_add_entities)
+    assert async_add_entities.call_count == 1
+
+    listener = coordinator.async_add_listener.call_args[0][0]
+
+    # Same single client on the next poll — already tracked, so nothing is new.
+    listener()
+
+    assert async_add_entities.call_count == 1, (
+        "async_add_entities was called again with no new clients"
+    )

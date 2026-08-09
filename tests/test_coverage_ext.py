@@ -283,9 +283,19 @@ async def test_api_get_data_no_client_triggers_login():
 
 @pytest.mark.asyncio
 async def test_api_logout_is_noop_when_not_connected():
-    """logout() should not raise when there is no active connection."""
+    """logout() with no connection must not reach the router.
+
+    Kept alongside `test_api.py::test_logout_no_connection` because this one
+    exercises the real constructor rather than the `_make_api` helper — but it
+    asserted nothing at all, so it passed whatever logout did.
+    """
     api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
-    await api.logout()  # no exception
+
+    with patch("asyncio.to_thread", new=AsyncMock()) as to_thread:
+        await api.logout()
+
+    to_thread.assert_not_called()
+    assert api._connection is None
 
 
 # ---------------------------------------------------------------------------

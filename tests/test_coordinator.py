@@ -604,3 +604,66 @@ async def test_async_force_refresh_clears_the_flag_when_the_request_raises(
         await coordinator.async_force_refresh()
 
     assert coordinator._force_refresh_once is False
+
+
+@pytest.mark.asyncio
+async def test_uptime_latches_hold_across_a_steady_second_poll(
+    mock_hass, mock_config_entry
+):
+    """A normal second poll must reuse the latched times, not recompute them.
+
+    All three reboot-detection latches — system uptime, current connection and
+    total connection — recompute a start time only when there is no latch yet
+    **or** the counter has dropped by more than `UPTIME_REBOOT_MARGIN`. Every
+    existing test hit the first poll, where all three latch. The steady-state
+    path, which is what runs on every poll after the first, was the single
+    largest group of unexercised branches in the component.
+
+    The distinction that matters is *frozen vs. drifting*: these timestamps
+    feed uptime-derived sensors, so recomputing them each poll would make the
+    displayed boot time crawl forward and never settle.
+    """
+    mock_api = MagicMock()
+
+    def _payload(sys_uptime: str, conn: str, total: str) -> dict:
+        return {
+            "device_information": {"DeviceName": "B535", "uptime": sys_uptime},
+            "traffic_statistics": {
+                "CurrentConnectTime": conn,
+                "TotalConnectTime": total,
+            },
+        }
+
+    mock_api.get_data = AsyncMock(
+        side_effect=[
+            _payload("1000", "500", "90000"),
+            # 180s later — all three counters have advanced, nothing rebooted.
+            _payload("1180", "680", "90180"),
+        ]
+    )
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+
+    first = await coordinator._async_update_data()
+    coordinator.data = first
+    latched = (
+        first["system_boot_time"],
+        first["conn_start_time"],
+        first["total_conn_start_time"],
+    )
+    assert all(t is not None for t in latched)
+
+    second = await coordinator._async_update_data()
+
+    assert (
+        second["system_boot_time"],
+        second["conn_start_time"],
+        second["total_conn_start_time"],
+    ) == latched, "a steady poll recomputed the latched start times"
+
+    # And the last-seen counters advanced, so a genuine drop is still detectable.
+    assert coordinator._last_system_uptime == 1180
+    assert coordinator._last_conn_uptime == 680
+    assert coordinator._last_total_conn_time == 90180
