@@ -49,7 +49,7 @@ platform files (sensor.py, binary_sensor.py, switch.py, etc.)
 
 ### Declarative Entity Pattern
 
-All sensors are defined as `EntityDescription` dataclasses with a `value_fn: Callable[[dict], Any]` callback. No business logic lives in the entity class itself — adding a new sensor is a single-line entry in the descriptions list. Guard bands (e.g., RSRP range -140 to -30) are applied inside `value_fn` before the value is returned.
+All sensors are defined as `EntityDescription` dataclasses with a `value_fn: Callable[[dict], Any]` callback. No business logic lives in the entity class itself — adding a new sensor is a single-line entry in the descriptions list. Guard bands (e.g. RSRP range -150 to -30 dBm) are applied inside `value_fn` before the value is returned. The bands are listed per key in [`docs/value_min_max.md`](docs/value_min_max.md), which a test reconciles against the code in both directions.
 
 ### Sub-Device Organization
 
@@ -123,6 +123,33 @@ Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`,
 
 - `EntityCategory.DIAGNOSTIC`: granular infrastructure metrics (secondary bands, per-bank SMS capacity, raw durations)
 - No category (primary list): actionable or highly readable metrics (signal bars, SMS unread count, data rates)
+
+## Tests that will stop you
+
+These are **coverage sweeps**, not mechanism tests. Each asserts that every member of a set satisfies a property, so **it fails when the set grows** — which means the failure usually looks unrelated to whatever you just changed, and the reflex is to suppress it.
+
+> [!IMPORTANT]
+>
+> **If one of these fails, it has found something. Do not reach for the allow-list first.** Every allow-list below is currently **empty**, and each entry is meant to be a reviewable act with a written reason. A sweep that has been quietly widened is worth less than no sweep at all.
+
+| Test | Guards | Why it exists |
+| :-- | :-- | :-- |
+| `test_no_sensor_uses_the_total_state_class` | `ALLOWED_TOTAL_STATE_CLASS` (empty) | Four resetting counters shipped as `SensorStateClass.TOTAL` with no `last_reset`, so every daily and billing-month rollover was recorded as a large negative delta and walked long-term statistics backwards. Nothing failed at runtime. |
+| `test_total_state_class_sweep_is_not_vacuous` | the sweep above | The sweep passes trivially if `SENSOR_TYPES` stops carrying state classes. Pins that it inspected ≥20 sensors and that the four corrected counters are still `TOTAL_INCREASING`. |
+| `test_allowed_total_state_class_has_no_dead_entries` | the allow-list | An exemption must not outlive its sensor, where it would silently pre-approve a future sensor reusing the key. |
+| `test_every_entity_publishing_attributes_declares_unrecorded` | Section 14 | The component had **zero** `_unrecorded_attributes`, so every attribute of every entity hit the recorder on every state change — including each tracked client's SSID, once per client per poll. Discovers entity classes by inspection, so a new platform cannot slip past it. |
+| `test_unrecorded_attribute_sweep_is_not_vacuous` | the sweep above | Fails if discovery stops finding classes (e.g. a refactor moving `extra_state_attributes` onto a shared base). |
+| `test_every_registered_action_has_an_icon` | Section 12 | There was no `services` block at all while four actions were registered. Reads the action list from **`services.yaml`**, not from `icons.json` — reading the thing under test to build the expectation is how a bidirectional check goes vacuous. |
+| `test_no_icon_entry_names_an_action_that_does_not_exist` | the other direction | A dead icon entry renders nothing and breaks nothing, so it accumulates unnoticed. |
+| `test_action_icons_use_the_current_nested_form` | format drift | The flat form works, so nothing would ever fail; only the nested object can carry per-`section` icons. |
+| `test_every_entity_description_has_an_icon_or_a_device_class` | Section 12 | Found `button.refresh` shipping with neither. Reads keys from **module source** across all seven platforms — two hand-maintained files can agree perfectly and both describe an entity that no longer exists. |
+| `test_parallel_updates_matches_the_recorded_decision` | Section 22 | The rule is that the constant is set _deliberately_, which source cannot show: a considered `0` and a copy-pasted `0` are identical. Changing a value means changing the table and reading its reasoning. |
+| `test_every_entity_platform_is_covered_by_the_decision` | the table above | Stops platform number eight shipping with whatever value it happened to get. |
+| `test_every_numeric_sensor_has_a_guard_band` | `UNGUARDED_ALLOWLIST` (empty) | A sensor carrying a unit or a state class reaches long-term statistics, where an implausible reading is permanent. **Note the rule is narrow on purpose** — a wider draft on a sibling flagged 40 sensors that were right. |
+| `test_value_min_max_doc_matches_the_code` | `docs/value_min_max.md` | The document had **never** been reconciled: it documented two bands that did not exist and omitted about twenty that did. A guard band is never published as a state or attribute, so **no live query can see one** — only this static check can. |
+| `test_integration_health_publishes_the_normative_attribute_names` | Section 19 | `severity` / `issues` / `degraded_capabilities` / `drift` / `last_good_update` are a **published contract**. Users write templates against them, so a rename silently breaks every example written for a sibling project. |
+| `test_compat.py` (all) | `_compat.py` | Forces **both** branches of each shim by patching the detection flag. The suite runs against one HA version, so the other branch would never execute — and this integration must be correct on ≤2026.7 and post-2027.8 alike. |
+| `assert_links_to_parent()` / `assert_is_root()` | device-registry link shape | **Never assert `info["via_device"]` directly.** Twelve tests did, and were green only because the installed HA took that branch. These assert the link's presence and exclusivity instead. |
 
 ## Remaining Work (Future — Separate Session)
 

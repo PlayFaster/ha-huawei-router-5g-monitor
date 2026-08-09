@@ -2,7 +2,9 @@
 
 Guard bands keep implausible router readings out of Home Assistant. If a value falls outside its band the sensor reports `Unavailable` rather than the value, so a transient spike or a "ghost" zero cannot pollute long-term statistics.
 
-> [!IMPORTANT] **The table below is reconciled against the code by a test, in both directions.** `tests/test_entity_hygiene.py::test_value_min_max_doc_matches_the_code` fails if a band is changed in `sensor.py` without changing this table, **and** if this table names a sensor that does not exist or omits one that has bounds.
+> [!IMPORTANT]
+>
+> **The table below is reconciled against the code by a test, in both directions.** `tests/test_entity_hygiene.py::test_value_min_max_doc_matches_the_code` fails if a band is changed in `sensor.py` without changing this table, **and** if this table names a sensor that does not exist or omits one that has bounds.
 >
 > This matters because the previous version of this document was never reconciled at all, and had drifted: it documented guard bands on **Transmit Power** and **5G Transmit Power** that **did not exist in the code**, and omitted roughly twenty bands that did — every frequency, every bandwidth, the data rates, 5G rank and CQI. A guard band is never published as a state or an attribute, so no live query can observe one; only a static check can.
 

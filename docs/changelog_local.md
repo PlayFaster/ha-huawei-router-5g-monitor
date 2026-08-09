@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.1.3-dev15\] - 2026-08-09 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table](#113-dev15---2026-08-09---documentation-phase-repair-titles-roadmap-spelling-sweep-table)
   - [\[1.1.3-dev14\] - 2026-08-09 - Integration Health and Drift Detection; Guard Bands Reconciled](#113-dev14---2026-08-09---integration-health-and-drift-detection-guard-bands-reconciled)
   - [\[1.1.3-dev13\] - 2026-08-09 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards](#113-dev13---2026-08-09---action-icons-icon-and-parallel_updates-sweeps-secret-pre-fill-guards)
   - [\[1.1.3-dev12\] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten](#113-dev12---2026-08-09---silent-write-failures-orphaned-repairs-lost-debounced-writes-diagnostics-rewritten)
@@ -89,6 +90,40 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.1.3-dev15] - 2026-08-09 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table
+
+Phase 3 of the August 2026 update plan — all documentation and recorded decisions in one phase and one lint run, deliberately after the code settled.
+
+### Fixed
+
+- **The two repair issues had no translations at all.** `coordinator.py` raises `auth_failed` and `conn_error` with `translation_key`s that had **no matching `issues` block** in `strings.json` or `translations/en.json` — so the Repairs panel showed the raw key rather than a title. Added both, written to `x_proj_checks` §3.4's two rules: **prefix the vendor**, because the Repairs panel shows every integration's entries together, and **do not assert a cause the user cannot check**. "Huawei router sign-in failed" and "Huawei router is not responding", neither blaming firmware.
+
+  This was invisible to the shared cross-project document, which states in four separate rows that Huawei has no repair issues at all.
+
+- **US spelling swept across shipped text.** Twelve occurrences in six files — `cancelled`/`cancelling`, `colour`, `favour`, `quantisation`, `parenthesisation`/`parenthesised`. `codespell` does not flag UK spellings, so this needed a targeted word list; a looser pattern matched `raises`, `noise` and `otherwise` and was narrowed before use. The Python identifier `CancelledError` is deliberately untouched.
+
+- **Three more stale statements in `docs/DEVELOPMENT.md`.** It described Refresh Now as calling `async_request_refresh()` (changed in `[1.1.3-dev10]`), quoted the RSRP guard band as `-140 to -30` when the code and `value_min_max.md` both say `-150` , and described `number.py` as merely persisting the interval without mentioning that the debounced write is now flushed on removal.
+
+### Changed
+
+- **`docs/ROADMAP.md` reconciled against the code and against `roadmap_format.md`.** Two entries were stale: "Dynamic Polling Interval Slider" had **already shipped** as the `polling_interval` number entity, and "Static Test Sweeps Implementation" landed across this cycle. The **Done** group is removed per the format's direction not to backfill one from the changelog. Added the write-classification register, the first mutation run, per-endpoint strike budgets, the blocked diagnostics verification, the version-convention question, and the `FREQUENCY` unit-selector issue that had only ever been recorded in `AGENTS.md`. Asterisk bullets converted to dashes — the file had never passed `markdownlint`.
+
+- **`AGENTS.md` gains a "Tests that will stop you" table.** Sixteen rows covering every coverage sweep, what it guards and why it exists, with the standing direction: **if one of these fails it has found something — do not reach for the allow-list first.** These tests fail when a _set grows_, so the failure looks unrelated to whatever was just changed, and the reflex is to suppress it.
+
+- **`README.md`** documents the Integration Health sensor with its attribute table and an example automation (diffed against the implementation, not written from memory), records that **Refresh Now now works while Pause Polling is on**, and notes that a refused control change surfaces an error instead of silently reverting.
+
+- **The `device_tracker` privacy surface is documented.** No sibling project has this platform, so there was no prior art to inherit. The README now states plainly that an entity is created per network client carrying its MAC, hostname and IP; that those attributes are excluded from long-term history; that a diagnostics download replaces every one of them with a stable placeholder; and that the entities can be disabled without affecting the rest of the integration.
+
+- **`docs/all_sensors.md`** gains the Integration Health entity (System sub-device 23 → 24, total 121 → 122). Counts in that file are authoritative only after a `sensor_review` run against live Home Assistant; this edit adds the one known new entity rather than re-deriving the inventory.
+
+### Recorded decisions
+
+- **Four entities repeat their sub-device word** — `total_data` in Data, `signal_bars` and `signal_bars_nr` in Signal, `sms_storage_full` in SMS. **Deliberately not renamed.** Home Assistant never renames an existing `entity_id`, so the only beneficiary would be a new install while anyone referencing the current friendly name gets a silent break. `zte_router_5g` kept two for the same reason. Recorded under Declined in the roadmap; the convention applies to new entities from here.
+
+### Verification
+
+515 tests passing, 100% line and branch coverage, `ruff` clean, mypy standard and strict clean, `markdownlint` clean across every tracked Markdown file, `prettier` clean, `codespell` clean, 46 README links checked, all JSON schema-valid.
 
 ## [1.1.3-dev14] - 2026-08-09 - Integration Health and Drift Detection; Guard Bands Reconciled
 
@@ -180,7 +215,7 @@ Phase 2 (first part) of the August 2026 update plan — the standards defects th
 
   The two repair ids were **already entry-scoped**, so §3.8a of `x_proj_checks` does not apply here. The ids and their names are now named constants in `const.py` with the standing warning that renaming one orphans a live repair permanently.
 
-- **A pending debounced polling-interval write was cancelled rather than flushed.** `async_will_remove_from_hass` cancelled the task without writing. The debounce is two seconds and a reload lands squarely inside it — an options change is enough to cause one — so a value the user had just set was discarded with nothing logged and no error. The pending value is now held separately and flushed on removal. No refresh is requested on that path: the entity is being torn down.
+- **A pending debounced polling-interval write was canceled rather than flushed.** `async_will_remove_from_hass` canceled the task without writing. The debounce is two seconds and a reload lands squarely inside it — an options change is enough to cause one — so a value the user had just set was discarded with nothing logged and no error. The pending value is now held separately and flushed on removal. No refresh is requested on that path: the entity is being torn down.
 
 ### Changed
 
@@ -224,7 +259,7 @@ Phase 1 of the August 2026 update plan — the test baseline. No source changes;
 
 - **The four zero-assertion tests are closed, with no allow-list.** Each asserted only that a call did not raise, which is satisfied equally by the code doing the wrong thing quietly:
   - `test_debounced_apply_error` now asserts the write was **aborted rather than half-applied** — the coordinator interval is untouched, options are not rewritten and no refresh is requested. The previous form passed even if the failure came after persisting a value the user never confirmed.
-  - `test_async_will_remove_from_hass_no_task` now asserts the task slot is still empty, which separates "there was nothing to cancel" from "something was created and cancelled".
+  - `test_async_will_remove_from_hass_no_task` now asserts the task slot is still empty, which separates "there was nothing to cancel" from "something was created and canceled".
   - Both `logout`-with-no-connection tests now assert the no-op is observable — nothing dispatched to a thread, connection and client left as they were.
 
   `tests/zero_assertion_allowlist.txt` is deliberately **not** created. Every one of the four was expressible as a checkable outcome, which is what the audit's own guidance asks you to try before allow-listing.
@@ -289,7 +324,7 @@ Phase 0 of the August 2026 update plan — the four confirmed defects that no si
 - **`ruff`Rules:** Updated `ruff`rules, via shared CI to match latest HA exclusions and inclusions.
 - **Shared Sync Do Not Edit**: Added comments to several of the shared sync files to clarify they were shared and not to be edited locally.
 - **AGENTS No git:** Updated `AGENTS.md` to clarify strict restrictive rules around write git use.
-- **US UK Spelling**: Updated spelling to US standard (z vs s, color vs colour etc), to match HA standard.
+- **US UK Spelling**: Updated spelling to US standard (z vs s, color vs color etc), to match HA standard.
 - **Tools not Dev Tools**: Changed References to "Developer Tools" to "Tools" to align with HA 2026.8+
 - **`changelog_local` ToC**: Added Table of Contents to `changelog_local` (top-of-file) and to end of `CHANGELOG`.
 - **Documentation**: the README's example automations now ignore `unknown` and `unavailable` states, to avoid false alerts from a HA restart or router reboot.

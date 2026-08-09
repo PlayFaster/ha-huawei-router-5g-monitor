@@ -6,17 +6,17 @@ This document provides a comprehensive list of all 121 entities currently implem
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 23 | Core router info, WAN configuration, and global integration settings. |
+| **System** | 24 | Core router info, WAN configuration, and global integration settings. |
 | **Signal** | 52 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
 | **WiFi** | 6 | Wireless radio status, capacity, and guest network controls. |
 | **Clients** | 6 | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **121** |  |
+| **Total** | **122** |  |
 
 ---
 
-## 1. System Sub-Device (23 Entities)
+## 1. System Sub-Device (24 Entities)
 
 _Group: `system`_
 
@@ -38,7 +38,8 @@ _Group: `system`_
 | Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic |  |
 | Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic |  |
 | Secondary IPv6 DNS Server | `secondary_ipv6_dns` | Sensor | - | Diagnostic |  |
-| Refresh Now | `refresh` | Button | - | Config | Forces an immediate poll cycle. Complements Pause Polling and the polling interval. |
+| Integration Health | `integration_health` | Binary Sensor | — | Diagnostic | `dev_standards` Section 19. ON when the integration has a problem to report. **Never `unavailable`** — it stays up to explain why everything else went down. Attributes: `severity`, `issues`, `degraded_capabilities`, `drift`, `last_good_update` (all unrecorded). |
+| Refresh Now | `refresh` | Button | - | Config | Forces an immediate poll cycle. **Fetches even while Pause Polling is on** — explicit actions always fetch. |
 | Reboot | `reboot` | Button | - | - |  |
 | Polling Interval | `polling_interval` | Number | s | Config | Range: 30s - 3600s. Persists in options. |
 | Pause Polling | `pause_polling` | Switch | - | Config | State persists in `ConfigEntry.options`. |
@@ -59,7 +60,7 @@ _Group: `signal`_
 | Operator | `operator` | Sensor | - | Diagnostic | Network provider name. |
 | Operator Code | `plmn` | Sensor | - | Diagnostic | Numeric PLMN code. |
 | Operator Search Mode | `operator_search_mode` | Sensor | - | Diagnostic |  |
-| LTE RSRP | `rsrp` | Sensor | dBm | - | Range: -140 to -44. |
+| LTE RSRP | `rsrp` | Sensor | dBm | - | Guard band -150 to -30. |
 | LTE RSRQ | `rsrq` | Sensor | dB | - | Range: -50 to 0. |
 | LTE RSSI | `rssi` | Sensor | dBm | - | Range: -120 to -25. |
 | LTE SINR | `sinr` | Sensor | dB | - | Range: -30 to 40. |

@@ -34,7 +34,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Minimum drop in a router uptime counter (seconds) treated as a genuine reset.
 # A real reboot/reconnect resets the counter to ~0, so this margin only rejects
-# small downward blips from counter quantisation or stale cached readings.
+# small downward blips from counter quantization or stale cached readings.
 UPTIME_REBOOT_MARGIN = 30
 
 

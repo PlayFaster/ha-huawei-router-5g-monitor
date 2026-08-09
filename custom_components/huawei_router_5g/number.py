@@ -148,7 +148,7 @@ class HuaweiPollingInterval(
             await self.coordinator.async_force_refresh()
 
         except asyncio.CancelledError:
-            # Task was cancelled because the user moved the slider again
+            # Task was canceled because the user moved the slider again
             pass
         except Exception:
             _LOGGER.exception("Failed to apply polling interval change")
@@ -156,7 +156,7 @@ class HuaweiPollingInterval(
     async def async_will_remove_from_hass(self) -> None:
         """Flush a pending debounced write, then cancel the task.
 
-        Cancelling without writing loses the value. The window is only two
+        Canceling without writing loses the value. The window is only two
         seconds, but a reload is exactly what lands inside it: an options
         change reloads the entry, so a user who moves the slider and
         immediately changes a setting watches the interval snap back with no

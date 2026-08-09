@@ -552,8 +552,12 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 - **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Switch to halt polling to allow exclusive access to the router web UI.
 - **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
-- **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch).
+- **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch). **This works even while Pause Polling is on** — an explicit action always fetches, while scheduled polls stay paused.
 - **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
+
+> [!NOTE]
+>
+> If the router refuses a control change — mobile data, guest WiFi or network mode — Home Assistant now reports an **error** on the action. Previously the change appeared to succeed and then silently reverted on the next poll, leaving nothing but a log line to explain it.
 
 #### 🛜 WiFi & Client Settings (WiFi Device)
 
@@ -601,6 +605,44 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 - Use the **Pause Polling** switch in Home Assistant to halt polling and free up the session.
 - Resume polling when you are done with the web UI.
 
+### 🩺 Is the integration itself healthy?
+
+The **Integration Health** sensor (`binary_sensor.huawei_5g_system_integration_health`, on the System device) answers the question the other entities cannot: whether the integration is working, as distinct from whether the router is up.
+
+It exists because the router can answer a poll _successfully_ while a whole capability is missing — SMS, WiFi clients, monthly usage — in which case the affected sensors just go blank with no explanation anywhere. It reports:
+
+| Attribute | What it tells you |
+| :-- | :-- |
+| `severity` | `null` when healthy, otherwise `warning` or `error` |
+| `issues` | Plain-language descriptions of what is wrong; empty when healthy |
+| `degraded_capabilities` | Which parts of the router stopped answering, by name |
+| `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
+| `last_good_update` | When the last fully successful poll completed |
+
+Two things worth knowing:
+
+- **It is never `unavailable`.** Every other entity correctly goes unavailable when the router is unreachable; this one stays on to explain why.
+- **A single failed poll does not turn it on.** A problem must persist for three consecutive polls — except on a cold start, where there are no held values and it flags immediately.
+
+```yaml
+automation:
+  - alias: "Huawei router integration problem"
+    triggers:
+      - trigger: state
+        entity_id: binary_sensor.huawei_5g_system_integration_health
+        to: "on"
+        not_from:
+          - unknown
+          - unavailable
+        for: "00:05:00"
+    actions:
+      - action: notify.persistent_notification
+        data:
+          title: "Huawei router integration needs attention"
+          message: >-
+            {{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'issues') | join('; ') }}
+```
+
 ### 📊 Diagnostics & Entity Values
 
 #### ❔ **Some sensors showing "Unknown"**
@@ -625,6 +667,7 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 - **Firmware Dependencies**: API feature availability varies by ISP and firmware builds.
 - **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
 - **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
+- **Device tracking creates an entity per network client.** Each carries that device's MAC address, hostname and IP. That is what makes presence detection work, but it does mean the integration holds an inventory of everything on your network — including guests' phones. Two things follow: the per-client attributes are **excluded from long-term history** (they are current state only), and a **diagnostics download replaces every MAC, hostname, IP and SSID with a stable placeholder** before you see it. If you would rather not track clients at all, disable the `device_tracker` entities in Home Assistant; the rest of the integration is unaffected.
 
 ## ❌ Removal
 

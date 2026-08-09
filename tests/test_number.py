@@ -224,7 +224,7 @@ async def test_async_will_remove_from_hass_no_task(mock_coordinator, mock_config
 
     The previous form asserted only that it did not raise, which cannot tell
     "there was no task to cancel" apart from "a task was created and
-    cancelled". Assert the slot is still empty.
+    canceled". Assert the slot is still empty.
     """
     entity = HuaweiPollingInterval(
         mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180
@@ -244,11 +244,11 @@ async def test_removal_flushes_a_pending_debounced_write(
     """A value set inside the debounce window must be persisted on removal.
 
     The debounce is two seconds and a reload lands squarely inside it — an
-    options change is enough to trigger one. Cancelling the task without
+    options change is enough to trigger one. Canceling the task without
     writing discarded the value silently: the slider snapped back with nothing
     logged and no error.
 
-    The distinction is *flushed vs. cancelled*, so this asserts the options
+    The distinction is *flushed vs. canceled*, so this asserts the options
     write actually happened with the new value, not merely that removal did
     not raise.
     """
