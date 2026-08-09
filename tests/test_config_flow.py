@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import voluptuous as vol
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
@@ -14,7 +15,9 @@ from custom_components.huawei_router_5g.config_flow import (
     HuaweiRouter5GConfigFlow,
     HuaweiRouter5GOptionsFlow,
     _clean_host,
+    _edit_schema,
     _merge_credentials,
+    _user_schema,
     _validate_credentials,
 )
 
@@ -894,3 +897,82 @@ async def test_options_flow_leaves_the_title_alone_when_the_name_is_unchanged():
 
     flow.hass.config_entries.async_update_entry.assert_not_called()
     assert result["type"] == FlowResultType.CREATE_ENTRY
+
+
+# --------------------------------------------------------------------------
+# Section 9 — stored secrets are never pre-filled into a schema
+# --------------------------------------------------------------------------
+#
+# Ported from `zte_router_5g`, which wrote this as the reference implementation
+# for the other projects and mutation-proved it against three regressions.
+#
+# There is **no defect here today** — this component has zero `suggested_value`
+# uses — so this is a guard, not a fix. It is worth having because the failure
+# is silent: the screen looks correct, and the stored password is exposed only
+# when someone clicks the eye icon to reveal the field. `dev_standards` records
+# two projects having shipped exactly that.
+
+# Distinctive enough that finding it anywhere in a rendered schema is
+# unambiguous evidence the stored password leaked into the form.
+_STORED_SECRET = "s3cr3t-stored-password-do-not-render"
+
+_SECRET_KEYS = {CONF_PASSWORD}
+
+_STORED_ENTRY = {
+    "name": "Huawei 5G",
+    CONF_HOST: "http://192.168.8.1",
+    CONF_USERNAME: "admin",
+    CONF_PASSWORD: _STORED_SECRET,
+}
+
+
+def _markers(schema):
+    return list(schema.schema)
+
+
+def _resolved_default(marker):
+    """Return a voluptuous marker's default, or None if it has none.
+
+    Defaults are wrapped in a callable factory, so `marker.default` is not the
+    value — calling it is what reveals what the form would actually show.
+    """
+    default = getattr(marker, "default", vol.UNDEFINED)
+    if default is vol.UNDEFINED:
+        return None
+    return default() if callable(default) else default
+
+
+@pytest.mark.parametrize("build", [_user_schema, _edit_schema])
+def test_stored_secrets_are_never_pre_filled(build) -> None:
+    """A stored password must not be rendered back into a form.
+
+    Both schemas are checked: `_user_schema` takes defaults too, so a future
+    change that starts seeding it from a stored entry is caught here as well.
+    """
+    schema = build(_STORED_ENTRY)
+
+    for marker in _markers(schema):
+        if marker.schema not in _SECRET_KEYS:
+            continue
+        assert _resolved_default(marker) in (None, ""), (
+            f"{marker.schema} is pre-filled with the stored value"
+        )
+        description = getattr(marker, "description", None) or {}
+        assert "suggested_value" not in description, (
+            f"{marker.schema} carries the stored value as suggested_value"
+        )
+
+
+@pytest.mark.parametrize("build", [_user_schema, _edit_schema])
+def test_no_field_leaks_the_stored_secret(build) -> None:
+    """Belt and braces: the secret must not appear in *any* field.
+
+    The per-field check above only inspects keys already known to be secret.
+    This catches the other shape — a stored password copied into some
+    non-secret field's default, where the eye icon is not even needed.
+    """
+    schema = build(_STORED_ENTRY)
+    rendered = repr(schema.schema) + "".join(
+        repr(_resolved_default(m)) for m in _markers(schema)
+    )
+    assert _STORED_SECRET not in rendered

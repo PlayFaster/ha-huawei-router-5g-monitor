@@ -40,6 +40,9 @@ from .helpers import (
 
 _LOGGER = logging.getLogger(__name__)
 
+# Section 22. `0` (unlimited) — this platform is read-only. Entities are
+# coordinator-driven with no per-entity polling, so there is nothing to
+# serialize.
 PARALLEL_UPDATES = 0
 
 

@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.1.3-dev13\] - 2026-08-09 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards](#113-dev13---2026-08-09---action-icons-icon-and-parallel_updates-sweeps-secret-pre-fill-guards)
   - [\[1.1.3-dev12\] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten](#113-dev12---2026-08-09---silent-write-failures-orphaned-repairs-lost-debounced-writes-diagnostics-rewritten)
   - [\[1.1.3-dev11\] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed](#113-dev11---2026-08-09---zero-partial-branches-zero-assertion-tests-closed)
   - [\[1.1.3-dev10\] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused](#113-dev10---2026-08-09---four-statistics-corrupting-counters-via_device-deprecation-recorder-hygiene-refresh-while-paused)
@@ -87,6 +88,36 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.1.3-dev13] - 2026-08-09 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards
+
+Phase 2 (second part) of the August 2026 update plan — the cheap ports and the decisions that need recording.
+
+### Added
+
+- **Action icons — the integration had no `services` block at all** while registering four actions. Action icons appear in the automation and script editors and in the Tools → Actions picker, so every one of this integration's actions showed the generic default while a sibling's carried theirs. Nothing was broken, which is why it went unnoticed. Added in the **nested** form (`{"service": "mdi:…"}`) that Home Assistant's current documentation shows — the flat form still renders but has nowhere to put per-`section` icons, and UniFi is the only project left on it.
+
+- **A missing icon on the Refresh Now button, found by the new sweep.** `button.refresh` had neither an icon nor a `device_class`, so it rendered with the generic default; ZTE's equivalent has carried `mdi:refresh` all along. This is exactly what a coverage sweep is for — one offender out of 50-odd descriptions, invisible to review.
+
+- **Icon coverage is now swept in both directions.** The only prior icon tests were two single-entity behavior tests for one sensor. Added:
+  - every registered action has an icon, read from **`services.yaml`** rather than from a list in the test or from `icons.json` itself;
+  - no icon entry names an action that is not registered, so a dead entry cannot accumulate invisibly;
+  - action icons use the nested form;
+  - every entity description has an icon or a `device_class`, read from **module source** across all seven platforms — two hand-maintained files can agree perfectly and both describe an entity that no longer exists.
+
+- **`PARALLEL_UPDATES` decided per write path, and pinned.** The rule is that the constant is set deliberately, and that is not something a reader can verify: `0` from a considered decision and `0` from a copy-paste look identical. The decision is now a table in `tests/test_entity_hygiene.py` with its reasoning, and a second test fails if a new platform appears that the table does not cover.
+
+  | Platform | Value | Why |
+  | :-- | --: | :-- |
+  | `button`, `switch`, `select` | **1** | Issue commands with a real-world effect. `api.py` already serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the actual safety mechanism and `1` states the same intent at the platform boundary. |
+  | `number` | **0** | **Deliberately unlike `zte_router_5g`**, which sets `1` on every writable platform. The only number entity writes to `ConfigEntry.options`, which Home Assistant owns — no session to tear down, no command to duplicate. |
+  | `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only and coordinator-driven; nothing to serialize. |
+
+- **Secret pre-fill guards, ported from `zte_router_5g`.** `test_stored_secrets_are_never_pre_filled` and `test_no_field_leaks_the_stored_secret`, both parametrized over the user and edit schemas. **There is no defect here today** — the component has zero `suggested_value` uses — so these are a guard rather than a fix. They are worth having because the failure is silent: the screen looks correct and the stored password is exposed only when someone clicks the eye icon.
+
+### Verification
+
+**497 tests passing** (was 487), 100% line and branch coverage, 0 partials, mypy standard and strict clean, `ruff` clean, `icons.json` and `manifest.json` schema-valid.
 
 ## [1.1.3-dev12] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten
 

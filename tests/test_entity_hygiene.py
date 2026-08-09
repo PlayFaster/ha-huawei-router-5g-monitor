@@ -172,3 +172,227 @@ def test_unrecorded_attribute_sweep_is_not_vacuous() -> None:
         f"discovery found only {len(found)} entity classes publishing "
         "attributes — it has stopped seeing the component"
     )
+
+
+# ---------------------------------------------------------------------------
+# Section 12 — icon coverage, in both directions
+# ---------------------------------------------------------------------------
+
+
+def _load_json(name: str) -> dict:
+    """Load a JSON file from the component directory."""
+    import json
+    import pathlib
+
+    import custom_components.huawei_router_5g as component
+
+    path = pathlib.Path(component.__path__[0]) / name
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+def _registered_action_names() -> set[str]:
+    """Read the registered actions from `services.yaml`, the source of truth.
+
+    Not from a list in this file, and not from `icons.json` — reading the
+    thing under test to build the expectation is how a bidirectional check
+    becomes vacuous.
+    """
+    import pathlib
+
+    import yaml
+
+    import custom_components.huawei_router_5g as component
+
+    path = pathlib.Path(component.__path__[0]) / "services.yaml"
+    return set(yaml.safe_load(path.read_text(encoding="utf-8")) or {})
+
+
+def test_every_registered_action_has_an_icon() -> None:
+    """Section 12: `icons.json` must cover every action this integration registers.
+
+    Action icons appear in the automation and script editors and in the
+    Tools → Actions picker. An integration with no `services` block shows every
+    one of its actions with the generic default while a sibling's carry theirs
+    — which is how this went unnoticed: nothing is broken, it just looks
+    unfinished next to the other three projects.
+
+    This component had **no `services` block at all** while registering four
+    actions.
+    """
+    icons = _load_json("icons.json").get("services", {})
+    missing = sorted(_registered_action_names() - set(icons))
+
+    assert not missing, "registered actions with no icon in icons.json: " + ", ".join(
+        missing
+    )
+
+
+def test_no_icon_entry_names_an_action_that_does_not_exist() -> None:
+    """The other direction: an icon must not outlive its action.
+
+    A dead entry is invisible — it renders nothing and breaks nothing — so it
+    accumulates. Checking only one direction is what let the family ship a
+    hand-maintained `icons.json` that agreed with itself.
+    """
+    icons = _load_json("icons.json").get("services", {})
+    dead = sorted(set(icons) - _registered_action_names())
+
+    assert not dead, "icons.json names actions that are not registered: " + ", ".join(
+        dead
+    )
+
+
+def test_action_icons_use_the_current_nested_form() -> None:
+    """Home Assistant's current docs show only the nested form.
+
+    The flat form (`"send_sms": "mdi:…"`) still renders, so this is
+    modernization rather than a defect — but only the nested object has
+    anywhere to put per-`section` icons, and a family split across two formats
+    is the divergence this check exists to prevent. UniFi is the project still
+    on the legacy shape.
+    """
+    icons = _load_json("icons.json").get("services", {})
+    assert icons, "no services block at all"
+
+    flat = sorted(name for name, value in icons.items() if not isinstance(value, dict))
+    assert not flat, (
+        "action icons declared in the legacy flat form — use "
+        '{"service": "mdi:…"}: ' + ", ".join(flat)
+    )
+    for name, value in icons.items():
+        assert value.get("service", "").startswith("mdi:"), (
+            f"{name} has no `service` icon"
+        )
+
+
+def test_every_entity_description_has_an_icon_or_a_device_class() -> None:
+    """Section 12: every entity must be identifiable in the UI.
+
+    Read from **module source** rather than by comparing `icons.json` against
+    `strings.json`: two hand-maintained files can agree perfectly and both
+    describe an entity that no longer exists. Descriptions here live in a mix
+    of one big tuple and module-level singletons, so both shapes are collected.
+
+    A `device_class` is an acceptable substitute — Home Assistant supplies the
+    icon from it, and adding a redundant one to `icons.json` would create an
+    entry with nothing keeping it honest.
+    """
+    import importlib
+    import inspect
+    import pkgutil
+
+    from homeassistant.helpers.entity import EntityDescription
+
+    import custom_components.huawei_router_5g as component
+
+    icons = _load_json("icons.json")["entity"]
+
+    missing: list[str] = []
+    checked = 0
+    for mod_info in pkgutil.iter_modules(component.__path__):
+        platform = mod_info.name
+        if platform not in icons:
+            continue
+        module = importlib.import_module(f"{component.__name__}.{platform}")
+
+        descriptions: list[EntityDescription] = []
+        for _, obj in inspect.getmembers(module):
+            if isinstance(obj, EntityDescription):
+                descriptions.append(obj)
+            elif isinstance(obj, tuple):
+                descriptions.extend(d for d in obj if isinstance(d, EntityDescription))
+
+        for desc in descriptions:
+            checked += 1
+            if getattr(desc, "device_class", None) is not None:
+                continue
+            if desc.key not in icons[platform]:
+                missing.append(f"{platform}.{desc.key}")
+
+    assert not missing, (
+        "entities with neither an icon nor a device_class:\n"
+        + "\n".join(sorted(set(missing)))
+    )
+    # Guard the guard: this sweep is worthless if it inspected nothing.
+    assert checked >= 50, (
+        f"sweep only inspected {checked} entity descriptions — discovery is stale"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Section 22 — PARALLEL_UPDATES is a decision, and it is recorded here
+# ---------------------------------------------------------------------------
+
+# The value follows **the write path**, not the platform's name.
+#
+# `1` where an entity service call issues a command with a real-world effect on
+# the router. `api.py` serializes every call behind an `asyncio.Lock` because
+# concurrent calls answer with "Busy" / `110001`; that lock is the actual
+# safety mechanism, and `1` states the same intent at the platform boundary.
+#
+# `0` (unlimited) on read-only platforms, which are coordinator-driven with
+# nothing to serialize — and on `number`, which is the interesting one:
+# `zte_router_5g` sets `1` on every writable platform, but Huawei's only number
+# entity writes to `ConfigEntry.options`, which Home Assistant owns. There is no
+# session to tear down and no command to duplicate, so `1` would buy nothing.
+EXPECTED_PARALLEL_UPDATES = {
+    "button": 1,  # reboot, clear traffic statistics — commands the router
+    "switch": 1,  # mobile data, guest WiFi — commands the router
+    "select": 1,  # network mode — commands the router
+    "number": 0,  # polling interval — writes ConfigEntry.options only
+    "sensor": 0,  # read-only
+    "binary_sensor": 0,  # read-only
+    "device_tracker": 0,  # read-only
+}
+
+
+def test_parallel_updates_matches_the_recorded_decision() -> None:
+    """Section 22: every platform declares `PARALLEL_UPDATES`, deliberately.
+
+    The rule is that the constant is set **on purpose**, which is not something
+    a reader of the source can verify — `0` from a considered decision and `0`
+    from a copy-paste look identical. Pinning the values here is what makes the
+    decision reviewable: changing one means changing this table, and changing
+    this table means reading the comment above it.
+    """
+    import importlib
+
+    import custom_components.huawei_router_5g as component
+
+    for platform, expected in EXPECTED_PARALLEL_UPDATES.items():
+        module = importlib.import_module(f"{component.__name__}.{platform}")
+        actual = getattr(module, "PARALLEL_UPDATES", None)
+        assert actual == expected, (
+            f"{platform}.PARALLEL_UPDATES is {actual}, expected {expected} — "
+            "if this is intended, update EXPECTED_PARALLEL_UPDATES and its "
+            "reasoning rather than only the module"
+        )
+
+
+def test_every_entity_platform_is_covered_by_the_decision() -> None:
+    """A new platform must not slip in without a `PARALLEL_UPDATES` decision.
+
+    Checking only the platforms already listed would let platform number eight
+    ship with whatever it happened to be given.
+    """
+    import importlib
+    import pkgutil
+
+    from homeassistant.const import Platform
+
+    import custom_components.huawei_router_5g as component
+
+    known = {p.value for p in Platform}
+    platforms = {
+        m.name for m in pkgutil.iter_modules(component.__path__) if m.name in known
+    }
+
+    assert platforms == set(EXPECTED_PARALLEL_UPDATES), (
+        "platform modules and the recorded decision disagree: "
+        f"{platforms ^ set(EXPECTED_PARALLEL_UPDATES)}"
+    )
+    for platform in platforms:
+        module = importlib.import_module(f"{component.__name__}.{platform}")
+        assert hasattr(module, "PARALLEL_UPDATES"), (
+            f"{platform} does not declare PARALLEL_UPDATES at all"
+        )

@@ -407,6 +407,9 @@
       }
     },
     "button": {
+      "refresh": {
+        "default": "mdi:refresh"
+      },
       "reboot": {
         "default": "mdi:restart"
       },
@@ -423,6 +426,20 @@
       "network_mode": {
         "default": "mdi:settings-transfer"
       }
+    }
+  },
+  "services": {
+    "send_sms": {
+      "service": "mdi:message-arrow-right"
+    },
+    "delete_sms": {
+      "service": "mdi:message-minus"
+    },
+    "delete_all_sms": {
+      "service": "mdi:email-remove"
+    },
+    "get_sms_list": {
+      "service": "mdi:message-text"
     }
   }
 }

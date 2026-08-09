@@ -17,6 +17,9 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info, is_ssid_on, parse_signal_value
 
+# Section 22. `0` (unlimited) — this platform is read-only. Entities are
+# coordinator-driven with no per-entity polling, so there is nothing to
+# serialize.
 PARALLEL_UPDATES = 0
 
 

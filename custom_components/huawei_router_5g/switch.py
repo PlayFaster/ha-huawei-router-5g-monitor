@@ -19,7 +19,18 @@ from .helpers import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
-PARALLEL_UPDATES = 0
+# Section 22. `1`, not `0`.
+#
+# `0` means *unlimited*. This platform issues commands with a real-world effect
+# on the router, and `api.py` serializes every call behind an `asyncio.Lock`
+# precisely because concurrent calls answer with "Busy" / `110001`. That lock is
+# the actual safety mechanism; `PARALLEL_UPDATES = 1` states the same intent at
+# the platform boundary and stops N concurrent service calls each occupying a
+# Home Assistant task while they queue on it.
+#
+# Decided per write path rather than copied from `zte_router_5g` — see
+# `number.py`, which reaches the opposite answer for the opposite reason.
+PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)

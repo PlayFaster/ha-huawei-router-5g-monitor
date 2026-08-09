@@ -23,6 +23,14 @@ from .helpers import build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
+# Section 22. `0`, deliberately — and deliberately different from
+# `zte_router_5g`, which sets `1` on every writable platform.
+#
+# The only entity here is the polling interval, and it does **not** command the
+# router: it writes to `ConfigEntry.options`, which Home Assistant owns and
+# serializes itself. There is no session to tear down and no command to
+# duplicate, so `1` would buy nothing. The value follows the write path, not the
+# platform's name.
 PARALLEL_UPDATES = 0
 
 
