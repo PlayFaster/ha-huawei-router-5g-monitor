@@ -212,3 +212,93 @@ def test_guest_wifi_skips_non_guest_ssids_before_finding_the_guest_one(
     # stopped early would report False rather than True.
     assert switch.is_on is True
     assert switch.extra_state_attributes == {"ssid": "Home-Guest"}
+
+
+# ---------------------------------------------------------------------------
+# Write refusal — a write may never report success having done nothing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("turn_on", [True, False])
+async def test_mobile_data_write_failure_raises(
+    mock_coordinator, mock_config_entry, turn_on
+):
+    """A refused mobile-data write must surface, not log and return.
+
+    Previously the exception was caught and logged, so the service call
+    succeeded and the switch simply sprang back on the next poll. The
+    distinction being asserted is *the caller is told* — and that no refresh
+    was issued, because there is nothing new to read.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock(side_effect=Exception("Router refused"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    call = switch.async_turn_on if turn_on else switch.async_turn_off
+    with pytest.raises(HomeAssistantError, match="mobile data failed"):
+        await call()
+
+    mock_coordinator.async_force_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("turn_on", [True, False])
+async def test_guest_wifi_write_failure_raises(
+    mock_coordinator, mock_config_entry, turn_on
+):
+    """A refused guest-WiFi write must surface.
+
+    This one was masked twice: the exception was swallowed, and a `finally`
+    refresh then made the switch look as though it had merely been re-read.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_api = MagicMock()
+    mock_api.set_guest_wifi = AsyncMock(side_effect=Exception("Router refused"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    call = switch.async_turn_on if turn_on else switch.async_turn_off
+    with pytest.raises(HomeAssistantError, match="guest WiFi failed"):
+        await call()
+
+    mock_coordinator.async_force_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_a_successful_write_is_not_reported_as_failed_by_a_refresh_blip(
+    mock_coordinator, mock_config_entry
+):
+    """A blip while re-reading must not fail a write that already succeeded.
+
+    The post-write refresh sits **outside** the error boundary on purpose. If
+    it were inside, a transient read failure would report the write as failed
+    and invite the user to retry a command with a real-world effect.
+    """
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock()
+    mock_coordinator.api = mock_api
+    mock_coordinator.async_force_refresh = AsyncMock(
+        side_effect=Exception("transient read failure")
+    )
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    # The refresh failure propagates as itself — it is emphatically not
+    # relabelled as "Enable mobile data failed", which is the misreport.
+    with pytest.raises(Exception, match="transient read failure"):
+        await switch.async_turn_on()
+
+    mock_api.set_mobile_data.assert_awaited_once_with(True)

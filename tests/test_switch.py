@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.huawei_router_5g.const import CONF_STOP_POLLING, DOMAIN
 from custom_components.huawei_router_5g.switch import (
@@ -173,7 +174,8 @@ async def test_mobile_data_turn_on_error(mock_coordinator, mock_config_entry):
     )
     switch.hass = MagicMock()
 
-    await switch.async_turn_on()  # should not raise
+    with pytest.raises(HomeAssistantError, match="Enable mobile data failed"):
+        await switch.async_turn_on()
     mock_coordinator.async_force_refresh.assert_not_called()
 
 
@@ -188,7 +190,8 @@ async def test_mobile_data_turn_off_error(mock_coordinator, mock_config_entry):
     )
     switch.hass = MagicMock()
 
-    await switch.async_turn_off()  # should not raise
+    with pytest.raises(HomeAssistantError, match="Disable mobile data failed"):
+        await switch.async_turn_off()
     mock_coordinator.async_force_refresh.assert_not_called()
 
 
@@ -276,7 +279,7 @@ async def test_guest_wifi_turn_off(mock_coordinator, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_guest_wifi_turn_on_error(mock_coordinator, mock_config_entry):
-    """Test that API error during turn_on is handled gracefully."""
+    """A refused guest-WiFi enable is raised, and no refresh is issued."""
     mock_api = MagicMock()
     mock_api.set_guest_wifi = AsyncMock(side_effect=Exception("Set fail"))
     mock_coordinator.api = mock_api
@@ -285,13 +288,16 @@ async def test_guest_wifi_turn_on_error(mock_coordinator, mock_config_entry):
     )
     switch.hass = MagicMock()
 
-    await switch.async_turn_on()  # should not raise
-    mock_coordinator.async_force_refresh.assert_called_once()
+    with pytest.raises(HomeAssistantError, match="Enable guest WiFi failed"):
+        await switch.async_turn_on()
+    # Previously a `finally` refreshed here, which made a failed write look
+    # like a successful one that had merely been re-read.
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_guest_wifi_turn_off_error(mock_coordinator, mock_config_entry):
-    """Test that API error during turn_off is handled gracefully."""
+    """A refused guest-WiFi disable is raised, and no refresh is issued."""
     mock_api = MagicMock()
     mock_api.set_guest_wifi = AsyncMock(side_effect=Exception("Set fail"))
     mock_coordinator.api = mock_api
@@ -300,8 +306,9 @@ async def test_guest_wifi_turn_off_error(mock_coordinator, mock_config_entry):
     )
     switch.hass = MagicMock()
 
-    await switch.async_turn_off()  # should not raise
-    mock_coordinator.async_force_refresh.assert_called_once()
+    with pytest.raises(HomeAssistantError, match="Disable guest WiFi failed"):
+        await switch.async_turn_off()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 def test_guest_wifi_extra_attributes(mock_coordinator, mock_config_entry):

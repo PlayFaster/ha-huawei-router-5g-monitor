@@ -8,6 +8,7 @@ from homeassistant.components.switch import SwitchEntity, SwitchEntityDescriptio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -156,19 +157,32 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable mobile data."""
-        try:
-            await self.coordinator.api.set_mobile_data(True)
-            await self.coordinator.async_force_refresh()
-        except Exception:
-            _LOGGER.exception("%s: Enable mobile data failed", self._entry.title)
+        await self._async_set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable mobile data."""
+        await self._async_set(False)
+
+    async def _async_set(self, enable: bool) -> None:
+        """Write the mobile-data state, raising if the router refused.
+
+        A write path may never return a success-shaped result having done
+        nothing. This previously logged the exception and returned, so a failed
+        toggle looked identical to a successful one: the service call
+        succeeded, the switch sprang back on the next poll, and the only
+        evidence was a log line. `button.py` already had this right.
+        """
+        action = "Enable" if enable else "Disable"
         try:
-            await self.coordinator.api.set_mobile_data(False)
-            await self.coordinator.async_force_refresh()
-        except Exception:
-            _LOGGER.exception("%s: Disable mobile data failed", self._entry.title)
+            await self.coordinator.api.set_mobile_data(enable)
+        except Exception as err:
+            _LOGGER.exception("%s: %s mobile data failed", self._entry.title, action)
+            raise HomeAssistantError(f"{action} mobile data failed: {err}") from err
+
+        # Outside the error boundary on purpose. The write has already
+        # succeeded; a blip while re-reading must not report the write as
+        # failed and invite a retry of a command with a real-world effect.
+        await self.coordinator.async_force_refresh()
 
 
 class HuaweiGuestWifiSwitch(HuaweiSwitch):
@@ -197,21 +211,28 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable guest WiFi."""
-        try:
-            await self.coordinator.api.set_guest_wifi(True)
-        except Exception:
-            _LOGGER.exception("%s: Enable guest WiFi failed", self._entry.title)
-        finally:
-            await self.coordinator.async_force_refresh()
+        await self._async_set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable guest WiFi."""
+        await self._async_set(False)
+
+    async def _async_set(self, enable: bool) -> None:
+        """Write the guest-WiFi state, raising if the router refused.
+
+        The previous form logged the failure and then refreshed in a `finally`,
+        which masked it twice over: the service call reported success, and the
+        refresh made the switch look as though it had simply been re-read.
+        """
+        action = "Enable" if enable else "Disable"
         try:
-            await self.coordinator.api.set_guest_wifi(False)
-        except Exception:
-            _LOGGER.exception("%s: Disable guest WiFi failed", self._entry.title)
-        finally:
-            await self.coordinator.async_force_refresh()
+            await self.coordinator.api.set_guest_wifi(enable)
+        except Exception as err:
+            _LOGGER.exception("%s: %s guest WiFi failed", self._entry.title, action)
+            raise HomeAssistantError(f"{action} guest WiFi failed: {err}") from err
+
+        # Outside the error boundary — see HuaweiMobileDataSwitch._async_set.
+        await self.coordinator.async_force_refresh()
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

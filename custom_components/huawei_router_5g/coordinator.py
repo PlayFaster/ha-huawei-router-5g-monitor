@@ -18,7 +18,11 @@ from .const import (
     CONF_SCAN_INTERVAL,
     CONF_STOP_POLLING,
     DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
     FETCH_TIMEOUT,
+    REPAIR_AUTH_FAILED,
+    REPAIR_CONN_ERROR,
+    REPAIR_NAMES,
 )
 from .helpers import get_router_model, parse_sms_list
 
@@ -95,6 +99,21 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=scan_interval),
         )
 
+    def clear_repairs(self) -> None:
+        """Delete every repair issue this entry may have raised.
+
+        Called on unload and on removal. After removal there is no coordinator
+        left that could ever clear one, so a repair raised at deletion time
+        would sit in the Repairs panel permanently — `auth_failed` is
+        `is_fixable=True` and would offer a flow for an integration that no
+        longer exists.
+
+        `ir.async_delete_issue` is a no-op for an issue that was never created,
+        so this is unconditional rather than tracked.
+        """
+        for name in REPAIR_NAMES:
+            ir.async_delete_issue(self.hass, DOMAIN, f"{name}_{self.entry.entry_id}")
+
     async def async_force_refresh(self) -> None:
         """Force an immediate fetch, even while polling is paused.
 
@@ -165,8 +184,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             if isinstance(err, HuaweiAuthError):
                 ir.async_create_issue(
                     self.hass,
-                    "huawei_router_5g",
-                    f"auth_failed_{self.entry.entry_id}",
+                    DOMAIN,
+                    f"{REPAIR_AUTH_FAILED}_{self.entry.entry_id}",
                     is_fixable=True,
                     is_persistent=True,
                     severity=ir.IssueSeverity.ERROR,
@@ -180,8 +199,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.exception("%s: %s", self.entry.title, error_msg)
             ir.async_create_issue(
                 self.hass,
-                "huawei_router_5g",
-                f"conn_error_{self.entry.entry_id}",
+                DOMAIN,
+                f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
                 is_fixable=False,
                 is_persistent=False,
                 severity=ir.IssueSeverity.WARNING,
@@ -256,8 +275,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             )
             ir.async_delete_issue(
                 self.hass,
-                "huawei_router_5g",
-                f"conn_error_{self.entry.entry_id}",
+                DOMAIN,
+                f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
             )
 
         self.last_update_success_time = dt_util.now()

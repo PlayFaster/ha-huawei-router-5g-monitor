@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.1.3-dev12\] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten](#113-dev12---2026-08-09---silent-write-failures-orphaned-repairs-lost-debounced-writes-diagnostics-rewritten)
   - [\[1.1.3-dev11\] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed](#113-dev11---2026-08-09---zero-partial-branches-zero-assertion-tests-closed)
   - [\[1.1.3-dev10\] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused](#113-dev10---2026-08-09---four-statistics-corrupting-counters-via_device-deprecation-recorder-hygiene-refresh-while-paused)
   - [\[1.1.3-dev9\] - 2026-08-08 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#113-dev9---2026-08-08---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
@@ -86,6 +87,44 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.1.3-dev12] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten
+
+Phase 2 (first part) of the August 2026 update plan — the standards defects that are not in the "confirmed four", plus the privacy rewrite. Tracked in `.notes/info/updates_202608/status_plan.md`.
+
+### Fixed
+
+- **Three write paths reported success having done nothing.** `HuaweiMobileDataSwitch.async_turn_on` / `async_turn_off`, `HuaweiGuestWifiSwitch` and `HuaweiRouterSelect.async_select_option` each caught `Exception`, logged it, and returned normally — so a refused write succeeded as far as Home Assistant was concerned, the control sprang back on the next poll, and the user's only evidence was a log line they had no reason to read. All three now raise `HomeAssistantError`, matching `button.py`, which already had this right.
+
+  The guest-WiFi case was masked twice: the swallowed exception was followed by a refresh in a `finally`, which made a failed write look like a successful one that had merely been re-read.
+
+  **This is a deliberate user-visible change.** A failed toggle now surfaces an error in the UI instead of silently reverting. That is the point.
+
+  The post-write refresh now sits **outside** the error boundary in all three. Inside it, a transient failure while re-reading would report a write that had already succeeded as failed — inviting the user to retry a command with a real-world effect.
+
+- **Repair issues outlived the entry that raised them.** `async_unload_entry` made no issue-registry call and there was **no `async_remove_entry` at all**. Deleting the integration with `auth_failed` raised left it in the Repairs panel permanently — `is_fixable=True`, offering a repair flow for an integration that no longer existed, with no coordinator left that could ever clear it. Added `clear_repairs()` on the coordinator, called on unload, and an `async_remove_entry` that clears them without going through `runtime_data` (which is gone by then).
+
+  The two repair ids were **already entry-scoped**, so §3.8a of `x_proj_checks` does not apply here. The ids and their names are now named constants in `const.py` with the standing warning that renaming one orphans a live repair permanently.
+
+- **A pending debounced polling-interval write was cancelled rather than flushed.** `async_will_remove_from_hass` cancelled the task without writing. The debounce is two seconds and a reload lands squarely inside it — an options change is enough to cause one — so a value the user had just set was discarded with nothing logged and no error. The pending value is now held separately and flushed on removal. No refresh is requested on that path: the entity is being torn down.
+
+### Changed
+
+- **`diagnostics.py` rewritten: 44 lines of key-name redaction → a layered scrubber.** The old module was a `TO_REDACT` set of twenty key names handed to `async_redact_data`, with the whole of `coordinator.data` poured through it. `async_redact_data` matches **by key name and does not recurse**, so everything below the top level was published verbatim — including `lan_host_info → Hosts → Host → […]`, the list carrying the **MAC address, hostname and IP of every device on the user's network**, and the SMS list carrying message bodies and sender numbers.
+
+  This integration is more exposed than any sibling on exactly these two points: it is the only one in the family with a `device_tracker` platform, and one of two with SMS. The precedent for the failure is exact — `unifi_network_monitor` held `diagnostics: done` across two full IQS scans while leaking device MACs, user-assigned device names, internal IPs, the subscriber's ISP and third-party SSIDs.
+
+  The replacement is layered and **recursive**: credentials and subscriber identifiers are blanked; IPs, MACs, hostnames, SSIDs and cell ids become stable tokens (`ip-1`, `mac-1`) so cross-references survive; SMS bodies are reduced to a length; and every remaining string is swept for anything address-shaped, as a structural backstop for keys the module does not enumerate — which is every key a future firmware invents. Everything diagnostically useful is preserved: model, firmware, hardware version, all signal metrics, band and channel, byte counters, uptime, connection status and failure counts.
+
+  **Two false positives were caught by test, and are worth recording.** A first-draft sweep rewrote the firmware version `11.0.1.1(H192SP1C983)` as `ip-1(H192SP1C983)` — a four-part version parses as an IPv4 address — and the SMS timestamp `2026-08-09 10:00:00` as `2026-08-09 ip6-1`, because `10:00:00` reads as three hex groups. The rules were narrowed (octet bounds, and IPv6 now requires a `::` elision or the full eight-group form) and the genuinely ambiguous keys are named in `NEVER_SWEPT_KEYS`. An invented pattern that "usually" tells a version from an address would corrupt some other router's version string instead.
+
+- **The diagnostics tests now assert the output rather than the mechanism.** The previous suite mocked `async_redact_data` and asserted it had been _called_ with the right arguments — which is equally true of an implementation that redacts nothing useful, and is the exact shape that produced two false clean verdicts on UniFi. The replacement asserts the negative property structurally: fifteen distinctive identifiers, each checked against the **serialized** document so nested lists and dicts are covered, parametrized so a failure names the value that leaked.
+
+### Verification
+
+**487 tests passing** (was 453), **100% line and 100% branch coverage, 0 partials**, mypy standard and strict clean, `ruff` lint and format clean.
+
+**Not yet verified against a real download.** The scrubber is unit-tested against a realistic payload, but confirming it against a regenerated diagnostics file **with real router data in it** needs a live instance and is parked — see §P-2 of `status_plan.md`. Reading the code is what produced UniFi's two false clean verdicts, so this is deliberately **not** claimed as closed.
 
 ## [1.1.3-dev11] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed
 

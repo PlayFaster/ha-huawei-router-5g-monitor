@@ -10,12 +10,13 @@ from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from ._compat import via_device_link
 from .api import HuaweiRouter5GAPI
-from .const import DOMAIN
+from .const import DOMAIN, REPAIR_NAMES
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import parse_sms_list
 
@@ -288,6 +289,27 @@ async def async_unload_entry(
     with contextlib.suppress(Exception):
         await coordinator.api.logout()
 
+    # A repair raised by this entry must not outlive it. Cleared here as well
+    # as in async_remove_entry because a disabled or reloaded entry leaves the
+    # repair pointing at an integration that is not running.
+    coordinator.clear_repairs()
+
     unload_ok = await hass.config_entries.async_unload_platforms(entry, PLATFORMS)
 
     return bool(unload_ok)
+
+
+async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
+    """Clean up after the integration is deleted.
+
+    Home Assistant calls this after `async_unload_entry`, when the entry is
+    being removed for good. Without it, a repair raised at deletion time stays
+    in the Repairs panel permanently — there is no coordinator left that could
+    ever clear it, and `auth_failed` is `is_fixable=True`, so it would offer a
+    repair flow for an integration that no longer exists.
+
+    Deliberately does not go through `runtime_data`: it has already been torn
+    down by the time this runs.
+    """
+    for name in REPAIR_NAMES:
+        ir.async_delete_issue(hass, DOMAIN, f"{name}_{entry.entry_id}")

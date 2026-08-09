@@ -428,3 +428,90 @@ async def test_async_get_sms_list_box_types(
     mock_coordinator.api.get_sms_list.assert_called_with(
         page=1, box_type=BoxTypeEnum(box_type), read_count=20
     )
+
+
+# ---------------------------------------------------------------------------
+# Repair lifecycle — a repair must not outlive the entry that raised it
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_unload_clears_every_repair_this_entry_raised(mock_config_entry):
+    """Unloading must clear the entry's repairs.
+
+    A repair left behind by a disabled or reloading entry points at an
+    integration that is not running. `auth_failed` is `is_fixable=True`, so it
+    offers a repair flow that cannot be served.
+    """
+    from custom_components.huawei_router_5g import async_unload_entry
+    from custom_components.huawei_router_5g.const import DOMAIN, REPAIR_NAMES
+
+    hass = MagicMock()
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    coordinator = MagicMock()
+    coordinator.api.logout = AsyncMock()
+    coordinator.hass = hass
+    coordinator.entry = mock_config_entry
+    coordinator.clear_repairs = MagicMock()
+    mock_config_entry.runtime_data = coordinator
+
+    assert await async_unload_entry(hass, mock_config_entry) is True
+
+    coordinator.clear_repairs.assert_called_once()
+    # Guard the guard: the helper must actually name every repair.
+    assert set(REPAIR_NAMES) == {"auth_failed", "conn_error"}
+    assert DOMAIN == "huawei_router_5g"
+
+
+@pytest.mark.asyncio
+async def test_clear_repairs_deletes_each_entry_scoped_id(mock_hass, mock_config_entry):
+    """`clear_repairs` deletes one entry-scoped id per known repair.
+
+    Asserts the **ids**, not just the call count: the registry keys on
+    `(domain, issue_id)`, so a bare id would give every config entry the same
+    slot and the wrong repair would be cleared.
+    """
+    from custom_components.huawei_router_5g.const import DOMAIN, REPAIR_NAMES
+    from custom_components.huawei_router_5g.coordinator import (
+        HuaweiRouter5GDataUpdateCoordinator,
+    )
+
+    coordinator = MagicMock()
+    coordinator.hass = mock_hass
+    coordinator.entry = mock_config_entry
+    coordinator.clear_repairs = (
+        HuaweiRouter5GDataUpdateCoordinator.clear_repairs.__get__(coordinator)
+    )
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.ir.async_delete_issue"
+    ) as delete:
+        coordinator.clear_repairs()
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}
+    assert all(call.args[1] == DOMAIN for call in delete.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_remove_entry_clears_repairs_without_the_coordinator(mock_config_entry):
+    """Deletion must clear repairs, and must not reach for `runtime_data`.
+
+    `async_remove_entry` runs after unload, so the coordinator is gone. The
+    integration previously had no `async_remove_entry` at all — meaning a
+    repair raised at deletion time stayed in the Repairs panel permanently,
+    with nothing left that could ever clear it.
+    """
+    from custom_components.huawei_router_5g import async_remove_entry
+    from custom_components.huawei_router_5g.const import REPAIR_NAMES
+
+    hass = MagicMock()
+    # No runtime_data: touching it must raise rather than silently pass.
+    if hasattr(mock_config_entry, "runtime_data"):
+        del mock_config_entry.runtime_data
+
+    with patch("custom_components.huawei_router_5g.ir.async_delete_issue") as delete:
+        await async_remove_entry(hass, mock_config_entry)
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}

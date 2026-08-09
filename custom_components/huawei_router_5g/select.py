@@ -9,6 +9,7 @@ from homeassistant.components.select import SelectEntity, SelectEntityDescriptio
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
@@ -105,13 +106,24 @@ class HuaweiRouterSelect(
         return self.entity_description.value_fn(self.coordinator.data)
 
     async def async_select_option(self, option: str) -> None:
-        """Change the selected option."""
+        """Change the selected option, raising if the router refused.
+
+        A write path may never return a success-shaped result having done
+        nothing. This previously logged and returned, so a rejected network-mode
+        change reported success and then silently reverted on the next poll.
+        """
         try:
             await self.entity_description.setter_fn(self.coordinator.api, option)
-            await self.coordinator.async_force_refresh()
-        except Exception:
+        except Exception as err:
             _LOGGER.exception(
                 "%s: Failed to set network mode to %s",
                 self.coordinator.entry.title,
                 option,
             )
+            raise HomeAssistantError(
+                f"Failed to set network mode to {option}: {err}"
+            ) from err
+
+        # Outside the error boundary: the write has already succeeded, and a
+        # blip while re-reading must not report it as failed.
+        await self.coordinator.async_force_refresh()

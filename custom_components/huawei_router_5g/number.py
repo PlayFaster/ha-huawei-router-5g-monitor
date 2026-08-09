@@ -95,12 +95,17 @@ class HuaweiPollingInterval(
         # Local state
         self._attr_native_value = initial_value
         self._refresh_task: asyncio.Task[None] | None = None
+        # The value a pending debounce is going to write. Held separately from
+        # `_attr_native_value` so removal can flush it, and cleared once the
+        # debounce commits.
+        self._pending_value: float | None = None
 
     async def async_set_native_value(self, value: float) -> None:
         """Handle the UI slider change."""
         # Update local UI state immediately for responsiveness
         self._attr_native_value = value
         self.async_write_ha_state()
+        self._pending_value = value
 
         # Cancel any pending update task to reset the debounce timer
         if self._refresh_task:
@@ -129,6 +134,8 @@ class HuaweiPollingInterval(
                 self._entry, options=new_options
             )
 
+            self._pending_value = None
+
             # 3. Trigger an immediate refresh using the new interval
             await self.coordinator.async_force_refresh()
 
@@ -139,9 +146,31 @@ class HuaweiPollingInterval(
             _LOGGER.exception("Failed to apply polling interval change")
 
     async def async_will_remove_from_hass(self) -> None:
-        """Cancel any pending debounce task on removal."""
+        """Flush a pending debounced write, then cancel the task.
+
+        Cancelling without writing loses the value. The window is only two
+        seconds, but a reload is exactly what lands inside it: an options
+        change reloads the entry, so a user who moves the slider and
+        immediately changes a setting watches the interval snap back with no
+        explanation and nothing logged.
+
+        Only the persistence is flushed — no refresh is requested, because the
+        entity is being torn down.
+        """
         if self._refresh_task:
             self._refresh_task.cancel()
+            self._refresh_task = None
+
+        if self._pending_value is None:
+            return
+
+        val_int = int(self._pending_value)
+        self._pending_value = None
+        _LOGGER.debug("Flushing pending polling interval on removal: %ss", val_int)
+        self.coordinator.update_interval = timedelta(seconds=val_int)
+        new_options = dict(self._entry.options)
+        new_options[CONF_SCAN_INTERVAL] = val_int
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
 
     @property
     def device_info(self) -> DeviceInfo:
