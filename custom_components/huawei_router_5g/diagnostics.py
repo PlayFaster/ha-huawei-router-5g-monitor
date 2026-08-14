@@ -41,6 +41,26 @@ payload is nested dicts and lists, not the flat map ZTE's shim was written for:
 Everything diagnostically useful is deliberately preserved: model, firmware and
 hardware version, every signal metric, band and channel, byte counters, uptime,
 connection status and failure counts.
+
+**Verified against a real download on 2026-08-14** — a live B535 capture, read
+field by field. That audit found four leaks that reading this module had not,
+and they are worth naming because they are the general shapes, not one-offs:
+
+* **The same value under a second key name.** `Mccmnc` was published in full
+  while `current_plmn.Numeric` — the identical operator code — was redacted
+  beside it.
+* **A key listed in the wrong case.** `spn` was on the carrier list; the router
+  sends `Spn`. It was null in the capture, so the output looked clean.
+* **One member of a class covered, its siblings not.** `cell_id` and `pci` were
+  tokenized while `tac` and `scc_pci` went out whole.
+* **Fields that are null on this router but not on others.** Every WiFi key
+  field, `WifiWpapsk` included, was unlisted and empty. Null was a property of
+  that firmware and auth level, not of the schema.
+
+The first three were invisible to a code reading because each sat immediately
+next to a correctly-handled field — the same shape as the `unifi` precedent
+above. A capture from one router is evidence about one firmware; the shape
+sweep, not this key list, is what covers the rest.
 """
 
 from __future__ import annotations
@@ -72,11 +92,30 @@ TO_REDACT = {
     "SubscriberNumber",
     "Serial",
     "SerialNumber",
+    # WiFi key material. Every one of these was null in the 2026-08-14 B535
+    # capture, which is why a code reading passed them over — but null is a
+    # property of that router's firmware and auth level, not of the schema.
+    # `WifiWpapsk` is the WPA pre-shared key: the household's WiFi password.
+    "WifiWpapsk",
+    "MixWifiWpapsk",
+    "WifiRadiusKey",
+    "WifiWepKey1",
+    "WifiWepKey2",
+    "WifiWepKey3",
+    "WifiWepKey4",
+    "WifiWep128Key1",
+    "WifiWep128Key2",
+    "WifiWep128Key3",
+    "WifiWep128Key4",
 }
 
 # Carrier and network-operator identity. Together with a cell id these place
 # the subscriber geographically, and none of it helps diagnose a fault here.
-CARRIER_KEYS = {"FullName", "ShortName", "Numeric", "Rat", "spn"}
+#
+# `Mccmnc` is the same value as `current_plmn.Numeric` reached by another key,
+# and was published in full while `Numeric` beside it was redacted. `Spn` was
+# listed as lowercase `spn`, which the router never sends — a silent miss.
+CARRIER_KEYS = {"FullName", "ShortName", "Numeric", "Rat", "Spn", "spn", "Mccmnc"}
 
 # Tokenized rather than blanked — seeing that two fields hold the same address
 # is diagnostic, seeing the address itself is not.
@@ -106,7 +145,30 @@ MAC_KEYS = {
 # SSID identifies a household and frequently its neighbours too.
 NAME_KEYS = {"HostName", "DeviceNameFromHost", "ActualName"}
 SSID_KEYS = {"Ssid", "WifiSsid", "AssociatedSsid", "SsidName"}
-CELL_KEYS = {"cell_id", "enodeb_id", "pci", "sc_cellid", "nrcellid", "plmn"}
+# Cell, area and neighbour identifiers. A serving cell id plus a tracking area
+# plus an operator resolves to a mast in open databases, so these are treated
+# as one class regardless of radio technology.
+#
+# The last six were added after the 2026-08-14 B535 capture. `tac` and
+# `scc_pci` were published in full alongside the four already listed, and `sc`
+# was covered only under the name `sc_cellid`, which the router never sends.
+# The 3G and GSM entries (`sc`, `rac`, `lac`, `bsic`) were null on an LTE/NR
+# attach and would have appeared on a fallback network.
+CELL_KEYS = {
+    "cell_id",
+    "enodeb_id",
+    "pci",
+    "sc_cellid",
+    "nrcellid",
+    "plmn",
+    "tac",
+    "lac",
+    "rac",
+    "sc",
+    "bsic",
+    "scc_pci",
+    "nei_cellid",
+}
 
 # Third-party content: an SMS is data about someone who never consented to
 # appear in a bug report.

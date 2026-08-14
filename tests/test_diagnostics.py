@@ -44,6 +44,16 @@ SECRETS = [
     "+441234567890",  # an SMS sender — a third party
     "Your verification code is 998877",  # an SMS body
     "Three",  # carrier
+    # --- added after the 2026-08-14 live-capture audit (§P-2) ----------------
+    # Every one of these was published in full, or was covered only under a key
+    # name the router never sends. None was caught by reading the module.
+    "27203",  # Mccmnc — the operator, reached by a second key name
+    "3 Ireland",  # Spn — the list said lowercase `spn`; the router sends `Spn`
+    "40122",  # tac — serving tracking area, a metro-sized region
+    "36199",  # scc_pci — secondary-carrier cell identifier
+    "31337",  # sc — UMTS scrambling code, null on an LTE attach
+    "hunter2WifiKey",  # WifiWpapsk — the household's WiFi password
+    "wep0011223344",  # WifiWepKey1
 ]
 
 
@@ -59,6 +69,7 @@ def _payload() -> dict:
             "WanIPAddress": "10.1.2.3",
             "WanIPv6Address": "2001:db8::1",
             "uptime": "123456",
+            "Mccmnc": "27203",
         },
         "monitoring_status": {
             "ConnectionStatus": "901",
@@ -66,8 +77,22 @@ def _payload() -> dict:
             "PrimaryDns": "8.8.8.8",
             "SecondaryDns": "8.8.4.4",
         },
-        "device_signal": {"rsrp": "-95dBm", "sinr": "6dB", "cell_id": "5A6B3"},
-        "current_plmn": {"FullName": "Three", "ShortName": "3", "Numeric": "27205"},
+        "device_signal": {
+            "rsrp": "-95dBm",
+            "sinr": "6dB",
+            "cell_id": "5A6B3",
+            # Populated on the live B535 and published in full.
+            "tac": "40122",
+            "scc_pci": "36199",
+            # Null on an LTE/NR attach, populated on a 3G or GSM fallback.
+            "sc": "31337",
+        },
+        "current_plmn": {
+            "FullName": "Three",
+            "ShortName": "3",
+            "Numeric": "27205",
+            "Spn": "3 Ireland",
+        },
         # The device_tracker surface — no sibling project has this.
         "lan_host_info": {
             "Hosts": {
@@ -85,7 +110,15 @@ def _payload() -> dict:
         "wlan_multi_basic_settings": {
             "Ssids": {
                 "Ssid": [
-                    {"WifiSsid": "TheSmiths-5G", "WifiEnable": "1"},
+                    {
+                        "WifiSsid": "TheSmiths-5G",
+                        "WifiEnable": "1",
+                        # Null on the live capture, so a code reading passed
+                        # over them. Null is a property of that firmware and
+                        # auth level, not of the schema.
+                        "WifiWpapsk": "hunter2WifiKey",
+                        "WifiWepKey1": "wep0011223344",
+                    },
                     {"WifiSsid": "Neighbour-Guest", "WifiEnable": "0"},
                 ]
             }
@@ -343,6 +376,78 @@ async def test_a_semicolon_separated_address_list_is_tokenized_per_address(entry
 # sweep, not by review. They are kept because the shapes genuinely collide:
 # a four-part firmware version parses as an IPv4 address, and a `HH:MM:SS`
 # timestamp parses as a short IPv6.
+
+
+# ---------------------------------------------------------------------------
+# Findings from the live-capture audit, 2026-08-14 (§P-2)
+# ---------------------------------------------------------------------------
+#
+# The global SECRETS sweep above already fails if any of these regress. These
+# four exist as well because a named test says *what* was wrong and why the
+# code reading did not find it, which a substring sweep cannot.
+#
+# The shared lesson: every one of these sat next to a correctly-handled field.
+# That is the same shape as the unifi_network_monitor precedent.
+
+
+@pytest.mark.asyncio
+async def test_the_operator_is_redacted_under_both_key_names(entry):
+    """`Mccmnc` is `current_plmn.Numeric` reached by a second key name.
+
+    The module redacted `Numeric` and published `Mccmnc` in full. Combined with
+    a tracking area it resolves to a mast in open databases, and it is the
+    single field that names the subscriber's carrier and country.
+    """
+    result, _ = await _dump(entry)
+    assert result["data"]["device_information"]["Mccmnc"] == REDACTED
+    assert result["data"]["current_plmn"]["Numeric"] == REDACTED
+
+
+@pytest.mark.asyncio
+async def test_a_key_listed_under_the_wrong_case_is_still_redacted(entry):
+    """`Spn` was listed as lowercase `spn`, which no router sends.
+
+    It was null in the capture, so the output looked clean. A miss of this
+    shape is invisible until the one router that populates the field files a
+    bug report — the failure mode the module docstring warns about.
+    """
+    result, _ = await _dump(entry)
+    assert result["data"]["current_plmn"]["Spn"] == REDACTED
+
+
+@pytest.mark.asyncio
+async def test_area_and_neighbour_cell_identifiers_are_tokenized(entry):
+    """`tac` and `scc_pci` were published while `cell_id` beside them was not.
+
+    Tokenized rather than blanked: whether two readings share a serving cell is
+    genuinely diagnostic for a signal fault, and the token preserves that.
+    """
+    signal = (await _dump(entry))[0]["data"]["device_signal"]
+
+    for key in ("tac", "scc_pci", "sc", "cell_id"):
+        assert signal[key].startswith("cell-"), key
+    # ...and the untouched half of the block is still readable.
+    assert signal["rsrp"] == "-95dBm"
+
+
+@pytest.mark.asyncio
+async def test_wifi_key_material_is_blanked(entry):
+    """`WifiWpapsk` is the household's WiFi password.
+
+    Null on the live B535 and therefore invisible in the capture, but null
+    there is a property of that firmware and auth level, not of the schema.
+    Blanked, not tokenized — a key has no cross-reference worth keeping.
+    """
+    ssid = (await _dump(entry))[0]["data"]["wlan_multi_basic_settings"]["Ssids"][
+        "Ssid"
+    ][0]
+
+    assert ssid["WifiWpapsk"] == REDACTED
+    assert ssid["WifiWepKey1"] == REDACTED
+    assert ssid["WifiEnable"] == "1"
+
+
+# ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
