@@ -626,6 +626,25 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "typing-only constraint and there is no deprecation or removal date. "
         "Recorded in docs/ha_compatibility.md."
     ),
+    ("hardware_check.py", "ruff: noqa: T201"): (
+        "The console report is this script's entire output. There is no logger "
+        "to route it through, and a caller reading the transcript is the point. "
+        "File-level rather than per-line because every print in the file is the "
+        "same deliberate choice."
+    ),
+    ("hardware_check.py", "noqa: BLE001"): (
+        "Each of these wraps one hardware interaction whose failure IS the "
+        "result being reported. A narrower except would let an unanticipated "
+        "library error abort the run and discard the checks already recorded, "
+        "which is the opposite of what a diagnostic script should do. The "
+        "exception type is always printed, never swallowed silently."
+    ),
+    ("hardware_check.py", "noqa: SLF001"): (
+        "Reads api._client to confirm logout actually released it. There is no "
+        "public accessor, and adding one would put shipped API surface into the "
+        "integration for the sake of a script HACS never ships. Read-only: the "
+        "script observes the state, it never assigns it."
+    ),
 }
 
 
@@ -642,9 +661,14 @@ def _real_comments() -> list[tuple[str, int, str]]:
 
     import custom_components.huawei_router_5g as component
 
+    # `scripts/` is swept too. It is not shipped, but it is the one place that
+    # talks to real hardware, so a suppression hiding a wrong belief about the
+    # library does more damage there than anywhere else — that is exactly what
+    # `type: ignore[attr-defined]` did to `clear_traffic` and `logout`.
     roots = [
         pathlib.Path(component.__path__[0]),
         pathlib.Path(__file__).parent,
+        pathlib.Path(__file__).parent.parent / "scripts",
     ]
 
     found: list[tuple[str, int, str]] = []
@@ -665,9 +689,21 @@ def _live_suppressions() -> dict[tuple[str, str], list[int]]:
     """Map (file, directive) to the lines carrying it."""
     import re
 
+    # The optional `ruff: ` prefix is the **file-level** form, and it must be
+    # caught: that directive at the top of a module suppresses its rule for
+    # every line in the file, which is broader than any per-line directive
+    # here. It was invisible to this sweep until the dead-entry check below
+    # flagged an allow-list entry that matched nothing — the guard-the-guard
+    # earning its place.
+    #
+    # The literal form is deliberately not written out in this comment: ruff
+    # scans comments for it and would read the example as a real directive.
+    #
+    # The prefix is kept in the captured code rather than normalized away, so
+    # a file-level suppression can never be reviewed as if it were one line.
     pattern = re.compile(
-        r"#\s*(type:\s*ignore(?:\[[^\]]*\])?|noqa(?::\s*[A-Z0-9, ]+)?"
-        r"|pragma:\s*no cover)"
+        r"#\s*((?:ruff:\s*)?(?:type:\s*ignore(?:\[[^\]]*\])?"
+        r"|noqa(?::\s*[A-Z0-9, ]+)?|pragma:\s*no cover))"
     )
 
     live: dict[tuple[str, str], list[int]] = {}
