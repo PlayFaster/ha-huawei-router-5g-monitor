@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
   - [\[1.1.3-dev16\] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC](#113-dev16---2026-08-14---ci-bumps-zizmor-mypy-jsonschema-phacc)
   - [\[1.1.3-dev15\] - 2026-08-09 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table](#113-dev15---2026-08-09---documentation-phase-repair-titles-roadmap-spelling-sweep-table)
   - [\[1.1.3-dev14\] - 2026-08-09 - Integration Health and Drift Detection; Guard Bands Reconciled](#113-dev14---2026-08-09---integration-health-and-drift-detection-guard-bands-reconciled)
@@ -91,6 +92,12 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.1.3-dev17] - 2026-08-14 - Add HA Compatibility Document
+
+### Changes
+
+- **HA Compatibility**: Add new document `docs/ha_compatibility.md`to document HA compatibility, versus versus changes (including future planned deprecations).
 
 ## [1.1.3-dev16] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC
 
