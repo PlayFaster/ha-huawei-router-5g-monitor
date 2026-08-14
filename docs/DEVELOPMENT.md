@@ -60,6 +60,14 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Fallback**: If none of the MAC fields are populated (rare on edge-case hardware), fall back to the host URL so setup doesn't fail. The fallback is `info["mac"] or user_input[CONF_HOST]`.
 - **Cascade effect**: All entity `unique_id`s are derived from the config entry unique ID (`{entry.unique_id}_{sensor_key}`). Changing the unique ID scheme changes every entity's `unique_id` — requiring a delete-and-readd of the integration. This is acceptable for new projects with no existing users; for published projects it requires a migration strategy.
 
+### Guest WiFi Writes Bypass the Library's Public Setter (v1.2.0)
+
+- **Decision**: `set_guest_wifi` posts to `wlan/multi-basic-settings` through `client.wlan._session.post_set` rather than the public `client.wlan.set_multi_basic_settings()`, under a reasoned `# noqa: SLF001`.
+- **Why the public setter is wrong here**: it builds its own payload — `{'Ssids': {'Ssid': clients}, 'WifiRestart': 1}` — and therefore **discards every other top-level key the router returned**.
+- **Evidence**: probed against a live B535 on 2026-08-14, `multi_basic_settings()` returns three top-level keys: `Ssids`, `DbhoEnable` and `modify_guest_ssid`. Using the public setter would silently drop band-steering and guest-SSID state on every guest-WiFi toggle.
+- **Correction to an earlier note**: a previous comment claimed the library exposed no public setter. That was false — `set_multi_basic_settings` exists, and existed in 1.11.0. The reason to avoid it is what it does, not its absence.
+- **Guarded by**: `tests/test_api.py::test_set_guest_wifi_*`, which asserts `post_set` is called. A swap to the public setter fails that test **by design**; the failure is the guard working, not a test needing an update.
+
 ### Concurrency Locking Pattern (v1.1.0)
 
 - **Change**: Implemented an `asyncio.Lock` in `HuaweiRouter5GAPI` to serialize all router communication.

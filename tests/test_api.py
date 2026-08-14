@@ -957,7 +957,17 @@ async def test_set_guest_wifi_on_manual():
     ):
         await api.set_guest_wifi(True)
 
-    # Should call post_set with BOTH SSIDs
+    # Deliberately `_session.post_set`, NOT `wlan.set_multi_basic_settings()`.
+    #
+    # The public setter exists, but it posts only
+    # `{'Ssids': {'Ssid': clients}, 'WifiRestart': 1}` and discards every other
+    # top-level key. Probed against a live B535 on 2026-08-14, the GET returns
+    # `Ssids`, `DbhoEnable` and `modify_guest_ssid` — so swapping would
+    # silently drop band-steering and guest-SSID state on every toggle.
+    #
+    # **If you are here because this assertion failed after switching to the
+    # public setter: the switch is the bug, not this test.** Full reasoning is
+    # at the call site in api.py and in docs/DEVELOPMENT.md.
     api._client.wlan._session.post_set.assert_called_once()
     path, args = api._client.wlan._session.post_set.call_args[0]
     assert path == "wlan/multi-basic-settings"

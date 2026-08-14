@@ -136,6 +136,16 @@ Section §S of the August 2026 update plan — work raised by the `huawei-lte-ap
 - **The six new 2.0.0 endpoints cannot be probed yet** — `onekey_diag`, `guesttime_setting`, `volte`, `acl`, `user.rule` and `wan_service_name` are all absent from 1.11.0. Blocked with the bump.
 - **The public `wlan.set_multi_basic_settings()` was deliberately _not_ adopted**, reversing the plan. An earlier comment claiming no public setter existed was false and has been corrected — but the public setter posts only `{'Ssids': …, 'WifiRestart': 1}` and discards every other top-level key. Probed against a live B535: the GET returns **`Ssids`, `DbhoEnable` and `modify_guest_ssid`**, so calling it would silently drop band-steering and guest-SSID state on every guest-WiFi toggle. Round-tripping the full response, as the existing code does, is the correct behavior; the `# noqa: SLF001` now says so and is on the reviewed allow-list.
 
+### Recorded decisions
+
+- **`quality_scale.yaml` exempt entries converted to the structured form.** Three rules carried a bare `exempt`; hassfest's schema requires `{status, comment}` and skips the check entirely for custom components, so nothing caught it. **Huawei was the only one of the four projects using the bare form** — ZTE and WiFi already use the structured one — so this was local divergence rather than a family gap.
+
+  `stale-devices` stays exempt and the comment now says why, including the part that is easy to lose: the exemption **depends on** the `device_info` override keeping clients as entities rather than devices. Remove that override and HA 2026.9+ would create a device per client, at which point the rule becomes live. Two coupled decisions that previously lived in different files.
+
+  `discovery` is exempt with an honest comment rather than a convenient one: SSDP discovery **is** technically possible here — core `huawei_lte` matches Huawei `InternetGatewayDevice` — but it would only pre-fill the host while credentials are still required. Worth revisiting rather than assumed closed.
+
+- **The guest-WiFi write decision is now recorded in three places that a future reader will actually hit**: the call site in `api.py`, a new section in `docs/DEVELOPMENT.md`, and the assertion in `test_api.py` that guards it. The test previously enforced the decision without explaining it, so someone swapping to the public setter would have met a bare failure and could reasonably have "fixed" the test. It now says the swap is the bug.
+
 ### `masked_errors_check` audit — run last, as designed
 
 Run after every other change in this batch, per §S-13 of the tracking notes: the queued work changes the surface the prompt audits, and the prompt is also the check on that work.
