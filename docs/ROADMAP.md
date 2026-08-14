@@ -12,13 +12,15 @@ Forward plans, deferred decisions, and declined directions for the Huawei 5G Rou
 
 ## To Be Done
 
-### Write-classification register and hardware check
+### Restore the IMEI sensor
 
-A register of every control that commands the router, classified by reversibility, plus a `scripts/hardware_check.py` able to exercise the safe tier against real hardware. `zte_router_5g` is the model — it exists there because two controls shipped broken for weeks purely because nobody used them. Huawei's write surface is wider than UniFi's: SMS send and delete, reboot, mobile-data switch, guest-WiFi switch, network-mode select and the polling-interval number.
+The router returns `Imei` in `device_information` and the integration exposes it nowhere. A sensor for it existed and was removed on 2026-05-02 in `364942c`, in a refactor that replaced it and `hw_version` with `last_updated` and `wan_ip`; the commit records no reason. Its `strings.json` entry survived as a dead key until 2026-08-14.
 
-- **Value**: ⭐⭐⭐
-- **Effort**: Medium for the register and its unit tests; the attended hardware tier needs a real router and an owner's decision.
-- **Note**: the moment a `scripts/` directory exists, `also_copy = scripts/` in the shared `setup.cfg` stops being inert — mutmut copies only `source_paths` and `tests` into `mutants/`, so a test importing from `scripts/` fails to collect there without it.
+`zte_router_5g` ships one (`key="imei"`, `translation_key="system_imei"`), so exposing it is the established house position rather than an open question.
+
+- **Value**: ⭐⭐ — the data is already fetched every poll, so this is presentation only.
+- **Effort**: Low. One `HuaweiSensorEntityDescription`, plus `strings.json`, `translations/en.json` and `icons.json` entries.
+- **Note**: pick the `translation_key` deliberately. ZTE publishes `system_imei` and the dead Huawei string was `imei` — two projects naming the same reading differently is the §19 vocabulary-drift problem in miniature, and it is cheaper to settle now than to reconcile later. Consider `EntityCategory.DIAGNOSTIC` and `entity_registry_enabled_default=False`: the value never changes, and it is a subscriber-linked identifier that would otherwise sit in the recorder database for every user.
 
 ### Mutation testing — first run and triage
 
@@ -51,14 +53,6 @@ Write commands to force specific 5G/LTE bands.
 - **Value**: ⭐⭐⭐
 - **Effort**: High once unblocked
 - **Blocked by**: Physical router hardware API validation. Releasing untested write commands to a cellular modem risks disconnecting the gateway permanently.
-
-### Diagnostics verified against a real download
-
-`diagnostics.py` was rewritten in `[1.1.3-dev12]` from key-name redaction to a layered recursive scrubber, and is unit-tested against a realistic synthetic payload. It is **not yet verified against a regenerated download containing real router data**.
-
-- **Value**: ⭐⭐⭐ — this is a privacy surface, and the family's known blind spot.
-- **Effort**: Low once unblocked.
-- **Blocked by**: Access to a live instance configured against a real router, with the optional data (SMS, connected clients) actually populated. `unifi_network_monitor` held `diagnostics: done` across two full IQS scans while leaking identifiers, and **reading the code is what produced both clean verdicts** — so this stays open until a real capture has been inspected.
 
 ---
 
@@ -102,10 +96,9 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 
 | Item | Value | Effort |
 | :-- | :-- | :-- |
-| Write-classification register and hardware check | ⭐⭐⭐ | Medium (hardware tier blocked) |
 | Mutation testing — first run and triage | ⭐⭐⭐ | Medium |
+| Restore the IMEI sensor | ⭐⭐ | Low |
 | WLAN band locking write capability | ⭐⭐⭐ | High (Blocked) |
-| Diagnostics verified against a real download | ⭐⭐⭐ | Low (Blocked) |
 | Per-endpoint strike budgets | ⭐⭐ | Medium |
 
 ---
@@ -114,5 +107,6 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v2.1.0 | 2026-08-14 | **Two entries removed as shipped**, per the format's direction not to keep a Done group. *Write-classification register and hardware check* landed in `51835b6` — `scripts/write_classification.py`, `scripts/hardware_check.py` and ten tests; the attended hardware tier is written but deliberately unrun. *Diagnostics verified against a real download* closed in `023ace4` — a live B535 capture was audited field by field and **found four leaks the rewrite had not**, all fixed and regression-tested. **One entry added:** restore the IMEI sensor. It came out of the `iqs_next_steps` dead-string finding, where the removal was first read as a deliberate privacy decision; the owner questioned that and the evidence inverted it — the payload carries `Imei` and ZTE ships the sensor, so this is a capability gap. |
 | v2.0.0 | 2026-08-14 | Reconciled against the code and against `roadmap_format.md`. Removed the **Done** group, per the format's direction not to backfill one from the changelog. **Two entries were stale and are removed:** "Dynamic Polling Interval Slider" had already shipped as the `polling_interval` number entity, and "Static Test Sweeps Implementation" landed in `[1.1.3-dev10]`–`[1.1.3-dev14]`. Added the write-classification register, the first mutation run, per-endpoint strike budgets, the blocked diagnostics verification, the manifest/changelog version convention, and the `FREQUENCY` unit-selector issue previously recorded only in `AGENTS.md`. Recorded the deliberate decision **not** to rename the four entities that repeat their sub-device word. Converted asterisk bullets to dashes so the file passes `markdownlint`, which it had never done. |
 | v1.0.0 | 2026-08-08 | Initial baseline version. |
