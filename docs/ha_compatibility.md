@@ -12,7 +12,7 @@ What Home Assistant versions this integration supports, which HA APIs it depends
 
 ## Supported versions
 
-| | |
+| Type | Note |
 | :-- | :-- |
 | **Minimum** | 2025.1 (declared in `README.md`) |
 | **Tested against** | 2026.8.0 — the version in the development container |
