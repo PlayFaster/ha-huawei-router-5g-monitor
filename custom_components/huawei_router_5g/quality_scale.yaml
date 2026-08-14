@@ -10,9 +10,27 @@ rules:
   config-flow-test-coverage: done
   dependency-transparency: done
   docs-actions: done
+  docs-conditions:
+    status: exempt
+    comment: |
+      The integration registers no conditions - there is no
+      device_condition.py and no async_get_conditions - so there is nothing to
+      document. Absent rather than exempt until 2026-08-14, which is worse
+      than either: a rule that is missing is not assessed, it is invisible.
+      Revisit if a condition is ever added; the exemption is about having
+      none, not about documentation being unnecessary.
   docs-high-level-description: done
   docs-installation-instructions: done
   docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: |
+      The integration registers no triggers - there is no device_trigger.py
+      and no async_get_triggers. Entity state changes are consumed through
+      ordinary state triggers, which belong to the automation engine rather
+      than to this integration. Same history as docs-conditions: added here
+      after an iqs_next_steps completeness check found both absent from this
+      file while present in the canonical.
   entity-event-setup: done
   entity-unique-id: done
   has-entity-name: done
