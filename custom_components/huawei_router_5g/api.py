@@ -11,6 +11,7 @@ from urllib.parse import urlparse, urlunparse
 
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
+from huawei_lte_api.enums.device import ControlModeEnum
 from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
     LoginErrorPasswordWrongException,
@@ -19,6 +20,7 @@ from huawei_lte_api.exceptions import (
     ResponseErrorLoginRequiredException,
 )
 
+from .const import REQUEST_TIMEOUT
 from .helpers import _safe_int
 
 _LOGGER = logging.getLogger(__name__)
@@ -78,6 +80,7 @@ class HuaweiRouter5GAPI:
             self.url,
             username=self.username,
             password=self.password,
+            timeout=REQUEST_TIMEOUT,
         )
         return conn, Client(conn)
 
@@ -103,14 +106,31 @@ class HuaweiRouter5GAPI:
                 raise HuaweiConnectionError(f"Cannot connect to router: {err}") from err
 
     async def logout(self) -> None:
-        """Logout and release the connection."""
+        """Log out of the router and release the connection.
+
+        `Connection` has no `logout` method and never has — the previous call
+        was `self._connection.logout` under a `# type: ignore[attr-defined]`,
+        so it raised `AttributeError` into the debug-level handler below on
+        every unload, reload and options change. The session was therefore
+        never closed and simply expired on its own TTL, on a router whose
+        concurrent-session limit is the reason this class holds a lock at all.
+        The real method is `client.user.logout()`.
+
+        Deliberately **not** routed through `_execute_with_retry`: re-logging
+        in so a logout can be retried is self-defeating.
+
+        The broad `except` is kept on purpose — a failed logout during teardown
+        is not worth propagating, and the connection is discarded either way.
+        What stops that swallow hiding a wrong method name again is the library
+        contract test, not a narrower catch here.
+        """
         async with self._lock:
-            if self._connection is None:
+            client = self._client
+            if client is None:
+                self._reset_client()
                 return
             try:
-                await asyncio.to_thread(
-                    self._connection.logout  # type: ignore[attr-defined]
-                )
+                await asyncio.to_thread(client.user.logout)
             except Exception:
                 _LOGGER.debug("Logout failed", exc_info=True)
             finally:
@@ -301,10 +321,19 @@ class HuaweiRouter5GAPI:
             return res
 
     async def reboot(self) -> None:
-        """Reboot the router."""
+        """Reboot the router.
+
+        Uses `set_control(ControlModeEnum.REBOOT)` rather than the older
+        `device.reboot()`. Both exist in `huawei-lte-api` 1.11.0; **2.0.0
+        removes `reboot()` and `control()`**, keeping only `set_control`. So
+        this spelling is correct on both versions and the library bump needs no
+        code change here.
+        """
         async with self._lock:
             try:
-                await self._execute_with_retry(lambda client: client.device.reboot())
+                await self._execute_with_retry(
+                    lambda client: client.device.set_control(ControlModeEnum.REBOOT)
+                )
                 self._reset_client()
             except Exception:
                 _LOGGER.exception("Reboot failed")
@@ -312,11 +341,18 @@ class HuaweiRouter5GAPI:
                 raise
 
     async def clear_traffic_statistics(self) -> None:
-        """Clear the traffic statistics counters."""
+        """Clear the traffic statistics counters.
+
+        The method is `set_clear_traffic()`. `Monitoring.clear_traffic()` does
+        not exist in `huawei-lte-api` 1.11.0 or 2.0.0 and never has, so this
+        button could not work: the call raised `AttributeError` under a
+        `# type: ignore[attr-defined]`, and the test asserting it passed only
+        because it ran against a bare `MagicMock`.
+        """
         async with self._lock:
             try:
                 await self._execute_with_retry(
-                    lambda client: client.monitoring.clear_traffic()  # type: ignore[attr-defined]
+                    lambda client: client.monitoring.set_clear_traffic()
                 )
             except Exception:
                 _LOGGER.exception("Clear traffic failed")
@@ -384,11 +420,23 @@ class HuaweiRouter5GAPI:
                     list(payload.keys()),
                 )
                 try:
-                    # SLF001: huawei-lte-api exposes no public method for this
-                    # endpoint — `Wlan` has no multi-basic-settings setter, so
-                    # the session has to be reached directly. The AttributeError
-                    # handler below is the guard for the library changing its
-                    # internals; the alternative is not supporting guest WiFi.
+                    # SLF001, and deliberately NOT `wlan.set_multi_basic_settings()`.
+                    #
+                    # A public setter does exist — an earlier comment here claimed
+                    # otherwise and was wrong. But it discards the payload:
+                    #
+                    #     post_set('wlan/multi-basic-settings',
+                    #              {'Ssids': {'Ssid': clients}, 'WifiRestart': 1})
+                    #
+                    # It sends `Ssids` and nothing else. Probed against a live
+                    # B535 on 2026-08-14, the GET returns three top-level keys —
+                    # `Ssids`, `DbhoEnable` and `modify_guest_ssid` — so calling
+                    # the public setter would drop band-steering and guest-SSID
+                    # state on every guest-WiFi toggle, silently.
+                    #
+                    # Round-tripping the whole GET response is therefore the
+                    # correct behavior, not a shortcut. The AttributeError
+                    # handler below guards the library changing its internals.
                     client.wlan._session.post_set(  # noqa: SLF001
                         "wlan/multi-basic-settings", payload
                     )

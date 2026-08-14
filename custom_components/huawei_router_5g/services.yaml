@@ -1,3 +1,11 @@
+cleanup_unused_entities:
+  fields:
+    dry_run:
+      required: false
+      default: true
+      selector:
+        boolean:
+
 send_sms:
   description: Send an SMS message via the router.
   fields:

@@ -36,7 +36,10 @@ def test_device_tracker_properties(mock_coordinator, mock_config_entry):
     }
 
     assert tracker.name == "Laptop-1"
-    assert tracker.unique_id == "AA:BB:CC:DD:EE:01"
+    # Entry-scoped, not the bare MAC. `ScannerEntity.unique_id` returns the
+    # MAC, which collides across two routers tracking the same client — HA
+    # then refuses the second entity outright rather than suffixing it.
+    assert tracker.unique_id == "huawei_unique_123_AA:BB:CC:DD:EE:01"
     assert tracker.is_connected is True
     assert tracker.mac_address == "AA:BB:CC:DD:EE:01"
     assert tracker.hostname == "Laptop-1"

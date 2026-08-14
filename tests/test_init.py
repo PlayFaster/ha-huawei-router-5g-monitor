@@ -57,7 +57,7 @@ async def test_async_setup_registers_services(mock_hass):
     result = await async_setup(mock_hass, {})
 
     assert result is True
-    assert mock_hass.services.async_register.call_count == 4
+    assert mock_hass.services.async_register.call_count == 5
 
     # Check registration of specific services
     calls = mock_hass.services.async_register.call_args_list
@@ -65,6 +65,7 @@ async def test_async_setup_registers_services(mock_hass):
     assert "send_sms" in registered_services
     assert "delete_sms" in registered_services
     assert "delete_all_sms" in registered_services
+    assert "cleanup_unused_entities" in registered_services
     assert "get_sms_list" in registered_services
 
 
@@ -359,6 +360,13 @@ async def test_async_setup_entry_and_unload(mock_hass):
 
     mock_registry = MagicMock()
     with (
+        # The unique-id migration needs a real entity registry; this test drives
+        # setup with a MagicMock hass, so stub the migration itself. Its own
+        # behavior is covered by the dedicated tests below.
+        patch(
+            "custom_components.huawei_router_5g._async_migrate_tracker_unique_ids",
+            new=AsyncMock(),
+        ),
         patch(
             "custom_components.huawei_router_5g.dr.async_get",
             return_value=mock_registry,

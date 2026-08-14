@@ -18,6 +18,7 @@ from custom_components.huawei_router_5g.api import (
     HuaweiRouter5GAPI,
     _normalize_router_url,
 )
+from custom_components.huawei_router_5g.const import REQUEST_TIMEOUT
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -159,6 +160,7 @@ def test_create_connection_sync():
             api.url,
             username=api.username,
             password=api.password,
+            timeout=REQUEST_TIMEOUT,
         )
         mock_client_class.assert_called_once_with(mock_conn)
         assert conn is mock_conn
@@ -256,14 +258,41 @@ async def test_logout_no_connection():
 
 
 @pytest.mark.asyncio
-async def test_logout_exception():
-    """Test that logout handles exceptions gracefully."""
-    api = _make_api()
-    mock_conn = MagicMock()
-    api._connection = mock_conn
-    api._client = MagicMock()
+async def test_logout_calls_the_real_library_method():
+    """Logout must call `client.user.logout()`.
 
-    mock_conn.logout.side_effect = Exception("Logout failed")
+    Asserting the **method that exists** is the whole point. The previous form
+    called `connection.logout`, which `Connection` has never had, so the
+    integration logged out of nothing on every unload and reload while the
+    test passed against an auto-created `MagicMock` attribute.
+    """
+    api = _make_api()
+    client = MagicMock()
+    api._client = client
+    api._connection = MagicMock()
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        await api.logout()
+
+    client.user.logout.assert_called_once()
+    assert api._connection is None
+    assert api._client is None
+
+
+@pytest.mark.asyncio
+async def test_logout_exception():
+    """A failed logout is swallowed, and the connection is discarded anyway.
+
+    Teardown is best-effort: there is nothing useful to do with the error and
+    the session is being abandoned regardless. What stops that swallow hiding
+    a wrong method name again is the library contract test, not this one.
+    """
+    api = _make_api()
+    client = MagicMock()
+    api._client = client
+    api._connection = MagicMock()
+
+    client.user.logout.side_effect = Exception("Logout failed")
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         await api.logout()
@@ -745,8 +774,13 @@ async def test_reboot_success():
     ):
         await api.reboot()
 
-    # Verify reboot was called on the mock client before it was reset
-    mock_client.device.reboot.assert_called_once()
+    # `set_control(REBOOT)`, not `reboot()`. Both exist in library 1.11.0;
+    # 2.0.0 removes `reboot()`, so asserting the surviving spelling is what
+    # makes this test outlive the bump.
+    from huawei_lte_api.enums.device import ControlModeEnum
+
+    mock_client.device.set_control.assert_called_once_with(ControlModeEnum.REBOOT)
+    mock_client.device.reboot.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -783,7 +817,10 @@ async def test_clear_traffic_success():
     ):
         await api.clear_traffic_statistics()
 
-    api._client.monitoring.clear_traffic.assert_called_once()
+    # `set_clear_traffic` — asserting the method that actually exists. The
+    # previous assertion named `clear_traffic`, which does not exist in the
+    # library, and passed because `MagicMock` creates any attribute on demand.
+    api._client.monitoring.set_clear_traffic.assert_called_once()
 
 
 @pytest.mark.asyncio

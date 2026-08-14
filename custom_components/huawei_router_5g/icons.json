@@ -429,17 +429,20 @@
     }
   },
   "services": {
-    "send_sms": {
-      "service": "mdi:message-arrow-right"
-    },
-    "delete_sms": {
-      "service": "mdi:message-minus"
+    "cleanup_unused_entities": {
+      "service": "mdi:broom"
     },
     "delete_all_sms": {
       "service": "mdi:email-remove"
     },
+    "delete_sms": {
+      "service": "mdi:message-minus"
+    },
     "get_sms_list": {
       "service": "mdi:message-text"
+    },
+    "send_sms": {
+      "service": "mdi:message-arrow-right"
     }
   }
 }

@@ -10,7 +10,16 @@ NAME = "Huawei Router 5G Monitor"
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN_INTERVAL = 180
 CONF_STOP_POLLING = "stop_polling"
+# Overall budget for one poll — all fifteen endpoints together.
 FETCH_TIMEOUT = 30
+
+# Per-request transport timeout, passed to `Connection`. Deliberately well
+# under FETCH_TIMEOUT: without it a single hung endpoint consumes the entire
+# poll budget and fails the whole update, whereas a per-request timeout lets
+# that one endpoint fail while the other fourteen still return. A dropped
+# endpoint is no longer silent either — the Integration Health sensor reports
+# it as a degraded capability once it persists.
+REQUEST_TIMEOUT = 10
 
 # Repair issues this integration can raise. The registry keys on
 # `(domain, issue_id)`, so each id is suffixed with the entry id — otherwise
@@ -63,3 +72,9 @@ SIGNAL_CONTRACT_KEYS: tuple[str, ...] = ("rsrp", "rsrq", "rssi", "sinr")
 # Section 19: require a condition to persist before flipping the sensor, so a
 # single blip raises no alarm. Matches the Section 8 fetch strike budget.
 HEALTH_STRIKE_LIMIT = 3
+
+# The one action that removes entities rather than commanding the router.
+# Defaults to a dry run: a client that is merely powered off is still usually
+# in the router's host list, but a router that has aged it out is
+# indistinguishable from one that never saw it, so removal is always explicit.
+SERVICE_CLEANUP = "cleanup_unused_entities"

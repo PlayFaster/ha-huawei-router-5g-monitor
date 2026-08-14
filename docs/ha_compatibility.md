@@ -16,7 +16,7 @@ What Home Assistant versions this integration supports, which HA APIs it depends
 | :-- | :-- |
 | **Minimum** | 2025.1 (declared in `README.md`) |
 | **Tested against** | 2026.8.0 — the version in the development container |
-| **Enforced by** | **Nothing yet.** `hacs.json` carries no `homeassistant` key, so HACS will not stop an install on an older version. **Pending** — see the roadmap. |
+| **Enforced by** | `hacs.json` → `"homeassistant": "2025.1.0"`. HACS refuses the install below it. Added 2026-08-14; before that the README claim was advisory only. |
 | **Verified at the minimum?** | **No.** The 2025.1 floor has never been tested. It is a claim, not a measurement. |
 
 **The floor is set by `ConfigEntry.runtime_data` and `ConfigFlowResult`** (both 2024.6), not by anything newer. Every version-sensitive device-registry call is feature-detected in `_compat.py` rather than gated on a version, so the integration is deliberately **floor-free** on that axis: it behaves correctly on 2026.7 and on post-2027.8 alike.

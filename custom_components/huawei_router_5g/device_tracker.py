@@ -83,7 +83,28 @@ class HuaweiRouterDeviceTracker(
         """Initialize the device tracker."""
         super().__init__(coordinator)
         self._mac = mac
-        self._attr_unique_id = f"{coordinator.entry.unique_id}_{mac}"
+
+    @property
+    def unique_id(self) -> str | None:
+        """Scope the unique ID to this config entry.
+
+        `ScannerEntity.unique_id` is a property returning the bare MAC address,
+        which is **not** unique across config entries. Two Huawei routers
+        seeing the same client produce the same id, and Home Assistant's
+        response is to refuse the second entity outright — `entity_platform`
+        logs "does not generate unique IDs ... ignoring" and the client simply
+        never appears under the second router. That is not the `_2` suffix
+        behavior, which applies to entity **ids**, not unique ids.
+
+        This must be a property override. `_attr_unique_id` was set in
+        `__init__` for a long time and did nothing at all, because the base
+        class defines `unique_id` as a property and a property wins over the
+        attribute it would otherwise read.
+
+        Existing installations are migrated in `async_setup_entry`, so entity
+        ids, names, areas and enabled state are preserved.
+        """
+        return f"{self.coordinator.entry.unique_id}_{self._mac}"
 
     @property
     def _host_data(self) -> dict[str, Any] | None:

@@ -434,5 +434,17 @@
       "unknown": "Unexpected error occurred."
     }
   },
+  "services": {
+    "cleanup_unused_entities": {
+      "name": "Clean up unused entities",
+      "description": "Removes device tracker entities for clients the router no longer reports. Runs as a preview by default.",
+      "fields": {
+        "dry_run": {
+          "name": "Preview only",
+          "description": "Leave on to list what would be removed without removing anything. Turn off to actually remove them."
+        }
+      }
+    }
+  },
   "title": "Huawei Router 5G Monitor"
 }

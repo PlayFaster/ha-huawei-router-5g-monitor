@@ -5,14 +5,15 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
   - [\[1.1.3-dev16\] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC](#113-dev16---2026-08-14---ci-bumps-zizmor-mypy-jsonschema-phacc)
-  - [\[1.1.3-dev15\] - 2026-08-09 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table](#113-dev15---2026-08-09---documentation-phase-repair-titles-roadmap-spelling-sweep-table)
-  - [\[1.1.3-dev14\] - 2026-08-09 - Integration Health and Drift Detection; Guard Bands Reconciled](#113-dev14---2026-08-09---integration-health-and-drift-detection-guard-bands-reconciled)
-  - [\[1.1.3-dev13\] - 2026-08-09 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards](#113-dev13---2026-08-09---action-icons-icon-and-parallel_updates-sweeps-secret-pre-fill-guards)
-  - [\[1.1.3-dev12\] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten](#113-dev12---2026-08-09---silent-write-failures-orphaned-repairs-lost-debounced-writes-diagnostics-rewritten)
-  - [\[1.1.3-dev11\] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed](#113-dev11---2026-08-09---zero-partial-branches-zero-assertion-tests-closed)
-  - [\[1.1.3-dev10\] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused](#113-dev10---2026-08-09---four-statistics-corrupting-counters-via_device-deprecation-recorder-hygiene-refresh-while-paused)
+  - [\[1.1.3-dev15\] - 2026-08-14 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table](#113-dev15---2026-08-14---documentation-phase-repair-titles-roadmap-spelling-sweep-table)
+  - [\[1.1.3-dev14\] - 2026-08-14 - Integration Health and Drift Detection; Guard Bands Reconciled](#113-dev14---2026-08-14---integration-health-and-drift-detection-guard-bands-reconciled)
+  - [\[1.1.3-dev13\] - 2026-08-14 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards](#113-dev13---2026-08-14---action-icons-icon-and-parallel_updates-sweeps-secret-pre-fill-guards)
+  - [\[1.1.3-dev12\] - 2026-08-14 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten](#113-dev12---2026-08-14---silent-write-failures-orphaned-repairs-lost-debounced-writes-diagnostics-rewritten)
+  - [\[1.1.3-dev11\] - 2026-08-14 - Zero Partial Branches; Zero-Assertion Tests Closed](#113-dev11---2026-08-14---zero-partial-branches-zero-assertion-tests-closed)
+  - [\[1.1.3-dev10\] - 2026-08-14 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused](#113-dev10---2026-08-14---four-statistics-corrupting-counters-via_device-deprecation-recorder-hygiene-refresh-while-paused)
   - [\[1.1.3-dev9\] - 2026-08-08 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#113-dev9---2026-08-08---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
   - [\[1.1.3-dev8\] - 2026-07-28 - Automation Example Glitch Guards \& Float Rounding in README](#113-dev8---2026-07-28---automation-example-glitch-guards--float-rounding-in-readme)
   - [\[1.1.3-dev7\] - 2026-07-12 - PHACC Bump; README Alignment and Codespell](#113-dev7---2026-07-12---phacc-bump-readme-alignment-and-codespell)
@@ -93,6 +94,54 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.0-dev1] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action
+
+Section §S of the August 2026 update plan — work raised by the `huawei-lte-api` 2.0.0 review and the Home Assistant device-tracker review. **Opens the `1.2.0` release line**, which also settles the long-standing divergence between `manifest.json` and this changelog.
+
+### Fixed
+
+- **Two library calls have never worked, on the pinned version.** Both were verified absent from the installed `huawei-lte-api` 1.11.0 — and from 2.0.0 — rather than inferred:
+  - **Logout.** `api.py` called `self._connection.logout`. `Connection` has no `logout` method and never has. The call raised `AttributeError` straight into a `_LOGGER.debug` handler, so **every unload, reload and options change silently failed to close the router session**, which then expired on its own TTL. That matters on a device whose concurrent-session limit is the reason `api.py` holds a lock at all. The real method is `client.user.logout()`.
+  - **Clear Traffic Statistics.** `api.py` called `client.monitoring.clear_traffic()`; the method is `set_clear_traffic()`. The button could not work.
+
+  Both were hidden by `# type: ignore[attr-defined]` — the suppression silenced precisely the check that would have caught them. `clear_traffic` was hidden twice over, because its test asserted `clear_traffic.assert_called_once()` against a bare `MagicMock`, which creates any attribute on demand. **The suite enforced the defect.**
+
+- **Device tracker unique IDs were not unique across config entries.** `ScannerEntity.unique_id` is a property returning the bare MAC address, and it wins over the `_attr_unique_id` this integration had been setting — so that line had been dead code all along, and the entity IDs were globally the client's MAC. Two Huawei routers seeing the same client mint the same id, and Home Assistant's response is to **refuse the second entity entirely** (`entity_platform`: _"does not generate unique IDs … ignoring"_). Not an `_2` suffix — that is entity-**id** behavior. The client would simply never appear under the second router.
+
+  **Fixed without a breaking change.** The entity now scopes its own id, and a one-time `entity_registry.async_migrate_entries` in `async_setup_entry` rewrites the existing registry rows before any platform is forwarded. Because the row is rewritten rather than replaced, the **`entity_id`, name, area, enabled state and every customisation are preserved** — automations and dashboards are unaffected. The migration is idempotent and scoped to `device_tracker`; every other platform has always built entry-scoped ids.
+
+### Added
+
+- **A library contract test.** Every `client.<group>.<method>` reference is extracted from `api.py` **by parsing the source**, then checked against the installed package. Not a hand-maintained list — forgetting to update a list is the exact failure being guarded against. This is what would have caught both dead calls, and it turns a future library bump into a red suite rather than a runtime `AttributeError`.
+
+- **A suppression allow-list sweep.** Every `# type: ignore`, `# noqa` and `# pragma: no cover` must appear in `ALLOWED_SUPPRESSIONS` with a written reason; the sweep fails when the set grows, and a companion test fails on a dead entry or a token justification. Comments are found with `tokenize`, so directives quoted inside docstrings are not mistaken for live ones.
+
+  **Ruff and mypy cannot cover this.** `RUF100` and mypy's `warn_unused_ignores` report a suppression that is _unnecessary_; they are silent on one that is doing real work because the error is real. Both were clean while two calls to non-existent methods sat behind `type: ignore`.
+
+- **A `cleanup_unused_entities` action.** A `device_tracker` entity is created for every client the router has ever reported and nothing removed it, so a guest's phone seen once left a permanent entity. With a second router configured that stops being cosmetic. Modelled on `unifi_network_monitor`'s.
+
+  **It previews by default** (`dry_run: true`). Two guards matter more than the feature: nothing is ever removed while `coordinator.data` is empty, and nothing is removed when the router reports zero clients — an outage would otherwise make every client look stale and delete the lot, which is irreversible.
+
+- **A per-request transport timeout.** `Connection(timeout=REQUEST_TIMEOUT)`, deliberately well under `FETCH_TIMEOUT`. Previously a single hung endpoint consumed the entire 30-second poll budget and failed the whole update; now that endpoint fails alone and the other fourteen still return — and its absence is no longer silent, because the Integration Health sensor reports it as a degraded capability once it persists.
+
+### Changed
+
+- **`reboot` pre-migrated to `set_control(ControlModeEnum.REBOOT)`.** Library 1.11.0 carries `reboot()`, `control()` **and** `set_control()`; 2.0.0 removes the first two. Adopting the surviving spelling now means the eventual bump needs no code change here at all.
+- **`hacs.json` now declares `"homeassistant": "2025.1.0"`**, so the minimum the README has always claimed is finally enforced. Before this, HACS would install on any version.
+- **Every date written in the previous session was wrong** — recorded as 2026-08-09 when the work happened on 2026-08-14. 59 corrections across this changelog, `ROADMAP.md`, `value_min_max.md` and the tracking notes.
+
+### Not done, and why
+
+- **The `huawei-lte-api` 2.0.0 bump is blocked: the release is not on PyPI.** The GitHub tag exists, but the newest published version is 1.11.0 — confirmed against both `pip index` and the PyPI JSON API. Home Assistant installs requirements from PyPI, so pinning `2.0.0` would break every install. The pin was raised, verified to be uninstallable, and reverted. **All the code changes it would have required are already made**, so the bump becomes a two-line change whenever the package is published.
+- **The six new 2.0.0 endpoints cannot be probed yet** — `onekey_diag`, `guesttime_setting`, `volte`, `acl`, `user.rule` and `wan_service_name` are all absent from 1.11.0. Blocked with the bump.
+- **The public `wlan.set_multi_basic_settings()` was deliberately _not_ adopted**, reversing the plan. An earlier comment claiming no public setter existed was false and has been corrected — but the public setter posts only `{'Ssids': …, 'WifiRestart': 1}` and discards every other top-level key. Probed against a live B535: the GET returns **`Ssids`, `DbhoEnable` and `modify_guest_ssid`**, so calling it would silently drop band-steering and guest-SSID state on every guest-WiFi toggle. Round-tripping the full response, as the existing code does, is the correct behavior; the `# noqa: SLF001` now says so and is on the reviewed allow-list.
+
+### Verification
+
+**540 tests passing** (was 515), 100% line and 100% branch coverage, 0 partial branches, assertion audit PASSED, `ruff` lint and format clean, mypy standard and strict clean.
+
+**Clear Traffic Statistics is fixed but not yet exercised against hardware** — deferred to month-end at the owner's request, since it resets counters. The Reboot change is likewise unexercised by choice.
+
 ## [1.1.3-dev17] - 2026-08-14 - Add HA Compatibility Document
 
 ### Changes
@@ -108,7 +157,7 @@ All changes to this project will be documented in this file. This is the detaile
 - **Validate Bump**: Update `check-jsonschema` from 0.37.4 to 0.38.0
 - **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.354 to 0.13.355
 
-## [1.1.3-dev15] - 2026-08-09 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table
+## [1.1.3-dev15] - 2026-08-14 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table
 
 Phase 3 of the August 2026 update plan — all documentation and recorded decisions in one phase and one lint run, deliberately after the code settled.
 
@@ -142,7 +191,7 @@ Phase 3 of the August 2026 update plan — all documentation and recorded decisi
 
 515 tests passing, 100% line and branch coverage, `ruff` clean, mypy standard and strict clean, `markdownlint` clean across every tracked Markdown file, `prettier` clean, `codespell` clean, 46 README links checked, all JSON schema-valid.
 
-## [1.1.3-dev14] - 2026-08-09 - Integration Health and Drift Detection; Guard Bands Reconciled
+## [1.1.3-dev14] - 2026-08-14 - Integration Health and Drift Detection; Guard Bands Reconciled
 
 Phase 2 (third part) of the August 2026 update plan. Huawei was the family's only outlier on `dev_standards` Section 19, and `docs/value_min_max.md` had never been checked against the code since it was written.
 
@@ -184,7 +233,7 @@ Phase 2 (third part) of the August 2026 update plan. Huawei was the family's onl
 
 **515 tests passing** (was 497), 100% line and branch coverage, 0 partials, assertion audit PASSED (0 of 453), mypy standard and strict clean, `ruff` clean.
 
-## [1.1.3-dev13] - 2026-08-09 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards
+## [1.1.3-dev13] - 2026-08-14 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards
 
 Phase 2 (second part) of the August 2026 update plan — the cheap ports and the decisions that need recording.
 
@@ -214,7 +263,7 @@ Phase 2 (second part) of the August 2026 update plan — the cheap ports and the
 
 **497 tests passing** (was 487), 100% line and branch coverage, 0 partials, mypy standard and strict clean, `ruff` clean, `icons.json` and `manifest.json` schema-valid.
 
-## [1.1.3-dev12] - 2026-08-09 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten
+## [1.1.3-dev12] - 2026-08-14 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten
 
 Phase 2 (first part) of the August 2026 update plan — the standards defects that are not in the "confirmed four", plus the privacy rewrite. Tracked in `.notes/info/updates_202608/status_plan.md`.
 
@@ -242,7 +291,7 @@ Phase 2 (first part) of the August 2026 update plan — the standards defects th
 
   The replacement is layered and **recursive**: credentials and subscriber identifiers are blanked; IPs, MACs, hostnames, SSIDs and cell ids become stable tokens (`ip-1`, `mac-1`) so cross-references survive; SMS bodies are reduced to a length; and every remaining string is swept for anything address-shaped, as a structural backstop for keys the module does not enumerate — which is every key a future firmware invents. Everything diagnostically useful is preserved: model, firmware, hardware version, all signal metrics, band and channel, byte counters, uptime, connection status and failure counts.
 
-  **Two false positives were caught by test, and are worth recording.** A first-draft sweep rewrote the firmware version `11.0.1.1(H192SP1C983)` as `ip-1(H192SP1C983)` — a four-part version parses as an IPv4 address — and the SMS timestamp `2026-08-09 10:00:00` as `2026-08-09 ip6-1`, because `10:00:00` reads as three hex groups. The rules were narrowed (octet bounds, and IPv6 now requires a `::` elision or the full eight-group form) and the genuinely ambiguous keys are named in `NEVER_SWEPT_KEYS`. An invented pattern that "usually" tells a version from an address would corrupt some other router's version string instead.
+  **Two false positives were caught by test, and are worth recording.** A first-draft sweep rewrote the firmware version `11.0.1.1(H192SP1C983)` as `ip-1(H192SP1C983)` — a four-part version parses as an IPv4 address — and the SMS timestamp `2026-08-14 10:00:00` as `2026-08-14 ip6-1`, because `10:00:00` reads as three hex groups. The rules were narrowed (octet bounds, and IPv6 now requires a `::` elision or the full eight-group form) and the genuinely ambiguous keys are named in `NEVER_SWEPT_KEYS`. An invented pattern that "usually" tells a version from an address would corrupt some other router's version string instead.
 
 - **The diagnostics tests now assert the output rather than the mechanism.** The previous suite mocked `async_redact_data` and asserted it had been _called_ with the right arguments — which is equally true of an implementation that redacts nothing useful, and is the exact shape that produced two false clean verdicts on UniFi. The replacement asserts the negative property structurally: fifteen distinctive identifiers, each checked against the **serialized** document so nested lists and dicts are covered, parametrized so a failure names the value that leaked.
 
@@ -252,7 +301,7 @@ Phase 2 (first part) of the August 2026 update plan — the standards defects th
 
 **Not yet verified against a real download.** The scrubber is unit-tested against a realistic payload, but confirming it against a regenerated diagnostics file **with real router data in it** needs a live instance and is parked — see §P-2 of `status_plan.md`. Reading the code is what produced UniFi's two false clean verdicts, so this is deliberately **not** claimed as closed.
 
-## [1.1.3-dev11] - 2026-08-09 - Zero Partial Branches; Zero-Assertion Tests Closed
+## [1.1.3-dev11] - 2026-08-14 - Zero Partial Branches; Zero-Assertion Tests Closed
 
 Phase 1 of the August 2026 update plan — the test baseline. No source changes; this phase is entirely about what the suite can see.
 
@@ -287,7 +336,7 @@ Phase 1 of the August 2026 update plan — the test baseline. No source changes;
 
 **This closes the last blocker on a family-wide gate.** `fail_under = 100` in `dev-workbench/workbench/python/pyproject.toml` is synced into every project and is all-or-none by design; WiFi, ZTE and UniFi reached zero partials on 2026-08-05, -07 and -08 respectively, and Huawei was the remaining one. That workbench change is a separate, deliberate four-project edit and is **not** made here.
 
-## [1.1.3-dev10] - 2026-08-09 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused
+## [1.1.3-dev10] - 2026-08-14 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused
 
 Phase 0 of the August 2026 update plan — the four confirmed defects that no sibling project has. Two were causing harm every day; one has an external Home Assistant deadline. Tracked in `.notes/info/updates_202608/status_plan.md`.
 

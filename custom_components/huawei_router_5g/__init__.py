@@ -6,17 +6,18 @@ from typing import Any, cast
 import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
-from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse
+from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers import issue_registry as ir
 from homeassistant.helpers.typing import ConfigType
 from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from ._compat import via_device_link
 from .api import HuaweiRouter5GAPI
-from .const import DOMAIN, REPAIR_NAMES
+from .const import DOMAIN, REPAIR_NAMES, SERVICE_CLEANUP
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import parse_sms_list
 
@@ -60,6 +61,12 @@ SERVICE_GET_SMS_LIST_SCHEMA = vol.Schema(
         vol.Optional("box_type", default=1): vol.All(
             vol.Coerce(int), vol.In([1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
         ),
+    }
+)
+
+SERVICE_CLEANUP_SCHEMA = vol.Schema(
+    {
+        vol.Optional("dry_run", default=True): cv.boolean,
     }
 )
 
@@ -164,6 +171,52 @@ async def async_get_sms_list(hass: HomeAssistant, call: ServiceCall) -> dict[str
         raise HomeAssistantError(f"Failed to fetch SMS list: {err}") from err
 
 
+def _tracked_macs(coordinator: HuaweiRouter5GDataUpdateCoordinator) -> set[str]:
+    """Return every MAC the router currently reports, from both host lists."""
+    data = coordinator.data or {}
+    macs: set[str] = set()
+    for key in ("lan_host_info", "wlan_host_list"):
+        block = data.get(key)
+        if not isinstance(block, dict):
+            continue
+        for host in block.get("Hosts", {}).get("Host", []) or []:
+            if isinstance(host, dict) and (mac := host.get("MacAddress")):
+                macs.add(mac)
+    return macs
+
+
+def _stale_tracker_entities(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> list[er.RegistryEntry]:
+    """Return device_tracker entities for clients the router no longer lists.
+
+    A tracker is created for every client ever seen and nothing removes it, so
+    a guest's phone seen once leaves a permanent entity. With two routers
+    configured that accumulation stops being cosmetic.
+
+    **Nothing is removed while the coordinator has no data.** An empty payload
+    during an outage would otherwise make every client look stale and delete
+    the lot — the failure mode this guard exists for.
+    """
+    coordinator = getattr(entry, "runtime_data", None)
+    if coordinator is None or not coordinator.data:
+        return []
+
+    live = _tracked_macs(coordinator)
+    if not live:
+        return []
+
+    prefix = f"{entry.unique_id}_"
+    registry = er.async_get(hass)
+    return [
+        item
+        for item in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if item.domain == Platform.DEVICE_TRACKER
+        and item.unique_id.startswith(prefix)
+        and item.unique_id[len(prefix) :] not in live
+    ]
+
+
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Huawei Router 5G Monitor component."""
 
@@ -178,6 +231,31 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def _handle_get_sms_list(call: ServiceCall) -> dict[str, Any]:
         return await async_get_sms_list(hass, call)
+
+    async def _handle_cleanup(call: ServiceCall) -> dict[str, Any]:
+        """Report or remove client trackers the router no longer lists."""
+        dry_run: bool = call.data["dry_run"]
+        report: dict[str, Any] = {}
+
+        for entry in hass.config_entries.async_entries(DOMAIN):
+            stale = _stale_tracker_entities(hass, entry)
+            report[entry.title] = [item.entity_id for item in stale]
+            if dry_run:
+                continue
+            registry = er.async_get(hass)
+            for item in stale:
+                _LOGGER.info(
+                    "%s: Removing tracker for a client the router no longer "
+                    "reports: %s",
+                    entry.title,
+                    item.entity_id,
+                )
+                registry.async_remove(item.entity_id)
+
+        return {
+            "dry_run": dry_run,
+            "removed" if not dry_run else "would_remove": report,
+        }
 
     hass.services.async_register(
         DOMAIN,
@@ -208,7 +286,55 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         supports_response=SupportsResponse.ONLY,
     )
 
+    hass.services.async_register(
+        DOMAIN,
+        SERVICE_CLEANUP,
+        _handle_cleanup,
+        schema=SERVICE_CLEANUP_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
     return True
+
+
+async def _async_migrate_tracker_unique_ids(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> None:
+    """Scope `device_tracker` unique IDs to this config entry.
+
+    `ScannerEntity.unique_id` returns the bare MAC address, so two Huawei
+    routers tracking the same client would mint the same id and Home Assistant
+    would refuse to add the second entity at all. The entity now scopes its own
+    id; this rewrites the ids already in the registry to match.
+
+    **Rewriting the registry row is what makes the change non-breaking.** The
+    `entity_id`, name, area, enabled state and every customisation live on that
+    row and are preserved — only `unique_id` changes. Skipping this would
+    orphan the old rows and mint new entities with `_2` suffixes, breaking
+    every automation and dashboard that referenced them.
+
+    Idempotent: rows already carrying the prefix are left alone, so a second
+    run is a no-op. Scoped to `device_tracker`, because every other platform
+    has always built entry-scoped ids.
+
+    Must run **before** platforms are forwarded, or the platform adds entities
+    with new ids while the old rows still hold them and the collision this
+    exists to prevent happens during the migration itself.
+    """
+    if not entry.unique_id:
+        return
+
+    prefix = f"{entry.unique_id}_"
+
+    @callback
+    def _migrate(registry_entry: er.RegistryEntry) -> dict[str, Any] | None:
+        if registry_entry.domain != Platform.DEVICE_TRACKER:
+            return None
+        if registry_entry.unique_id.startswith(prefix):
+            return None
+        return {"new_unique_id": f"{prefix}{registry_entry.unique_id}"}
+
+    await er.async_migrate_entries(hass, entry.entry_id, _migrate)
 
 
 async def async_setup_entry(
@@ -255,6 +381,10 @@ async def async_setup_entry(
         model=entry.data.get("model", "Huawei Router"),
         **via_device_link(hass, DOMAIN, f"{sub_id_prefix}_system", entry.entry_id),
     )
+
+    # Before any platform is forwarded — see the docstring for why the order
+    # is not incidental.
+    await _async_migrate_tracker_unique_ids(hass, entry)
 
     # Forward platforms immediately so entities appear in HA at startup.
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)

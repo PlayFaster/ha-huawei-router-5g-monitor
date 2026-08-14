@@ -577,3 +577,156 @@ def test_integration_health_attributes_are_all_unrecorded() -> None:
     )
 
     assert HuaweiIntegrationHealthSensor._unrecorded_attributes >= SECTION_19_ATTRIBUTES
+
+
+# ---------------------------------------------------------------------------
+# Suppressed static-analysis directives — every one is a reviewed decision
+# ---------------------------------------------------------------------------
+#
+# `masked_errors_check` Class D. An audit on 2026-08-14 found five suppressions
+# here, of which **three were wrong and two were hiding live defects**:
+# `Connection.logout` and `Monitoring.clear_traffic` did not exist in the
+# pinned library, so Logout and Clear Traffic Statistics had never worked, and
+# a third carried a justification that was factually false.
+#
+# A prompt run is a point-in-time audit. This is the mechanism that keeps it
+# true afterwards: the set cannot grow without someone editing the table below
+# and writing a reason.
+#
+# **Why ruff and mypy do not already cover this.** `RUF100` and mypy's
+# `warn_unused_ignores` report a suppression that is *unnecessary* — one where
+# no error would have fired. They are silent on the dangerous case: a
+# suppression that IS doing work, because the error is real. Both were clean
+# while two calls to non-existent methods sat behind `type: ignore`.
+#
+# Keyed on (file, code) rather than line number, so ordinary edits do not
+# churn it.
+ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
+    ("api.py", "noqa: SLF001"): (
+        "Reaches wlan._session.post_set directly for wlan/multi-basic-settings. "
+        "A public set_multi_basic_settings() exists, but it posts only "
+        "{'Ssids': ..., 'WifiRestart': 1} and drops every other top-level key. "
+        "Probed against a live B535 on 2026-08-14: the GET returns Ssids, "
+        "DbhoEnable and modify_guest_ssid, so the public setter would silently "
+        "discard band-steering and guest-SSID state on each toggle. "
+        "Round-tripping the full GET response is the correct behavior here."
+    ),
+    ("device_tracker.py", "type: ignore[attr-defined]"): (
+        "ScannerEntity is re-exported from homeassistant.components.device_tracker "
+        "but is absent from its __all__, so mypy reports an implicit re-export. "
+        "The component root is the conventional import path for HA platforms."
+    ),
+    ("device_tracker.py", "type: ignore[misc]"): (
+        "ScannerEntity.device_info is decorated @final and returns None. This "
+        "integration overrides it deliberately so every tracked client attaches "
+        "to the Clients sub-device — and, more importantly, because "
+        "entity_registry_enabled_default is True only when device_info is set: "
+        "without it every client tracker would be disabled by default unless "
+        "its MAC were already known to another integration. @final is a "
+        "typing-only constraint and there is no deprecation or removal date. "
+        "Recorded in docs/ha_compatibility.md."
+    ),
+}
+
+
+def _real_comments() -> list[tuple[str, int, str]]:
+    """Return every genuine comment in the component and tests.
+
+    Uses `tokenize` rather than a regex over raw text: several docstrings in
+    this project quote directives such as `# type: ignore[attr-defined]` while
+    explaining why a past one was wrong, and a text search cannot tell those
+    apart from a live suppression.
+    """
+    import pathlib
+    import tokenize
+
+    import custom_components.huawei_router_5g as component
+
+    roots = [
+        pathlib.Path(component.__path__[0]),
+        pathlib.Path(__file__).parent,
+    ]
+
+    found: list[tuple[str, int, str]] = []
+    for root in roots:
+        for path in sorted(root.rglob("*.py")):
+            if "__pycache__" in path.parts:
+                continue
+            with path.open("rb") as handle:
+                found.extend(
+                    (path.name, token.start[0], token.string)
+                    for token in tokenize.tokenize(handle.readline)
+                    if token.type == tokenize.COMMENT
+                )
+    return found
+
+
+def _live_suppressions() -> dict[tuple[str, str], list[int]]:
+    """Map (file, directive) to the lines carrying it."""
+    import re
+
+    pattern = re.compile(
+        r"#\s*(type:\s*ignore(?:\[[^\]]*\])?|noqa(?::\s*[A-Z0-9, ]+)?"
+        r"|pragma:\s*no cover)"
+    )
+
+    live: dict[tuple[str, str], list[int]] = {}
+    for filename, line, comment in _real_comments():
+        for raw in pattern.findall(comment):
+            code = " ".join(raw.split())
+            live.setdefault((filename, code), []).append(line)
+    return live
+
+
+def test_every_suppression_is_on_the_reviewed_allow_list() -> None:
+    """No `type: ignore`, `noqa` or `pragma: no cover` without a written reason.
+
+    **If this fails, the new suppression needs a reason, not an entry.** Ask
+    what the tool would have said and whether that thing is actually true —
+    an `attr-defined` ignore on a library call is a *claim about that library*,
+    and this project has twice made that claim falsely.
+    """
+    unlisted = sorted(
+        f"{filename}:{','.join(str(n) for n in lines)}  {code}"
+        for (filename, code), lines in _live_suppressions().items()
+        if (filename, code) not in ALLOWED_SUPPRESSIONS
+    )
+
+    assert not unlisted, (
+        "suppressions with no reviewed justification:\n"
+        + "\n".join(unlisted)
+        + "\n\nAdd to ALLOWED_SUPPRESSIONS with a reason, or fix the underlying "
+        "problem. Removing the suppression alone is not a fix."
+    )
+
+
+def test_allowed_suppressions_has_no_dead_entries() -> None:
+    """An allow-list entry must not outlive the suppression it covers.
+
+    A dead entry silently pre-approves the next occurrence of the same
+    directive in the same file, which is how a reviewed exception becomes an
+    unreviewed habit.
+    """
+    live = set(_live_suppressions())
+    stale = sorted(f"{f}  {c}" for (f, c) in ALLOWED_SUPPRESSIONS if (f, c) not in live)
+
+    assert not stale, (
+        "ALLOWED_SUPPRESSIONS entries that no longer match anything:\n"
+        + "\n".join(stale)
+    )
+
+
+def test_every_allowed_suppression_states_a_reason() -> None:
+    """The reason is the entire value of the allow-list.
+
+    An entry with an empty or token justification is indistinguishable from
+    one added to make a check pass, which is the thing being guarded against.
+    """
+    thin = sorted(
+        f"{f}  {c}"
+        for (f, c), reason in ALLOWED_SUPPRESSIONS.items()
+        if len(reason.strip()) < 40
+    )
+    assert not thin, "allow-list entries with no real justification:\n" + "\n".join(
+        thin
+    )
