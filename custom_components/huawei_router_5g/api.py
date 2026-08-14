@@ -363,7 +363,9 @@ class HuaweiRouter5GAPI:
         async with self._lock:
             try:
                 await self._execute_with_retry(
-                    lambda c: c.dial_up.set_mobile_dataswitch(1 if enable else 0)
+                    lambda client: client.dial_up.set_mobile_dataswitch(
+                        1 if enable else 0
+                    )
                 )
             except Exception:
                 _LOGGER.exception("Set mobile data failed")

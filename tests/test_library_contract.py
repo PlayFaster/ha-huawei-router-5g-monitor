@@ -26,9 +26,21 @@ from huawei_lte_api.Client import Client
 
 from custom_components.huawei_router_5g import api as api_module
 
-# `client.<group>.<attribute>` — with or without a call, because a method
+# `<receiver>.<group>.<attribute>` — with or without a call, because a method
 # passed to `asyncio.to_thread` is referenced without parentheses.
-_CALL = re.compile(r"\bclient\.([a-z_][a-z_0-9]*)\.([a-z_][a-z_0-9]*)")
+#
+# **Keyed on the library's own endpoint-group names, not on the receiver being
+# spelled `client`.** The first version of this pattern matched `\bclient\.`
+# literally and silently missed `lambda c: c.dial_up.set_mobile_dataswitch(...)`
+# — a real call, invisible to the sweep. That is exactly the blind spot this
+# file exists to close, so the rule now takes the group names from `Client`
+# itself and a receiver of any name is covered.
+_CALL = re.compile(r"\b[A-Za-z_]\w*\.([a-z_]\w*)\.([a-z_]\w*)")
+
+
+def _endpoint_groups() -> set[str]:
+    """Return every endpoint-group attribute name a `Client` exposes."""
+    return {name for name in vars(Client(MagicMock())) if not name.startswith("_")}
 
 
 def _referenced_library_calls() -> set[tuple[str, str]]:
@@ -39,10 +51,11 @@ def _referenced_library_calls() -> set[tuple[str, str]]:
     suppression sweep rather than here.
     """
     source = inspect.getsource(api_module)
+    groups = _endpoint_groups()
     return {
         (group, attr)
         for group, attr in _CALL.findall(source)
-        if not group.startswith("_") and not attr.startswith("_")
+        if group in groups and not attr.startswith("_")
     }
 
 
@@ -87,6 +100,9 @@ def test_the_contract_sweep_is_not_vacuous() -> None:
     # Two that must always be present, and are the two that were broken.
     assert ("user", "logout") in found
     assert ("monitoring", "set_clear_traffic") in found
+    # Reached through a lambda parameter; the receiver-literal pattern that
+    # preceded this one missed it entirely.
+    assert ("dial_up", "set_mobile_dataswitch") in found
 
 
 @pytest.mark.parametrize(

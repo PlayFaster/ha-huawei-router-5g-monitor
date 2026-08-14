@@ -136,6 +136,21 @@ Section §S of the August 2026 update plan — work raised by the `huawei-lte-ap
 - **The six new 2.0.0 endpoints cannot be probed yet** — `onekey_diag`, `guesttime_setting`, `volte`, `acl`, `user.rule` and `wan_service_name` are all absent from 1.11.0. Blocked with the bump.
 - **The public `wlan.set_multi_basic_settings()` was deliberately _not_ adopted**, reversing the plan. An earlier comment claiming no public setter existed was false and has been corrected — but the public setter posts only `{'Ssids': …, 'WifiRestart': 1}` and discards every other top-level key. Probed against a live B535: the GET returns **`Ssids`, `DbhoEnable` and `modify_guest_ssid`**, so calling it would silently drop band-steering and guest-SSID state on every guest-WiFi toggle. Round-tripping the full response, as the existing code does, is the correct behavior; the `# noqa: SLF001` now says so and is on the reviewed allow-list.
 
+### `masked_errors_check` audit — run last, as designed
+
+Run after every other change in this batch, per §S-13 of the tracking notes: the queued work changes the surface the prompt audits, and the prompt is also the check on that work.
+
+| Class | Result |
+| :-- | :-- |
+| **A** — swallowed exceptions | **1 accepted.** Every broad `except` in `api.py` re-raises, bar two: the logout teardown (best-effort by design, and the connection is discarded regardless) and the per-endpoint handler in `get_data`, which drops a failed optional endpoint. The second is deliberate **and no longer silent** — the Integration Health sensor reports it as a degraded capability once it persists. |
+| **B** — silent auth timeouts | **None.** Session expiry is detected from typed exceptions and the `125002` / `125003` / `100003` codes, plus a time-based inactivity reset in `_ensure_client`. |
+| **C** — mock-masked tests | **Mitigated rather than removed.** The API tests still mock the client, but every method name they assert is now independently verified against the installed package by the contract test, which is the layer that was missing. |
+| **D** — suppressed directives | **3, all reviewed and allow-listed** with written reasons. Down from five, of which three were wrong. |
+
+**The audit found one new defect — in the contract test written earlier the same day.** Its pattern matched the receiver literally as `client.`, so `lambda c: c.dial_up.set_mobile_dataswitch(...)` was invisible to it: one real library call, unswept, by a test whose whole purpose is to sweep them. The rule now keys on the endpoint-group names taken from `Client` itself, so a receiver of any name is covered, and the previously-missed call is pinned by name. Coverage went 21 → 22 calls.
+
+That is the argument for running this prompt last rather than first, made concrete: it caught a hole in the very mechanism built to prevent the original bug.
+
 ### Verification
 
 **540 tests passing** (was 515), 100% line and 100% branch coverage, 0 partial branches, assertion audit PASSED, `ruff` lint and format clean, mypy standard and strict clean.
