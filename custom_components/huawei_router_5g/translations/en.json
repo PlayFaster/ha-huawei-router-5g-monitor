@@ -40,12 +40,6 @@
       "sw_version": {
         "name": "Software Version"
       },
-      "hw_version": {
-        "name": "Hardware Version"
-      },
-      "imei": {
-        "name": "IMEI"
-      },
       "wan_ip": {
         "name": "WAN IP Address"
       },
