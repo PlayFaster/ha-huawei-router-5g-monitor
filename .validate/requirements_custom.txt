@@ -1,2 +1,1 @@
 huawei-lte-api==2.0.1
-url-normalize==3.0.0

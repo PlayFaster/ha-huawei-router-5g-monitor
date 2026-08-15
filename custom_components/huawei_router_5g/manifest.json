@@ -1,16 +1,12 @@
 {
   "domain": "huawei_router_5g",
   "name": "Huawei Router 5G Monitor",
-  "codeowners": [
-    "@PlayFaster"
-  ],
+  "codeowners": ["@PlayFaster"],
   "config_flow": true,
   "documentation": "https://github.com/PlayFaster/ha-huawei-router-5g-monitor",
   "integration_type": "hub",
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/PlayFaster/ha-huawei-router-5g-monitor/issues",
-  "requirements": [
-    "huawei-lte-api==2.0.1"
-  ],
+  "requirements": ["huawei-lte-api==2.0.1"],
   "version": "1.2.0-dev25"
 }
