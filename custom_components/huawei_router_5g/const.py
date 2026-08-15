@@ -10,7 +10,7 @@ NAME = "Huawei Router 5G Monitor"
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN_INTERVAL = 180
 CONF_STOP_POLLING = "stop_polling"
-# Overall budget for one poll — all twenty-five endpoints together.
+# Overall budget for one poll — all twenty-six endpoints together.
 FETCH_TIMEOUT = 30
 
 # Per-request transport timeout, passed to `Connection`. Deliberately well
@@ -35,7 +35,7 @@ REPAIR_NAMES: tuple[str, ...] = (REPAIR_AUTH_FAILED, REPAIR_CONN_ERROR)
 
 # --- Section 19: Integration Health ------------------------------------------
 #
-# `api.get_data()` fetches twenty-five endpoints and **silently omits** any optional
+# `api.get_data()` fetches twenty-six endpoints and **silently omits** any optional
 # one that fails — only `device_information` raises. So a poll can succeed with
 # a whole capability missing and nothing anywhere says so. That is precisely the
 # silent failure Section 19 exists to surface.
@@ -72,6 +72,40 @@ ENDPOINT_NAMES: dict[str, str] = {
     "security_upnp": "UPnP",
     "voice_busy": "Voice line state",
     "voice_volte": "VoLTE status",
+    "onekey_diag": "Router self-diagnosis",
+}
+
+# --- `monitoring/onekey_diag` -------------------------------------------------
+#
+# The router's own fault diagnosis: one verdict plus nine reasons.
+#
+# **`connection_status` is the verdict, and `2` means healthy** - it is not a
+# boolean and `0` is not its good value. Decoded on 2026-08-15 by taking the
+# data session down and reading the block in both states: `2` -> `8`, while
+# `dialupswitch_off` went `0` -> `1` and `apnstatus` `0` -> `2`, correctly
+# naming the cause. The other seven stayed `0`.
+#
+# **Only `2` and `8` have been observed**, which is why the check below is
+# `!= "2"` rather than `== "8"`: `2` is confirmed good, so anything else is at
+# minimum not-the-known-good value, whereas enumerating failure codes would be
+# a guess about every code never seen.
+DIAG_VERDICT_KEY = "connection_status"
+DIAG_HEALTHY = "2"
+
+# The nine reason fields, with the labels a user reads. `0` means nothing to
+# report. **Only `dialupswitch_off` and `apnstatus` were observed changing**;
+# the other seven labels are read from their field names and are the best
+# available reading rather than a measured one.
+DIAG_REASONS: dict[str, str] = {
+    "signal_status": "Signal problem",
+    "sim_status": "SIM problem",
+    "dialupswitch_off": "Mobile data switched off",
+    "datalimit_off": "Data limit reached",
+    "roam_off": "Roaming disabled",
+    "staticdns": "Static DNS problem",
+    "apnstatus": "APN problem",
+    "modemdialup_err": "Modem dial-up error",
+    "speedLimitStatus": "Speed limited by the network",
 }
 
 # `device_information` is the one endpoint whose absence already raises, so it

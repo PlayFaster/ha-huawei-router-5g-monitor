@@ -16,6 +16,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import DIAG_HEALTHY, DIAG_REASONS, DIAG_VERDICT_KEY
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info, is_ssid_on, parse_signal_value
 
@@ -253,6 +254,14 @@ SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     value_fn=lambda data: _flag(data, "security_sip", "SipStatus"),
 )
 
+ROUTER_DIAGNOSTICS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="router_diagnostics",
+    translation_key="router_diagnostics",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="system",
+)
+
 VOLTE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="volte",
     translation_key="volte",
@@ -313,6 +322,9 @@ async def async_setup_entry(
             HuaweiSimStatusSensor(coordinator, entry, SIM_STATUS_DESCRIPTION),
             HuaweiIntegrationHealthSensor(
                 coordinator, entry, INTEGRATION_HEALTH_DESCRIPTION
+            ),
+            HuaweiRouterDiagnosticsSensor(
+                coordinator, entry, ROUTER_DIAGNOSTICS_DESCRIPTION
             ),
             *(
                 HuaweiValueBinarySensor(coordinator, entry, description)
@@ -709,3 +721,59 @@ class HuaweiValueBinarySensor(HuaweiBinarySensor):
             # forgot its value_fn should report unavailable, not raise.
             return None
         return value_fn(self.coordinator.data)
+
+
+class HuaweiRouterDiagnosticsSensor(HuaweiBinarySensor):
+    """The router's own verdict on its connection, with the reasons attached.
+
+    **Distinct from Integration Health, deliberately.** That sensor answers "is
+    this integration working"; this one answers "does the router think its
+    connection is working". Folding one into the other would make a single green
+    light mean two different things, and they can disagree — a perfectly healthy
+    integration faithfully reporting a router that cannot reach the network.
+
+    One entity rather than ten. Nine of the ten fields read `0` permanently on a
+    healthy router, so ten binary sensors would be nine pieces of furniture and
+    one signal.
+    """
+
+    # Section 14: the reason list changes only when something is wrong, but the
+    # raw block is republished every poll and none of it is a time series.
+    _unrecorded_attributes = frozenset({"reasons", "raw", "verdict"})
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True when the router reports its connection as unhealthy.
+
+        `!= DIAG_HEALTHY`, not `== "8"`. Only `2` (healthy) and `8` (down) have
+        been observed, so treating anything that is not the known-good value as
+        a problem is sound, while enumerating failure codes would be a guess
+        about every code never seen.
+        """
+        block = (self.coordinator.data or {}).get("onekey_diag") or {}
+        verdict = block.get(DIAG_VERDICT_KEY)
+        if verdict in (None, ""):
+            return None
+        return str(verdict) != DIAG_HEALTHY
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any]:
+        """Return the reasons the router gives, plus the raw block.
+
+        The raw block is published because seven of the nine reason labels are
+        read from their field names rather than measured — a reader who
+        disagrees with a label can see the field that produced it.
+        """
+        block = (self.coordinator.data or {}).get("onekey_diag") or {}
+        if not block:
+            return {}
+        reasons = [
+            label
+            for key, label in DIAG_REASONS.items()
+            if str(block.get(key, "0")) not in ("0", "")
+        ]
+        return {
+            "verdict": block.get(DIAG_VERDICT_KEY),
+            "reasons": reasons,
+            "raw": dict(block),
+        }

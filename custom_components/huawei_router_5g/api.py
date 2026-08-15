@@ -290,6 +290,7 @@ class HuaweiRouter5GAPI:
                     # the payload must tolerate that.
                     ("voice_busy", lambda: client.voice.voicebusy()),
                     ("voice_volte", lambda: client.voice.volte()),
+                    ("onekey_diag", lambda: client.monitoring.onekey_diag()),
                 ]
                 for key, fetcher in fetch_tasks:
                     try:

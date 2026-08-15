@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev17\] - 2026-08-15 - Router Diagnostics Sensor](#120-dev17---2026-08-15---router-diagnostics-sensor)
   - [\[1.2.0-dev16\] - 2026-08-15 - WiFi Switch; Voice Entities](#120-dev16---2026-08-15---wifi-switch-voice-entities)
   - [\[1.2.0-dev15\] - 2026-08-15 - Follow-Up Refresh Fires While Paused](#120-dev15---2026-08-15---follow-up-refresh-fires-while-paused)
   - [\[1.2.0-dev14\] - 2026-08-15 - Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---follow-up-refresh-after-reboot-and-reconnect)
@@ -106,6 +107,22 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev17] - 2026-08-15 - Router Diagnostics Sensor
+
+### Added
+
+- **Router Diagnostics** binary sensor, from `monitoring/onekey_diag` — the router's own verdict on its connection, with the reasons it gives as attributes.
+- **Deliberately separate from Integration Health.** That sensor answers "is this integration working"; this one answers "does the router think its connection is working". They can legitimately disagree, and one green light meaning both would be worse than either.
+- One entity rather than ten: nine of the ten fields read `0` permanently on a healthy router.
+
+### Notes
+
+- **`connection_status` is a verdict, and `2` means healthy** — decoded by taking the data session down and reading the block in both states. Reading it as a boolean inverts the sensor completely.
+- The check is `!= "2"`, not `== "8"`. Only those two values have been observed, so treating not-known-good as a problem is sound while enumerating failure codes would be a guess.
+- The raw block is published alongside the labels, because seven of the nine reason labels are read from their field names rather than measured.
 
 ---
 

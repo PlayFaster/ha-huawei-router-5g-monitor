@@ -1,22 +1,22 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 164 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 165 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 47 | Core router info, WAN configuration, and global integration settings. |
+| **System** | 48 | Core router info, WAN configuration, and global integration settings. |
 | **Signal** | 60 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 24 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 22 | Detailed message counts per storage bank and recent message content. |
 | **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
 | **Clients** | 3 + trackers | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **164** | Plus one device tracker per discovered client. |
+| **Total** | **165** | Plus one device tracker per discovered client. |
 
 ---
 
-## 1. System Sub-Device (47 Entities)
+## 1. System Sub-Device (48 Entities)
 
 _Group: `system`_
 
@@ -70,6 +70,7 @@ _Group: `system`_
 | Reconnect | `reconnect` | Button | - | - | Drops and re-establishes the data session. Separate from Reboot, which restarts the device. |
 | Line State | `line_state` | Sensor | - | Diagnostic | **Disabled by default.** Voice line state, e.g. `Idle`. The only block in the payload that is a bare string rather than a dict. |
 | VoLTE | `volte` | Binary Sensor | - | Diagnostic | **Disabled by default.** Real VoLTE state, unlike SIP ALG which is a firewall setting. |
+| Router Diagnostics | `router_diagnostics` | Binary Sensor | - | Diagnostic | The router's own verdict on its connection, from `onekey_diag`. Problem device class. `connection_status` `2` is healthy — **not a boolean**. Attributes carry the reasons and the raw block. Distinct from Integration Health, which reports on the integration rather than the router. |
 ---
 
 ## 2. Signal Sub-Device (60 Entities)

@@ -455,6 +455,9 @@
       "roaming_auto_connect": {
         "name": "Roaming Auto-Connect"
       },
+      "router_diagnostics": {
+        "name": "Router Diagnostics"
+      },
       "sim_locked": {
         "name": "SIM Locked"
       },
