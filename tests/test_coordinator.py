@@ -152,17 +152,28 @@ async def test_coordinator_sms_event_firing(mock_hass, mock_config_entry):
     assert coordinator.last_sms_timestamp == "2024-05-01 10:02:00"
     assert mock_fire.call_count == 2
 
-    # Verify first new message event
+    # The payload is a **published contract** — documented in README.md and
+    # used as an automation trigger — so every field is asserted, not just the
+    # two that are obviously interesting. `entry_id` is what a multi-router
+    # user filters on to tell which router a message arrived at; dropping it
+    # fires every such automation for both routers. Covers finding ASSERT.2
+    # from recommendations_20260815.md Part 2.
     call1 = mock_fire.call_args_list[0]
     assert call1[0][0] == "huawei_router_5g_sms_received"
+    assert call1[0][1]["entry_id"] == mock_config_entry.entry_id
     assert call1[0][1]["index"] == 11
+    assert call1[0][1]["phone"] == "456"
     assert call1[0][1]["content"] == "New1"
+    assert call1[0][1]["date"] == "2024-05-01 10:01:00"
 
-    # Verify second new message event
+    # Distinct values per message, so a swap between the two events cannot pass.
     call2 = mock_fire.call_args_list[1]
     assert call2[0][0] == "huawei_router_5g_sms_received"
+    assert call2[0][1]["entry_id"] == mock_config_entry.entry_id
     assert call2[0][1]["index"] == 12
+    assert call2[0][1]["phone"] == "789"
     assert call2[0][1]["content"] == "New2"
+    assert call2[0][1]["date"] == "2024-05-01 10:02:00"
 
 
 @pytest.mark.asyncio
@@ -833,3 +844,76 @@ async def test_cancelling_a_pending_refresh_is_idempotent(mock_hass):
 
     handle.assert_called_once_with()
     assert coordinator._pending_refresh is None
+
+
+# ---------------------------------------------------------------------------
+# testing_deeper_lev1_review findings, recommendations_20260815.md Part 2
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_repeated_poll_of_an_unchanged_inbox_fires_nothing(
+    mock_hass, mock_config_entry
+):
+    """The steady state is the same message list, poll after poll.
+
+    Covers finding IDEM.1 from recommendations_20260815.md Part 2.
+
+    Every other test calls `_check_new_sms` exactly once, so the
+    de-duplication is only ever observed as "the first call did the right
+    thing". The regression that misses is one character: `>` becoming `>=` at
+    the timestamp comparison re-qualifies every message at the latest
+    timestamp on every subsequent poll, firing a duplicate event every cycle
+    forever — with the whole suite green.
+
+    The third call is what separates "de-duplication works" from
+    "de-duplication has stopped firing anything at all".
+    """
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, MagicMock()
+    )
+
+    def _msg(index: str, date: str) -> dict:
+        return {"Index": index, "Phone": "123", "Content": f"m{index}", "Date": date}
+
+    first = {
+        "sms_list": {
+            "Messages": {
+                "Message": [
+                    _msg("1", "2024-05-01 10:00:00"),
+                    _msg("2", "2024-05-01 10:01:00"),
+                ]
+            }
+        }
+    }
+
+    with patch.object(mock_hass.bus, "async_fire") as fire:
+        # First poll establishes the baseline silently — nothing pre-existing
+        # may be replayed into the user's automations.
+        coordinator._check_new_sms(first)
+        assert fire.call_count == 0
+
+        baseline_timestamp = coordinator.last_sms_timestamp
+        baseline_hashes = set(coordinator.fired_sms_hashes)
+
+        # Second poll: the router still holds exactly the same two messages.
+        coordinator._check_new_sms(first)
+        assert fire.call_count == 0, "an unchanged inbox fired an event again"
+        assert coordinator.last_sms_timestamp == baseline_timestamp
+        assert set(coordinator.fired_sms_hashes) == baseline_hashes
+
+        # Third poll: one genuinely new message, which must still fire.
+        second = {
+            "sms_list": {
+                "Messages": {
+                    "Message": [
+                        *first["sms_list"]["Messages"]["Message"],
+                        _msg("3", "2024-05-01 10:02:00"),
+                    ]
+                }
+            }
+        }
+        coordinator._check_new_sms(second)
+
+    assert fire.call_count == 1, "a genuinely new message did not fire"
+    assert fire.call_args[0][1]["index"] == 3

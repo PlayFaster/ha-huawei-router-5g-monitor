@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS De-duplication and the Event Payload Contract](#120-dev21---2026-08-15---depth-review-sms-de-duplication-and-the-event-payload-contract)
   - [\[1.2.0-dev20\] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Was Being Published as an IP Token](#120-dev20---2026-08-15---mutation-findings-implemented-firmware-version-was-being-published-as-an-ip-token)
   - [\[1.2.0-dev19\] - 2026-08-15 - Mutation Testing Configured and First Run Triaged](#120-dev19---2026-08-15---mutation-testing-configured-and-first-run-triaged)
   - [\[1.2.0-dev18\] - 2026-08-15 - `about` Attribute Notes on Every Entity](#120-dev18---2026-08-15---about-attribute-notes-on-every-entity)
@@ -110,6 +111,21 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev21] - 2026-08-15 - Depth Review: SMS De-duplication and the Event Payload Contract
+
+### Added
+
+- **A repeated-poll test for `_check_new_sms`.** The steady state of this integration is the **same message list, poll after poll**, and every existing test called it exactly once — so the de-duplication was only ever observed as "the first call did the right thing". The regression that misses is one character: `>` becoming `>=` at the timestamp comparison re-qualifies every message at the latest timestamp on every poll, firing a duplicate `huawei_router_5g_sms_received` event forever, with the whole suite green. The new test polls three times: baseline, unchanged, then one genuinely new message — the third call is what separates working de-duplication from de-duplication that has stopped firing anything at all.
+- **The full event payload is now asserted.** `entry_id`, `phone` and `date` were never checked. The payload is a published contract — documented in three places in `README.md` and used as an automation trigger — and `entry_id` is what a multi-router user filters on to tell which router a message arrived at. Values differ per message so a swap between the two events cannot pass.
+
+### Notes
+
+- `testing_deeper_lev1_review` produced **two** findings and that is the right answer. Most candidates dissolved on inspection: the strike budget is already driven to its limit and past it, the auth retry-once path is covered in `test_reliability_ext.py`, both session-expiry codes are parametrised, and paused-on-the-very-first-poll — the permutation most likely to be missed — was already covered. Both surviving findings are in `coordinator.py`, the one module in the mutation scope that produced no verdicts, so nothing mechanical was ever going to find them.
+- The review's findings are appended to the same `recommendations_20260815.md` the mutation pass wrote, as Part 2. Overwriting would have destroyed the mutation record and a new filename would have been invisible to `testing_deeper_lev1_implement`, which resolves the path from a date alone.
+- **Suite 682 → 683**, 100% line and branch coverage, 0 partial branches, assertion audit PASSED, ruff and `mypy --strict` clean.
 
 ---
 
