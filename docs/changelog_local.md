@@ -5,6 +5,17 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev12\] - 2026-08-15 - huawei-lte-api 2.0.1](#120-dev12---2026-08-15---huawei-lte-api-201)
+  - [\[1.2.0-dev11\] - 2026-08-15 - New Entity Set and Data-Usage Projection](#120-dev11---2026-08-15---new-entity-set-and-data-usage-projection)
+  - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
+  - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
+  - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
+  - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
+  - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
   - [\[1.1.3-dev16\] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC](#113-dev16---2026-08-14---ci-bumps-zizmor-mypy-jsonschema-phacc)
@@ -91,6 +102,118 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev12] - 2026-08-15 - huawei-lte-api 2.0.1
+
+### Changed
+
+- **Library pinned to `2.0.1`**, in `manifest.json` and `.validate/requirements_custom.txt`. 2.0.0 was tagged but never published to PyPI; 2.0.1 is the first available release of that line and is functionally equivalent.
+- **No code change was needed.** All 32 library calls, all five enums, all four exception types and the `Connection` signature survive unchanged. `device.set_control` was already the spelling that outlives 2.0.0's removal of `reboot()` and `control()`.
+- Verified against the installed 2.0.1 by `tests/test_library_contract.py`, then against the live router: 23 blocks returned, none empty, all 36 new entities resolving.
+- **Still synchronous.** No async client, so the IQS `async-dependency` and `inject-websession` rules remain unachievable rather than merely unmet.
+
+---
+
+## [1.2.0-dev11] - 2026-08-15 - New Entity Set and Data-Usage Projection
+
+### Added
+
+- **38 entities** across eight endpoints the integration had never called: six identity sensors, nine System sensors, four System binary sensors, eight Signal entities, the data-plan block, and a **Reconnect** button.
+- **Projected Usage** — end-of-cycle forecast ported from `zte_router_5g`. Denominator floored at one day; no `state_class`, because the usage behind it is already in long-term statistics; `confidence` attribute.
+- Long-term-statistics exclusion sweep, and `test_projection_has_no_state_class`.
+
+### Fixed
+
+- The write detector was blind to `reconnect`, a fourth unprefixed write, and reported the new classification as stale.
+- `docs/all_sensors.md` carried two pre-existing count errors — SMS 22 rows under a header of 18, Clients 4 under 6.
+
+### Notes
+
+- `elapsed_days` is wall-clock from `StartDay`, **not** `MonthDuration` — that field is connected time and would inflate the rate by whatever share of the cycle the router spent offline.
+- `net.reconnect()` has deliberately never been called. Classified ATTENDED.
+
+---
+
+## [1.2.0-dev10] - 2026-08-15 - Huawei API Access Reference
+
+### Added
+
+- `docs/huawei_how_to_access.md` — organised by library endpoint, since this integration never speaks HTTP to the router. Records what is polled, what is readable and unused, what the hardware refuses, and the field formats that mislead.
+
+### Notes
+
+- There is no `admin` tier: ~90 of ~240 read methods answer `100003`, and supplying the password as `admin` changes nothing.
+- The session degrades under sustained bulk querying — a 240-method sweep reported `100003` for endpoints polled successfully every cycle.
+
+---
+
+## [1.2.0-dev9] - 2026-08-14 - Roadmap Reconciled
+
+### Changed
+
+- Removed two shipped entries (write-classification register; diagnostics verification). An IMEI-restore entry was added and then withdrawn — roadmap entries are the owner's call.
+
+---
+
+## [1.2.0-dev8] - 2026-08-14 - Two Dead Entity Strings Removed
+
+### Fixed
+
+- `entity.sensor.hw_version` and `entity.sensor.imei` were defined in `strings.json` with no `translation_key` producing them, orphaned since `364942c` deleted both sensors on 2026-05-02. Sensor artefacts now reconcile 96/96/96.
+
+---
+
+## [1.2.0-dev7] - 2026-08-14 - quality_scale.yaml Completeness
+
+### Fixed
+
+- `docs-conditions` and `docs-triggers` were absent; the file held 52 of the canonical 54. Both added as `exempt` — the integration registers no conditions and no triggers. An absent rule is not a low-priority gap, it is an unmeasured one.
+
+---
+
+## [1.2.0-dev6] - 2026-08-14 - Write-Classification Register and Hardware Check
+
+### Added
+
+- `scripts/write_classification.py` classifying all eight writes, `scripts/hardware_check.py` with separate unattended and attended tiers, and ten tests.
+- SAFE holds only `logout`; everything else fails the "either resting state must be harmless" rule. `set_guest_wifi` is ATTENDED on evidence — the live guest SSID carries `WifiAuthmode: OPEN`.
+- Suppression sweep extended to `scripts/`, which exposed a blind spot: the file-level ruff directive form matched nothing.
+
+---
+
+## [1.2.0-dev5] - 2026-08-14 - Four Diagnostics Leaks Closed
+
+### Fixed
+
+- A live capture audited field by field found four leaks the rewrite had not: `Mccmnc` (published while the identical `current_plmn.Numeric` was redacted beside it), `Spn` (listed in the wrong case), `tac`/`scc_pci` (published while `cell_id` and `pci` were tokenized), and all WiFi key material including `WifiWpapsk`.
+- Three of the four sat immediately next to a correctly-handled field. The pre-fix leak was reproduced to prove the new tests are not vacuous.
+
+---
+
+## [1.2.0-dev4] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts
+
+### Changed
+
+- Recorded why `set_guest_wifi` bypasses the library's public setter: it posts only `Ssids` and `WifiRestart`, discarding `DbhoEnable` and `modify_guest_ssid`.
+- Three `quality_scale.yaml` exemptions converted to the structured `{status, comment}` form.
+
+---
+
+## [1.2.0-dev3] - 2026-08-14 - masked_errors_check Audit
+
+### Fixed
+
+- Class D suppression audit across the component. Closed a blind spot in the contract sweep, which matched `client.` literally and missed calls reached through a lambda parameter — 21 calls found where there were 22.
+
+---
+
+## [1.2.0-dev2] - 2026-08-14 - Changelog Backfill
+
+### Notes
+
+- Entries `dev2` through `dev11` were written on 2026-08-15, after the fact. **Ten commits were tagged `[1.2.0-dev1]` in error** rather than incrementing, and the changelog was not updated as each landed — contrary to the project's own "one entry per phase, not one at the finish" rule. The commit tags are left as they are; these entries are the record.
 
 ---
 
