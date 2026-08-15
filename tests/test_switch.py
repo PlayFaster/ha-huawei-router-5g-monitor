@@ -139,7 +139,7 @@ async def test_mobile_data_turn_on(mock_coordinator, mock_config_entry):
 
     Section 22: the confirmation is a single-endpoint read-back, **not** a
     debounced full refresh. Asserting the refresh is not called is the half of
-    this that would catch a silent revert to the old behaviour.
+    this that would catch a silent revert to the old behavior.
     """
     mock_api = MagicMock()
     mock_api.set_mobile_data = AsyncMock()

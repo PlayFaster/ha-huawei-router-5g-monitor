@@ -163,7 +163,7 @@ Found by the endpoint sweep and **not** assessed. Recorded so the next person st
 | `diagnosis.time_reboot` | 4 | **Scheduled reboot, and it is ENABLED on the reference unit.** `enable='1'`, `dayinterval='7'`, `begintime='60'`, `endtime='300'` — a reboot every 7 days in a window that reads as 01:00–05:00 if the times are minutes past midnight, which is **inference from the values fitting, not measurement**. Worth knowing even if never exposed: it explains a weekly uptime reset, and it interacts with reboot detection. `zte_router_5g` exposes an equivalent |
 | `online_update.status`, `.configuration`, `.autoupdate_config` | 8, 4, 2 | Firmware update state — may decode `monitoring_status.OnlineUpdateStatus`, which was rejected as an unknown code |
 | `system.deviceinfoex` | 14 | Extended device information |
-| `sms.config` | 16 | SMS behaviour settings |
+| `sms.config` | 16 | SMS behavior settings |
 | `net.net_mode_list` | 3 | The modes this device will accept — could validate the Network Mode select |
 | `led.appctrlled` | 3 | LED control |
 | `redirection.homepage`, `staticroute.wanpath`, `dhcp.static_addr_info` | 1–2 | Minor configuration |

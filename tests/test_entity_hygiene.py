@@ -455,7 +455,7 @@ def _shipped_root():
     `mutmut` runs the suite from a `mutants/` directory holding a rewritten
     copy of `custom_components/`, `tests/` and `also_copy` — and **nothing
     else**. Two static checks in this file are about the shipped tree rather
-    than about behaviour, and both broke the mutation run before a single
+    than about behavior, and both broke the mutation run before a single
     mutant was tested:
 
     - the document reconciliations, because `docs/` is simply absent there;
@@ -491,7 +491,7 @@ def _shipped_doc(name: str):
     Walking up to the first ancestor that actually has the document keeps both
     trees working while still reading the **real, shipped** file. It never
     falls back to a copy and never skips: a genuinely missing document still
-    raises, which is the behaviour these checks depend on.
+    raises, which is the behavior these checks depend on.
     """
 
     return _shipped_root() / "docs" / name

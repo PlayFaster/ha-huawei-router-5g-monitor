@@ -159,7 +159,7 @@ async def test_setup_registers_the_listener() -> None:
     """The mechanism is worthless unless it is actually wired up.
 
     This is the assertion that would have failed before the fix: the listener
-    did not exist, so every test of its behaviour would have been testing
+    did not exist, so every test of its behavior would have been testing
     something nothing ever called.
     """
     from custom_components.huawei_router_5g import async_setup_entry
