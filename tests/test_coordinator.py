@@ -720,6 +720,57 @@ async def test_a_disruptive_write_schedules_one_follow_up_refresh(
 
 
 @pytest.mark.asyncio
+async def test_firing_the_scheduled_callback_actually_refreshes(mock_hass):
+    """The timer must do the thing, not merely be set.
+
+    Every other test around `async_schedule_refresh` patches `async_call_later`
+    and asserts it was **called** with the right delay. None of them ever ran
+    the callback, so the whole mechanism could have scheduled a function that
+    did nothing and the suite would have stayed green — the follow-up refresh
+    after Reboot and Reconnect is the only way a user sees the result of the
+    button they pushed, and with polling paused it is the only fetch at all.
+
+    Captures the scheduled callable and invokes it, which is what Home
+    Assistant does when the delay elapses.
+    """
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.async_force_refresh = AsyncMock()
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        coordinator.async_schedule_refresh(20)
+
+    # async_call_later(hass, delay, action) — the action is the third argument.
+    action = later.call_args[0][2]
+    await action(None)
+
+    coordinator.async_force_refresh.assert_awaited_once()
+
+
+@pytest.mark.asyncio
+async def test_the_pending_handle_is_cleared_when_the_callback_fires(mock_hass):
+    """A fired timer must not leave a handle that unload would then cancel.
+
+    `async_cancel_scheduled_refresh` calls the stored handle. If firing left it
+    in place, unload would invoke an already-spent cancel callback — and worse,
+    a second button press would believe a refresh was still pending and replace
+    a timer that had already run.
+    """
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.async_force_refresh = AsyncMock()
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        coordinator.async_schedule_refresh(60)
+
+    assert coordinator._pending_refresh is not None
+    await later.call_args[0][2](None)
+    assert coordinator._pending_refresh is None
+
+
+@pytest.mark.asyncio
 async def test_the_follow_up_refresh_fires_even_while_polling_is_paused(mock_hass):
     """Section 13: an explicit user action must not be swallowed by the pause.
 

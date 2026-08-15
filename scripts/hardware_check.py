@@ -64,6 +64,7 @@ from typing import Any
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
+from custom_components.huawei_router_5g.switch import _guest_enable_flag
 
 CONFIG_ENTRIES = pathlib.Path("/config/.storage/core.config_entries")
 DOMAIN = "huawei_router_5g"
@@ -185,6 +186,63 @@ async def check_login_and_read(api: HuaweiRouter5GAPI, report: Report) -> None:
         bool(blocks),
         "login and first read",
         f"{len(blocks)} populated blocks",
+    )
+
+
+async def check_read_back_endpoints(api: HuaweiRouter5GAPI, report: Report) -> None:
+    """Every Section 22 read-back must return the key its caller compares.
+
+    **This is the check that mocks cannot make.** `confirm_write` compares one
+    key out of one endpoint, and every unit test around it supplies the block
+    itself — so the tests prove the comparison logic and prove nothing about
+    whether the router answers in that shape. If a key is absent or spelled
+    differently, `confirm_write` returns `None` for ever: each write reports
+    *unverified*, never confirmed and never refused, and nothing errors. The
+    mechanism degrades to doing nothing, silently.
+
+    A read only. Nothing here changes router state.
+    """
+    expected = {
+        "mobile_dataswitch": "dataswitch",
+        "monitoring_status": "WifiStatus",
+    }
+
+    for endpoint, key in expected.items():
+        try:
+            block = await api.read_back(endpoint)
+        except Exception as err:  # noqa: BLE001 - the report is the error channel
+            report.record(False, f"read-back {endpoint}", type(err).__name__)
+            continue
+
+        if block is None:
+            report.record(False, f"read-back {endpoint}", "returned None")
+            continue
+
+        report.record(
+            key in block,
+            f"read-back {endpoint}.{key}",
+            f"{key}={block.get(key)!r}"
+            if key in block
+            else f"keys: {sorted(block)[:6]}",
+        )
+
+    # The guest flag is nested inside the SSID list rather than being a flat
+    # key, so the extractor is exercised rather than a `.get()`.
+    try:
+        block = await api.read_back("wlan_multi_basic_settings")
+    except Exception as err:  # noqa: BLE001 - the report is the error channel
+        report.record(False, "read-back wlan_multi_basic_settings", type(err).__name__)
+        return
+
+    if block is None:
+        report.record(False, "read-back wlan_multi_basic_settings", "returned None")
+        return
+
+    flag = _guest_enable_flag(block)
+    report.record(
+        flag is not None,
+        "read-back guest WiFi flag",
+        f"WifiEnable={flag!r}" if flag is not None else "no guest SSID found",
     )
 
 
@@ -532,6 +590,7 @@ async def main() -> int:
     report = Report()
 
     await check_login_and_read(api, report)
+    await check_read_back_endpoints(api, report)
     await check_logout_ends_the_session(api, report)
 
     if args.attended:

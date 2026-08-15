@@ -68,6 +68,30 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Correction to an earlier note**: a previous comment claimed the library exposed no public setter. That was false — `set_multi_basic_settings` exists, and existed in 1.11.0. The reason to avoid it is what it does, not its absence.
 - **Guarded by**: `tests/test_api.py::test_set_guest_wifi_*`, which asserts `post_set` is called. A swap to the public setter fails that test **by design**; the failure is the guard working, not a test needing an update.
 
+### The Master WiFi Switch Works at the Radio Level, Not the SSID Level (v1.2.0)
+
+- **Decision**: `set_wifi` reads `wlan/status-switch-settings`, flips `wifienable` on **every** radio, and writes the block back whole. It does not touch the per-SSID flags in `wlan/multi-basic-settings`.
+- **Why an earlier attempt failed**: that attempt wrote the SSID flags. **The SSID flags are gated by the radio**, so writing them while the radio is off changes nothing observable — which is also why the Guest switch works while a WiFi switch built the same way did not.
+- **The library's own setter is unusable here**: `wlan.wifi_network_switch()` answers `100005: Request format error` on this hardware.
+- **Evidence**: verified `0,0 → 1,1 → 0,0` against a live B535.
+- **State source**: `monitoring_status.WifiStatus`, which is already polled. Reading the radio block would be a second round trip for the same fact.
+
+### Write Confirmation Keeps Three Outcomes Apart (v1.2.0, Section 22)
+
+- **Decision**: a write is confirmed by re-reading **one** endpoint — `api.read_back()`, restricted to an explicit `READ_BACK_ENDPOINTS` map — rather than by a coordinator refresh.
+- **Why**: `async_force_refresh()` is subject to HA's 10-second debounce and fetches all 26 endpoints to learn one flag. During that window the frontend's optimistic toggle reverts and then corrects itself.
+- **The part that matters**: three outcomes stay distinct. Read agrees → publish immediately. Read disagrees **twice** → raise a translated error. Read failed or omitted the key → **unverified, not failed**: log, publish nothing, raise nothing, and let the next scheduled poll settle it. Collapsing the third into the second reports working commands as broken on every transient blip.
+- **No refresh on the unverified path.** Forcing one would re-ask all 26 endpoints when the router has just failed to answer one — more work than the debounce this replaced, at the moment the router is least able to serve it.
+- **The retry is not optional**: these routers commonly answer the first read after a write with the _old_ value, so a single read would report accepted-then-applied writes as refusals.
+- **Exclusions**: anything that re-establishes the connection answers abnormally _while succeeding_. Network mode and Reconnect therefore have **no reader** in the map, held by a test.
+
+### Options Changes Reload; Tuning Changes Do Not (v1.2.0, Section 9)
+
+- **Decision**: `entry.add_update_listener` with a `LIVE_OPTION_KEYS` allow-list holding `scan_interval` and `stop_polling`. Everything outside it reloads the entry.
+- **Why**: `async_setup_entry` hands host, username and password to the API object once. Without a listener an Options edit validated, wrote the entry, and changed nothing until a restart — while Reauth and Reconfigure both reloaded, so the same three fields behaved differently depending on which dialog was used.
+- **Why an allow-list rather than reloading always**: the two polling controls are read fresh every cycle, and reloading on them would tear down the session and rebuild every entity each time the interval slider moved.
+- **Ported from `zte_router_5g`**, including its `reload_signature` — comparing signatures is what tells a connection change from a tuning change.
+
 ### Concurrency Locking Pattern (v1.1.0)
 
 - **Change**: Implemented an `asyncio.Lock` in `HuaweiRouter5GAPI` to serialize all router communication.
@@ -203,7 +227,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **`asyncio.to_thread` Mock Compatibility (v1.1.1-dev21)**: Unit test mocks that stub `asyncio.to_thread` with custom lambda syntax (e.g. `lambda fn, **kwargs: fn(**kwargs)`) would fail with `TypeError` when `asyncio.to_thread` was invoked with extra positional arguments like `asyncio.to_thread(func, client)`.
   - _Fix_: Wrapped the client function in a zero-argument lambda: `asyncio.to_thread(lambda: func(client))`. This ensures exactly one positional argument is passed, preserving compatibility with all unit test mocking styles.
 - **`url_normalize` / `idna` UTS46 Startup Race (v1.1.1-dev22)**: On HA reboot, the integration occasionally failed with `ImportError: cannot import name 'uts46data' from 'idna.uts46data'`. The file existed on disk but the module was partially initialized — a Python import-system race caused by HA loading many integrations concurrently during cold startup. The `url_normalize` library triggers this via `idna.encode(p, uts46=True)`, which lazily loads the large `uts46data` generated module. A partially initialized module gets cached in `sys.modules`, so the integration could not recover via manual reload — only a full HA restart (fresh Python process) cleared it.
-  - _Fix_: Replaced `url_normalize` entirely with a private `_normalize_router_url()` helper using `urllib.parse.urlparse` / `urlunparse` (stdlib, no external deps). For local router IP/hostname URLs, stdlib covers 100% of real-world input forms (bare IP, missing scheme, trailing slash, uppercase scheme, non-default port). The `url-normalize==3.0.0` requirement was removed from `manifest.json`. The pattern to follow: avoid third-party libraries that eagerly or lazily load large Unicode data tables at import time when a stdlib equivalent exists.
+  - _Fix_: Replaced `url_normalize` entirely with a private `_normalize_router_url()` helper using `urllib.parse.urlparse` / `urlunparse` (stdlib, no external deps). For local router IP/hostname URLs, stdlib covers 100% of real-world input forms (bare IP, missing scheme, trailing slash, uppercase scheme, non-default port). The `url-normalize==3.0.0` requirement was removed from `manifest.json` at the time, and from `.validate/requirements_custom.txt` in `[1.2.0-dev27]` — it had remained a dev/test dependency for a year after nothing imported it. The pattern to follow: avoid third-party libraries that eagerly or lazily load large Unicode data tables at import time when a stdlib equivalent exists.
 - **`ScannerEntity` Import Path Deprecated in HA 2026.6 (v1.1.1-dev22)**: HA 2026.6 deprecated the `homeassistant.components.device_tracker.config_entry.ScannerEntity` alias, triggering a log warning on every startup. The alias will be removed in HA 2027.6.
   - _Fix_: Import `ScannerEntity` from `homeassistant.components.device_tracker` (the canonical top-level path). When HA deprecates a platform submodule import, the fix is always to move the import to the parent module. Watch for similar patterns in other platform files (e.g., `binary_sensor`, `sensor`, `switch`) if HA continues this consolidation pattern in future releases.
 
@@ -270,3 +294,5 @@ _[1.1.2-dev5] (2026-07-02) — Documented config-flow host normalization (double
 _[1.1.2-dev6] (2026-07-02) — Added "Suggested Display Units & Precision" success pattern. Applied `suggested_unit_of_measurement` / `suggested_display_precision` to 23 sensors (data size → GB, data rate → Mbit/s, duration → hours, frequency/bandwidth and dBm → 0 dp)._
 
 _[1.1.2-dev7] (2026-07-02) — Documented passing `config_entry=entry` to the coordinator (honours the "Enable polling for changes" system option via `pref_disable_polling`; required as HA removes implicit context detection in 2026.8)._
+
+_[1.2.0-dev28] (2026-08-15) — Added three success patterns from the `dev_std_review` / `code_review` remediation: the radio-level master WiFi switch, the Section 22 write confirmation and its three outcomes, and the Section 9 options reload with its live-key allow-list. Updated the `url_normalize` pitfall to record that the dev/test requirement was finally dropped in `[1.2.0-dev27]`._

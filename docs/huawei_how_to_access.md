@@ -64,7 +64,7 @@ So: **probe endpoints in small batches, and re-verify any negative result on a f
 
 ## 📥 What the integration polls today
 
-Fifteen read endpoints per cycle, all in `api.py::get_data`, merged into one flat dictionary keyed by block name.
+**Twenty-six** read endpoints per cycle, all in `api.py::get_data`, merged into one flat dictionary keyed by block name. Every block key must also appear in `const.py::ENDPOINT_NAMES`; a block missing from that map cannot be reported as a degraded capability, so its endpoint can fail every poll while Integration Health stays green.
 
 | Endpoint | Block key | Feeds |
 | :-- | :-- | :-- |
@@ -83,6 +83,17 @@ Fifteen read endpoints per cycle, all in `api.py::get_data`, merged into one fla
 | `wlan.host_list` | `wlan_host_list` | WiFi clients |
 | `wlan.multi_basic_settings` | `wlan_multi_basic_settings` | SSIDs, guest network state |
 | `wlan.wifi_feature_switch` | `wlan_wifi_feature_switch` | 49 WiFi capability flags |
+| `monitoring.start_date` | `start_date` | Data plan — allowance, cycle start day, threshold |
+| `monitoring.converged_status` | `converged_status` | SIM and country |
+| `dial_up.profiles` | `dial_up_profiles` | APN profiles — matched on `Index`, never list position |
+| `dial_up.connection` | `dial_up_connection` | Connection settings |
+| `device.antenna_type` | `antenna_type` | Antenna selection |
+| `net.csps_state` | `csps_state` | Network registration |
+| `security.sip` | `security_sip` | SIP ALG |
+| `security.upnp` | `security_upnp` | UPnP |
+| `voice.voicebusy` | `voice_busy` | Line state — returns a bare string (`Idle`), not a dict |
+| `voice.volte` | `voice_volte` | VoLTE status |
+| `monitoring.onekey_diag` | `onekey_diag` | Router self-diagnosis — see the decode below |
 
 `lan_host_info` and `wlan_host_list` carry the MAC, hostname and IP of every device on the user's network. That is a privacy surface no sibling project has, and it is why `diagnostics.py` recurses and pseudonymises rather than redacting by key name.
 
@@ -90,7 +101,7 @@ Fifteen read endpoints per cycle, all in `api.py::get_data`, merged into one fla
 
 ## 📤 Writes
 
-Eight, all serialised behind one `asyncio.Lock` and routed through `_execute_with_retry`.
+**Ten**, all serialised behind one `asyncio.Lock` and routed through `_execute_with_retry`.
 
 | Endpoint                        | Action                 | Register tier |
 | :------------------------------ | :--------------------- | :------------ |
@@ -98,6 +109,8 @@ Eight, all serialised behind one `asyncio.Lock` and routed through `_execute_wit
 | `device.set_control(REBOOT)`    | Reboot                 | ATTENDED      |
 | `monitoring.set_clear_traffic`  | Zero the byte counters | ATTENDED      |
 | `dial_up.set_mobile_dataswitch` | Mobile data on/off     | ATTENDED      |
+| `dial_up._session.post_set`     | Reconnect              | ATTENDED      |
+| `wlan._session.post_set`        | Master WiFi on/off     | ATTENDED      |
 | `net.set_net_mode`              | Preferred network mode | ATTENDED      |
 | `wlan._session.post_set`        | Guest WiFi on/off      | ATTENDED      |
 | `sms.send_sms`                  | Send a message         | ATTENDED      |
@@ -105,11 +118,21 @@ Eight, all serialised behind one `asyncio.Lock` and routed through `_execute_wit
 
 Every one is classified in `scripts/write_classification.py`; `tests/test_write_classification.py` fails on an unclassified write.
 
-### Two spellings that matter
+### Three spellings that matter
 
 **`device.set_control(ControlModeEnum.REBOOT)`, not `device.reboot()`.** Both exist in 1.11.0, but **2.0.0 removes `reboot()` and `control()`** and keeps only `set_control`. The current spelling is correct on both, so the library bump needs no change here.
 
 **`monitoring.set_clear_traffic()`, not `Monitoring.clear_traffic()`.** The latter has never existed. The Clear Traffic button could not have worked in any release; its test asserted the wrong name against a bare `MagicMock`, so nothing caught it.
+
+**`dialup/dial`, not `net.reconnect()`.** The library exposes `net.reconnect()` and the router advertises the feature, but this hardware **refuses it with `-1: Unknown`**. Reconnect posts `dialup/dial` with `Action: 0` and then `Action: 1` through `client.dial_up._session.post_set`, then resets the client. Verified live: `CurrentConnectTime` 135 → 5, and confirmed from the UI by the owner on 2026-08-15.
+
+### The master WiFi switch works at the RADIO level, not the SSID level
+
+`set_wifi` reads `wlan/status-switch-settings`, flips `wifienable` on **every** radio, and writes the block back whole. It does **not** touch the per-SSID flags in `wlan/multi-basic-settings`.
+
+That distinction is why an earlier attempt at this control could not be made to work: **the SSID flags are gated by the radio**, so writing them while the radio is off changes nothing observable. The library's own `wlan.wifi_network_switch()` answers `100005: Request format error` on this hardware. Verified `0,0 → 1,1 → 0,0` on a live B535.
+
+The switch reads its state from `monitoring_status.WifiStatus`, which is already polled — the radio block would be a second round trip for the same fact.
 
 ### Guest WiFi deliberately bypasses the public setter
 
@@ -119,11 +142,15 @@ The public setter builds its own payload — `{'Ssids': {...}, 'WifiRestart': 1}
 
 ---
 
-## 🔍 Readable, not polled
+## 🔍 Readable — the review of everything else
+
+This section is the record of a survey, not a list of what is currently unpolled. The first table below was adopted; the two after it were not.
 
 Confirmed working on this hardware and **not** currently fetched. Verdicts are from the field review recorded in `.notes/info/extra_fields/`.
 
-### Agreed for adoption
+### Agreed for adoption — **all eight were adopted in `[1.2.0-dev11]` and are polled today**
+
+They are listed here as the record of the decision and the live values it was made on. **They are no longer "not polled"** — every one appears in the polled table above and in `ENDPOINT_NAMES`. The only endpoint in the sections below that is also polled is `wlan.wifi_feature_switch`, listed under **reviewed, not adopted** — correctly, because it is polled but almost entirely unread.
 
 | Endpoint | Keys of interest | Live value | Why |
 | :-- | :-- | :-- | :-- |

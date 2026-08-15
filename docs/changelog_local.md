@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev30\] - 2026-08-15 - Verification Pass: Live Read-Back, Timer Callbacks, Stale Documents](#120-dev30---2026-08-15---verification-pass-live-read-back-timer-callbacks-stale-documents)
   - [\[1.2.0-dev29\] - 2026-08-15 - CI Bump Ruff](#120-dev29---2026-08-15---ci-bump-ruff)
   - [\[1.2.0-dev28\] - 2026-08-15 - Projection Memo Per Entry; Placeholder and Source-Read Fixes](#120-dev28---2026-08-15---projection-memo-per-entry-placeholder-and-source-read-fixes)
   - [\[1.2.0-dev27\] - 2026-08-15 - Drop `url-normalize`](#120-dev27---2026-08-15---drop-url-normalize)
@@ -26,11 +27,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -120,6 +121,27 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev30] - 2026-08-15 - Verification Pass: Live Read-Back, Timer Callbacks, Stale Documents
+
+A pass over work that had been **verified and then invalidated by later changes**, rather than over claims made without checking. Three of the items turned out to be assertions that were wrong rather than defects, and those are recorded as such.
+
+### Fixed
+
+- **The follow-up refresh timers were never actually fired by any test.** Every case around `async_schedule_refresh` patched `async_call_later` and asserted it had been _called_ with the right delay. None ran the scheduled callback, so the mechanism could have scheduled a function that did nothing and the suite would have stayed green — and with polling paused that refresh is the only way a user ever sees the result of the button they pushed. Two tests added: one fires the callback and asserts the refresh happens, one asserts the pending handle is cleared so unload cannot invoke a spent cancel.
+- **`docs/huawei_how_to_access.md` had three stale claims.** "Fifteen read endpoints per cycle" — there are **26**; "Eight writes" — there are **ten**; and eight endpoints listed under _readable, not polled_ had been adopted in `[1.2.0-dev11]`. Corrected, and the survey section reframed as the record of a decision rather than a statement of current state.
+- **`AGENTS.md`'s sweep table was missing eleven entries** — every sweep added this session plus the whole write-classification family. 20 rows → 31.
+
+### Added
+
+- **`check_read_back_endpoints` in `scripts/hardware_check.py`**, safe tier, read-only. The Section 22 confirmation compares one key out of one endpoint, and every unit test supplies that block itself — so the suite proves the comparison logic and nothing about whether the router answers in that shape. A wrong key would make every write report _unverified_ for ever, silently. **Run against the live router: all three pass** — `dataswitch`, `WifiStatus`, and the nested guest `WifiEnable`.
+- **Three success patterns in `docs/DEVELOPMENT.md`** — the radio-level master WiFi switch, the Section 22 write confirmation and its three outcomes, and the Section 9 options reload with its live-key allow-list.
+
+### Notes
+
+- **Three earlier claims of "unverified" were themselves wrong**, and checking cost less than the claims did. The read-back calls **are** covered by `test_library_contract.py`, which extracts calls by regex over `api.py` — proven by renaming `mobile_dataswitch` and watching the sweep fail. The tracker `unique_id` migration **is** tested against a real entity registry, asserting the row is rewritten in place. And `also_copy` refreshing a stale mutant artefact is now confirmed end to end, not just at the config layer.
+- **Two `dev_std_review` conformance cells were wrong and are corrected to PARTIAL.** §22, because no entity description declares the read-back exclusion the section asks for — it is enforced by the absence of a reader plus a test, which is enforcement rather than declaration. §9, because it is covered only against mocks and the live check is unresolved. Both were first recorded DONE in the same pass that wrote the code they assess.
+- Suite **728 → 730**, 100% line and branch coverage.
 
 ## [1.2.0-dev29] - 2026-08-15 - CI Bump Ruff
 
