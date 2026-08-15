@@ -1,7 +1,8 @@
 """Binary sensor platform for Huawei Router 5G Monitor."""
 
+from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any
+from typing import Any, Final
 
 from homeassistant.components.binary_sensor import (
     BinarySensorDeviceClass,
@@ -29,6 +30,10 @@ class HuaweiBinarySensorEntityDescription(BinarySensorEntityDescription):
     """Describes a Huawei Router 5G binary sensor entity."""
 
     group: str = "signal"
+    # Optional. When set, `HuaweiValueBinarySensor` reads the state from it and
+    # no per-entity subclass is needed. The eleven original descriptions leave
+    # it None and keep their own classes.
+    value_fn: Callable[[dict[str, Any] | None], bool | None] | None = None
 
 
 BEST_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
@@ -134,6 +139,142 @@ SIM_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 )
 
 
+# --- §T-4: added 2026-08-15 --------------------------------------------------
+#
+# These are declared as descriptions with a `value_fn` rather than as one class
+# each, which is how the eleven above are written. Nine more subclasses whose
+# only content is a two-line `is_on` would be boilerplate, and boilerplate is
+# where a copy-paste error hides. `HuaweiValueBinarySensor` below reads the
+# `value_fn` and is the only class any of these needs.
+#
+# Binary sensors carry no `state_class` and never enter long-term statistics,
+# so none of them appears in the §T-4f exclusion lists.
+
+
+def _flag(data: dict[str, Any] | None, block: str, key: str) -> bool | None:
+    """Return a router `0`/`1` flag as a bool, or None when absent.
+
+    **The `0` means off mapping is an assumption for the two signal flags.**
+    Both `poorSignalStatus` and `speedLimitStatus` have only ever been observed
+    reading `0`, which is the expected resting state and consistent with the
+    field names, but neither has been seen in the other state. If either ever
+    reports a problem that is not happening, this is the line to revisit.
+    """
+    if not data:
+        return None
+    raw = (data.get(block) or {}).get(key)
+    if raw in (None, ""):
+        return None
+    return str(raw).strip().lower() not in ("0", "off", "false")
+
+
+POOR_SIGNAL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="poor_signal",
+    translation_key="poor_signal",
+    device_class=BinarySensorDeviceClass.PROBLEM,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="signal",
+    value_fn=lambda data: _flag(data, "monitoring_status", "poorSignalStatus"),
+)
+
+SPEED_LIMITED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="speed_limited",
+    translation_key="speed_limited",
+    # Deliberately no device class: throughput being limited is a state the
+    # carrier chose, not a fault, and PROBLEM would render it as one.
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
+    group="signal",
+    value_fn=lambda data: _flag(data, "monitoring_status", "speedLimitStatus"),
+)
+
+DATA_SERVICE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="data_service",
+    translation_key="data_service",
+    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="signal",
+    # `psstate` is packet-switched registration - the half that carries data.
+    value_fn=lambda data: _flag(data, "csps_state", "psstate"),
+)
+
+VOICE_SERVICE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="voice_service",
+    translation_key="voice_service",
+    device_class=BinarySensorDeviceClass.CONNECTIVITY,
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
+    group="signal",
+    # `csstate` is circuit-switched registration - voice network attachment.
+    # It says nothing about a call being in progress; no endpoint on this
+    # hardware does.
+    value_fn=lambda data: _flag(data, "csps_state", "csstate"),
+)
+
+DATA_PLAN_ENABLED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="data_plan_enabled",
+    translation_key="data_plan_enabled",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    group="data",
+    # Enabled by default because it is the switch that decides whether Data
+    # Allowance, Alert Threshold and the projection mean anything at all.
+    value_fn=lambda data: _flag(data, "start_date", "SetMonthData"),
+)
+
+SIM_LOCKED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="sim_locked",
+    translation_key="sim_locked",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
+    group="system",
+    # Supersedes `monitoring_status.simlockStatus`, which is an undecodable
+    # code. This one is a plain flag.
+    value_fn=lambda data: _flag(data, "converged_status", "SimLockEnable"),
+)
+
+ROAMING_AUTO_CONNECT_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="roaming_auto_connect",
+    translation_key="roaming_auto_connect",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
+    group="system",
+    value_fn=lambda data: _flag(data, "dial_up_connection", "RoamAutoConnectEnable"),
+)
+
+SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="sip_alg",
+    translation_key="sip_alg",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
+    group="system",
+    # The firewall's SIP helper, not VoIP status. It is the commonest cause of
+    # one-way audio behind a CPE, which is why its state is worth knowing even
+    # though it never changes on its own.
+    value_fn=lambda data: _flag(data, "security_sip", "SipStatus"),
+)
+
+UPNP_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="upnp",
+    translation_key="upnp",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
+    group="system",
+    value_fn=lambda data: _flag(data, "security_upnp", "UpnpStatus"),
+)
+
+VALUE_BINARY_SENSORS: Final[tuple[HuaweiBinarySensorEntityDescription, ...]] = (
+    POOR_SIGNAL_DESCRIPTION,
+    SPEED_LIMITED_DESCRIPTION,
+    DATA_SERVICE_DESCRIPTION,
+    VOICE_SERVICE_DESCRIPTION,
+    DATA_PLAN_ENABLED_DESCRIPTION,
+    SIM_LOCKED_DESCRIPTION,
+    ROAMING_AUTO_CONNECT_DESCRIPTION,
+    SIP_ALG_DESCRIPTION,
+    UPNP_DESCRIPTION,
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -161,6 +302,10 @@ async def async_setup_entry(
             HuaweiSimStatusSensor(coordinator, entry, SIM_STATUS_DESCRIPTION),
             HuaweiIntegrationHealthSensor(
                 coordinator, entry, INTEGRATION_HEALTH_DESCRIPTION
+            ),
+            *(
+                HuaweiValueBinarySensor(coordinator, entry, description)
+                for description in VALUE_BINARY_SENSORS
             ),
         ]
     )
@@ -533,3 +678,23 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
             "drift": list(snapshot.get("drift", [])),
             "last_good_update": snapshot.get("last_good_update"),
         }
+
+
+class HuaweiValueBinarySensor(HuaweiBinarySensor):
+    """A binary sensor whose state comes from its description's `value_fn`.
+
+    Covers every §T-4 binary sensor. The eleven older ones each carry their own
+    subclass because their logic is genuinely per-entity; these read one flag
+    from one block, so a shared class is both shorter and harder to get wrong.
+    """
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the flag this description reads, or None when unavailable."""
+        value_fn = self.entity_description.value_fn
+        if value_fn is None:
+            # Unreachable for every description in VALUE_BINARY_SENSORS, and
+            # covered by a test rather than a pragma: a description that
+            # forgot its value_fn should report unavailable, not raise.
+            return None
+        return value_fn(self.coordinator.data)

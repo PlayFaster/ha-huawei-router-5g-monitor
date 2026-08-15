@@ -13,6 +13,7 @@ from custom_components.huawei_router_5g.binary_sensor import (
     SIM_STATUS_DESCRIPTION,
     SINGLE_SSID_MODE_DESCRIPTION,
     SMS_STORAGE_FULL_DESCRIPTION,
+    VALUE_BINARY_SENSORS,
     WIFI_5G_STATUS_DESCRIPTION,
     WIFI_24G_STATUS_DESCRIPTION,
     WIFI_STATUS_DESCRIPTION,
@@ -24,9 +25,11 @@ from custom_components.huawei_router_5g.binary_sensor import (
     HuaweiSimStatusSensor,
     HuaweiSingleSsidModeSensor,
     HuaweiSmsStorageFullSensor,
+    HuaweiValueBinarySensor,
     HuaweiWifi5GStatusSensor,
     HuaweiWifi24GStatusSensor,
     HuaweiWifiStatusSensor,
+    _flag,
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -657,4 +660,82 @@ async def test_binary_sensor_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 13
+    # 13 purpose-built subclasses plus every VALUE_BINARY_SENSORS description.
+    # Derived rather than hard-coded, so adding a description cannot silently
+    # skip registration - the count would still match a stale literal.
+    assert len(entities) == 13 + len(VALUE_BINARY_SENSORS)
+
+
+# ---------------------------------------------------------------------------
+# §T-4 value-driven binary sensors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1", True),
+        ("2", True),
+        ("true", True),
+        ("0", False),
+        ("off", False),
+        ("OFF", False),
+        ("false", False),
+        (None, None),
+        ("", None),
+    ],
+)
+def test_a_router_flag_maps_to_a_bool(raw, expected) -> None:
+    """`0`/`off`/`false` are all off, in any casing.
+
+    An exact match on one spelling is the defect `zte_router_5g` shipped in its
+    projection guard, and nothing in this API guarantees casing.
+    """
+    data = {"monitoring_status": {"poorSignalStatus": raw}}
+    assert _flag(data, "monitoring_status", "poorSignalStatus") is expected
+
+
+def test_a_missing_block_reads_as_unavailable_not_false() -> None:
+    """An endpoint that failed its fetch must not publish a confident `off`."""
+    assert _flag({}, "csps_state", "psstate") is None
+    assert _flag(None, "csps_state", "psstate") is None
+    assert _flag({"csps_state": None}, "csps_state", "psstate") is None
+
+
+@pytest.mark.parametrize("description", VALUE_BINARY_SENSORS)
+def test_every_value_binary_sensor_reads_its_flag(description) -> None:
+    """Each description must actually resolve against a realistic payload.
+
+    A `value_fn` pointed at the wrong block or a misspelled key returns None
+    forever and looks exactly like an endpoint the router does not support.
+    """
+    data = {
+        "monitoring_status": {"poorSignalStatus": "1", "speedLimitStatus": "1"},
+        "csps_state": {"psstate": "1", "csstate": "1"},
+        "start_date": {"SetMonthData": "1"},
+        "converged_status": {"SimLockEnable": "1"},
+        "dial_up_connection": {"RoamAutoConnectEnable": "1"},
+        "security_sip": {"SipStatus": "1"},
+        "security_upnp": {"UpnpStatus": "1"},
+    }
+    coordinator = MagicMock()
+    coordinator.data = data
+    entry = MagicMock()
+    entry.entry_id = "test"
+    sensor = HuaweiValueBinarySensor(coordinator, entry, description)
+    assert sensor.is_on is True, f"{description.key} did not resolve"
+
+
+def test_a_description_without_a_value_fn_reports_unavailable() -> None:
+    """The guard exists so a mistake degrades rather than raises.
+
+    Covered by a test rather than silenced with a `pragma: no cover` — a
+    suppression would need a reviewed allow-list entry claiming the branch
+    cannot be reached, which is a claim, not a fact.
+    """
+    coordinator = MagicMock()
+    coordinator.data = {}
+    entry = MagicMock()
+    entry.entry_id = "test"
+    sensor = HuaweiValueBinarySensor(coordinator, entry, BEST_CONN_DESCRIPTION)
+    assert sensor.is_on is None

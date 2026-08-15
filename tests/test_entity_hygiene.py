@@ -766,3 +766,106 @@ def test_every_allowed_suppression_states_a_reason() -> None:
     assert not thin, "allow-list entries with no real justification:\n" + "\n".join(
         thin
     )
+
+
+# ---------------------------------------------------------------------------
+# Long-term statistics exclusions (status_plan §T-4f)
+# ---------------------------------------------------------------------------
+#
+# **The mechanism is `state_class`, not `device_class`.** A sensor with no
+# `state_class` is never recorded into long-term statistics whatever its device
+# class, and setting `device_class=None` on its own does not prevent it. So
+# every assertion here is about the absence of `state_class`.
+#
+# This stops long-term statistics only. Short-term recorder history cannot be
+# suppressed from an integration at all — that is a `recorder:` exclude in the
+# user's own configuration, and their decision rather than ours.
+#
+# Written as a sweep over the descriptions rather than a comment per entity,
+# because a comment cannot fail. This is the §6 lesson: a correct check over
+# descriptions that declare nothing is a no-op and is indistinguishable in
+# source from one doing real work.
+
+# Identifiers: digits that are not quantities. These need FOUR declarations
+# absent, not one — a unit or a device class makes Home Assistant treat the
+# state as numeric, which is where `01` becomes `1` and a 15-digit IMEI becomes
+# `8.60123456789012e+14`.
+#
+# `secondary_cell_pci` is the one to watch: it reads `361`, a plain integer that
+# passes unnoticed through any check looking at the value rather than at the
+# declaration.
+LTS_EXCLUDED_IDENTIFIERS: frozenset[str] = frozenset(
+    {
+        "imei",
+        "imsi",
+        "iccid",
+        "sim_number",
+        "serial_number",
+        "mcc_mnc",
+        "secondary_cell_pci",
+    }
+)
+
+# Numeric, but not measurements. Settings change only when the owner edits the
+# router's data plan, so a statistics series is a flat line with occasional
+# steps — and `mean`/`min`/`max` over an allowance mean nothing. The projection
+# is an estimate whose underlying usage is already in LTS via the month total.
+LTS_EXCLUDED_NUMERICS: frozenset[str] = frozenset(
+    {
+        "data_allowance",
+        "billing_cycle_day",
+        "alert_threshold",
+        "projected_usage",
+        # Disabled by default, but the exclusion must hold IF a user enables
+        # them — which is the whole reason this is a test and not a comment.
+        "month_connected_time",
+        "day_connected_time",
+    }
+)
+
+
+def test_no_lts_excluded_sensor_declares_a_state_class() -> None:
+    """`state_class` is the only thing that puts a sensor into statistics."""
+    excluded = LTS_EXCLUDED_IDENTIFIERS | LTS_EXCLUDED_NUMERICS
+    offenders = sorted(
+        f"{d.key} -> {d.state_class}"
+        for d in SENSOR_TYPES
+        if d.key in excluded and d.state_class is not None
+    )
+    assert not offenders, (
+        "sensors that must stay out of long-term statistics but declare a "
+        "state_class:\n" + "\n".join(offenders)
+    )
+
+
+def test_identifier_sensors_are_declared_as_text() -> None:
+    """There is no explicit text flag — it is the absence of four declarations.
+
+    Set any one and Home Assistant starts treating the state as a number.
+    """
+    numeric_declarations = (
+        "state_class",
+        "device_class",
+        "native_unit_of_measurement",
+        "suggested_display_precision",
+    )
+    offenders = [
+        f"{d.key}.{attr} = {getattr(d, attr)!r}"
+        for d in SENSOR_TYPES
+        if d.key in LTS_EXCLUDED_IDENTIFIERS
+        for attr in numeric_declarations
+        if getattr(d, attr, None) is not None
+    ]
+    assert not offenders, (
+        "identifier sensors carrying a numeric declaration:\n" + "\n".join(offenders)
+    )
+
+
+def test_the_lts_exclusion_lists_have_no_dead_entries() -> None:
+    """An exemption must not outlive the sensor it covers.
+
+    A stale entry is worse than a missing one: it reads as coverage.
+    """
+    keys = {d.key for d in SENSOR_TYPES}
+    stale = sorted((LTS_EXCLUDED_IDENTIFIERS | LTS_EXCLUDED_NUMERICS) - keys)
+    assert not stale, f"listed for LTS exclusion but no longer a sensor: {stale}"

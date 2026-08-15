@@ -8,8 +8,54 @@
           "off": "mdi:signal-cellular-1"
         }
       },
+      "data_plan_enabled": {
+        "default": "mdi:calendar-check"
+      },
+      "endc_restricted": {
+        "default": "mdi:signal-off",
+        "state": {
+          "on": "mdi:signal-off",
+          "off": "mdi:signal"
+        }
+      },
+      "endc_status": {
+        "default": "mdi:signal-variant"
+      },
       "lte_ca": {
         "default": "mdi:plus-network"
+      },
+      "mobile_connection": {
+        "default": "mdi:signal-cellular-outline",
+        "state": {
+          "on": "mdi:signal-cellular-3",
+          "off": "mdi:signal-cellular-outline"
+        }
+      },
+      "roaming": {
+        "default": "mdi:phone-minus",
+        "state": {
+          "on": "mdi:phone-check",
+          "off": "mdi:phone-minus"
+        }
+      },
+      "roaming_auto_connect": {
+        "default": "mdi:earth-arrow-right"
+      },
+      "sim_locked": {
+        "default": "mdi:sim-alert"
+      },
+      "sim_status": {
+        "default": "mdi:sim",
+        "state": {
+          "on": "mdi:sim-alert",
+          "off": "mdi:sim"
+        }
+      },
+      "single_ssid_mode": {
+        "default": "mdi:wifi-cog"
+      },
+      "sip_alg": {
+        "default": "mdi:phone-forward"
       },
       "sms_storage_full": {
         "default": "mdi:message-bulleted-off",
@@ -18,12 +64,11 @@
           "off": "mdi:message-bulleted"
         }
       },
-      "wifi_status": {
-        "default": "mdi:wifi",
-        "state": {
-          "on": "mdi:wifi",
-          "off": "mdi:wifi-off"
-        }
+      "speed_limited": {
+        "default": "mdi:speedometer-slow"
+      },
+      "upnp": {
+        "default": "mdi:lan-connect"
       },
       "wifi24g_status": {
         "default": "mdi:wifi",
@@ -39,42 +84,66 @@
           "off": "mdi:wifi-off"
         }
       },
-      "mobile_connection": {
-        "default": "mdi:signal-cellular-outline",
+      "wifi_status": {
+        "default": "mdi:wifi",
         "state": {
-          "on": "mdi:signal-cellular-3",
-          "off": "mdi:signal-cellular-outline"
-        }
-      },
-      "endc_status": {
-        "default": "mdi:signal-variant"
-      },
-      "endc_restricted": {
-        "default": "mdi:signal-off",
-        "state": {
-          "on": "mdi:signal-off",
-          "off": "mdi:signal"
-        }
-      },
-      "single_ssid_mode": {
-        "default": "mdi:wifi-cog"
-      },
-      "roaming": {
-        "default": "mdi:phone-minus",
-        "state": {
-          "on": "mdi:phone-check",
-          "off": "mdi:phone-minus"
-        }
-      },
-      "sim_status": {
-        "default": "mdi:sim",
-        "state": {
-          "on": "mdi:sim-alert",
-          "off": "mdi:sim"
+          "on": "mdi:wifi",
+          "off": "mdi:wifi-off"
         }
       }
     },
     "sensor": {
+      "5g_block_error_rate": {
+        "default": "mdi:chart-bell-curve"
+      },
+      "5g_cqi_0": {
+        "default": "mdi:numeric"
+      },
+      "5g_downlink_bandwidth": {
+        "default": "mdi:transfer-down"
+      },
+      "5g_downlink_frequency": {
+        "default": "mdi:radio-tower"
+      },
+      "5g_downlink_mcs": {
+        "default": "mdi:numeric"
+      },
+      "5g_earfcn": {
+        "default": "mdi:numeric"
+      },
+      "5g_rank": {
+        "default": "mdi:numeric"
+      },
+      "5g_transmit_power": {
+        "default": "mdi:transmission-tower"
+      },
+      "5g_uplink_bandwidth": {
+        "default": "mdi:transfer-up"
+      },
+      "5g_uplink_frequency": {
+        "default": "mdi:radio-tower"
+      },
+      "5g_uplink_mcs": {
+        "default": "mdi:numeric"
+      },
+      "alert_threshold": {
+        "default": "mdi:percent-outline"
+      },
+      "antenna_1": {
+        "default": "mdi:antenna"
+      },
+      "antenna_2": {
+        "default": "mdi:antenna"
+      },
+      "apn": {
+        "default": "mdi:access-point-network"
+      },
+      "apn_profile": {
+        "default": "mdi:playlist-check"
+      },
+      "band": {
+        "default": "mdi:radio-tower"
+      },
       "battery": {
         "default": "mdi:battery-alert",
         "range": {
@@ -89,6 +158,183 @@
           "90": "mdi:battery-90",
           "100": "mdi:battery"
         }
+      },
+      "billing_cycle_day": {
+        "default": "mdi:calendar-start"
+      },
+      "carrier_build": {
+        "default": "mdi:package-variant-closed"
+      },
+      "cell_id": {
+        "default": "mdi:identifier"
+      },
+      "counters_last_reset": {
+        "default": "mdi:calendar-refresh"
+      },
+      "country_code": {
+        "default": "mdi:earth"
+      },
+      "cqi_0": {
+        "default": "mdi:numeric"
+      },
+      "current_connection_download": {
+        "default": "mdi:arrow-down-bold-outline"
+      },
+      "current_connection_duration": {
+        "default": "mdi:clock-outline"
+      },
+      "current_connection_timestamp": {
+        "default": "mdi:link-variant"
+      },
+      "current_connection_upload": {
+        "default": "mdi:arrow-up-bold-outline"
+      },
+      "current_day_used": {
+        "default": "mdi:arrow-up-down-bold-outline"
+      },
+      "current_download_rate": {
+        "default": "mdi:arrow-down-bold-outline"
+      },
+      "current_upload_rate": {
+        "default": "mdi:arrow-up-bold-outline"
+      },
+      "downlink_mcs": {
+        "default": "mdi:numeric"
+      },
+      "earfcn": {
+        "default": "mdi:numeric"
+      },
+      "enodeb_id": {
+        "default": "mdi:identifier"
+      },
+      "iccid": {
+        "default": "mdi:sim"
+      },
+      "imei": {
+        "default": "mdi:card-account-details-outline"
+      },
+      "ims": {
+        "default": "mdi:phone-voip"
+      },
+      "imsi": {
+        "default": "mdi:card-account-details-outline"
+      },
+      "last_sms": {
+        "default": "mdi:message-text-clock"
+      },
+      "last_updated": {
+        "default": "mdi:update"
+      },
+      "lte_downlink_bandwidth": {
+        "default": "mdi:transfer-down"
+      },
+      "lte_downlink_frequency": {
+        "default": "mdi:radio-tower"
+      },
+      "lte_uplink_bandwidth": {
+        "default": "mdi:transfer-up"
+      },
+      "lte_uplink_frequency": {
+        "default": "mdi:radio-tower"
+      },
+      "max_download_rate": {
+        "default": "mdi:arrow-down-bold-outline"
+      },
+      "max_upload_rate": {
+        "default": "mdi:arrow-up-bold-outline"
+      },
+      "mcc_mnc": {
+        "default": "mdi:numeric"
+      },
+      "mode": {
+        "default": "mdi:signal-variant"
+      },
+      "model_name": {
+        "default": "mdi:router-wireless"
+      },
+      "month_download": {
+        "default": "mdi:arrow-down-bold-outline"
+      },
+      "month_download_gb": {
+        "default": "mdi:arrow-down-bold-outline"
+      },
+      "month_total": {
+        "default": "mdi:arrow-up-down-bold-outline"
+      },
+      "month_upload": {
+        "default": "mdi:arrow-up-bold-outline"
+      },
+      "month_upload_gb": {
+        "default": "mdi:arrow-up-bold-outline"
+      },
+      "mtu": {
+        "default": "mdi:packet-send"
+      },
+      "network_type": {
+        "default": "mdi:signal-variant"
+      },
+      "nr5g_band": {
+        "default": "mdi:radio-tower"
+      },
+      "nr_rsrp": {
+        "default": "mdi:signal-5g"
+      },
+      "nr_rsrq": {
+        "default": "mdi:signal-5g"
+      },
+      "nr_sinr": {
+        "default": "mdi:signal-5g"
+      },
+      "operator": {
+        "default": "mdi:antenna"
+      },
+      "operator_search_mode": {
+        "default": "mdi:magnify"
+      },
+      "pci": {
+        "default": "mdi:identifier"
+      },
+      "plmn": {
+        "default": "mdi:barcode"
+      },
+      "preferred_network_mode": {
+        "default": "mdi:tune"
+      },
+      "primary_band": {
+        "default": "mdi:signal-cellular-3"
+      },
+      "primary_dns": {
+        "default": "mdi:dns"
+      },
+      "primary_ipv6_dns": {
+        "default": "mdi:dns"
+      },
+      "product_name": {
+        "default": "mdi:router-wireless"
+      },
+      "rrc_status": {
+        "default": "mdi:state-machine"
+      },
+      "rsrp": {
+        "default": "mdi:signal"
+      },
+      "rsrq": {
+        "default": "mdi:signal-variant"
+      },
+      "rssi": {
+        "default": "mdi:signal"
+      },
+      "secondary_cell_pci": {
+        "default": "mdi:radio-tower"
+      },
+      "secondary_dns": {
+        "default": "mdi:dns"
+      },
+      "secondary_ipv6_dns": {
+        "default": "mdi:dns"
+      },
+      "serial_number": {
+        "default": "mdi:barcode"
       },
       "signal_bars": {
         "default": "mdi:signal-cellular-outline",
@@ -105,6 +351,51 @@
           "2": "mdi:signal-cellular-2",
           "3": "mdi:signal-cellular-3"
         }
+      },
+      "sim_number": {
+        "default": "mdi:card-account-phone-outline"
+      },
+      "sinr": {
+        "default": "mdi:signal-variant"
+      },
+      "sms_capacity_device": {
+        "default": "mdi:message-settings"
+      },
+      "sms_capacity_sim": {
+        "default": "mdi:message-settings-outline"
+      },
+      "sms_deleted_device": {
+        "default": "mdi:message-minus"
+      },
+      "sms_drafts_device": {
+        "default": "mdi:message-draw"
+      },
+      "sms_drafts_sim": {
+        "default": "mdi:email-edit-outline"
+      },
+      "sms_inbox_device": {
+        "default": "mdi:message-text"
+      },
+      "sms_inbox_sim": {
+        "default": "mdi:message-text-outline"
+      },
+      "sms_messages_sim": {
+        "default": "mdi:message-text-outline"
+      },
+      "sms_new": {
+        "default": "mdi:message-plus"
+      },
+      "sms_outbox_device": {
+        "default": "mdi:message-alert-outline"
+      },
+      "sms_outbox_sim": {
+        "default": "mdi:message-alert-outline"
+      },
+      "sms_total": {
+        "default": "mdi:message-text"
+      },
+      "sms_total_msg": {
+        "default": "mdi:message-text"
       },
       "sms_unread": {
         "default": "mdi:message-outline",
@@ -124,32 +415,17 @@
           "1": "mdi:message-badge"
         }
       },
-      "model_name": {
-        "default": "mdi:router-wireless"
+      "supported_modes": {
+        "default": "mdi:radio-tower"
       },
       "sw_version": {
         "default": "mdi:information-outline"
       },
-      "last_updated": {
-        "default": "mdi:update"
+      "tac": {
+        "default": "mdi:identifier"
       },
-      "wan_ip": {
-        "default": "mdi:ip-network"
-      },
-      "wan_ipv6": {
-        "default": "mdi:ip-network-outline"
-      },
-      "uptime": {
-        "default": "mdi:clock-outline"
-      },
-      "uptime_timestamp": {
-        "default": "mdi:clock-check-outline"
-      },
-      "current_connection_duration": {
-        "default": "mdi:clock-outline"
-      },
-      "current_connection_timestamp": {
-        "default": "mdi:link-variant"
+      "total_connected": {
+        "default": "mdi:account-group"
       },
       "total_connection_time": {
         "default": "mdi:calendar-clock"
@@ -157,155 +433,8 @@
       "total_connection_timestamp": {
         "default": "mdi:calendar-clock"
       },
-      "wifi_users": {
-        "default": "mdi:wifi-check"
-      },
-      "total_connected": {
-        "default": "mdi:account-group"
-      },
-      "wired_connected": {
-        "default": "mdi:lan-connect"
-      },
-      "wifi_capacity": {
-        "default": "mdi:wifi-cog"
-      },
-      "primary_dns": {
-        "default": "mdi:dns"
-      },
-      "secondary_dns": {
-        "default": "mdi:dns"
-      },
-      "primary_ipv6_dns": {
-        "default": "mdi:dns"
-      },
-      "secondary_ipv6_dns": {
-        "default": "mdi:dns"
-      },
-      "network_type": {
-        "default": "mdi:signal-variant"
-      },
-      "preferred_network_mode": {
-        "default": "mdi:tune"
-      },
-      "operator": {
-        "default": "mdi:antenna"
-      },
-      "plmn": {
-        "default": "mdi:barcode"
-      },
-      "operator_search_mode": {
-        "default": "mdi:magnify"
-      },
-      "rsrp": {
-        "default": "mdi:signal"
-      },
-      "rsrq": {
-        "default": "mdi:signal-variant"
-      },
-      "rssi": {
-        "default": "mdi:signal"
-      },
-      "sinr": {
-        "default": "mdi:signal-variant"
-      },
-      "cell_id": {
-        "default": "mdi:identifier"
-      },
-      "pci": {
-        "default": "mdi:identifier"
-      },
-      "tac": {
-        "default": "mdi:identifier"
-      },
-      "band": {
-        "default": "mdi:radio-tower"
-      },
-      "mode": {
-        "default": "mdi:signal-variant"
-      },
-      "transmit_power": {
-        "default": "mdi:transmission-tower"
-      },
-      "uplink_mcs": {
-        "default": "mdi:numeric"
-      },
-      "downlink_mcs": {
-        "default": "mdi:numeric"
-      },
-      "earfcn": {
-        "default": "mdi:numeric"
-      },
-      "rrc_status": {
-        "default": "mdi:state-machine"
-      },
-      "ims": {
-        "default": "mdi:phone-voip"
-      },
-      "lte_uplink_frequency": {
-        "default": "mdi:radio-tower"
-      },
-      "lte_downlink_frequency": {
-        "default": "mdi:radio-tower"
-      },
-      "lte_uplink_bandwidth": {
-        "default": "mdi:transfer-up"
-      },
-      "lte_downlink_bandwidth": {
-        "default": "mdi:transfer-down"
-      },
-      "5g_uplink_frequency": {
-        "default": "mdi:radio-tower"
-      },
-      "5g_downlink_frequency": {
-        "default": "mdi:radio-tower"
-      },
-      "transmission_mode": {
-        "default": "mdi:transit-connection-variant"
-      },
-      "enodeb_id": {
-        "default": "mdi:identifier"
-      },
-      "cqi_0": {
-        "default": "mdi:numeric"
-      },
-      "nr5g_band": {
-        "default": "mdi:radio-tower"
-      },
-      "nr_rsrp": {
-        "default": "mdi:signal-5g"
-      },
-      "nr_rsrq": {
-        "default": "mdi:signal-5g"
-      },
-      "nr_sinr": {
-        "default": "mdi:signal-5g"
-      },
-      "5g_uplink_bandwidth": {
-        "default": "mdi:transfer-up"
-      },
-      "5g_downlink_bandwidth": {
-        "default": "mdi:transfer-down"
-      },
-      "5g_uplink_mcs": {
-        "default": "mdi:numeric"
-      },
-      "5g_downlink_mcs": {
-        "default": "mdi:numeric"
-      },
-      "5g_transmit_power": {
-        "default": "mdi:transmission-tower"
-      },
-      "5g_earfcn": {
-        "default": "mdi:numeric"
-      },
-      "5g_block_error_rate": {
-        "default": "mdi:chart-bell-curve"
-      },
-      "5g_rank": {
-        "default": "mdi:numeric"
-      },
-      "5g_cqi_0": {
-        "default": "mdi:numeric"
+      "total_data": {
+        "default": "mdi:arrow-up-down-bold-outline"
       },
       "total_download": {
         "default": "mdi:arrow-down-bold-outline"
@@ -313,86 +442,44 @@
       "total_upload": {
         "default": "mdi:arrow-up-bold-outline"
       },
-      "total_data": {
-        "default": "mdi:arrow-up-down-bold-outline"
+      "transmission_mode": {
+        "default": "mdi:transit-connection-variant"
       },
-      "current_download_rate": {
-        "default": "mdi:arrow-down-bold-outline"
+      "transmit_power": {
+        "default": "mdi:transmission-tower"
       },
-      "current_upload_rate": {
-        "default": "mdi:arrow-up-bold-outline"
+      "uplink_mcs": {
+        "default": "mdi:numeric"
       },
-      "max_download_rate": {
-        "default": "mdi:arrow-down-bold-outline"
+      "uptime": {
+        "default": "mdi:clock-outline"
       },
-      "max_upload_rate": {
-        "default": "mdi:arrow-up-bold-outline"
+      "uptime_timestamp": {
+        "default": "mdi:clock-check-outline"
       },
-      "current_connection_upload": {
-        "default": "mdi:arrow-up-bold-outline"
+      "wan_dns": {
+        "default": "mdi:dns"
       },
-      "current_connection_download": {
-        "default": "mdi:arrow-down-bold-outline"
+      "wan_dns_ipv6": {
+        "default": "mdi:dns-outline"
       },
-      "current_day_used": {
-        "default": "mdi:arrow-up-down-bold-outline"
+      "wan_ip": {
+        "default": "mdi:ip-network"
       },
-      "month_download": {
-        "default": "mdi:arrow-down-bold-outline"
+      "wan_ipv6": {
+        "default": "mdi:ip-network-outline"
       },
-      "month_download_gb": {
-        "default": "mdi:arrow-down-bold-outline"
+      "web_ui_version": {
+        "default": "mdi:web"
       },
-      "month_upload": {
-        "default": "mdi:arrow-up-bold-outline"
+      "wifi_capacity": {
+        "default": "mdi:wifi-cog"
       },
-      "month_upload_gb": {
-        "default": "mdi:arrow-up-bold-outline"
+      "wifi_users": {
+        "default": "mdi:wifi-check"
       },
-      "month_total": {
-        "default": "mdi:arrow-up-down-bold-outline"
-      },
-      "sms_total_msg": {
-        "default": "mdi:message-text"
-      },
-      "sms_total": {
-        "default": "mdi:message-text"
-      },
-      "sms_inbox_device": {
-        "default": "mdi:message-text"
-      },
-      "sms_outbox_device": {
-        "default": "mdi:message-alert-outline"
-      },
-      "sms_drafts_device": {
-        "default": "mdi:message-draw"
-      },
-      "sms_deleted_device": {
-        "default": "mdi:message-minus"
-      },
-      "sms_capacity_device": {
-        "default": "mdi:message-settings"
-      },
-      "sms_inbox_sim": {
-        "default": "mdi:message-text-outline"
-      },
-      "sms_outbox_sim": {
-        "default": "mdi:message-alert-outline"
-      },
-      "sms_drafts_sim": {
-        "default": "mdi:email-edit-outline"
-      },
-      "sms_capacity_sim": {
-        "default": "mdi:message-settings-outline"
-      },
-      "sms_messages_sim": {
-        "default": "mdi:message-text-outline"
-      },
-      "sms_new": {
-        "default": "mdi:message-plus"
-      },
-      "last_sms": {
-        "default": "mdi:message-text-clock"
+      "wired_connected": {
+        "default": "mdi:lan-connect"
       }
     },
     "switch": {
@@ -407,14 +494,17 @@
       }
     },
     "button": {
-      "refresh": {
-        "default": "mdi:refresh"
+      "clear_traffic": {
+        "default": "mdi:chart-line-variant"
       },
       "reboot": {
         "default": "mdi:restart"
       },
-      "clear_traffic": {
-        "default": "mdi:chart-line-variant"
+      "reconnect": {
+        "default": "mdi:connection"
+      },
+      "refresh": {
+        "default": "mdi:refresh"
       }
     },
     "number": {

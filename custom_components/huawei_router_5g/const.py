@@ -73,6 +73,29 @@ SIGNAL_CONTRACT_KEYS: tuple[str, ...] = ("rsrp", "rsrq", "rssi", "sinr")
 # single blip raises no alarm. Matches the Section 8 fetch strike budget.
 HEALTH_STRIKE_LIMIT = 3
 
+# --- Data-usage projection tuning (status_plan §T-2) -------------------------
+#
+# PROJECTION_CREDIBILITY_DAYS is the point at which this cycle's own usage rate
+# and the previous cycle's are weighted equally. Three days is deliberate:
+# usage is bursty, and a heavy weekend is not a new baseline, but waiting a
+# fortnight would leave the projection lagging exactly when a user most wants
+# warning that they are on course to exceed their allowance.
+#
+# It matters less than it looks. The blend applies only to the *unobserved*
+# remainder of the cycle (see `helpers.project_cycle_usage`), so the prior's
+# influence decays with the days left rather than with this constant.
+#
+# Ported from zte_router_5g, which established the values.
+PROJECTION_CREDIBILITY_DAYS = 3.0
+
+# Confidence bands published as an attribute on the projection, expressed as
+# thresholds on the credibility weight. The projection is always shown — an
+# `unknown` on day one reads as a broken sensor, whereas a number carrying
+# "confidence: low" is understood. The caveat belongs in the attributes, not in
+# the state.
+PROJECTION_CONFIDENCE_LOW = 0.4
+PROJECTION_CONFIDENCE_MEDIUM = 0.75
+
 # The one action that removes entities rather than commanding the router.
 # Defaults to a dry run: a client that is merely powered off is still usually
 # in the router's host list, but a router that has aged it out is

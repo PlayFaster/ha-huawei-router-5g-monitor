@@ -93,6 +93,13 @@ ATTENDED: dict[str, str] = {
         "values while re-registering, which a script cannot tell from a dead "
         "session."
     ),
+    "reconnect": (
+        "Drops and re-establishes the mobile data session. Recoverable in "
+        "seconds and nothing is left in a changed state, but the router "
+        "answers with blank values while re-registering, which a script "
+        "cannot tell apart from a dead session - the same reason set_net_mode "
+        "is here. Not exercised unattended; the owner verifies it by hand."
+    ),
     "set_guest_wifi": (
         "Looks cosmetic and is not. On the live B535 the guest SSID carries "
         "`WifiAuthmode: OPEN` — a stranded ON leaves an unauthenticated "
@@ -131,6 +138,7 @@ EXERCISED_BY_HARDWARE_CHECK: frozenset[str] = frozenset({"logout"})
 OFFERED_WHEN_ATTENDED: frozenset[str] = frozenset(
     {
         "reboot",
+        "reconnect",
         "clear_traffic_statistics",
         "set_mobile_data",
         "set_net_mode",

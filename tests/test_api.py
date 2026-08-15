@@ -1549,3 +1549,71 @@ async def test_execute_with_retry_raises_non_expiry_error():
         pytest.raises(ResponseErrorException, match="Other error"),
     ):
         await api._execute_with_retry(mock_fn)
+
+
+# ---------------------------------------------------------------------------
+# Reconnect (§T-4e)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reconnect_uses_net_reconnect_not_dial():
+    """`net.reconnect()`, not `dial_up.dial()`.
+
+    They are not alternatives. `dial()` posts `Action: 1` hardcoded, which is
+    connect-only: it has no disconnect, is a no-op on a live session, and its
+    one real use is already covered by the Mobile Data switch. Only
+    `net.reconnect()` drops and re-establishes, which is what the router GUI's
+    Reconnect does.
+    """
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.reconnect()
+
+    mock_client.net.reconnect.assert_called_once_with()
+    mock_client.dial_up.dial.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reconnect_resets_the_client_on_success():
+    """The held session is against a connection that has just gone away.
+
+    Reusing it would fail the next read on a stale handle rather than simply
+    reconnecting, which is the same reasoning as `reboot`.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.reconnect()
+
+    assert api._client is None
+    assert api._connection is None
+
+
+@pytest.mark.asyncio
+async def test_reconnect_error_resets_client_and_raises():
+    """A failed reconnect must not report success — §22, and §O-4."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread",
+            new=AsyncMock(side_effect=Exception("Reconnect fail")),
+        ),
+        pytest.raises(Exception, match="Reconnect fail"),
+    ):
+        await api.reconnect()
+
+    assert api._client is None

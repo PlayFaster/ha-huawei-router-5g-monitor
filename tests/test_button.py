@@ -3,14 +3,17 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
+from homeassistant.components.button import ButtonDeviceClass
 from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.huawei_router_5g.button import (
     CLEAR_TRAFFIC_DESCRIPTION,
     REBOOT_DESCRIPTION,
+    RECONNECT_DESCRIPTION,
     REFRESH_DESCRIPTION,
     HuaweiClearTrafficButton,
     HuaweiRebootButton,
+    HuaweiReconnectButton,
     HuaweiRefreshButton,
     async_setup_entry,
 )
@@ -150,4 +153,55 @@ async def test_button_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 3
+    assert len(entities) == 4
+    # Named rather than counted: a bare count passes if a button is registered
+    # twice and another dropped.
+    assert {e.entity_description.key for e in entities} == {
+        "refresh",
+        "reboot",
+        "reconnect",
+        "clear_traffic",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Reconnect (§T-4e)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reconnect_button_calls_the_api() -> None:
+    """The button must reach `api.reconnect`, not `reboot` or `dial`."""
+    coordinator = MagicMock()
+    coordinator.api.reconnect = AsyncMock()
+    entry = MagicMock()
+    entry.unique_id = "abc"
+
+    button = HuaweiReconnectButton(coordinator, entry, RECONNECT_DESCRIPTION)
+    await button.async_press()
+
+    coordinator.api.reconnect.assert_awaited_once()
+    coordinator.api.reboot.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reconnect_failure_raises_rather_than_reporting_success() -> None:
+    """§22 / §O-4: an unverified write must never report success.
+
+    Reporting a silent success on a control with a real-world effect invites
+    the user to press it again.
+    """
+    coordinator = MagicMock()
+    coordinator.api.reconnect = AsyncMock(side_effect=OSError("boom"))
+    entry = MagicMock()
+    entry.unique_id = "abc"
+
+    button = HuaweiReconnectButton(coordinator, entry, RECONNECT_DESCRIPTION)
+    with pytest.raises(HomeAssistantError, match="Reconnect failed"):
+        await button.async_press()
+
+
+def test_reconnect_is_not_declared_as_a_restart() -> None:
+    """Reboot owns `RESTART`; sharing it makes the two read as duplicates."""
+    assert RECONNECT_DESCRIPTION.device_class is None
+    assert REBOOT_DESCRIPTION.device_class is ButtonDeviceClass.RESTART

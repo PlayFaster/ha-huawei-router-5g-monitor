@@ -379,6 +379,15 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
 
     await _offer(
         report,
+        "reconnect",
+        "Drops the data session and re-establishes it. Seconds of downtime,\n"
+        "nothing left in a changed state. The router answers with blank values\n"
+        "while it re-registers, so a populated read is the only proof it came back.",
+        lambda: _check_reconnect(api, report),
+    )
+
+    await _offer(
+        report,
         "reboot",
         f"Minutes of downtime. Waits up to {REBOOT_TIMEOUT:.0f}s for the router\n"
         "to answer again. Nothing is left in a changed state.",
@@ -422,6 +431,32 @@ async def _check_clear_traffic(api: HuaweiRouter5GAPI, report: Report) -> None:
         "clear_traffic_statistics",
         f"CurrentUpload {was} -> {after.get('CurrentUpload')}",
     )
+
+
+async def _check_reconnect(api: HuaweiRouter5GAPI, report: Report) -> None:
+    """Reconnect and confirm a populated read comes back.
+
+    Read back rather than trusted, for the reason the whole script exists: a
+    write that returns cleanly has already been proven worthless here twice.
+    """
+    await api.reconnect()
+    await asyncio.sleep(RECONNECT_SETTLE)
+
+    for attempt in range(4):
+        try:
+            await api.login()
+            data = await api.get_data()
+        except Exception:  # noqa: BLE001 - an absent session is the expected case
+            print(f"    {_dim(f'attempt {attempt + 1} - no answer yet')}")
+            await asyncio.sleep(RECONNECT_SETTLE)
+            continue
+        if (data.get("device_signal") or {}).get("rsrp"):
+            report.record(True, "reconnect", f"populated read on attempt {attempt + 1}")
+            return
+        print(f"    {_dim('answering, but the payload is blank')}")
+        await asyncio.sleep(RECONNECT_SETTLE)
+
+    report.record(False, "reconnect", "no populated read after four attempts")
 
 
 async def _check_reboot(api: HuaweiRouter5GAPI, report: Report) -> None:

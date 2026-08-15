@@ -1,22 +1,22 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 121 entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 161 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 24 | Core router info, WAN configuration, and global integration settings. |
-| **Signal** | 52 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
-| **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
-| **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
+| **System** | 45 | Core router info, WAN configuration, and global integration settings. |
+| **Signal** | 60 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
+| **Data** | 24 | Traffic statistics, download/upload rates, and monthly usage. |
+| **SMS** | 22 | Detailed message counts per storage bank and recent message content. |
 | **WiFi** | 6 | Wireless radio status, capacity, and guest network controls. |
-| **Clients** | 6 | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **122** |  |
+| **Clients** | 3 + trackers | Connected LAN/WLAN devices and aggregate connectivity counters. |
+| **Total** | **161** | Plus one device tracker per discovered client. |
 
 ---
 
-## 1. System Sub-Device (24 Entities)
+## 1. System Sub-Device (45 Entities)
 
 _Group: `system`_
 
@@ -47,9 +47,30 @@ _Group: `system`_
 | Preferred Network Mode | `preferred_network_mode` | Select | — | Config | Control network mode selection. |
 | SIM Card Status | `sim_card_status` | Binary Sensor | — | Diagnostic | ON if SIM card is detected and active. |
 
+| IMEI | `imei` | Sensor | - | Diagnostic | **Disabled by default.** Text, not numeric - no state class, unit or precision. Excluded from long-term statistics. |
+| IMSI | `imsi` | Sensor | - | Diagnostic | **Disabled by default.** As IMEI. |
+| ICCID | `iccid` | Sensor | - | Diagnostic | **Disabled by default.** As IMEI. |
+| SIM Number | `sim_number` | Sensor | - | Diagnostic | **Disabled by default.** The MSISDN. The router GUI calls it "My Number". |
+| Serial Number | `serial_number` | Sensor | - | Diagnostic | **Disabled by default.** As IMEI. |
+| MCC MNC | `mcc_mnc` | Sensor | - | Diagnostic | **Disabled by default.** Operator code. As IMEI. |
+| Product Name | `product_name` | Sensor | - | Diagnostic | Marketing name, e.g. `5G CPE 6`. |
+| Web UI Version | `web_ui_version` | Sensor | - | Diagnostic |  |
+| Carrier Build | `carrier_build` | Sensor | - | Diagnostic | The `iniversion` customisation build. |
+| Supported Modes | `supported_modes` | Sensor | - | Diagnostic | **Disabled by default.** Static capability list. |
+| WAN DNS | `wan_dns` | Sensor | - | Diagnostic | **Disabled by default.** Comma-separated. |
+| WAN DNS IPv6 | `wan_dns_ipv6` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Country Code | `country_code` | Sensor | - | Diagnostic | **Disabled by default.** From `converged_status`. |
+| MTU | `mtu` | Sensor | - | Diagnostic | **Disabled by default.** A wrong MTU breaks VPNs while everything else works. |
+| APN | `apn` | Sensor | - | Diagnostic | Resolved from `CurrentProfile` by matching `Index`, never by list position. |
+| APN Profile | `apn_profile` | Sensor | - | Diagnostic | **Disabled by default.** The profile's name. |
+| SIM Locked | `sim_locked` | Binary Sensor | - | Diagnostic | **Disabled by default.** Supersedes the undecodable `simlockStatus`. |
+| Roaming Auto-Connect | `roaming_auto_connect` | Binary Sensor | - | Diagnostic | **Disabled by default.** Whether data connects automatically while roaming. |
+| SIP ALG | `sip_alg` | Binary Sensor | - | Diagnostic | **Disabled by default.** The firewall's SIP helper, not VoIP status. The commonest cause of one-way audio behind a CPE. |
+| UPnP | `upnp` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| Reconnect | `reconnect` | Button | - | - | Drops and re-establishes the data session. Separate from Reboot, which restarts the device. |
 ---
 
-## 2. Signal Sub-Device (52 Entities)
+## 2. Signal Sub-Device (60 Entities)
 
 _Group: `signal`_
 
@@ -108,9 +129,17 @@ _Group: `signal`_
 | 5G Uplink Frequency | `5g_uplink_frequency` | Sensor | MHz | Diagnostic | `nruplinkfrequency` field, scaled. |
 | 5G Downlink Frequency | `5g_downlink_frequency` | Sensor | MHz | Diagnostic | `nrdownlinkfrequency` field, scaled. |
 
+| Primary Band | `primary_band` | Sensor | - | Diagnostic | **Disabled by default.** The primary carrier only. `band` carries the full aggregation - the two are not in conflict. |
+| Secondary Cell PCI | `secondary_cell_pci` | Sensor | - | Diagnostic | **Disabled by default.** An identifier despite reading as a small integer, so treated as text and excluded from long-term statistics. |
+| Antenna 1 | `antenna_1` | Sensor | - | Diagnostic | `Internal` or `External`. Reports the antenna in use, not the configured mode. Unmapped codes pass through raw. |
+| Antenna 2 | `antenna_2` | Sensor | - | Diagnostic | As Antenna 1. |
+| Poor Signal | `poor_signal` | Binary Sensor | - | Diagnostic | The router's own verdict. Problem device class. |
+| Speed Limited | `speed_limited` | Binary Sensor | - | Diagnostic | **Disabled by default.** The router's own verdict. No device class - a carrier limiting throughput is not a fault. |
+| Data Service | `data_service` | Binary Sensor | - | Diagnostic | Packet-switched registration. Connectivity device class. |
+| Voice Service | `voice_service` | Binary Sensor | - | Diagnostic | **Disabled by default.** Circuit-switched registration. Says nothing about a call in progress; no endpoint on this hardware does. |
 ---
 
-## 3. Data Sub-Device (16 Entities)
+## 3. Data Sub-Device (24 Entities)
 
 _Group: `data`_
 
@@ -133,9 +162,17 @@ _Group: `data`_
 | Month Total | `month_total` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
 | Clear Traffic Statistics | `clear_traffic` | Button | - | - | Resets traffic counters. |
 
+| Counters Last Reset | `counters_last_reset` | Sensor | Date | Diagnostic | When the counters were last cleared **by hand**. Not the billing boundary - that is Billing Cycle Day. |
+| Month Connected Time | `month_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** **Connected** time this cycle, not elapsed. Excluded from long-term statistics. |
+| Day Connected Time | `day_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** As above. |
+| Data Allowance | `data_allowance` | Sensor | Bytes | Diagnostic | From `trafficmaxlimit`, already in bytes - not the `DataLimit` display string. A setting, so excluded from long-term statistics. |
+| Billing Cycle Day | `billing_cycle_day` | Sensor | - | Diagnostic | Day of month the counters roll over. Excluded from long-term statistics. |
+| Alert Threshold | `alert_threshold` | Sensor | % | Diagnostic | Excluded from long-term statistics. |
+| Data Plan Enabled | `data_plan_enabled` | Binary Sensor | - | Diagnostic | Whether the monthly package is set. Decides whether the three above mean anything. |
+| Projected Usage | `projected_usage` | Sensor | Bytes | - | End-of-cycle forecast. **No state class, deliberately** - it is an estimate, and the usage behind it is already in long-term statistics via Month Total. Carries a `confidence` attribute. |
 ---
 
-## 4. SMS Sub-Device (18 Entities)
+## 4. SMS Sub-Device (22 Entities)
 
 _Group: `sms`_
 
@@ -181,7 +218,7 @@ _Group: `wifi`_
 
 ---
 
-## 6. Clients Sub-Device (6 Entities)
+## 6. Clients Sub-Device (3 Entities + Trackers)
 
 _Group: `clients`_
 
@@ -241,6 +278,10 @@ Sensors are stored in their canonical **native** unit (so long-term statistics a
 ---
 
 ## Version Control
+
+- **v1.2.0** (2026-08-15) - **38 entities added** by `status_plan.md` §T-4: six identity sensors, nine further System sensors and four System binary sensors, the Reconnect button, eight Signal entities, and the data-plan block with the Projected Usage forecast. Counts corrected in three places that must move together - the opening line, the summary table and each sub-device header - because `unifi_network_monitor` shipped `[1.0.1-dev12]` with three stale section headers after adding rows only. Thirteen of the 38 are enabled by default; the identifiers and settings are all disabled. **Long-term statistics exclusions are noted per row** and enforced by a sweep in `tests/test_entity_hygiene.py` rather than by these notes.
+
+  **Two pre-existing count errors were found while reconciling and are corrected here.** SMS carried 22 rows under a header of 18, and Clients carried 4 rows under a header of 6. Neither was introduced by this change — both are visible in the document as committed before it — and the header/row check that surfaced them is the same one this entry cites UniFi for failing. The Clients count is now stated as **3 + trackers**, because `Tracked Device` is one row standing for a dynamically created entity per discovered MAC, and folding a variable number into a fixed count is what made that header wrong in the first place. Whole-document total: 122 → **161** static entities, of which 37 are the addition and 2 the correction.
 
 - **v1.0.0** (2026-05-25) - Initial version. Added 6 undocumented entities, fixed SMS key formatting, updated unit/unknown-state notes, entity counts synced with HA output.
 - **v1.1.1-dev20** (2026-05-25) - Updated Connection Upload/Download, Month Download/Upload GB notes to reflect removal of state_class (No LTS).

@@ -49,7 +49,7 @@ _WRITE_PREFIXES = ("set_", "send_", "delete_")
 # a name that a prefix-only detector would silently drop — see
 # `test_the_write_detector_sees_the_unprefixed_writes` for why that matters
 # more here than it did on ZTE.
-_WRITE_NAMES = frozenset({"reboot", "logout", "clear_traffic_statistics"})
+_WRITE_NAMES = frozenset({"reboot", "logout", "clear_traffic_statistics", "reconnect"})
 
 
 def _public_writes() -> set[str]:
@@ -142,15 +142,20 @@ def test_the_hardware_check_really_calls_what_it_claims() -> None:
 def test_the_write_detector_sees_the_unprefixed_writes() -> None:
     """Guard the guard: the detector must not go blind.
 
-    Three of this integration's eight writes — `reboot`, `logout` and
-    `clear_traffic_statistics` — carry no `set_`/`send_`/`delete_` prefix, so a
-    prefix-only detector drops well over a third of the write surface while the
-    suite stays green. That is the precise failure mode this file exists to
-    prevent, and `clear_traffic_statistics` is not a hypothetical: it is the
-    write that actually shipped broken.
+    **Four** of this integration's nine writes — `reboot`, `logout`,
+    `clear_traffic_statistics` and `reconnect` — carry no
+    `set_`/`send_`/`delete_` prefix, so a prefix-only detector drops nearly half
+    the write surface while the suite stays green.
+
+    `clear_traffic_statistics` is not a hypothetical: it is the write that
+    actually shipped broken. Nor is `reconnect` — it was added on 2026-08-15,
+    the detector did not see it, and what caught that was
+    `test_the_register_does_not_name_writes_that_no_longer_exist` reporting the
+    brand-new classification as *stale*. A blind detector makes a present write
+    look absent, which reads as the opposite problem.
     """
     writes = _public_writes()
-    for unprefixed in ("reboot", "logout", "clear_traffic_statistics"):
+    for unprefixed in ("reboot", "logout", "clear_traffic_statistics", "reconnect"):
         assert unprefixed in writes, (
             f"{unprefixed} is no longer detected as a write — the detector has "
             "regressed to something that only sees prefixed method names."

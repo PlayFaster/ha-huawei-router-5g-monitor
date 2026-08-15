@@ -263,6 +263,28 @@ class HuaweiRouter5GAPI:
                         "wlan_multi_basic_settings",
                         lambda: client.wlan.multi_basic_settings(),
                     ),
+                    # --- Added 2026-08-15 (status_plan §T-4) ----------------
+                    #
+                    # Eight endpoints the integration had never called. Each
+                    # is non-critical by the rule below: only
+                    # `device_information` raises, so a block that fails
+                    # leaves its own entities unknown and disturbs nothing
+                    # else. That is the whole strike-budget answer for these
+                    # — they degrade individually and need no per-entity
+                    # `source` declaration.
+                    #
+                    # `monitoring.daily_data_limit` is deliberately absent:
+                    # it answers `100002: No support` on the reference B535,
+                    # so calling it would spend a round trip per poll to
+                    # collect the same error forever.
+                    ("start_date", lambda: client.monitoring.start_date()),
+                    ("converged_status", lambda: client.monitoring.converged_status()),
+                    ("dial_up_profiles", lambda: client.dial_up.profiles()),
+                    ("dial_up_connection", lambda: client.dial_up.connection()),
+                    ("antenna_type", lambda: client.device.antenna_type()),
+                    ("csps_state", lambda: client.net.csps_state()),
+                    ("security_sip", lambda: client.security.sip()),
+                    ("security_upnp", lambda: client.security.upnp()),
                 ]
                 for key, fetcher in fetch_tasks:
                     try:
@@ -337,6 +359,35 @@ class HuaweiRouter5GAPI:
                 self._reset_client()
             except Exception:
                 _LOGGER.exception("Reboot failed")
+                self._reset_client()
+                raise
+
+    async def reconnect(self) -> None:
+        """Drop and re-establish the mobile data session.
+
+        This is the router GUI's advanced-settings **Reconnect**, and it is
+        deliberately not Reboot: the device stays up, only the data session is
+        re-established.
+
+        **`net.reconnect()`, not `dial_up.dial()`.** The latter posts
+        `Action: 1` hardcoded, which is *connect only* — it has no disconnect
+        and is a no-op on a live session, and its one real use (bringing a
+        dropped session back) is already covered by the Mobile Data switch.
+
+        The client is reset afterwards, as for a reboot: the session the
+        library holds is against a connection that has just gone away, so the
+        next read must build a fresh one rather than fail on a stale handle.
+
+        Classified **ATTENDED** in `scripts/write_classification.py` — the
+        router answers with blank values while re-registering, which a script
+        cannot tell apart from a dead session.
+        """
+        async with self._lock:
+            try:
+                await self._execute_with_retry(lambda client: client.net.reconnect())
+                self._reset_client()
+            except Exception:
+                _LOGGER.exception("Reconnect failed")
                 self._reset_client()
                 raise
 

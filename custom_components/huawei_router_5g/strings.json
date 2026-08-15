@@ -34,23 +34,80 @@
   },
   "entity": {
     "sensor": {
-      "model_name": {
-        "name": "Model Name"
+      "5g_block_error_rate": {
+        "name": "5G Block Error Rate"
       },
-      "sw_version": {
-        "name": "Software Version"
+      "5g_cqi_0": {
+        "name": "5G CQI"
       },
-      "wan_ip": {
-        "name": "WAN IP Address"
+      "5g_downlink_bandwidth": {
+        "name": "5G Downlink Bandwidth"
       },
-      "wan_ipv6": {
-        "name": "WAN IPv6 Address"
+      "5g_downlink_frequency": {
+        "name": "5G Downlink Frequency"
       },
-      "uptime": {
-        "name": "Uptime Duration"
+      "5g_downlink_mcs": {
+        "name": "5G Downlink MCS"
       },
-      "uptime_timestamp": {
-        "name": "Uptime"
+      "5g_earfcn": {
+        "name": "5G EARFCN"
+      },
+      "5g_rank": {
+        "name": "5G Rank"
+      },
+      "5g_transmit_power": {
+        "name": "5G Transmit Power"
+      },
+      "5g_uplink_bandwidth": {
+        "name": "5G Uplink Bandwidth"
+      },
+      "5g_uplink_frequency": {
+        "name": "5G Uplink Frequency"
+      },
+      "5g_uplink_mcs": {
+        "name": "5G Uplink MCS"
+      },
+      "alert_threshold": {
+        "name": "Alert Threshold"
+      },
+      "antenna_1": {
+        "name": "Antenna 1"
+      },
+      "antenna_2": {
+        "name": "Antenna 2"
+      },
+      "apn": {
+        "name": "APN"
+      },
+      "apn_profile": {
+        "name": "APN Profile"
+      },
+      "band": {
+        "name": "LTE Band"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "billing_cycle_day": {
+        "name": "Billing Cycle Day"
+      },
+      "carrier_build": {
+        "name": "Carrier Build"
+      },
+      "cell_id": {
+        "name": "LTE Cell ID"
+      },
+      "counters_last_reset": {
+        "name": "Counters Last Reset"
+      },
+      "country_code": {
+        "name": "Country Code"
+      },
+      "cqi_0": {
+        "name": "LTE CQI"
+      },
+      "current_connection_download": {
+        "name": "Connection Download"
       },
       "current_connection_duration": {
         "name": "Connection Duration"
@@ -58,95 +115,23 @@
       "current_connection_timestamp": {
         "name": "Connection Uptime"
       },
-      "total_connection_time": {
-        "name": "Total Duration"
+      "current_connection_upload": {
+        "name": "Connection Upload"
       },
-      "total_connection_timestamp": {
-        "name": "Total Uptime"
+      "current_day_used": {
+        "name": "Day Used"
       },
-      "battery": {
-        "name": "Battery"
+      "current_download_rate": {
+        "name": "Download Rate"
       },
-      "wifi_users": {
-        "name": "WiFi Connected"
+      "current_upload_rate": {
+        "name": "Upload Rate"
       },
-      "total_connected": {
-        "name": "Total Connected"
+      "data_allowance": {
+        "name": "Data Allowance"
       },
-      "wired_connected": {
-        "name": "Wired Connected"
-      },
-      "wifi_capacity": {
-        "name": "User Capacity"
-      },
-      "primary_dns": {
-        "name": "Primary DNS Server"
-      },
-      "secondary_dns": {
-        "name": "Secondary DNS Server"
-      },
-      "primary_ipv6_dns": {
-        "name": "Primary IPv6 DNS Server"
-      },
-      "secondary_ipv6_dns": {
-        "name": "Secondary IPv6 DNS Server"
-      },
-      "last_updated": {
-        "name": "Last Updated"
-      },
-      "network_type": {
-        "name": "Network Type"
-      },
-      "preferred_network_mode": {
-        "name": "Preferred Network Mode"
-      },
-      "operator": {
-        "name": "Operator"
-      },
-      "plmn": {
-        "name": "Operator Code"
-      },
-      "operator_search_mode": {
-        "name": "Operator Search Mode"
-      },
-      "rsrp": {
-        "name": "LTE RSRP"
-      },
-      "rsrq": {
-        "name": "LTE RSRQ"
-      },
-      "rssi": {
-        "name": "LTE RSSI"
-      },
-      "sinr": {
-        "name": "LTE SINR"
-      },
-      "signal_bars": {
-        "name": "Signal Bars"
-      },
-      "signal_bars_nr": {
-        "name": "5G Signal Bars"
-      },
-      "cell_id": {
-        "name": "LTE Cell ID"
-      },
-      "pci": {
-        "name": "LTE PCI"
-      },
-      "tac": {
-        "name": "LTE TAC"
-      },
-      "band": {
-        "name": "LTE Band"
-      },
-      "mode": {
-        "name": "LTE Mode"
-      },
-      "transmit_power": {
-        "name": "LTE Transmit Power"
-      },
-      "uplink_mcs": {
-        "name": "LTE Uplink MCS"
+      "day_connected_time": {
+        "name": "Day Connected Time"
       },
       "downlink_mcs": {
         "name": "LTE Downlink MCS"
@@ -154,38 +139,77 @@
       "earfcn": {
         "name": "LTE EARFCN"
       },
-      "rrc_status": {
-        "name": "LTE RRC Status"
+      "enodeb_id": {
+        "name": "eNodeB ID"
+      },
+      "iccid": {
+        "name": "ICCID"
+      },
+      "imei": {
+        "name": "IMEI"
       },
       "ims": {
         "name": "IMS Status"
       },
-      "lte_uplink_frequency": {
-        "name": "LTE Uplink Frequency"
+      "imsi": {
+        "name": "IMSI"
       },
-      "lte_downlink_frequency": {
-        "name": "LTE Downlink Frequency"
+      "last_sms": {
+        "name": "Last Msg"
       },
-      "transmission_mode": {
-        "name": "LTE Transmission Mode"
-      },
-      "enodeb_id": {
-        "name": "eNodeB ID"
-      },
-      "cqi_0": {
-        "name": "LTE CQI"
-      },
-      "lte_uplink_bandwidth": {
-        "name": "LTE Uplink Bandwidth"
+      "last_updated": {
+        "name": "Last Updated"
       },
       "lte_downlink_bandwidth": {
         "name": "LTE Downlink Bandwidth"
       },
-      "5g_uplink_frequency": {
-        "name": "5G Uplink Frequency"
+      "lte_downlink_frequency": {
+        "name": "LTE Downlink Frequency"
       },
-      "5g_downlink_frequency": {
-        "name": "5G Downlink Frequency"
+      "lte_uplink_bandwidth": {
+        "name": "LTE Uplink Bandwidth"
+      },
+      "lte_uplink_frequency": {
+        "name": "LTE Uplink Frequency"
+      },
+      "max_download_rate": {
+        "name": "Max Download Rate"
+      },
+      "max_upload_rate": {
+        "name": "Max Upload Rate"
+      },
+      "mcc_mnc": {
+        "name": "MCC MNC"
+      },
+      "mode": {
+        "name": "LTE Mode"
+      },
+      "model_name": {
+        "name": "Model Name"
+      },
+      "month_connected_time": {
+        "name": "Month Connected Time"
+      },
+      "month_download": {
+        "name": "Month Download"
+      },
+      "month_download_gb": {
+        "name": "Month Download (GB)"
+      },
+      "month_total": {
+        "name": "Month Total"
+      },
+      "month_upload": {
+        "name": "Month Upload"
+      },
+      "month_upload_gb": {
+        "name": "Month Upload (GB)"
+      },
+      "mtu": {
+        "name": "MTU"
+      },
+      "network_type": {
+        "name": "Network Type"
       },
       "nr5g_band": {
         "name": "5G NR Band"
@@ -199,119 +223,92 @@
       "nr_sinr": {
         "name": "5G SINR"
       },
-      "5g_uplink_bandwidth": {
-        "name": "5G Uplink Bandwidth"
+      "operator": {
+        "name": "Operator"
       },
-      "5g_downlink_bandwidth": {
-        "name": "5G Downlink Bandwidth"
+      "operator_search_mode": {
+        "name": "Operator Search Mode"
       },
-      "5g_uplink_mcs": {
-        "name": "5G Uplink MCS"
+      "pci": {
+        "name": "LTE PCI"
       },
-      "5g_downlink_mcs": {
-        "name": "5G Downlink MCS"
+      "plmn": {
+        "name": "Operator Code"
       },
-      "5g_transmit_power": {
-        "name": "5G Transmit Power"
+      "preferred_network_mode": {
+        "name": "Preferred Network Mode"
       },
-      "5g_earfcn": {
-        "name": "5G EARFCN"
+      "primary_band": {
+        "name": "Primary Band"
       },
-      "5g_block_error_rate": {
-        "name": "5G Block Error Rate"
+      "primary_dns": {
+        "name": "Primary DNS Server"
       },
-      "5g_rank": {
-        "name": "5G Rank"
+      "primary_ipv6_dns": {
+        "name": "Primary IPv6 DNS Server"
       },
-      "5g_cqi_0": {
-        "name": "5G CQI"
+      "product_name": {
+        "name": "Product Name"
       },
-      "total_download": {
-        "name": "Total Download"
+      "projected_usage": {
+        "name": "Projected Usage"
       },
-      "total_upload": {
-        "name": "Total Upload"
+      "rrc_status": {
+        "name": "LTE RRC Status"
       },
-      "total_data": {
-        "name": "Total Data"
+      "rsrp": {
+        "name": "LTE RSRP"
       },
-      "current_download_rate": {
-        "name": "Download Rate"
+      "rsrq": {
+        "name": "LTE RSRQ"
       },
-      "current_upload_rate": {
-        "name": "Upload Rate"
+      "rssi": {
+        "name": "LTE RSSI"
       },
-      "max_download_rate": {
-        "name": "Max Download Rate"
+      "secondary_cell_pci": {
+        "name": "Secondary Cell PCI"
       },
-      "max_upload_rate": {
-        "name": "Max Upload Rate"
+      "secondary_dns": {
+        "name": "Secondary DNS Server"
       },
-      "current_connection_upload": {
-        "name": "Connection Upload"
+      "secondary_ipv6_dns": {
+        "name": "Secondary IPv6 DNS Server"
       },
-      "current_connection_download": {
-        "name": "Connection Download"
+      "serial_number": {
+        "name": "Serial Number"
       },
-      "current_day_used": {
-        "name": "Day Used"
+      "signal_bars": {
+        "name": "Signal Bars"
       },
-      "month_download": {
-        "name": "Month Download"
+      "signal_bars_nr": {
+        "name": "5G Signal Bars"
       },
-      "month_download_gb": {
-        "name": "Month Download (GB)"
+      "sim_number": {
+        "name": "SIM Number"
       },
-      "month_upload": {
-        "name": "Month Upload"
-      },
-      "month_upload_gb": {
-        "name": "Month Upload (GB)"
-      },
-      "month_total": {
-        "name": "Month Total"
-      },
-      "sms_unread": {
-        "name": "Unread Msg"
-      },
-      "sms_total": {
-        "name": "Total (Device)"
-      },
-      "sms_total_msg": {
-        "name": "Total Msg"
-      },
-      "sms_unread_device": {
-        "name": "Unread (Device)"
-      },
-      "sms_inbox_device": {
-        "name": "Inbox (Device)"
-      },
-      "sms_outbox_device": {
-        "name": "Outbox (Device)"
-      },
-      "sms_drafts_device": {
-        "name": "Drafts (Device)"
-      },
-      "sms_deleted_device": {
-        "name": "Deleted (Device)"
+      "sinr": {
+        "name": "LTE SINR"
       },
       "sms_capacity_device": {
         "name": "Capacity (Device)"
       },
-      "sms_unread_sim": {
-        "name": "Unread (SIM)"
+      "sms_capacity_sim": {
+        "name": "Capacity (SIM)"
       },
-      "sms_inbox_sim": {
-        "name": "Inbox (SIM)"
+      "sms_deleted_device": {
+        "name": "Deleted (Device)"
       },
-      "sms_outbox_sim": {
-        "name": "Outbox (SIM)"
+      "sms_drafts_device": {
+        "name": "Drafts (Device)"
       },
       "sms_drafts_sim": {
         "name": "Drafts (SIM)"
       },
-      "sms_capacity_sim": {
-        "name": "Capacity (SIM)"
+      "sms_inbox_device": {
+        "name": "Inbox (Device)"
+      },
+      "sms_inbox_sim": {
+        "name": "Inbox (SIM)"
       },
       "sms_messages_sim": {
         "name": "Total (SIM)"
@@ -319,30 +316,165 @@
       "sms_new": {
         "name": "In Process"
       },
-      "last_sms": {
-        "name": "Last Msg"
+      "sms_outbox_device": {
+        "name": "Outbox (Device)"
+      },
+      "sms_outbox_sim": {
+        "name": "Outbox (SIM)"
+      },
+      "sms_total": {
+        "name": "Total (Device)"
+      },
+      "sms_total_msg": {
+        "name": "Total Msg"
+      },
+      "sms_unread": {
+        "name": "Unread Msg"
+      },
+      "sms_unread_device": {
+        "name": "Unread (Device)"
+      },
+      "sms_unread_sim": {
+        "name": "Unread (SIM)"
+      },
+      "supported_modes": {
+        "name": "Supported Modes"
+      },
+      "sw_version": {
+        "name": "Software Version"
+      },
+      "tac": {
+        "name": "LTE TAC"
+      },
+      "total_connected": {
+        "name": "Total Connected"
+      },
+      "total_connection_time": {
+        "name": "Total Duration"
+      },
+      "total_connection_timestamp": {
+        "name": "Total Uptime"
+      },
+      "total_data": {
+        "name": "Total Data"
+      },
+      "total_download": {
+        "name": "Total Download"
+      },
+      "total_upload": {
+        "name": "Total Upload"
+      },
+      "transmission_mode": {
+        "name": "LTE Transmission Mode"
+      },
+      "transmit_power": {
+        "name": "LTE Transmit Power"
+      },
+      "uplink_mcs": {
+        "name": "LTE Uplink MCS"
+      },
+      "uptime": {
+        "name": "Uptime Duration"
+      },
+      "uptime_timestamp": {
+        "name": "Uptime"
+      },
+      "wan_dns": {
+        "name": "WAN DNS"
+      },
+      "wan_dns_ipv6": {
+        "name": "WAN DNS IPv6"
+      },
+      "wan_ip": {
+        "name": "WAN IP Address"
+      },
+      "wan_ipv6": {
+        "name": "WAN IPv6 Address"
+      },
+      "web_ui_version": {
+        "name": "Web UI Version"
+      },
+      "wifi_capacity": {
+        "name": "User Capacity"
+      },
+      "wifi_users": {
+        "name": "WiFi Connected"
+      },
+      "wired_connected": {
+        "name": "Wired Connected"
       }
     },
     "button": {
-      "refresh": {
-        "name": "Refresh Now"
+      "clear_traffic": {
+        "name": "Clear Traffic Statistics"
       },
       "reboot": {
         "name": "Reboot"
       },
-      "clear_traffic": {
-        "name": "Clear Traffic Statistics"
+      "reconnect": {
+        "name": "Reconnect"
+      },
+      "refresh": {
+        "name": "Refresh Now"
       }
     },
     "binary_sensor": {
       "best_connection": {
         "name": "Best Connection"
       },
+      "data_plan_enabled": {
+        "name": "Data Plan Enabled"
+      },
+      "data_service": {
+        "name": "Data Service"
+      },
+      "endc_restricted": {
+        "name": "5G Restricted"
+      },
+      "endc_status": {
+        "name": "5G ENDC Active"
+      },
+      "integration_health": {
+        "name": "Integration Health"
+      },
+      "lte_ca": {
+        "name": "LTE Carrier Aggregation"
+      },
+      "mobile_connection": {
+        "name": "Mobile Connection"
+      },
+      "poor_signal": {
+        "name": "Poor Signal"
+      },
+      "roaming": {
+        "name": "Roaming Status"
+      },
+      "roaming_auto_connect": {
+        "name": "Roaming Auto-Connect"
+      },
+      "sim_locked": {
+        "name": "SIM Locked"
+      },
+      "sim_status": {
+        "name": "SIM Card Status"
+      },
+      "single_ssid_mode": {
+        "name": "Single SSID Mode"
+      },
+      "sip_alg": {
+        "name": "SIP ALG"
+      },
       "sms_storage_full": {
         "name": "SMS Storage Full"
       },
-      "wifi_status": {
-        "name": "Status"
+      "speed_limited": {
+        "name": "Speed Limited"
+      },
+      "upnp": {
+        "name": "UPnP"
+      },
+      "voice_service": {
+        "name": "Voice Service"
       },
       "wifi24g_status": {
         "name": "2.4GHz Status"
@@ -350,29 +482,8 @@
       "wifi5g_status": {
         "name": "5GHz Status"
       },
-      "mobile_connection": {
-        "name": "Mobile Connection"
-      },
-      "endc_status": {
-        "name": "5G ENDC Active"
-      },
-      "endc_restricted": {
-        "name": "5G Restricted"
-      },
-      "single_ssid_mode": {
-        "name": "Single SSID Mode"
-      },
-      "roaming": {
-        "name": "Roaming Status"
-      },
-      "sim_status": {
-        "name": "SIM Card Status"
-      },
-      "lte_ca": {
-        "name": "LTE Carrier Aggregation"
-      },
-      "integration_health": {
-        "name": "Integration Health"
+      "wifi_status": {
+        "name": "Status"
       }
     },
     "switch": {

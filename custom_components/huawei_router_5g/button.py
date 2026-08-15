@@ -53,6 +53,15 @@ REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
     group="system",
 )
 
+RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
+    key="reconnect",
+    translation_key="reconnect",
+    # Deliberately NOT ButtonDeviceClass.RESTART - that belongs to Reboot, and
+    # giving both the same class invites a user to read them as duplicates of
+    # one another. Reconnect leaves the device running.
+    group="system",
+)
+
 CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
     key="clear_traffic",
     translation_key="clear_traffic",
@@ -72,6 +81,7 @@ async def async_setup_entry(
         [
             HuaweiRefreshButton(coordinator, entry, REFRESH_DESCRIPTION),
             HuaweiRebootButton(coordinator, entry, REBOOT_DESCRIPTION),
+            HuaweiReconnectButton(coordinator, entry, RECONNECT_DESCRIPTION),
             HuaweiClearTrafficButton(coordinator, entry, CLEAR_TRAFFIC_DESCRIPTION),
         ],
         True,
@@ -121,6 +131,17 @@ class HuaweiRebootButton(HuaweiButton):
             await self.coordinator.api.reboot()
         except Exception as err:
             raise HomeAssistantError(f"Reboot failed: {err}") from err
+
+
+class HuaweiReconnectButton(HuaweiButton):
+    """Button to drop and re-establish the data session."""
+
+    async def async_press(self) -> None:
+        """Handle the button press - re-establish the data connection."""
+        try:
+            await self.coordinator.api.reconnect()
+        except Exception as err:
+            raise HomeAssistantError(f"Reconnect failed: {err}") from err
 
 
 class HuaweiClearTrafficButton(HuaweiButton):

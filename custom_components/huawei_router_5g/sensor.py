@@ -4,7 +4,8 @@ import ipaddress
 import logging
 from collections.abc import Callable
 from dataclasses import dataclass
-from typing import Any, Final
+from datetime import datetime
+from typing import Any, Final, cast
 
 from homeassistant.components.sensor import (
     SensorDeviceClass,
@@ -26,16 +27,24 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
+from homeassistant.util import dt as dt_util
 
+from .const import (
+    PROJECTION_CONFIDENCE_LOW,
+    PROJECTION_CONFIDENCE_MEDIUM,
+    PROJECTION_CREDIBILITY_DAYS,
+)
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
     _parse_complex_float,
     _parse_complex_int,
     _safe_int,
     build_device_info,
+    cycle_bounds,
     get_network_type_label,
     parse_signal_value,
     parse_sms_list,
+    project_cycle_usage,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -120,6 +129,159 @@ class HuaweiSensorEntityDescription(SensorEntityDescription):
 # 5G RSRP: -150 to -30 dBm
 # 5G RSRQ: -50 to 0 dB
 # 5G SINR: -30 to 40 dB
+
+# --- §T-4 value helpers ------------------------------------------------------
+
+
+def _info(data: dict[str, Any] | None, key: str) -> Any:
+    """Return a `device_information` key, or None."""
+    return data.get("device_information", {}).get(key) if data else None
+
+
+def _block(data: dict[str, Any] | None, block: str, key: str) -> Any:
+    """Return a key from any top-level block, or None."""
+    return data.get(block, {}).get(key) if data else None
+
+
+# Identifiers are digits that are not quantities. Returned as `str` with no
+# unit, no device class and no display precision — see the LTS note in
+# `SENSOR_TYPES` — because any of those makes Home Assistant coerce the value,
+# and `01` becomes `1` while a 15-digit IMEI becomes scientific notation.
+def _identifier(data: dict[str, Any] | None, key: str) -> str | None:
+    """Return an identifier verbatim, or None when absent or blank."""
+    raw = _info(data, key)
+    return None if raw in (None, "") else str(raw)
+
+
+# Antenna type codes, decoded by controlled change against a live B535 on
+# 2026-08-15: the GUI was moved from External to Internal and both fields
+# followed. `Mix` needs no code of its own — it is the two per-antenna fields
+# disagreeing, which two separate sensors express directly.
+_ANTENNA_TYPES: Final[dict[str, str]] = {"0": "Internal", "1": "External"}
+
+
+def _antenna(data: dict[str, Any] | None, key: str) -> str | None:
+    """Return the antenna in use, or the raw code if it is not known.
+
+    Passing an unmapped code through unchanged is deliberate: a firmware
+    revision inventing a third value should show as itself rather than be
+    forced into the wrong word.
+    """
+    raw = _block(data, "antenna_type", key)
+    if raw in (None, ""):
+        return None
+    return _ANTENNA_TYPES.get(str(raw), str(raw))
+
+
+def _current_apn_profile(data: dict[str, Any] | None) -> dict[str, Any] | None:
+    """Return the profile `CurrentProfile` selects, or None.
+
+    Matched on the `Index` field, never on list position: the router returned
+    its three profiles ordered 1, 3, 2 on 2026-08-15, so indexing the list
+    would name the wrong APN.
+    """
+    block = data.get("dial_up_profiles") if data else None
+    if not block:
+        return None
+    current = str(block.get("CurrentProfile", "")).strip()
+    profiles = block.get("Profiles", {}).get("Profile", [])
+    if isinstance(profiles, dict):
+        profiles = [profiles]
+    for profile in profiles:
+        if str(profile.get("Index", "")).strip() == current:
+            return cast("dict[str, Any]", profile)
+    return None
+
+
+@dataclass(frozen=True)
+class _Projection:
+    """A projected end-of-cycle figure and the context needed to judge it."""
+
+    bytes_used: int
+    projected_bytes: int
+    cycle_start: datetime
+    cycle_length_days: int
+    elapsed_days: float
+    weight: float
+    basis: str
+
+    @property
+    def confidence(self) -> str:
+        """Return how much of this figure rests on observed data."""
+        if self.weight < PROJECTION_CONFIDENCE_LOW:
+            return "low"
+        if self.weight < PROJECTION_CONFIDENCE_MEDIUM:
+            return "medium"
+        return "high"
+
+
+def _month_used_bytes(data: dict[str, Any] | None) -> int | None:
+    """Sum this cycle's download and upload counters."""
+    down = _safe_int(_block(data, "month_statistics", "CurrentMonthDownload"))
+    up = _safe_int(_block(data, "month_statistics", "CurrentMonthUpload"))
+    if down is None and up is None:
+        return None
+    return (down or 0) + (up or 0)
+
+
+def _projection(data: dict[str, Any] | None) -> _Projection | None:
+    """Project this cycle's usage to its end, or None if it cannot be.
+
+    Returns None only when the router's monthly package is switched off, because
+    then the counters never roll over and there is genuinely no cycle to project
+    against. Everything else — including the first minute of a new cycle —
+    produces a figure, because a sensor showing `unknown` reads as broken.
+
+    **The disabled check accepts several spellings on purpose.** `zte_router_5g`
+    tested `== "off"` exactly, so `"0"` and `"OFF"` read as *enabled* and it
+    projected against a cycle the router was not keeping. Huawei reports
+    `SetMonthData` as `"0"`/`"1"`, but casing is not guaranteed anywhere in this
+    API and an exact match on one spelling is the same trap.
+    """
+    enabled = str(_block(data, "start_date", "SetMonthData") or "").strip().lower()
+    if enabled in ("0", "off", "false", ""):
+        return None
+
+    start_day = _safe_int(_block(data, "start_date", "StartDay"))
+    if start_day is None or not 1 <= start_day <= 31:
+        return None
+
+    used = _month_used_bytes(data)
+    if used is None:
+        return None
+
+    now = dt_util.now()
+    start, _end, length = cycle_bounds(start_day, now)
+    elapsed = (now - start).total_seconds() / 86400.0
+
+    # No cycle history is stored yet, so the prior-cycle rate is unavailable and
+    # the denominator floor inside `project_cycle_usage` carries the whole job.
+    prior_rate: float | None = None
+
+    projected = project_cycle_usage(
+        used=used,
+        elapsed_days=elapsed,
+        cycle_length_days=length,
+        prior_rate=prior_rate,
+        credibility_days=PROJECTION_CREDIBILITY_DAYS,
+    )
+
+    return _Projection(
+        bytes_used=used,
+        projected_bytes=int(projected),
+        cycle_start=start,
+        cycle_length_days=length,
+        elapsed_days=elapsed,
+        weight=elapsed / (elapsed + PROJECTION_CREDIBILITY_DAYS),
+        basis="run_rate_only" if prior_rate is None else "blended",
+    )
+
+
+def _projected_bytes(data: dict[str, Any] | None) -> int | None:
+    """Return the projected end-of-cycle byte count, or None."""
+    result = _projection(data)
+    return None if result is None else result.projected_bytes
+
 
 SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- System Sub-device ---
@@ -1328,6 +1490,277 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="last_sms",
         group="sms",
         value_fn=lambda data: None,  # Handled by property
+    ),
+    # === §T-4: added 2026-08-15 ==============================================
+    #
+    # LONG-TERM STATISTICS. Every description below deliberately carries **no
+    # `state_class`**, which is what keeps it out of LTS — `device_class` does
+    # not control that, and omitting it alone would not be enough. The
+    # identifiers additionally carry no `device_class`, no unit and no
+    # `suggested_display_precision`, because any one of those makes Home
+    # Assistant treat the state as a number: `01` becomes `1`, and a 15-digit
+    # IMEI becomes scientific notation. `tests/test_entity_hygiene.py` sweeps
+    # this rather than trusting the comment.
+    #
+    # --- Identity (System, diagnostic, disabled by default) ------------------
+    HuaweiSensorEntityDescription(
+        key="imei",
+        translation_key="imei",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _identifier(data, "Imei"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="imsi",
+        translation_key="imsi",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _identifier(data, "Imsi"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="iccid",
+        translation_key="iccid",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _identifier(data, "Iccid"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="sim_number",
+        translation_key="sim_number",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _identifier(data, "Msisdn"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="serial_number",
+        translation_key="serial_number",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _identifier(data, "SerialNumber"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="mcc_mnc",
+        translation_key="mcc_mnc",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _identifier(data, "Mccmnc"),
+    ),
+    # --- System information --------------------------------------------------
+    HuaweiSensorEntityDescription(
+        key="product_name",
+        translation_key="product_name",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="system",
+        value_fn=lambda data: _info(data, "spreadname_en"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="web_ui_version",
+        translation_key="web_ui_version",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="system",
+        value_fn=lambda data: _info(data, "WebUIVersion"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="carrier_build",
+        translation_key="carrier_build",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="system",
+        value_fn=lambda data: _info(data, "iniversion"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="supported_modes",
+        translation_key="supported_modes",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _info(data, "supportmode"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="wan_dns",
+        translation_key="wan_dns",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _info(data, "wan_dns_address"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="wan_dns_ipv6",
+        translation_key="wan_dns_ipv6",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _info(data, "wan_ipv6_dns_address"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="country_code",
+        translation_key="country_code",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: _block(data, "converged_status", "CountryCode"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="mtu",
+        translation_key="mtu",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=68,
+        max_limit=9000,
+        value_fn=lambda data: _safe_int(_block(data, "dial_up_connection", "MTU")),
+    ),
+    HuaweiSensorEntityDescription(
+        key="apn",
+        translation_key="apn",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="system",
+        value_fn=lambda data: (_current_apn_profile(data) or {}).get("ApnName"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="apn_profile",
+        translation_key="apn_profile",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        value_fn=lambda data: (_current_apn_profile(data) or {}).get("Name"),
+    ),
+    # --- Signal ---------------------------------------------------------------
+    HuaweiSensorEntityDescription(
+        key="primary_band",
+        translation_key="primary_band",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="signal",
+        # Deliberately narrower than the `band` sensor, which carries the whole
+        # carrier aggregation. Disabled by default so the two do not sit side by
+        # side reading as a contradiction.
+        value_fn=lambda data: _get_signal_value(data, "bandInfo"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="secondary_cell_pci",
+        translation_key="secondary_cell_pci",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="signal",
+        # An identifier, not a measurement, despite reading as a small integer
+        # — which is exactly why it needs the same treatment as the IMEI.
+        value_fn=lambda data: (
+            None
+            if _get_signal_value(data, "scc_pci") in (None, "")
+            else str(_get_signal_value(data, "scc_pci"))
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="antenna_1",
+        translation_key="antenna_1",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="signal",
+        value_fn=lambda data: _antenna(data, "antenna1type"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="antenna_2",
+        translation_key="antenna_2",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="signal",
+        value_fn=lambda data: _antenna(data, "antenna2type"),
+    ),
+    # --- Data ----------------------------------------------------------------
+    HuaweiSensorEntityDescription(
+        key="counters_last_reset",
+        translation_key="counters_last_reset",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="data",
+        # The date the counters were last cleared BY HAND. It is not the billing
+        # boundary — `billing_cycle_day` is — and the name says so, because the
+        # two were confused during the field review.
+        value_fn=lambda data: _block(data, "month_statistics", "MonthLastClearTime"),
+    ),
+    HuaweiSensorEntityDescription(
+        key="month_connected_time",
+        translation_key="month_connected_time",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="data",
+        min_limit=0,
+        max_limit=3_000_000,
+        # CONNECTED time this cycle, not elapsed wall time. The projection uses
+        # wall clock from the cycle start instead — see `project_cycle_usage`.
+        value_fn=lambda data: _safe_int(
+            _block(data, "month_statistics", "MonthDuration")
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="day_connected_time",
+        translation_key="day_connected_time",
+        device_class=SensorDeviceClass.DURATION,
+        native_unit_of_measurement=UnitOfTime.SECONDS,
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="data",
+        min_limit=0,
+        max_limit=86_400,
+        value_fn=lambda data: _safe_int(
+            _block(data, "month_statistics", "CurrentDayDuration")
+        ),
+    ),
+    HuaweiSensorEntityDescription(
+        key="data_allowance",
+        translation_key="data_allowance",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        suggested_display_precision=0,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="data",
+        min_limit=0,
+        # `trafficmaxlimit`, not `DataLimit`: the same figure already in bytes,
+        # so there is no `'2000GB'` string to parse and no GB/GiB ambiguity.
+        value_fn=lambda data: _safe_int(_block(data, "start_date", "trafficmaxlimit")),
+    ),
+    HuaweiSensorEntityDescription(
+        key="billing_cycle_day",
+        translation_key="billing_cycle_day",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="data",
+        min_limit=1,
+        max_limit=31,
+        value_fn=lambda data: _safe_int(_block(data, "start_date", "StartDay")),
+    ),
+    HuaweiSensorEntityDescription(
+        key="alert_threshold",
+        translation_key="alert_threshold",
+        native_unit_of_measurement=PERCENTAGE,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="data",
+        min_limit=0,
+        max_limit=100,
+        value_fn=lambda data: _safe_int(_block(data, "start_date", "MonthThreshold")),
+    ),
+    HuaweiSensorEntityDescription(
+        key="projected_usage",
+        translation_key="projected_usage",
+        device_class=SensorDeviceClass.DATA_SIZE,
+        native_unit_of_measurement=UnitOfInformation.BYTES,
+        suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
+        suggested_display_precision=1,
+        group="data",
+        min_limit=0,
+        # NO `state_class`, deliberately. The projection is an estimate, and the
+        # usage it derives from is already in long-term statistics via the month
+        # total — recording the forecast as well stores a second series that is
+        # a re-derivation of the first and changes retroactively as the cycle
+        # fills. `test_projection_has_no_state_class` holds this.
+        value_fn=_projected_bytes,
     ),
 )
 
