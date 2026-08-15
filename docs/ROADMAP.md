@@ -84,11 +84,11 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 
 ## Summary
 
-| Item | Value | Effort |
-| :-- | :-- | :-- |
-| Mutation testing — first run and triage | ⭐⭐⭐ | Medium |
-| WLAN band locking write capability | ⭐⭐⭐ | High (Blocked) |
-| Per-endpoint strike budgets | ⭐⭐ | Medium |
+| Item                                    | Value  | Effort         |
+| :-------------------------------------- | :----- | :------------- |
+| Mutation testing — first run and triage | ⭐⭐⭐ | Medium         |
+| WLAN band locking write capability      | ⭐⭐⭐ | High (Blocked) |
+| Per-endpoint strike budgets             | ⭐⭐   | Medium         |
 
 ---
 
@@ -96,6 +96,6 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
-| v2.1.0 | 2026-08-14 | **Two entries removed as shipped**, per the format's direction not to keep a Done group. *Write-classification register and hardware check* landed in `51835b6`. *Diagnostics verified against a real download* closed in `023ace4`, after a live capture audit found four leaks the rewrite had not. |
+| v2.1.0 | 2026-08-14 | **Two entries removed as shipped**, per the format's direction not to keep a Done group. _Write-classification register and hardware check_ landed in `51835b6`. _Diagnostics verified against a real download_ closed in `023ace4`, after a live capture audit found four leaks the rewrite had not. |
 | v2.0.0 | 2026-08-14 | Reconciled against the code and against `roadmap_format.md`. Removed the **Done** group, per the format's direction not to backfill one from the changelog. **Two entries were stale and are removed:** "Dynamic Polling Interval Slider" had already shipped as the `polling_interval` number entity, and "Static Test Sweeps Implementation" landed in `[1.1.3-dev10]`–`[1.1.3-dev14]`. Added the write-classification register, the first mutation run, per-endpoint strike budgets, the blocked diagnostics verification, the manifest/changelog version convention, and the `FREQUENCY` unit-selector issue previously recorded only in `AGENTS.md`. Recorded the deliberate decision **not** to rename the four entities that repeat their sub-device word. Converted asterisk bullets to dashes so the file passes `markdownlint`, which it had never done. |
 | v1.0.0 | 2026-08-08 | Initial baseline version. |

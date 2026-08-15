@@ -119,18 +119,9 @@ Two consequences worth knowing:
 | Data       | `projected_usage`             |    `0` |                 — | B    |
 | System     | `mtu`                         |   `68` |            `9000` | —    |
 
-**Data-plan and MTU bands, added 2026-08-15 (§T-4).** Four of these guard a
-*setting* rather than a reading, which is unusual here and worth stating: the
-router reports its own configured allowance, cycle day, threshold and MTU, and a
-firmware fault or a truncated response would otherwise publish a nonsense value
-as fact. `billing_cycle_day` is bounded 1–31 because a month has no 32nd; `mtu`
-is bounded to the IPv4 minimum of 68 and a generous jumbo-frame ceiling.
+**Data-plan and MTU bands, added 2026-08-15 (§T-4).** Four of these guard a _setting_ rather than a reading, which is unusual here and worth stating: the router reports its own configured allowance, cycle day, threshold and MTU, and a firmware fault or a truncated response would otherwise publish a nonsense value as fact. `billing_cycle_day` is bounded 1–31 because a month has no 32nd; `mtu` is bounded to the IPv4 minimum of 68 and a generous jumbo-frame ceiling.
 
-`data_allowance` and `projected_usage` carry a floor of zero and **no ceiling**:
-any cap would be an invention, since a user may legitimately have a 10 TB plan.
-`month_connected_time` is capped at 3,000,000 s — comfortably above the 2.68 M
-seconds in a 31-day month, so a real value can never trip it while a wildly
-corrupt one still does.
+`data_allowance` and `projected_usage` carry a floor of zero and **no ceiling**: any cap would be an invention, since a user may legitimately have a 10 TB plan. `month_connected_time` is capped at 3,000,000 s — comfortably above the 2.68 M seconds in a 31-day month, so a real value can never trip it while a wildly corrupt one still does.
 
 ## What deliberately has no band
 
@@ -144,6 +135,6 @@ The wider rule was tried on a sibling project and was wrong: it demanded an uppe
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
-| v2.1.0 | 2026-08-15 | Seven bands added with the §T-4 entity set: `alert_threshold`, `billing_cycle_day`, `data_allowance`, `day_connected_time`, `month_connected_time`, `projected_usage` and `mtu`. Four guard a configured *setting* rather than a reading, which is new for this document — the router reports its own data plan, and a truncated response would otherwise publish nonsense as fact. Neither byte figure takes a ceiling: any cap on a data allowance would be invented. |
+| v2.1.0 | 2026-08-15 | Seven bands added with the §T-4 entity set: `alert_threshold`, `billing_cycle_day`, `data_allowance`, `day_connected_time`, `month_connected_time`, `projected_usage` and `mtu`. Four guard a configured _setting_ rather than a reading, which is new for this document — the router reports its own data plan, and a truncated response would otherwise publish nonsense as fact. Neither byte figure takes a ceiling: any cap on a data allowance would be invented. |
 | v2.0.0 | 2026-08-14 | **First reconciliation against the code, in both directions** — the document had never been checked since it was written. Two documented bands did not exist (`transmit_power`, `5g_transmit_power`, both -30 to 40); they are now implemented. Around twenty implemented bands were undocumented; all are now listed. `cqi_0` carried a minimum but no maximum while its 5G twin `5g_cqi_0` carried `[0, 16]` — the same quantity on different radios, disagreeing only because nobody had compared them; aligned to `[0, 16]`. Replaced the grouped prose table with a per-key table generated from source and pinned by a test, so the document cannot drift again. Recorded which sensors deliberately have no band, and why inventing a ceiling is a worse failure than omitting one. |
 | v1.0.0 | 2026-05-03 | Initial. Grouped summary of the signal guard bands introduced with the eight frequency sensors. |

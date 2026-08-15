@@ -52,7 +52,7 @@ Roughly **90 of the library's ~240 read methods answer `100003: No rights (needs
 
 `api.py` calls **`client.user.logout()`**. It previously called `Connection.logout()`, **a method that has never existed in this library**, hidden behind a `# type: ignore[attr-defined]`. Every unload and every reload leaked a session, silently, because a failed logout is deliberately swallowed — an unload must not be blocked by it.
 
-**The lesson generalises:** a `type: ignore[attr-defined]` on a library call is a *claim about that library*, and this project made that claim falsely twice. `tests/test_entity_hygiene.py` now sweeps every suppression against a reviewed allow-list for exactly this reason.
+**The lesson generalises:** a `type: ignore[attr-defined]` on a library call is a _claim about that library_, and this project made that claim falsely twice. `tests/test_entity_hygiene.py` now sweeps every suppression against a reviewed allow-list for exactly this reason.
 
 ### The session degrades under sustained bulk querying
 
@@ -92,16 +92,16 @@ Fifteen read endpoints per cycle, all in `api.py::get_data`, merged into one fla
 
 Eight, all serialised behind one `asyncio.Lock` and routed through `_execute_with_retry`.
 
-| Endpoint | Action | Register tier |
-| :-- | :-- | :-- |
-| `user.logout` | End the session | SAFE |
-| `device.set_control(REBOOT)` | Reboot | ATTENDED |
-| `monitoring.set_clear_traffic` | Zero the byte counters | ATTENDED |
-| `dial_up.set_mobile_dataswitch` | Mobile data on/off | ATTENDED |
-| `net.set_net_mode` | Preferred network mode | ATTENDED |
-| `wlan._session.post_set` | Guest WiFi on/off | ATTENDED |
-| `sms.send_sms` | Send a message | ATTENDED |
-| `sms.delete_sms` | Delete a message | ATTENDED |
+| Endpoint                        | Action                 | Register tier |
+| :------------------------------ | :--------------------- | :------------ |
+| `user.logout`                   | End the session        | SAFE          |
+| `device.set_control(REBOOT)`    | Reboot                 | ATTENDED      |
+| `monitoring.set_clear_traffic`  | Zero the byte counters | ATTENDED      |
+| `dial_up.set_mobile_dataswitch` | Mobile data on/off     | ATTENDED      |
+| `net.set_net_mode`              | Preferred network mode | ATTENDED      |
+| `wlan._session.post_set`        | Guest WiFi on/off      | ATTENDED      |
+| `sms.send_sms`                  | Send a message         | ATTENDED      |
+| `sms.delete_sms`                | Delete a message       | ATTENDED      |
 
 Every one is classified in `scripts/write_classification.py`; `tests/test_write_classification.py` fails on an unclassified write.
 
@@ -141,7 +141,7 @@ Confirmed working on this hardware and **not** currently fetched. Verdicts are f
 | Endpoint | Returns | Why not |
 | :-- | :-- | :-- |
 | `device.boot_time` | `04:48:35` | **Duplicate of `device_information.uptime`.** Read together they matched exactly (17,315 s); this is the same figure formatted `HH:MM:SS` |
-| `wlan.wlandbho` | `DbhoEnable`, `MloEnable` | Band steering and Wi-Fi 7 MLO. Both are *settings the owner set*, not state — and `DbhoEnable` already arrives in `wlan_multi_basic_settings` |
+| `wlan.wlandbho` | `DbhoEnable`, `MloEnable` | Band steering and Wi-Fi 7 MLO. Both are _settings the owner set_, not state — and `DbhoEnable` already arrives in `wlan_multi_basic_settings` |
 | `net.cell_info` | `cellinfo`, `lac` | `cell_id` and `pci` are already exposed from `device_signal` |
 | `s_ntp.timeinfo` | Timezone, sync status, servers | Router clock. Nothing acts on it |
 | `dhcp.settings` | DHCP range, lease, `homerouter.cpe` | Static configuration, not state |
@@ -186,7 +186,7 @@ Returned `100002: No support`. **Do not add, do not retry.**
 
 **The router's statistics page is GiB, not GB.** The GUI's "156.96 GB" is `CurrentMonthDownload + CurrentMonthUpload` divided by 1024³, matching to the byte. Its "GB" and "TB" labels mean GiB and TiB throughout.
 
-**`MonthDuration` counts from the billing cycle start, not from the last manual clear.** Measured 1,202,664 s = 13.92 days against a `StartDay` of 1, on 14 August. `MonthLastClearTime` (`2026-04-18`) is the *manual counter reset* and is unrelated — four months of separation between the two is what proves they measure different things.
+**`MonthDuration` counts from the billing cycle start, not from the last manual clear.** Measured 1,202,664 s = 13.92 days against a `StartDay` of 1, on 14 August. `MonthLastClearTime` (`2026-04-18`) is the _manual counter reset_ and is unrelated — four months of separation between the two is what proves they measure different things.
 
 **`workmode` reports the LTE anchor, not the aggregate.** It reads `LTE` while `EndcStatus=1` and `SignalIconNr=5` show the modem is attached to 5G NSA. Do not present it as "current network type".
 
@@ -225,12 +225,12 @@ Returned `100002: No support`. **Do not add, do not retry.**
 
 The block is a **set of causes behind one verdict**, not ten booleans. Established by taking mobile data down and reading it in both states. A reconnect was tried first and proved useless: the router auto-redials (`auto_dial_switch=1`) inside four seconds, so nothing is ever observably down.
 
-| Field | Connected | Disconnected |
-| :-- | :-- | :-- |
-| `connection_status` | **`2`** | **`8`** |
-| `dialupswitch_off` | `0` | `1` |
-| `apnstatus` | `0` | `2` |
-| the other seven | `0` | `0` |
+| Field               | Connected | Disconnected |
+| :------------------ | :-------- | :----------- |
+| `connection_status` | **`2`**   | **`8`**      |
+| `dialupswitch_off`  | `0`       | `1`          |
+| `apnstatus`         | `0`       | `2`          |
+| the other seven     | `0`       | `0`          |
 
 **`connection_status` is the verdict, and `2` means healthy** — it is not a boolean and `0` is not its good value. The remaining nine read `0` when there is nothing to report, and the two that moved named the actual cause: the dial-up switch was off, and the APN could not come up as a result.
 
