@@ -1,6 +1,6 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 165 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 166 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
@@ -11,8 +11,8 @@ This document provides a comprehensive list of all 165 static entities currently
 | **Data** | 24 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 22 | Detailed message counts per storage bank and recent message content. |
 | **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
-| **Clients** | 3 + trackers | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **165** | Plus one device tracker per discovered client. |
+| **Clients** | 4 + trackers | Connected LAN/WLAN devices and aggregate connectivity counters. |
+| **Total** | **166** | Plus one device tracker per discovered client. |
 
 ---
 
@@ -222,7 +222,7 @@ _Group: `wifi`_
 
 ---
 
-## 6. Clients Sub-Device (3 Entities + Trackers)
+## 6. Clients Sub-Device (4 Entities + Trackers)
 
 _Group: `clients`_
 
@@ -231,6 +231,7 @@ _Group: `clients`_
 | WiFi Connected | `wifi_users` | Sensor | - | Current active WLAN users. Promoted from Diagnostic. |
 | Total Connected | `total_connected` | Sensor | - | Sum of all active clients (LAN+WLAN). New in v1.0.2-dev4. |
 | Wired Connected | `wired_connected` | Sensor | - | Active LAN clients. New in v1.0.2-dev4. |
+| Clean up unused entities | `cleanup_unused_entities` | Button | Config | Removes trackers for clients the router no longer reports. **Commits with no preview** — the `cleanup_unused_entities` action is the same work with a `dry_run` default. Cleans only this config entry. |
 | Tracked Device | `(mac_address)` | Device Tracker | - | Dynamically created for each discovered MAC. |
 
 ---

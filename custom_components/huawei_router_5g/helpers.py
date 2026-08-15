@@ -2,18 +2,24 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 from calendar import monthrange
+from collections.abc import Callable
 from datetime import datetime
 from typing import TYPE_CHECKING, Any, cast
 
-from homeassistant.const import CONF_HOST
+from homeassistant.const import CONF_HOST, Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 
 from ._compat import via_device_link
 from .const import DOMAIN
 
 if TYPE_CHECKING:
+    from homeassistant.config_entries import ConfigEntry
+
     from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
@@ -66,6 +72,15 @@ _NETWORK_TYPE_MAP: dict[str, str] = {
 # Network type codes that indicate active 5G NR connectivity
 NR_NETWORK_TYPES: frozenset[str] = frozenset({"51", "52", "71", "101"})
 
+READ_BACK_RETRY_DELAY = 1.0
+"""Seconds between the two read-back attempts (Section 22).
+
+These routers commonly answer the first read after a write with the *old*
+value — the command is accepted and applied a moment later. One short pause
+separates that from a genuine refusal. Long enough to matter, short enough
+that a confirmed control still beats the ten-second debounce it replaces.
+"""
+
 
 def get_router_model(device_info: dict[str, Any] | None) -> str:
     """Extract the router model from device_information dict.
@@ -77,16 +92,37 @@ def get_router_model(device_info: dict[str, Any] | None) -> str:
     return (device_info.get("DeviceName") or "").strip() or "Huawei Router"
 
 
+PARSE_PRECISION = 3
+"""Decimal places kept by `parse_signal_value`.
+
+Section 6 requires rounding at parse time. Three places is the standard's own
+example and is far below the precision of anything this router reports — the
+signal figures arrive as integers or one decimal, and the derived values are
+unit conversions of byte counters. It exists to stop float artefacts of the
+`0.30000000000000004` kind reaching the recorder, not to reduce real
+precision.
+"""
+
+
 def parse_signal_value(val: Any) -> float | None:
     """Parse a signal value string to float, stripping unit suffixes.
 
     Handles values like '-95dBm', '-12dB', '6dB', or plain '6'.
     Returns None for empty, None, or unparsable values.
+
+    **Rounds at parse time (Section 6).** This is the single point every
+    numeric value in the component passes through — `_safe_int` and
+    `_safe_float` both delegate here — so rounding here covers all of them.
+    Rounding matters even though 27 entities set
+    `suggested_display_precision`, because that setting only governs what the
+    dashboard renders: the unrounded value is what reaches the recorder and
+    long-term statistics, so without this the stored history carries precision
+    the screen never shows and nothing ever looks wrong.
     """
     if val in (None, "", "N/A", "--"):
         return None
     if isinstance(val, (int, float)):
-        return float(val)
+        return round(float(val), PARSE_PRECISION)
     s = str(val).strip()
     s_lower = s.lower()
     for suffix in ("dbm", "db", "mhz", "khz", "ghz", "mbps", "bps", "s", "b"):
@@ -94,7 +130,7 @@ def parse_signal_value(val: Any) -> float | None:
             s = s[: -len(suffix)].strip()
             break
     try:
-        return float(s)
+        return round(float(s), PARSE_PRECISION)
     except (ValueError, TypeError):
         return None
 
@@ -423,3 +459,133 @@ def project_cycle_usage(
         rate = weight * current_rate + (1.0 - weight) * prior_rate
 
     return used + remaining * rate
+
+
+async def confirm_write(
+    api: Any,
+    endpoint: str,
+    extract: Callable[[dict[str, Any]], Any],
+    expected: str,
+    *,
+    label: str,
+) -> bool | None:
+    """Re-read one key after a write and say whether the device agrees.
+
+    Section 22's three outcomes, kept distinct:
+
+    | Return | Meaning | Caller |
+    | :-- | :-- | :-- |
+    | `True` | The read agrees | Publish immediately |
+    | `False` | The read disagrees, twice | Raise a translated error |
+    | `None` | The read failed or omitted the key | **Unverified, not failed** |
+
+    **`None` is the row that matters.** Collapsing it into `False` reports a
+    successful write as a failure whenever the router is briefly busy, and
+    invites the user to repeat a command that has already taken effect. The
+    integration previously had no read-back at all and confirmed writes with a
+    debounced full refresh instead — up to ten seconds during which the
+    frontend's optimistic toggle reverts and then corrects itself.
+
+    The single retry exists because these routers commonly answer the first
+    read after a write with the *old* value: the command is accepted and
+    applied a moment later. One retry distinguishes that from a genuine
+    refusal; more would just be waiting.
+
+    Comparison is on `str`, because the API returns `"1"` where a caller
+    naturally holds `1` and a mismatch there would read as a refusal.
+    """
+    raw: Any = None
+    for attempt in (1, 2):
+        block = await api.read_back(endpoint)
+        if block is None:
+            return None
+
+        try:
+            raw = extract(block)
+        except (AttributeError, KeyError, IndexError, TypeError):
+            # A shape the extractor did not expect is unverified, not refused.
+            # The write may well have succeeded; nothing here can tell.
+            _LOGGER.debug(
+                "%s: read-back of %s had an unexpected shape",
+                label,
+                endpoint,
+                exc_info=True,
+            )
+            return None
+
+        if raw is None:
+            _LOGGER.debug("%s: read-back of %s omitted the key", label, endpoint)
+            return None
+
+        if str(raw).strip() == expected:
+            return True
+
+        if attempt == 1:
+            # Accepted-then-applied, not refused. Pause and read once more
+            # before calling it a refusal.
+            await asyncio.sleep(READ_BACK_RETRY_DELAY)
+
+    _LOGGER.warning(
+        "%s: the router still reports %r from %s after the write; expected %r",
+        label,
+        raw,
+        endpoint,
+        expected,
+    )
+    return False
+
+
+# ---------------------------------------------------------------------------
+# Client-tracker cleanup
+#
+# Lives here rather than in `__init__.py` because it now has two callers: the
+# `cleanup_unused_entities` action, which sweeps every config entry, and the
+# Clients button, which cleans only its own. A platform module importing from
+# the package `__init__` would be a circular import.
+# ---------------------------------------------------------------------------
+
+
+def _tracked_macs(coordinator: HuaweiRouter5GDataUpdateCoordinator) -> set[str]:
+    """Return every MAC the router currently reports, from both host lists."""
+    data = coordinator.data or {}
+    macs: set[str] = set()
+    for key in ("lan_host_info", "wlan_host_list"):
+        block = data.get(key)
+        if not isinstance(block, dict):
+            continue
+        for host in block.get("Hosts", {}).get("Host", []) or []:
+            if isinstance(host, dict) and (mac := host.get("MacAddress")):
+                macs.add(mac)
+    return macs
+
+
+def _stale_tracker_entities(
+    hass: HomeAssistant, entry: ConfigEntry
+) -> list[er.RegistryEntry]:
+    """Return device_tracker entities for clients the router no longer lists.
+
+    A tracker is created for every client ever seen and nothing removes it, so
+    a guest's phone seen once leaves a permanent entity. With two routers
+    configured that accumulation stops being cosmetic.
+
+    **Nothing is removed while the coordinator has no data.** An empty payload
+    during an outage would otherwise make every client look stale and delete
+    the lot — the failure mode this guard exists for.
+    """
+    coordinator = getattr(entry, "runtime_data", None)
+    if coordinator is None or not coordinator.data:
+        return []
+
+    live = _tracked_macs(coordinator)
+    if not live:
+        return []
+
+    prefix = f"{entry.unique_id}_"
+    registry = er.async_get(hass)
+    return [
+        item
+        for item in er.async_entries_for_config_entry(registry, entry.entry_id)
+        if item.domain == Platform.DEVICE_TRACKER
+        and item.unique_id.startswith(prefix)
+        and item.unique_id[len(prefix) :] not in live
+    ]

@@ -153,7 +153,7 @@ async def test_button_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 4
+    assert len(entities) == 5
     # Named rather than counted: a bare count passes if a button is registered
     # twice and another dropped.
     assert {e.entity_description.key for e in entities} == {
@@ -161,6 +161,7 @@ async def test_button_setup_entry():
         "reboot",
         "reconnect",
         "clear_traffic",
+        "cleanup_unused_entities",
     }
 
 

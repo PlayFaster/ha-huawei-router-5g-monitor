@@ -1,6 +1,7 @@
 """The Huawei Router 5G Monitor integration."""
 
 import logging
+from collections.abc import Mapping
 from typing import Any, cast
 
 import voluptuous as vol
@@ -17,9 +18,15 @@ from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from ._compat import via_device_link
 from .api import HuaweiRouter5GAPI
-from .const import DOMAIN, REPAIR_NAMES, SERVICE_CLEANUP
+from .const import (
+    CONF_SCAN_INTERVAL,
+    CONF_STOP_POLLING,
+    DOMAIN,
+    REPAIR_NAMES,
+    SERVICE_CLEANUP,
+)
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import parse_sms_list
+from .helpers import _stale_tracker_entities, parse_sms_list
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -171,52 +178,6 @@ async def async_get_sms_list(hass: HomeAssistant, call: ServiceCall) -> dict[str
         raise HomeAssistantError(f"Failed to fetch SMS list: {err}") from err
 
 
-def _tracked_macs(coordinator: HuaweiRouter5GDataUpdateCoordinator) -> set[str]:
-    """Return every MAC the router currently reports, from both host lists."""
-    data = coordinator.data or {}
-    macs: set[str] = set()
-    for key in ("lan_host_info", "wlan_host_list"):
-        block = data.get(key)
-        if not isinstance(block, dict):
-            continue
-        for host in block.get("Hosts", {}).get("Host", []) or []:
-            if isinstance(host, dict) and (mac := host.get("MacAddress")):
-                macs.add(mac)
-    return macs
-
-
-def _stale_tracker_entities(
-    hass: HomeAssistant, entry: ConfigEntry
-) -> list[er.RegistryEntry]:
-    """Return device_tracker entities for clients the router no longer lists.
-
-    A tracker is created for every client ever seen and nothing removes it, so
-    a guest's phone seen once leaves a permanent entity. With two routers
-    configured that accumulation stops being cosmetic.
-
-    **Nothing is removed while the coordinator has no data.** An empty payload
-    during an outage would otherwise make every client look stale and delete
-    the lot — the failure mode this guard exists for.
-    """
-    coordinator = getattr(entry, "runtime_data", None)
-    if coordinator is None or not coordinator.data:
-        return []
-
-    live = _tracked_macs(coordinator)
-    if not live:
-        return []
-
-    prefix = f"{entry.unique_id}_"
-    registry = er.async_get(hass)
-    return [
-        item
-        for item in er.async_entries_for_config_entry(registry, entry.entry_id)
-        if item.domain == Platform.DEVICE_TRACKER
-        and item.unique_id.startswith(prefix)
-        and item.unique_id[len(prefix) :] not in live
-    ]
-
-
 async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     """Set up the Huawei Router 5G Monitor component."""
 
@@ -337,6 +298,52 @@ async def _async_migrate_tracker_unique_ids(
     await er.async_migrate_entries(hass, entry.entry_id, _migrate)
 
 
+LIVE_OPTION_KEYS = frozenset({CONF_SCAN_INTERVAL, CONF_STOP_POLLING})
+"""Options that may be applied to a running entry without rebuilding it.
+
+Both are read fresh on every cycle — `coordinator.py` consults the scan
+interval when it schedules and the pause flag when it decides whether to
+fetch — so changing either takes effect on the next tick with no reload.
+Everything outside this set is connection-affecting or structural.
+"""
+
+
+def _reload_signature(options: Mapping[str, Any]) -> dict[str, Any]:
+    """Return the options whose change requires a reload.
+
+    Reload-by-default (Section 9): anything not named live is assumed to
+    change how the integration connects or what it builds, so it rebuilds the
+    entry rather than being applied to the running one. The allow-list exists
+    only so the two frequently-tuned controls do not tear down the session
+    every time they are nudged.
+    """
+    return {k: v for k, v in options.items() if k not in LIVE_OPTION_KEYS}
+
+
+async def _async_options_updated(
+    hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
+) -> None:
+    """Reload the entry when a non-live option changes.
+
+    Without this the Options flow validates a new host or credential, writes
+    it to the entry, and nothing else happens: `async_setup_entry` passed the
+    values to `HuaweiRouter5GAPI` once at setup, so the coordinator keeps
+    polling on the session it already holds and the new value is used only
+    after a restart. Reauth and Reconfigure both reload; Options edits the
+    same three fields and must behave the same way.
+
+    Comparing signatures rather than reloading unconditionally is what keeps
+    the polling interval and the pause switch live — both fire this listener
+    on every change, and neither should cost a reconnect.
+    """
+    coordinator = entry.runtime_data
+    signature = _reload_signature(entry.options)
+    if signature == coordinator.reload_signature:
+        return
+    coordinator.reload_signature = signature
+    await hass.config_entries.async_reload(entry.entry_id)
+
+
 async def async_setup_entry(
     hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
 ) -> bool:
@@ -351,6 +358,12 @@ async def async_setup_entry(
 
     coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry, api)
     entry.runtime_data = coordinator
+
+    # Remember which non-live options this entry was built with, so the update
+    # listener can tell a connection change (reload) from a tuning change
+    # (apply live). Section 9.
+    coordinator.reload_signature = _reload_signature(entry.options)
+    entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
     # Register the root System device early to prevent via_device warnings in platforms.
     device_registry = dr.async_get(hass)

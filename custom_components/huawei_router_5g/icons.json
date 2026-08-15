@@ -503,6 +503,9 @@
       }
     },
     "button": {
+      "cleanup_unused_entities": {
+        "default": "mdi:broom"
+      },
       "clear_traffic": {
         "default": "mdi:chart-line-variant"
       },

@@ -56,6 +56,11 @@ async def test_mobile_data_switch(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
     )
     mock_coordinator.api.set_mobile_data = AsyncMock()
+    # Section 22 read-back. `None` is the "unverified" outcome, which is the
+    # right default for a test not about confirmation: it exercises the write
+    # without asserting anything about the confirmation path.
+    mock_coordinator.api.read_back = AsyncMock(return_value=None)
+    switch.hass = MagicMock()
 
     # Turn On
     await switch.async_turn_on()
@@ -84,6 +89,8 @@ async def test_guest_wifi_switch(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
     mock_coordinator.api.set_guest_wifi = AsyncMock()
+    mock_coordinator.api.read_back = AsyncMock(return_value=None)
+    switch.hass = MagicMock()
 
     # Turn On
     await switch.async_turn_on()
@@ -277,29 +284,39 @@ async def test_guest_wifi_write_failure_raises(
 
 
 @pytest.mark.asyncio
-async def test_a_successful_write_is_not_reported_as_failed_by_a_refresh_blip(
+async def test_a_successful_write_is_not_reported_as_failed_by_a_read_blip(
     mock_coordinator, mock_config_entry
 ):
-    """A blip while re-reading must not fail a write that already succeeded.
+    """A blip while confirming must not fail a write that already succeeded.
 
-    The post-write refresh sits **outside** the error boundary on purpose. If
-    it were inside, a transient read failure would report the write as failed
-    and invite the user to retry a command with a real-world effect.
+    **This is Section 22's third outcome, and the reason it exists.** The
+    write reached the router and took effect; the read that would have proved
+    it did not come back. That is *unverified*, not failed. Collapsing it into
+    failure would report a working command as broken on every transient blip
+    and invite the user to repeat a command with a real-world effect.
+
+    So: no exception, nothing published as confirmed, and the state left for
+    the next poll to settle. The behaviour changed here — before Section 22
+    this path raised, because the confirmation was a full coordinator refresh
+    whose exception propagated.
     """
     mock_api = MagicMock()
     mock_api.set_mobile_data = AsyncMock()
+    # `read_back` answers None for a failed read; it never raises. That
+    # contract is what keeps the three outcomes distinct.
+    mock_api.read_back = AsyncMock(return_value=None)
     mock_coordinator.api = mock_api
-    mock_coordinator.async_force_refresh = AsyncMock(
-        side_effect=Exception("transient read failure")
-    )
+    mock_coordinator.async_force_refresh = AsyncMock()
     switch = HuaweiMobileDataSwitch(
         mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
     )
     switch.hass = MagicMock()
+    switch.async_write_ha_state = MagicMock()
 
-    # The refresh failure propagates as itself — it is emphatically not
-    # relabelled as "Enable mobile data failed", which is the misreport.
-    with pytest.raises(Exception, match="transient read failure"):
-        await switch.async_turn_on()
+    await switch.async_turn_on()
 
     mock_api.set_mobile_data.assert_awaited_once_with(True)
+    # Not confirmed, so nothing is published as fact...
+    switch.async_write_ha_state.assert_not_called()
+    # ...and the next poll is asked to settle it instead.
+    mock_coordinator.async_force_refresh.assert_awaited_once()

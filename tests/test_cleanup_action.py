@@ -18,8 +18,11 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.huawei_router_5g import _stale_tracker_entities, _tracked_macs
 from custom_components.huawei_router_5g.const import DOMAIN
+from custom_components.huawei_router_5g.helpers import (
+    _stale_tracker_entities,
+    _tracked_macs,
+)
 
 PRESENT = "AA:BB:CC:DD:EE:01"
 GONE = "AA:BB:CC:DD:EE:99"
@@ -258,3 +261,94 @@ async def test_the_action_removes_when_dry_run_is_off(
     assert registry.async_get_entity_id(
         Platform.DEVICE_TRACKER, DOMAIN, f"dc7196112233_{PRESENT}"
     ), "a client the router still reports was removed"
+
+
+# ---------------------------------------------------------------------------
+# The Clients button — the same work, reached without writing a service call
+# ---------------------------------------------------------------------------
+
+
+def _button(hass: HomeAssistant, config_entry: MockConfigEntry):
+    """Build the cleanup button bound to `config_entry`."""
+    from custom_components.huawei_router_5g.button import (
+        CLEANUP_DESCRIPTION,
+        HuaweiCleanupButton,
+    )
+
+    coordinator = MagicMock()
+    coordinator.data = _payload(PRESENT)
+    button = HuaweiCleanupButton(coordinator, config_entry, CLEANUP_DESCRIPTION)
+    button.hass = hass
+    return button
+
+
+@pytest.mark.asyncio
+async def test_the_button_removes_only_the_stale_tracker(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> None:
+    """Pressing it removes what the action would remove, and nothing else."""
+    object.__setattr__(entry, "runtime_data", MagicMock(data=_payload(PRESENT)))
+    registry = er.async_get(hass)
+
+    await _button(hass, entry).async_press()
+
+    remaining = {
+        item.unique_id
+        for item in er.async_entries_for_config_entry(registry, entry.entry_id)
+    }
+    assert remaining == {f"dc7196112233_{PRESENT}"}
+
+
+@pytest.mark.asyncio
+async def test_the_button_removes_nothing_during_an_outage(
+    hass: HomeAssistant, entry: MockConfigEntry
+) -> None:
+    """An empty payload must not read as "every client has left".
+
+    Same guard as the action's, asserted again here because the button is a
+    second entry point into it. A guard that protects one caller and not the
+    other is the failure this catches.
+    """
+    object.__setattr__(entry, "runtime_data", MagicMock(data=None))
+    registry = er.async_get(hass)
+
+    await _button(hass, entry).async_press()
+
+    assert len(er.async_entries_for_config_entry(registry, entry.entry_id)) == 2
+
+
+@pytest.mark.asyncio
+async def test_the_button_cleans_only_its_own_entry(hass: HomeAssistant) -> None:
+    """Clean only this entry, which is why the action's loop is not reused.
+
+    **This is the whole reason the button has its own body.**
+
+    The action loops every config entry, which is right for a service: it is
+    global and its report is keyed by entry title. A button belongs to one
+    device and therefore one entry. Reusing that loop would mean pressing the
+    button on one router silently removed trackers on another — invisible with
+    a single router, which is exactly how it would ship unnoticed.
+    """
+    registry = er.async_get(hass)
+    entries = []
+    for uid in ("dc7196112233", "dc7196449988"):
+        config_entry = MockConfigEntry(domain=DOMAIN, unique_id=uid)
+        config_entry.add_to_hass(hass)
+        for mac in (PRESENT, GONE):
+            registry.async_get_or_create(
+                Platform.DEVICE_TRACKER,
+                DOMAIN,
+                f"{uid}_{mac}",
+                config_entry=config_entry,
+            )
+        object.__setattr__(
+            config_entry, "runtime_data", MagicMock(data=_payload(PRESENT))
+        )
+        entries.append(config_entry)
+
+    await _button(hass, entries[0]).async_press()
+
+    # The pressed entry lost its stale tracker...
+    assert len(er.async_entries_for_config_entry(registry, entries[0].entry_id)) == 1
+    # ...and the other router was not touched at all.
+    assert len(er.async_entries_for_config_entry(registry, entries[1].entry_id)) == 2

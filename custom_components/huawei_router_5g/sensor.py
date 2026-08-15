@@ -230,7 +230,41 @@ def _month_used_bytes(data: dict[str, Any] | None) -> int | None:
     return (down or 0) + (up or 0)
 
 
+_PROJECTION_CACHE: list[tuple[dict[str, Any] | None, _Projection | None]] = []
+"""Single-slot memo for `_projection`, keyed on the coordinator payload.
+
+The projection has **two** consumers on the same poll — `_projected_bytes`,
+which is the sensor's `value_fn`, and the entity's `extra_state_attributes`,
+which needs `confidence` and the cycle bounds from the same calculation. Both
+run on every state write, so without this the whole thing is computed twice
+per poll to produce two halves of one answer.
+
+Keyed by **identity, not equality**: the coordinator replaces `data` wholesale
+on each refresh, so `is` is both correct and cheap, and a mutation in place
+would be a bug elsewhere. The slot holds a strong reference to the payload it
+was computed from, which is what makes identity safe — the object cannot be
+collected and have its `id()` reused while it is still the cache key.
+
+Held in a list rather than rebound as a module global so the memo does not
+need a `global` statement, which `ruff` rejects and which would make the
+mutation harder to see at the call site.
+"""
+
+
 def _projection(data: dict[str, Any] | None) -> _Projection | None:
+    """Return the projection for `data`, computing it at most once per poll.
+
+    Thin memo over `_compute_projection`. See `_PROJECTION_CACHE` for why the
+    key is identity and why holding the payload is what makes that safe.
+    """
+    if _PROJECTION_CACHE and _PROJECTION_CACHE[0][0] is data:
+        return _PROJECTION_CACHE[0][1]
+    result = _compute_projection(data)
+    _PROJECTION_CACHE[:] = [(data, result)]
+    return result
+
+
+def _compute_projection(data: dict[str, Any] | None) -> _Projection | None:
     """Project this cycle's usage to its end, or None if it cannot be.
 
     Returns None only when the router's monthly package is switched off, because

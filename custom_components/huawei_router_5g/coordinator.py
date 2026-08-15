@@ -66,6 +66,12 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # entry fires against a coordinator whose API is already logged out.
         self._pending_refresh: CALLBACK_TYPE | None = None
 
+        # The non-live options this entry was built with. The update listener
+        # compares against it to tell a connection change, which must reload,
+        # from a tuning change, which must not (Section 9). Set by
+        # `async_setup_entry`; seeded here so the attribute always exists.
+        self.reload_signature: dict[str, Any] = {}
+
         # Section 19 health state. Deliberately NOT stored in `self.data`,
         # which is None before the first success and frozen at last-good values
         # during an outage — a verdict held there could never describe the

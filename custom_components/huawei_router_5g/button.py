@@ -1,5 +1,6 @@
 """Button platform for Huawei Router 5G Monitor."""
 
+import logging
 from dataclasses import dataclass
 
 from homeassistant.components.button import (
@@ -11,13 +12,20 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
+from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import REBOOT_REFRESH_DELAY, RECONNECT_REFRESH_DELAY
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import HuaweiAboutEntity, build_device_info
+from .helpers import (
+    HuaweiAboutEntity,
+    _stale_tracker_entities,
+    build_device_info,
+)
+
+_LOGGER = logging.getLogger(__name__)
 
 # Section 22. `1`, not `0`.
 #
@@ -98,6 +106,23 @@ CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
 )
 
 
+CLEANUP_DESCRIPTION = HuaweiButtonEntityDescription(
+    key="cleanup_unused_entities",
+    about=(
+        "Removes the tracker entities for clients the router no longer "
+        "reports. A device seen once leaves a permanent entity, so this is "
+        "how a guest's phone gets cleared. **This button commits the removal "
+        "with no preview** - run the Clean up unused entities action first if "
+        "you want to see the list, because it defaults to a dry run. Nothing "
+        "is removed while the router has not answered, so an outage cannot "
+        "look like every client leaving at once."
+    ),
+    translation_key="cleanup_unused_entities",
+    entity_category=EntityCategory.CONFIG,
+    group="clients",
+)
+
+
 async def async_setup_entry(
     hass: HomeAssistant,
     entry: ConfigEntry,
@@ -112,6 +137,7 @@ async def async_setup_entry(
             HuaweiRebootButton(coordinator, entry, REBOOT_DESCRIPTION),
             HuaweiReconnectButton(coordinator, entry, RECONNECT_DESCRIPTION),
             HuaweiClearTrafficButton(coordinator, entry, CLEAR_TRAFFIC_DESCRIPTION),
+            HuaweiCleanupButton(coordinator, entry, CLEANUP_DESCRIPTION),
         ],
         True,
     )
@@ -189,3 +215,48 @@ class HuaweiClearTrafficButton(HuaweiButton):
             await self.coordinator.async_force_refresh()
         except Exception as err:
             raise HomeAssistantError(f"Clear traffic statistics failed: {err}") from err
+
+
+class HuaweiCleanupButton(HuaweiButton):
+    """Commit-only button removing trackers for clients that have left.
+
+    The same work as the `cleanup_unused_entities` action, reached the way
+    `unifi_network_monitor` reaches its equivalent — a button beats writing a
+    service call for something a user does occasionally and by hand.
+
+    **Two deliberate differences from the action.**
+
+    The action iterates every config entry, because a service is global and
+    its report is keyed by entry title for exactly that reason. A button is an
+    entity: it belongs to one device, which belongs to one entry, and it
+    cleans only that entry. With a single router the two are
+    indistinguishable; with two, reusing the action's loop would mean pressing
+    the button on one router silently removed trackers on the other.
+
+    And there is no `dry_run`. A button takes no arguments, so it can only be
+    the commit step — which is why the note points at the action for the
+    preview. `unifi_network_monitor` is commit-only for the same reason.
+
+    Placed on **Clients** rather than System, unlike UniFi's, because every
+    entity it can remove lives there.
+    """
+
+    async def async_press(self) -> None:
+        """Remove this entry's trackers for clients the router no longer lists.
+
+        No reload afterwards, unlike UniFi's: that one removes whole devices
+        and has to rebuild. This only removes registry rows for trackers
+        already gone from the payload, and the registry handles that itself.
+        """
+        stale = _stale_tracker_entities(self.hass, self._entry)
+        if not stale:
+            return
+
+        registry = er.async_get(self.hass)
+        for item in stale:
+            _LOGGER.info(
+                "%s: Removing tracker for a client the router no longer reports: %s",
+                self._entry.title,
+                item.entity_id,
+            )
+            registry.async_remove(item.entity_id)

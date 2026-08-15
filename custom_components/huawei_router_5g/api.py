@@ -50,6 +50,26 @@ class HuaweiAuthError(Exception):
     """Raised when login credentials are rejected."""
 
 
+READ_BACK_ENDPOINTS: dict[str, Callable[[Any], Any]] = {
+    "mobile_dataswitch": lambda client: client.dial_up.mobile_dataswitch(),
+    "monitoring_status": lambda client: client.monitoring.status(),
+    "wlan_multi_basic_settings": lambda client: client.wlan.multi_basic_settings(),
+}
+"""Endpoints a write path may re-read to confirm itself (Section 22).
+
+An explicit map rather than a free-form endpoint name, so a write path cannot
+reach an arbitrary part of the router and so the set is reviewable in one
+place. Each entry is the **single** call that carries the key the matching
+control writes — the point of a read-back is one round trip, not another full
+poll.
+
+Deliberately absent: anything a `NEVER`-confirmable write touches. Network
+mode and Reconnect both re-establish the connection, so the router answers
+abnormally *while succeeding* and a read-back would report a working command
+as failed. Those declare their exclusion on the entity instead.
+"""
+
+
 class HuaweiRouter5GAPI:
     """Async wrapper for the huawei-lte-api library."""
 
@@ -421,6 +441,39 @@ class HuaweiRouter5GAPI:
             except Exception:
                 _LOGGER.exception("Clear traffic failed")
                 raise
+
+    async def read_back(self, endpoint: str) -> dict[str, Any] | None:
+        """Re-read one endpoint to confirm a write, or None if it cannot be read.
+
+        Section 22's targeted read-back. The alternative is
+        `coordinator.async_force_refresh()`, which is debounced by up to ten
+        seconds and fetches all 26 endpoints to learn one key — during which
+        the frontend's optimistic toggle springs back and then corrects
+        itself.
+
+        **Returns None rather than raising, and that distinction carries the
+        whole design.** A write that succeeded followed by a read that failed
+        is *unverified*, not failed. Raising here would collapse the two, and
+        every transient blip would report a real write as an error and invite
+        the user to repeat a command that has already taken effect.
+
+        Only endpoints in `READ_BACK_ENDPOINTS` are permitted, so a caller
+        cannot quietly reach an arbitrary part of the router from a write path.
+        """
+        reader = READ_BACK_ENDPOINTS.get(endpoint)
+        if reader is None:
+            raise ValueError(f"no read-back reader for endpoint {endpoint!r}")
+
+        async with self._lock:
+            try:
+                result = await self._execute_with_retry(reader)
+            except Exception:
+                # Debug, not exception: this is an expected outcome on a busy
+                # router and is not a fault the user needs to see.
+                _LOGGER.debug("Read-back of %s failed", endpoint, exc_info=True)
+                return None
+
+        return result if isinstance(result, dict) else None
 
     async def set_mobile_data(self, enable: bool) -> None:
         """Enable or disable the mobile data connection."""

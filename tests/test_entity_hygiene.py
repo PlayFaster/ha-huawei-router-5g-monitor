@@ -1136,3 +1136,97 @@ def test_about_attribute_list_doc_matches_the_code() -> None:
     assert not mismatched, (
         "note text differs between the code and the document:\n" + "\n".join(mismatched)
     )
+
+
+# ---------------------------------------------------------------------------
+# Section 12 — every translation_key used in code resolves in both files
+# ---------------------------------------------------------------------------
+
+
+def _component_root():
+    """Return the shipped component directory.
+
+    Resolved from the imported package rather than from a literal path, for
+    the same reason `_shipped_root` walks upward: under `mutmut` the tests run
+    from a rewritten copy, and a hardcoded `custom_components/...` string
+    reads whichever tree the process happens to be sitting in.
+    """
+    import pathlib
+
+    import custom_components.huawei_router_5g as component
+
+    return pathlib.Path(component.__path__[0])
+
+
+def _translation_file(name: str) -> dict:
+    import json
+
+    return json.loads((_component_root() / name).read_text(encoding="utf-8"))
+
+
+def test_translation_keys_resolve_in_both_files() -> None:
+    """Every `translation_key` in source must resolve in both translation files.
+
+    **Compared against the code, not file-to-file.** A count that matches
+    between `strings.json` and `en.json` says nothing: both can carry the same
+    stale entry, and both can be missing the same live entity. Only the code
+    knows which keys are actually reachable.
+
+    This is Section 12's check (a), and it did not exist until now. The only
+    thing that had ever compared these was `iqs_next_steps` Check B — an
+    analysis pass run by hand — and when it ran on 2026-08-14 it found two
+    dead entity strings that had been orphaned since 2026-05-02. A test would
+    have caught them the moment they were orphaned. That is the whole argument
+    for this being a test rather than a review step.
+
+    `en.json` is checked separately rather than assumed to mirror
+    `strings.json`: HA ships `strings.json` to translators and serves
+    `translations/en.json` to the user, so a key present in one and absent
+    from the other shows the raw key in the UI for English users while every
+    static check on the other file passes.
+    """
+    import re
+
+    source = "".join(
+        p.read_text(encoding="utf-8") for p in sorted(_component_root().glob("*.py"))
+    )
+    keys = set(re.findall(r'translation_key="([^"]+)"', source))
+    assert keys, "no translation_key found in source — the pattern has drifted"
+
+    for name in ("strings.json", "translations/en.json"):
+        data = _translation_file(name)
+        resolved = {
+            key for platform in data.get("entity", {}).values() for key in platform
+        }
+        resolved |= set(data.get("issues", {}))
+        resolved |= set(data.get("exceptions", {}))
+        resolved |= set(data.get("services", {}))
+        missing = sorted(keys - resolved)
+        assert not missing, f"{name} does not resolve: {missing}"
+
+
+def test_no_translation_entry_is_dead() -> None:
+    """The reverse direction: no entity string without a key that produces it.
+
+    Two dead entity strings — `sensor.hw_version` and `sensor.imei` — sat in
+    `strings.json` for three months after the sensors were deleted. They were
+    invisible to every count-based check, because a file with more entries
+    than the code has keys reads as healthy right up until the sets are
+    actually diffed.
+
+    Scoped to `entity`, which is the section that drifts. `services`,
+    `issues`, `exceptions` and `config` carry entries that are legitimately
+    not produced by a `translation_key=` literal.
+    """
+    import re
+
+    source = "".join(
+        p.read_text(encoding="utf-8") for p in sorted(_component_root().glob("*.py"))
+    )
+    keys = set(re.findall(r'translation_key="([^"]+)"', source))
+
+    for name in ("strings.json", "translations/en.json"):
+        entity = _translation_file(name).get("entity", {})
+        declared = {key for platform in entity.values() for key in platform}
+        dead = sorted(declared - keys)
+        assert not dead, f"{name} defines entity strings nothing produces: {dead}"

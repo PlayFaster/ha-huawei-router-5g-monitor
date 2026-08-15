@@ -408,6 +408,9 @@
       }
     },
     "button": {
+      "cleanup_unused_entities": {
+        "name": "Clean up unused entities"
+      },
       "clear_traffic": {
         "name": "Clear Traffic Statistics"
       },
@@ -518,6 +521,11 @@
       "polling_interval": {
         "name": "Polling Interval"
       }
+    }
+  },
+  "exceptions": {
+    "write_not_confirmed": {
+      "message": "The router accepted the {action} command but still reports the old setting. The change was not applied — check the router and try again."
     }
   },
   "issues": {

@@ -1,6 +1,7 @@
 """Switch platform for Huawei Router 5G Monitor."""
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
@@ -13,9 +14,14 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_STOP_POLLING
+from .const import CONF_STOP_POLLING, DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import ABOUT_UNRECORDED, HuaweiAboutEntity, build_device_info
+from .helpers import (
+    ABOUT_UNRECORDED,
+    HuaweiAboutEntity,
+    build_device_info,
+    confirm_write,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -147,6 +153,70 @@ class HuaweiSwitch(
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self._group)
 
+    async def _async_confirm(
+        self,
+        endpoint: str,
+        extract: Callable[[dict[str, Any]], Any],
+        expected: str,
+        label: str,
+    ) -> None:
+        """Confirm a completed write by re-reading the one key it changed.
+
+        Section 22. Replaces a debounced full refresh — 26 endpoints and up to
+        ten seconds to learn a single flag, during which the frontend's
+        optimistic toggle springs back and then corrects itself.
+
+        **Three outcomes, and only one of them is an error.** A read that
+        disagrees twice means the router declined the command and the user
+        must be told. A read that fails or omits the key means *unverified*:
+        the write may well have taken effect, so it is logged and left to the
+        next poll rather than reported as a failure the user would act on.
+
+        Called after the write has already succeeded, so it never re-raises
+        the write's own exception.
+        """
+        confirmed = await confirm_write(
+            self.coordinator.api,
+            endpoint,
+            extract,
+            expected,
+            label=f"{self._entry.title}: {label}",
+        )
+
+        if confirmed is False:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="write_not_confirmed",
+                translation_placeholders={"action": label},
+            )
+
+        if confirmed is True:
+            # The device agrees. Publish now rather than waiting for a poll.
+            self.async_write_ha_state()
+            return
+
+        # Unverified. Nothing to publish and nothing to raise; the next
+        # scheduled poll settles it.
+        await self.coordinator.async_force_refresh()
+
+
+def _guest_enable_flag(block: dict[str, Any]) -> Any:
+    """Pull the guest SSID's enable flag out of the WiFi settings block.
+
+    The flag is not a top-level key: the block carries every SSID and the
+    guest network is the one whose `wifiisguestnetwork` is set. Matching on
+    that rather than on list position, because the router does not guarantee
+    an order — the same lesson the APN profile lookup learned when it came
+    back 1, 3, 2.
+    """
+    ssids = (block.get("Ssids") or {}).get("Ssid", [])
+    if isinstance(ssids, dict):
+        ssids = [ssids]
+    for ssid in ssids:
+        if str(ssid.get("wifiisguestnetwork")) == "1":
+            return ssid.get("WifiEnable")
+    return None
+
 
 class HuaweiPausePollingSwitch(HuaweiSwitch):
     """Switch to pause/resume data polling with persistence across restarts."""
@@ -230,7 +300,12 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         # Outside the error boundary on purpose. The write has already
         # succeeded; a blip while re-reading must not report the write as
         # failed and invite a retry of a command with a real-world effect.
-        await self.coordinator.async_force_refresh()
+        await self._async_confirm(
+            "mobile_dataswitch",
+            lambda block: block.get("dataswitch"),
+            "1" if enable else "0",
+            f"{action} mobile data",
+        )
 
 
 class HuaweiWifiSwitch(HuaweiSwitch):
@@ -274,7 +349,12 @@ class HuaweiWifiSwitch(HuaweiSwitch):
             raise HomeAssistantError(f"{action} WiFi failed: {err}") from err
 
         # Outside the error boundary - see HuaweiMobileDataSwitch._async_set.
-        await self.coordinator.async_force_refresh()
+        await self._async_confirm(
+            "monitoring_status",
+            lambda block: block.get("WifiStatus"),
+            "1" if enable else "0",
+            f"{action} WiFi",
+        )
 
 
 class HuaweiGuestWifiSwitch(HuaweiSwitch):
@@ -324,7 +404,14 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
             raise HomeAssistantError(f"{action} guest WiFi failed: {err}") from err
 
         # Outside the error boundary — see HuaweiMobileDataSwitch._async_set.
-        await self.coordinator.async_force_refresh()
+        # The guest flag is nested inside the SSID list rather than being a
+        # flat key, which is why the read-back takes an extractor.
+        await self._async_confirm(
+            "wlan_multi_basic_settings",
+            _guest_enable_flag,
+            "1" if enable else "0",
+            f"{action} guest WiFi",
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:

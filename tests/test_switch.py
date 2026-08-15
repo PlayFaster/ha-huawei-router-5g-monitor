@@ -135,34 +135,48 @@ def test_mobile_data_is_none_no_data(mock_coordinator, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_mobile_data_turn_on(mock_coordinator, mock_config_entry):
-    """Test turning mobile data on calls API and refreshes."""
+    """Turning mobile data on writes, then confirms with a targeted read.
+
+    Section 22: the confirmation is a single-endpoint read-back, **not** a
+    debounced full refresh. Asserting the refresh is not called is the half of
+    this that would catch a silent revert to the old behaviour.
+    """
     mock_api = MagicMock()
     mock_api.set_mobile_data = AsyncMock()
+    mock_api.read_back = AsyncMock(return_value={"dataswitch": "1"})
     mock_coordinator.api = mock_api
     switch = HuaweiMobileDataSwitch(
         mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
     )
+    switch.hass = MagicMock()
+    switch.async_write_ha_state = MagicMock()
 
     await switch.async_turn_on()
 
     mock_api.set_mobile_data.assert_called_once_with(True)
-    mock_coordinator.async_force_refresh.assert_called_once()
+    mock_api.read_back.assert_awaited_once_with("mobile_dataswitch")
+    switch.async_write_ha_state.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_mobile_data_turn_off(mock_coordinator, mock_config_entry):
-    """Test turning mobile data off calls API and refreshes."""
+    """Turning mobile data off writes, then confirms the off value."""
     mock_api = MagicMock()
     mock_api.set_mobile_data = AsyncMock()
+    mock_api.read_back = AsyncMock(return_value={"dataswitch": "0"})
     mock_coordinator.api = mock_api
     switch = HuaweiMobileDataSwitch(
         mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
     )
+    switch.hass = MagicMock()
+    switch.async_write_ha_state = MagicMock()
 
     await switch.async_turn_off()
 
     mock_api.set_mobile_data.assert_called_once_with(False)
-    mock_coordinator.async_force_refresh.assert_called_once()
+    switch.async_write_ha_state.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -249,34 +263,62 @@ def test_guest_wifi_is_none_missing_key(mock_coordinator, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_guest_wifi_turn_on(mock_coordinator, mock_config_entry):
-    """Test turning guest wifi on calls API and refreshes."""
+    """Turning guest WiFi on writes, then confirms by re-reading the SSID.
+
+    The guest flag is nested inside the SSID list rather than being a flat
+    key, so this also exercises the extractor that finds it by
+    `wifiisguestnetwork` rather than by position.
+    """
     mock_api = MagicMock()
     mock_api.set_guest_wifi = AsyncMock()
+    mock_api.read_back = AsyncMock(
+        return_value={
+            "Ssids": {"Ssid": [{"wifiisguestnetwork": "1", "WifiEnable": "1"}]}
+        }
+    )
     mock_coordinator.api = mock_api
     switch = HuaweiGuestWifiSwitch(
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
+    switch.hass = MagicMock()
+    switch.async_write_ha_state = MagicMock()
 
     await switch.async_turn_on()
 
     mock_api.set_guest_wifi.assert_called_once_with(True)
-    mock_coordinator.async_force_refresh.assert_called_once()
+    mock_api.read_back.assert_awaited_once_with("wlan_multi_basic_settings")
+    switch.async_write_ha_state.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
 async def test_guest_wifi_turn_off(mock_coordinator, mock_config_entry):
-    """Test turning guest wifi off calls API and refreshes."""
+    """Turning guest WiFi off writes, then confirms by re-reading the SSID.
+
+    The guest flag is nested inside the SSID list rather than being a flat
+    key, so this also exercises the extractor that finds it by
+    `wifiisguestnetwork` rather than by position.
+    """
     mock_api = MagicMock()
     mock_api.set_guest_wifi = AsyncMock()
+    mock_api.read_back = AsyncMock(
+        return_value={
+            "Ssids": {"Ssid": [{"wifiisguestnetwork": "1", "WifiEnable": "0"}]}
+        }
+    )
     mock_coordinator.api = mock_api
     switch = HuaweiGuestWifiSwitch(
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
+    switch.hass = MagicMock()
+    switch.async_write_ha_state = MagicMock()
 
     await switch.async_turn_off()
 
     mock_api.set_guest_wifi.assert_called_once_with(False)
-    mock_coordinator.async_force_refresh.assert_called_once()
+    mock_api.read_back.assert_awaited_once_with("wlan_multi_basic_settings")
+    switch.async_write_ha_state.assert_called_once()
+    mock_coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -400,24 +442,36 @@ async def test_the_wifi_switch_reads_the_radio_state() -> None:
 
 
 @pytest.mark.asyncio
-async def test_the_wifi_switch_writes_and_then_refreshes() -> None:
-    """The refresh sits outside the error boundary.
+async def test_the_wifi_switch_writes_and_then_confirms() -> None:
+    """The confirmation sits outside the error boundary.
 
     Inside it, a read blip reports a successful write as failed and invites the
     user to retry a command with a real-world effect.
+
+    Confirmation is a targeted read of `monitoring_status.WifiStatus` — the
+    same key `is_on` reads, and one already polled, so the radio block is not
+    fetched a second time for the same fact.
     """
     coordinator = MagicMock()
     coordinator.api.set_wifi = AsyncMock()
+    coordinator.api.read_back = AsyncMock(return_value={"WifiStatus": "1"})
     coordinator.async_force_refresh = AsyncMock()
     entry = MagicMock()
     entry.unique_id = "abc"
     switch = HuaweiWifiSwitch(coordinator, entry, WIFI_DESCRIPTION)
+    switch.hass = MagicMock()
+    switch.async_write_ha_state = MagicMock()
 
     await switch.async_turn_on()
     coordinator.api.set_wifi.assert_awaited_once_with(True)
+    coordinator.api.read_back.assert_awaited_with("monitoring_status")
+
+    coordinator.api.read_back = AsyncMock(return_value={"WifiStatus": "0"})
     await switch.async_turn_off()
     coordinator.api.set_wifi.assert_awaited_with(False)
-    assert coordinator.async_force_refresh.await_count == 2
+
+    assert switch.async_write_ha_state.call_count == 2
+    coordinator.async_force_refresh.assert_not_awaited()
 
 
 @pytest.mark.asyncio

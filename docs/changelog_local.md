@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev23\] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router](#120-dev23---2026-08-15---review-findings-implemented-options-changes-now-reach-the-router)
   - [\[1.2.0-dev22\] - 2026-08-15 - Code Review](#120-dev22---2026-08-15---code-review)
   - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS De-duplication and the Event Payload Contract](#120-dev21---2026-08-15---depth-review-sms-de-duplication-and-the-event-payload-contract)
   - [\[1.2.0-dev20\] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Was Being Published as an IP Token](#120-dev20---2026-08-15---mutation-findings-implemented-firmware-version-was-being-published-as-an-ip-token)
@@ -114,6 +115,33 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev23] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router
+
+Closes every finding from `dev_std_review` and `code_review` that the owner accepted, in one pass. §3 (`format_mac()`) was **explicitly declined** — see Notes.
+
+### Fixed
+
+- **An Options-flow change to the host, username or password never reached the running integration** (`dev_standards` §9; `dev_std_review` finding 1.1; `code_review` Medium; `status_plan.md` P-9). `async_setup_entry` handed all three values to `HuaweiRouter5GAPI` once at setup and **no `add_update_listener` existed anywhere in the component**, so a user who changed the router's password watched the Options form validate — `_validate_credentials` really does log in — and then saw nothing change until a restart or a manual reload. **The inconsistency was the sharp part: Reauth reloads and Reconfigure reloads; Options edits the same three fields and did not.** Fixed with an update listener and a `LIVE_OPTION_KEYS` allow-list holding `scan_interval` and `stop_polling`, both of which are read fresh every cycle and are correctly live. Ported from `zte_router_5g`, including its `reload_signature` — comparing signatures is what keeps a nudge of the polling slider from tearing down the router session.
+- **Numeric values were not rounded at parse time** (§6). `parse_signal_value` returned `float(s)` unrounded, and it is the single point every numeric value in the component passes through. With 27 entities setting `suggested_display_precision`, the dashboard hid the excess while the **unrounded** value reached the recorder and long-term statistics — so the stored history carried precision the screen never showed and nothing ever looked wrong.
+- **Writes were confirmed by a debounced full refresh rather than by reading the device** (§22). Every write path ended in `async_force_refresh()`, which is subject to HA's 10-second debounce and fetches all 26 endpoints to learn one flag — during which the frontend's optimistic toggle reverts and then corrects itself. Replaced with a targeted single-endpoint read-back keeping §22's **three outcomes distinct**: agrees → publish immediately; disagrees twice → raise a translated error; **read failed or omitted the key → unverified, not failed**. That third row is the point of the mechanism, and collapsing it into failure is what reports a working command as broken on every transient blip.
+- **The projection was computed twice on every state write** (`code_review` Medium). `_projected_bytes` and `extra_state_attributes` each called `_projection` to produce two halves of one answer. Memoised on the coordinator payload by identity.
+
+### Added
+
+- **Clean up unused entities** — a button on the **Clients** sub-device, the same work as the `cleanup_unused_entities` action reached without writing a service call, as `unifi_network_monitor` does. **Two deliberate differences from the action.** The action loops every config entry, which is right for a service; a button belongs to one entry and cleans only that one — with two routers, reusing the action's loop would mean pressing the button on one router silently removed trackers on the other, invisible with a single router and therefore exactly the kind of thing that ships unnoticed. And there is no `dry_run`: a button takes no arguments, so it is the commit step and the note points at the action for the preview. Placed on Clients rather than System, unlike UniFi's, because every entity it can remove lives there.
+- **Section 12's translation-resolution check, which did not exist** (`dev_std_review` finding 2.2). Both directions, compared against the **code** rather than file-to-file — a matching entry count between `strings.json` and `en.json` says nothing, since both can carry the same stale entry and both can miss the same live entity. The only thing that had ever compared these was `iqs_next_steps` Check B, an analysis pass run by hand, and when it ran on 2026-08-14 it found two dead entity strings orphaned since 2026-05-02.
+- **Section 14's runtime attribute sweep** (`dev_std_review` finding 2.3), in `tests/test_recorder_runtime.py`. The existing static sweep stays; the standard requires the runtime form because description-driven entities build attributes from a function on the description, where no static check can see the keys — and this component is exactly that shape. Forces disabled-by-default entities on, since the identity sensors ship disabled and are the most likely to publish something nobody re-checked.
+- `exceptions` blocks in `strings.json` and `translations/en.json` for the new `write_not_confirmed` error.
+
+### Notes
+
+- **§3 (`format_mac()`) was declined by the owner, and the reasoning is recorded rather than the fix.** The standard does mandate it (`dev_standards.md:77`). This project canonicalises to its own form — lowercase, colons stripped — consistently at the config flow, and that value is `entry.unique_id`, every sub-device identifier and every entity `unique_id`. Adopting `format_mac()` would change all of them, orphaning 166 entities and losing their history, in exchange for comparability with a hypothetical native integration claiming the same MAC. **`zte_router_5g` is not a counter-example**: it keys on IMEI and never touches a MAC, so §3's bullet never fires there. The two projects hit different branches of the same rule.
+- **§11 is not yet DONE**, and adding `sensor.py` to the mutation list is what closes it. Both siblings mutate `sensor.py`; Huawei is the only one that does not, because `[1.2.0-dev18]`'s 158 `about` notes generate over a thousand string-literal mutants. Carried as item 6 in `status_plan.md` with `coordinator.py`'s unrun mutants (P-11).
+- **The read-back map is an explicit allow-list**, so a write path cannot reach an arbitrary part of the router. Network mode and Reconnect have no reader by design — both re-establish the connection, so the router answers abnormally _while succeeding_ and a read-back would report a working command as failed. §22 asks for that exclusion to be visible in review rather than left as an unwritten rule; a test asserts no reader exists for either.
+- **Two behaviour changes worth knowing about.** An Options edit now reloads the entry, which it never did. And a write whose confirmation cannot be read no longer raises — it previously did, because the confirmation was a coordinator refresh whose exception propagated; under §22 that outcome is _unverified_ and is left to the next poll.
+- `_stale_tracker_entities` and `_tracked_macs` moved from `__init__.py` to `helpers.py`. They now have two callers, and a platform module importing from the package `__init__` would be a circular import.
+- Suite **683 → 720**, 100% line and branch coverage, 0 partial branches. `ruff`, `mypy custom_components/ --strict`, IQS static all clean.
 
 ## [1.2.0-dev22] - 2026-08-15 - Code Review
 

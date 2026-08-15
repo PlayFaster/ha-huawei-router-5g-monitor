@@ -194,10 +194,11 @@ The device tracker has no entity description — one entity is created per disco
 | WiFi | Switch | `wifi` | Turns the router's WiFi radios on or off. It writes the **radio** switch rather than the per-SSID flags, because those flags are gated by the radio and writing them while it is off changes nothing - an earlier implementation that did so appeared to work and did not. |
 | Guest Network | Switch | `wifi_guest_network` | Turns the guest network on or off. The `ssid` attribute names the network being controlled. Worth knowing before leaving it on: on this hardware the guest SSID is configured open, so an unattended `on` is an unauthenticated network on air. |
 
-## Clients (3)
+## Clients (4)
 
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
+| Clean up unused entities | Button | `cleanup_unused_entities` | Removes the tracker entities for clients the router no longer reports. A device seen once leaves a permanent entity, so this is how a guest's phone gets cleared. **This button commits the removal with no preview** - run the Clean up unused entities action first if you want to see the list, because it defaults to a dry run. Nothing is removed while the router has not answered, so an outage cannot look like every client leaving at once. |
 | Total Connected | Sensor | `total_connected` | Every client the router currently reports as connected, wired and wireless together. WiFi Connected and Wired Connected are its two halves. |
 | WiFi Connected | Sensor | `wifi_users` | Clients currently associated over WiFi, across all radios and SSIDs including the guest network. |
 | Wired Connected | Sensor | `wired_connected` | Clients currently connected over the wired LAN ports. Together with WiFi Connected it accounts for Total Connected, so a difference between the three is a client the router classifies as neither. |
@@ -214,4 +215,4 @@ One entity per discovered client, so the note is set on the class rather than on
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
-| v1.0.0 | 2026-08-15 | Initial. One note per entity across all seven platforms — 158 descriptions plus the device tracker — with the both-directions reconciliation test that keeps the set from decaying. |
+| v1.0.0 | 2026-08-15 | Initial. One note per entity across all seven platforms — 159 descriptions plus the device tracker — with the both-directions reconciliation test that keeps the set from decaying. |
