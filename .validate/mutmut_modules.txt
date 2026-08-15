@@ -1,0 +1,57 @@
+# Modules worth mutating in this project, one glob per line.
+#
+# The sync appends these under `only_mutate=` in setup.cfg, indented. Do not
+# indent them here and do not use commas — see the notes in setup.cfg.
+#
+# Include a module when its tests exercise real code. Leave it out when the
+# tests mock its collaborator: a mutation of a call into a mock cannot be
+# detected by any test, so it becomes a survivor you read and discard.
+#
+# Assessed by reading the tests on 2026-08-15, at 655 tests with 100% line and
+# branch coverage and zero partial branches.
+#
+# Left out, with reasons — each is a judgement, not an omission:
+#
+#   api.py            Every test mocks `huawei_lte_api`. The module is a thin
+#                     async wrapper around it, so nearly every mutation lands
+#                     on an argument to a mock and is unkillable by
+#                     construction.
+#   sensor.py         **Excluded reluctantly and this should be revisited.**
+#                     It is otherwise the highest-value module here — the
+#                     guard bands and every `value_fn` live in it. But since
+#                     `[1.2.0-dev18]` it also carries 158 `about` notes, each
+#                     written as four to six implicitly concatenated string
+#                     literals, and mutmut emits **two mutants per string
+#                     literal**. That is well over a thousand survivors of
+#                     pure note text — structural noise by the triage prompt's
+#                     own table — swamping the few hundred that would be worth
+#                     reading. `only_mutate` matches file paths with `fnmatch`
+#                     and cannot express "this half of the file"
+#                     (`mutation_testing_setup.md` §8). The two ways out are
+#                     to move the notes to a data module of their own, or a
+#                     project-scoped `do_not_mutate_patterns` — and
+#                     `setup.cfg` is a synced file, so the second is not a
+#                     local decision.
+#   config_flow.py    Tests mock `_validate_credentials`; the surviving real
+#                     logic is `_clean_host` and `_merge_credentials`, both of
+#                     which are a handful of statements.
+#   _compat.py        14 statements, and both branches are forced by patching
+#                     the detection flag against a mocked device registry.
+#   __init__.py       Setup and teardown against a mocked hass and a mocked
+#                     coordinator.
+#   binary_sensor.py, button.py, number.py, select.py, switch.py
+#                     Thin platform modules whose write paths call a mocked
+#                     API. `zte_router_5g` reached the same conclusion.
+#   scripts/          Unreachable — setup.cfg sets `source_paths=custom_components`.
+#
+# `coordinator.py` is a deliberate departure from `zte_router_5g`, which
+# excludes it as a mocked boundary. The API is mocked here too, but the
+# module's own logic is not: the 3-strike budget, the per-endpoint strike
+# counters, the health snapshot, three uptime reboot latches and the SMS
+# timestamp/hash dedup are all real code with real boundaries, and its tests
+# drive them directly. Boundaries are what mutation testing is for.
+
+*/helpers.py
+*/diagnostics.py
+*/device_tracker.py
+*/coordinator.py

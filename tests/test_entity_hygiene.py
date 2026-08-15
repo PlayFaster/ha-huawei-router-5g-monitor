@@ -449,20 +449,63 @@ def test_unguarded_allowlist_has_no_dead_entries() -> None:
     )
 
 
+def _shipped_root():
+    """Return the project root of the **shipped** tree, not a working copy.
+
+    `mutmut` runs the suite from a `mutants/` directory holding a rewritten
+    copy of `custom_components/`, `tests/` and `also_copy` — and **nothing
+    else**. Two static checks in this file are about the shipped tree rather
+    than about behaviour, and both broke the mutation run before a single
+    mutant was tested:
+
+    - the document reconciliations, because `docs/` is simply absent there;
+    - the suppression sweep, because every mutated copy of a function carries
+      its `# type: ignore` comment again, turning two reviewed suppressions
+      into several hundred unreviewed ones.
+
+    Neither was a fault in the tests or in the code. Resolving from the first
+    ancestor that actually carries a `docs/` directory steps out of the mutant
+    tree and reads what ships. It never falls back to a copy and never skips:
+    a genuinely missing tree still raises.
+    """
+    import pathlib
+
+    import custom_components.huawei_router_5g as component
+
+    start = pathlib.Path(component.__path__[0]).parent.parent
+    for base in (start, *start.parents):
+        if (base / "docs").is_dir():
+            return base
+    raise FileNotFoundError(f"no docs/ directory found above {start}")
+
+
+def _shipped_doc(name: str):
+    """Locate a document under `docs/`, from the source tree or a mutant copy.
+
+    `mutmut` copies only `source_paths`, `tests/` and `also_copy` into
+    `mutants/`, so `docs/` is **absent** in the mutant tree and a naive
+    `component/../../docs` resolves to a path that does not exist. That failed
+    the baseline collection and stopped the whole mutation run before a single
+    mutant was tested — the tests were fine, the tree was not.
+
+    Walking up to the first ancestor that actually has the document keeps both
+    trees working while still reading the **real, shipped** file. It never
+    falls back to a copy and never skips: a genuinely missing document still
+    raises, which is the behaviour these checks depend on.
+    """
+
+    return _shipped_root() / "docs" / name
+
+
 def _documented_bands() -> dict[str, tuple[float | None, float | None]]:
     """Parse the band table out of `docs/value_min_max.md`.
 
     Reads the shipped document rather than a copy in this file — a second copy
     would agree with itself forever while the real document rotted.
     """
-    import pathlib
     import re
 
-    import custom_components.huawei_router_5g as component
-
-    path = (
-        pathlib.Path(component.__path__[0]).parent.parent / "docs" / "value_min_max.md"
-    )
+    path = _shipped_doc("value_min_max.md")
     row = re.compile(
         r"^\|[^|]+\|\s*`([^`]+)`\s*\|\s*(—|`[^`]+`)\s*\|\s*(—|`[^`]+`)\s*\|"
     )
@@ -660,19 +703,21 @@ def _real_comments() -> list[tuple[str, int, str]]:
     explaining why a past one was wrong, and a text search cannot tell those
     apart from a live suppression.
     """
-    import pathlib
     import tokenize
-
-    import custom_components.huawei_router_5g as component
 
     # `scripts/` is swept too. It is not shipped, but it is the one place that
     # talks to real hardware, so a suppression hiding a wrong belief about the
     # library does more damage there than anywhere else — that is exactly what
     # `type: ignore[attr-defined]` did to `clear_traffic` and `logout`.
+    #
+    # Resolved from the shipped tree rather than from `__file__` or the
+    # imported package, so a `mutants/` copy is never swept — see
+    # `_shipped_root`.
+    root = _shipped_root()
     roots = [
-        pathlib.Path(component.__path__[0]),
-        pathlib.Path(__file__).parent,
-        pathlib.Path(__file__).parent.parent / "scripts",
+        root / "custom_components" / "huawei_router_5g",
+        root / "tests",
+        root / "scripts",
     ]
 
     found: list[tuple[str, int, str]] = []
@@ -1038,16 +1083,9 @@ def _documented_about_notes() -> dict[str, str]:
     Reads the shipped document rather than a copy in this file — a second copy
     would agree with itself forever while the real document rotted.
     """
-    import pathlib
     import re
 
-    import custom_components.huawei_router_5g as component
-
-    path = (
-        pathlib.Path(component.__path__[0]).parent.parent
-        / "docs"
-        / "about_attribute_list.md"
-    )
+    path = _shipped_doc("about_attribute_list.md")
     row = re.compile(r"^\|[^|]+\|[^|]+\|\s*`([^`]+)`\s*\|(.*)\|\s*$")
 
     notes: dict[str, str] = {}

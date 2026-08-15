@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev19\] - 2026-08-15 - Mutation Testing Configured and First Run Triaged](#120-dev19---2026-08-15---mutation-testing-configured-and-first-run-triaged)
   - [\[1.2.0-dev18\] - 2026-08-15 - `about` Attribute Notes on Every Entity](#120-dev18---2026-08-15---about-attribute-notes-on-every-entity)
   - [\[1.2.0-dev17\] - 2026-08-15 - Router Diagnostics Sensor](#120-dev17---2026-08-15---router-diagnostics-sensor)
   - [\[1.2.0-dev16\] - 2026-08-15 - WiFi Switch; Voice Entities](#120-dev16---2026-08-15---wifi-switch-voice-entities)
@@ -108,6 +109,28 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev19] - 2026-08-15 - Mutation Testing Configured and First Run Triaged
+
+### Added
+
+- **`.validate/mutmut_modules.txt`** — the modules worth mutating, chosen by reading the tests rather than guessed: `helpers.py`, `diagnostics.py`, `device_tracker.py`, `coordinator.py`. Every exclusion carries its reason in the file. `coordinator.py` is a deliberate departure from `zte_router_5g`, which excludes it: the API is mocked here too, but the strike budget, the endpoint counters, the health snapshot and the SMS dedup are real code with real boundaries.
+- **`setup.cfg`** — **generated** by `.workbench/sync_shared_files.sh` from the shared template plus the module list. Nothing in it was hand-edited; it is tracked here on the same basis as in `zte_router_5g`.
+
+### Fixed
+
+- **Three static checks were reading the wrong tree, and each stopped the mutation run before a single mutant was tested.** `mutmut` runs the suite from a `mutants/` copy holding only `custom_components/`, `tests/` and `also_copy` — so `docs/` is absent, and every mutated copy of a function carries its `# type: ignore` comment again. The two document reconciliations raised `FileNotFoundError`; the suppression sweep turned two reviewed suppressions into several hundred unreviewed ones. A `_shipped_root()` helper resolves from the first ancestor carrying a `docs/` directory, which steps out of the mutant tree. It never falls back to a copy and never skips — a genuinely missing tree still raises.
+
+### Notes
+
+- **A mutation run that tests nothing exits 0.** Both failed attempts reported success and generated 1258 mutants; the real message, `failed to collect stats. runner returned 1`, appears only if the output is read.
+- **Do not run `mutmut` under a shell timeout.** A `SIGTERM` mid-write left one `.meta` file zero-length, which made the results store unreadable for every module. An interrupted run is safe by design; a killed one is not.
+- **Result: 1258 mutants, 1048 tested over three modules, 134 survivors, 14 findings, none needing a source change.** The report is `.notes/issues/testing_deeper/recommendations_20260815.md`; equivalents are recorded separately so the next run does not re-derive them.
+- **The finding that matters is in the diagnostics scrubber.** `_sweep` is the backstop for keys the module does not enumerate, and it has never been driven by a MAC or an IPv4 address — both substitutions can be replaced by a function returning `None`, which would raise on any match, with the suite green. The live-capture audit could not have found this: a capture exercises the key-specific branches, and `_sweep` is what catches everything else.
+- **`coordinator.py` was generated but never tested**, and `sensor.py` is excluded because its 158 `about` notes would generate over a thousand string-literal mutants. Both are recorded as open items rather than quietly dropped.
+- Suite unchanged at **655 passing**, 100% line and branch coverage, 0 partial branches, ruff and `mypy --strict` clean.
 
 ---
 
