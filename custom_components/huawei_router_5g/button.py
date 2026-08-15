@@ -15,6 +15,7 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import REBOOT_REFRESH_DELAY, RECONNECT_REFRESH_DELAY
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import build_device_info
 
@@ -131,6 +132,9 @@ class HuaweiRebootButton(HuaweiButton):
             await self.coordinator.api.reboot()
         except Exception as err:
             raise HomeAssistantError(f"Reboot failed: {err}") from err
+        # Only after the write succeeded. Scheduling first would refresh
+        # against a router that was never asked to restart.
+        self.coordinator.async_schedule_refresh(REBOOT_REFRESH_DELAY)
 
 
 class HuaweiReconnectButton(HuaweiButton):
@@ -142,6 +146,7 @@ class HuaweiReconnectButton(HuaweiButton):
             await self.coordinator.api.reconnect()
         except Exception as err:
             raise HomeAssistantError(f"Reconnect failed: {err}") from err
+        self.coordinator.async_schedule_refresh(RECONNECT_REFRESH_DELAY)
 
 
 class HuaweiClearTrafficButton(HuaweiButton):

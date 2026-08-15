@@ -1,6 +1,7 @@
 """Tests for the Huawei Router 5G DataUpdateCoordinator."""
 
 import logging
+from datetime import timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
@@ -667,3 +668,150 @@ async def test_uptime_latches_hold_across_a_steady_second_poll(
     assert coordinator._last_system_uptime == 1180
     assert coordinator._last_conn_uptime == 680
     assert coordinator._last_total_conn_time == 90180
+
+
+# ---------------------------------------------------------------------------
+# Follow-up refresh after a disruptive button
+# ---------------------------------------------------------------------------
+
+
+def _refresh_coordinator(hass):
+    """Build a coordinator with a writable `options`, which MockConfigEntry lacks."""
+    entry = MagicMock()
+    entry.entry_id = "test"
+    entry.title = "My Huawei Router"
+    entry.options = {}
+    entry.data = {}
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry, MagicMock())
+    coordinator.update_interval = timedelta(seconds=1200)
+    return coordinator
+
+
+@pytest.mark.asyncio
+async def test_a_disruptive_write_schedules_one_follow_up_refresh(
+    mock_hass, mock_config_entry
+):
+    """The reading straight after a reboot or reconnect is stale by definition.
+
+    Without this the entities sit wrong until the next scheduled poll, which is
+    twenty minutes by default.
+    """
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.update_interval = timedelta(seconds=1200)
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        coordinator.async_schedule_refresh(20)
+
+    later.assert_called_once()
+    assert later.call_args[0][1] == 20
+
+
+@pytest.mark.asyncio
+async def test_no_follow_up_refresh_while_polling_is_paused(
+    mock_hass, mock_config_entry
+):
+    """A timer the user did not start is background polling.
+
+    They asked for none. The write itself still goes through; only the
+    follow-up is suppressed.
+    """
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.update_interval = timedelta(seconds=1200)
+    coordinator.entry.options = {"stop_polling": True}
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        coordinator.async_schedule_refresh(20)
+
+    later.assert_not_called()
+    assert coordinator._pending_refresh is None
+
+
+@pytest.mark.asyncio
+async def test_no_follow_up_when_the_poll_interval_already_covers_it(
+    mock_hass, mock_config_entry
+):
+    """On a short interval the ordinary poll gets there first.
+
+    This is the owner's "if the polling interval is greater than a minute"
+    condition, generalised: schedule only when the follow-up would land before
+    the next poll would.
+    """
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.update_interval = timedelta(seconds=30)
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        coordinator.async_schedule_refresh(60)
+
+    later.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_a_second_press_replaces_the_pending_refresh(
+    mock_hass, mock_config_entry
+):
+    """Two presses must not queue two fetches."""
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.update_interval = timedelta(seconds=1200)
+
+    first = MagicMock()
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later",
+        side_effect=[first, MagicMock()],
+    ):
+        coordinator.async_schedule_refresh(20)
+        coordinator.async_schedule_refresh(20)
+
+    first.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_the_scheduled_refresh_forces_past_a_pause_set_later(
+    mock_hass, mock_config_entry
+):
+    """It routes through `async_force_refresh`, not `async_request_refresh`.
+
+    If the user pauses polling between the press and the timer firing, a plain
+    request would be swallowed by the pause short-circuit at exactly the moment
+    the data is known to be stale.
+    """
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.update_interval = timedelta(seconds=1200)
+
+    coordinator.async_force_refresh = AsyncMock()
+
+    captured = {}
+
+    def _capture(_hass, _delay, action):
+        captured["fire"] = action
+        return MagicMock()
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later",
+        side_effect=_capture,
+    ):
+        coordinator.async_schedule_refresh(20)
+
+    await captured["fire"](None)
+    coordinator.async_force_refresh.assert_awaited_once()
+    assert coordinator._pending_refresh is None
+
+
+@pytest.mark.asyncio
+async def test_cancelling_a_pending_refresh_is_idempotent(mock_hass):
+    """Unload calls this unconditionally, whether or not one is pending."""
+    coordinator = _refresh_coordinator(mock_hass)
+    handle = MagicMock()
+    coordinator._pending_refresh = handle
+
+    coordinator.async_cancel_scheduled_refresh()
+    coordinator.async_cancel_scheduled_refresh()
+
+    handle.assert_called_once_with()
+    assert coordinator._pending_refresh is None

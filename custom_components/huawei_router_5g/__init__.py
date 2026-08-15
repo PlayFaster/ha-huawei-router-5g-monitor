@@ -416,6 +416,11 @@ async def async_unload_entry(
     import contextlib
 
     coordinator = entry.runtime_data
+
+    # Before the logout: a pending follow-up refresh would otherwise fire
+    # against a coordinator whose session has just been closed.
+    coordinator.async_cancel_scheduled_refresh()
+
     with contextlib.suppress(Exception):
         await coordinator.api.logout()
 

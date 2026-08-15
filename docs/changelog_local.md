@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev14\] - 2026-08-15 - Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---follow-up-refresh-after-reboot-and-reconnect)
   - [\[1.2.0-dev13\] - 2026-08-15 - Reconnect Button Fixed](#120-dev13---2026-08-15---reconnect-button-fixed)
   - [\[1.2.0-dev12\] - 2026-08-15 - huawei-lte-api 2.0.1](#120-dev12---2026-08-15---huawei-lte-api-201)
   - [\[1.2.0-dev11\] - 2026-08-15 - New Entity Set and Data-Usage Projection](#120-dev11---2026-08-15---new-entity-set-and-data-usage-projection)
@@ -103,6 +104,20 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev14] - 2026-08-15 - Follow-Up Refresh After Reboot and Reconnect
+
+### Added
+
+- **Reboot and Reconnect now schedule one refresh after the router comes back** — 60s and 20s respectively. The reading straight after either write is stale by definition, so without this the entities sat wrong until the next scheduled poll, twenty minutes by default.
+- Verified live at the 20s mark: `CurrentConnectTime` 374 → 21, connected, no empty blocks.
+
+### Notes
+
+- **Declines in two cases.** While polling is paused, because a timer the user did not start is background polling — the write still happens, only the follow-up is suppressed. And when the delay would land after the next scheduled poll, which generalises "only if the interval is greater than a minute".
+- Routes through `async_force_refresh`, so pausing between the press and the timer does not swallow it. A second press replaces the pending refresh rather than queueing another, and unload cancels it before the logout.
 
 ---
 

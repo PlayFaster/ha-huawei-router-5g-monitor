@@ -73,6 +73,20 @@ SIGNAL_CONTRACT_KEYS: tuple[str, ...] = ("rsrp", "rsrq", "rssi", "sinr")
 # single blip raises no alarm. Matches the Section 8 fetch strike budget.
 HEALTH_STRIKE_LIMIT = 3
 
+# Seconds to wait before the follow-up refresh a disruptive button schedules.
+#
+# Both controls take the router away and bring it back, so the reading straight
+# afterwards is stale by definition and the entities would sit wrong until the
+# next scheduled poll - twenty minutes by default. These are measured, not
+# guessed: a reconnect was back inside five seconds on the reference B535, and
+# a reboot takes well under a minute to start answering again. Both carry
+# headroom.
+#
+# Neither fires while polling is paused, and neither fires when it would land
+# after the next scheduled poll anyway - see `async_schedule_refresh`.
+RECONNECT_REFRESH_DELAY = 20
+REBOOT_REFRESH_DELAY = 60
+
 # --- Data-usage projection tuning (status_plan §T-2) -------------------------
 #
 # PROJECTION_CREDIBILITY_DAYS is the point at which this cycle's own usage rate

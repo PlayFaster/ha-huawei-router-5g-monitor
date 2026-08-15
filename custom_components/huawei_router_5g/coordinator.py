@@ -7,9 +7,10 @@ from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -58,6 +59,12 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # One-shot flag set by async_force_refresh so an explicit user action
         # fetches even while polling is paused (dev_standards Section 13).
         self._force_refresh_once = False
+
+        # Cancel handle for a follow-up refresh scheduled by a disruptive
+        # button. Held so a second press replaces the first rather than
+        # stacking, and so unload can cancel it - a timer that outlives the
+        # entry fires against a coordinator whose API is already logged out.
+        self._pending_refresh: CALLBACK_TYPE | None = None
 
         # Section 19 health state. Deliberately NOT stored in `self.data`,
         # which is None before the first success and frozen at last-good values
@@ -238,6 +245,60 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         """
         for name in REPAIR_NAMES:
             ir.async_delete_issue(self.hass, DOMAIN, f"{name}_{self.entry.entry_id}")
+
+    @callback
+    def async_schedule_refresh(self, delay: float) -> None:
+        """Schedule one forced refresh `delay` seconds from now.
+
+        For controls that take the router away and bring it back. The reading
+        immediately after such a write is stale by definition, so without this
+        the entities sit wrong until the next scheduled poll - twenty minutes
+        by default.
+
+        Declines in two cases, both deliberate:
+
+        * **Polling is paused.** The user asked for no background fetching, and
+          a timer they did not start is background fetching. The write itself
+          still goes through; only the follow-up is suppressed.
+        * **The delay would land after the next scheduled poll.** On a short
+          interval the ordinary poll already covers it, and firing anyway would
+          just add a fetch.
+
+        A second press replaces the pending refresh rather than queueing a
+        second one.
+        """
+        if self.entry.options.get(CONF_STOP_POLLING, False):
+            _LOGGER.debug(
+                "%s: Polling is paused; not scheduling a follow-up refresh.",
+                self.entry.title,
+            )
+            return
+
+        interval = self.update_interval.total_seconds() if self.update_interval else 0
+        if interval and delay >= interval:
+            _LOGGER.debug(
+                "%s: Poll interval %ss is shorter than the %ss follow-up; "
+                "letting the scheduled poll cover it.",
+                self.entry.title,
+                interval,
+                delay,
+            )
+            return
+
+        self.async_cancel_scheduled_refresh()
+
+        async def _fire(_now: datetime) -> None:
+            self._pending_refresh = None
+            await self.async_force_refresh()
+
+        self._pending_refresh = async_call_later(self.hass, delay, _fire)
+
+    @callback
+    def async_cancel_scheduled_refresh(self) -> None:
+        """Cancel a pending follow-up refresh, if there is one."""
+        if self._pending_refresh is not None:
+            self._pending_refresh()
+            self._pending_refresh = None
 
     async def async_force_refresh(self) -> None:
         """Force an immediate fetch, even while polling is paused.
