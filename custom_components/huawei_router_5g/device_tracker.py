@@ -78,7 +78,7 @@ class HuaweiRouterDeviceTracker(
         " by MAC address. `home` means the router currently lists it as"
         " connected. Entities are created on first sighting and are not"
         " removed automatically, so a one-off guest device leaves a permanent"
-        " entity — use the Cleanup Unused Entities action to clear them."
+        " entity — use the Clean up unused entities action to clear them."
     )
 
     # dev_standards Section 14. A device tracker publishes one entity per
