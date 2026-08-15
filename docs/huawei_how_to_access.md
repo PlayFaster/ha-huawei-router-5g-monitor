@@ -212,7 +212,7 @@ Returned `100002: No support`. **Do not add, do not retry.**
 
 | Method | Live value | Worth |
 | :-- | :-- | :-- |
-| **`monitoring.onekey_diag()`** | Ten fields — `connection_status`, `signal_status`, `sim_status`, `dialupswitch_off`, `datalimit_off`, `roam_off`, `staticdns`, `apnstatus`, `modemdialup_err`, `speedLimitStatus` | **The router's own self-diagnosis.** This is `status_plan` §S-6's target, and it now exists |
+| **`monitoring.onekey_diag()`** | Ten fields — decoded below | **The router's own self-diagnosis.** `status_plan` §S-6's target |
 | **`voice.volte()`** | `volte_enable='1'`, `ui_display_ims='1'` | Real VoLTE state, which the SIP ALG flag is not |
 | `wlan.guesttime_setting()` | `isvalidtime='1'`, `remaintime='0'`, `extendtime='30'` | Guest-WiFi time limit |
 | `security.acl()` | `https_enable='1'`, `icmp_enable='0'`, `acs_enable='0'` | Remote-management access control |
@@ -220,6 +220,23 @@ Returned `100002: No support`. **Do not add, do not retry.**
 | `diagnosis.wan_service_name()` | `'INTERNET'` | Low |
 
 `onekey_diag`'s `speedLimitStatus` reads `0`, matching `monitoring_status.speedLimitStatus` — the two blocks cross-validate.
+
+### `onekey_diag` decoded — by controlled disconnection, 2026-08-15
+
+The block is a **set of causes behind one verdict**, not ten booleans. Established by taking mobile data down and reading it in both states. A reconnect was tried first and proved useless: the router auto-redials (`auto_dial_switch=1`) inside four seconds, so nothing is ever observably down.
+
+| Field | Connected | Disconnected |
+| :-- | :-- | :-- |
+| `connection_status` | **`2`** | **`8`** |
+| `dialupswitch_off` | `0` | `1` |
+| `apnstatus` | `0` | `2` |
+| the other seven | `0` | `0` |
+
+**`connection_status` is the verdict, and `2` means healthy** — it is not a boolean and `0` is not its good value. The remaining nine read `0` when there is nothing to report, and the two that moved named the actual cause: the dial-up switch was off, and the APN could not come up as a result.
+
+`speedLimitStatus` appears here and in `monitoring_status`, agreeing in both — the two blocks cross-validate.
+
+**Only `2` and `8` have been observed.** A check of `!= "2"` is therefore sound — `2` is confirmed good, and anything else is at minimum not-the-known-good value — whereas `== "8"` would be a guess about every other code.
 
 ### Two methods removed — and both were already handled
 
