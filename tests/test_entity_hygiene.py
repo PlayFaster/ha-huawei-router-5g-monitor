@@ -563,7 +563,7 @@ def test_integration_health_publishes_the_normative_attribute_names() -> None:
         coordinator, MagicMock(), INTEGRATION_HEALTH_DESCRIPTION
     )
 
-    assert set(sensor.extra_state_attributes) == SECTION_19_ATTRIBUTES
+    assert set(sensor.extra_state_attributes) == SECTION_19_ATTRIBUTES | {"about"}
 
 
 def test_integration_health_attributes_are_all_unrecorded() -> None:
@@ -873,3 +873,228 @@ def test_the_lts_exclusion_lists_have_no_dead_entries() -> None:
     keys = {d.key for d in SENSOR_TYPES}
     stale = sorted((LTS_EXCLUDED_IDENTIFIERS | LTS_EXCLUDED_NUMERICS) - keys)
     assert not stale, f"listed for LTS exclusion but no longer a sensor: {stale}"
+
+
+# ---------------------------------------------------------------------------
+# Section 14 — every entity carries an `about` note, and it is never recorded
+# ---------------------------------------------------------------------------
+
+# The platforms whose entities are description-driven. `device_tracker` is
+# deliberately absent: it creates one entity per discovered client and has no
+# description at all, so its note is a class-level `_attr_about` and is checked
+# separately below.
+DESCRIPTION_PLATFORMS = (
+    "sensor",
+    "binary_sensor",
+    "button",
+    "switch",
+    "select",
+    "number",
+)
+
+# The shortest a note may be. Not an arbitrary number: it is long enough that
+# "Signal strength." cannot pass as a note for LTE RSRP. The value of the
+# mechanism is entirely in the entities whose meaning is *not* obvious from
+# the name, and a one-word restatement of the name is how this set decays
+# while still reporting full coverage.
+MINIMUM_ABOUT_LENGTH = 60
+
+
+def _descriptions_by_platform() -> dict[str, dict[str, object]]:
+    """Collect every entity description in the component, keyed by platform.
+
+    Read from **module source** by inspection rather than from a list here.
+    Descriptions live in a mix of one large tuple and module-level singletons,
+    so both shapes are collected; a hand-maintained list is the failure mode
+    this file is written against.
+    """
+    import importlib
+    import inspect
+    import pkgutil
+
+    from homeassistant.helpers.entity import EntityDescription
+
+    import custom_components.huawei_router_5g as component
+
+    found: dict[str, dict[str, object]] = {}
+    for mod_info in pkgutil.iter_modules(component.__path__):
+        platform = mod_info.name
+        if platform not in DESCRIPTION_PLATFORMS:
+            continue
+        module = importlib.import_module(f"{component.__name__}.{platform}")
+        seen: dict[str, object] = {}
+        for _, obj in inspect.getmembers(module):
+            if isinstance(obj, EntityDescription):
+                seen[obj.key] = obj
+            elif isinstance(obj, tuple):
+                for item in obj:
+                    if isinstance(item, EntityDescription):
+                        seen[item.key] = item
+        found[platform] = seen
+    return found
+
+
+def test_every_entity_description_carries_an_about_note() -> None:
+    """Section 14: a new entity may not ship without a note.
+
+    This is the point of the exercise. `x_proj_checks_20260802.md` section 1.3
+    asked for two things — `_unrecorded_attributes` **and** `about` notes — and
+    only the first was delivered, which left the row reading as closed. Without
+    a sweep the set decays exactly that way: the notes written today stay
+    correct and every entity added after them has none.
+
+    **Satisfy this by writing a note, never by amending the sweep.**
+    """
+    missing: list[str] = []
+    thin: list[str] = []
+    checked = 0
+    for platform, descriptions in _descriptions_by_platform().items():
+        for key, desc in descriptions.items():
+            checked += 1
+            note = getattr(desc, "about", None)
+            if not note:
+                missing.append(f"{platform}.{key}")
+            elif len(note) < MINIMUM_ABOUT_LENGTH:
+                thin.append(f"{platform}.{key} ({len(note)} chars)")
+
+    assert not missing, (
+        "entity descriptions with no `about` note — every one of these ships "
+        "an entity a user cannot interpret from its name alone:\n"
+        + "\n".join(sorted(missing))
+    )
+    assert not thin, (
+        f"`about` notes shorter than {MINIMUM_ABOUT_LENGTH} characters, which "
+        "is a restatement of the entity name rather than a note:\n"
+        + "\n".join(sorted(thin))
+    )
+    # Guard the guard: a discovery that finds nothing passes trivially.
+    assert checked >= 150, (
+        f"sweep only inspected {checked} entity descriptions — discovery is stale"
+    )
+
+
+def test_the_device_tracker_carries_a_class_level_note() -> None:
+    """The one platform with no entity description still needs a note.
+
+    A sweep over descriptions cannot see this entity, so without this it would
+    be the one entity in the component with no note and nothing would fail.
+    """
+    from custom_components.huawei_router_5g.device_tracker import (
+        HuaweiRouterDeviceTracker,
+    )
+
+    note = HuaweiRouterDeviceTracker._attr_about
+    assert note is not None
+    assert len(note) >= MINIMUM_ABOUT_LENGTH
+
+
+def test_every_entity_publishing_attributes_keeps_the_about_note_unrecorded() -> None:
+    """Section 14: `about` must be excluded from the recorder, everywhere.
+
+    Home Assistant resolves `_unrecorded_attributes` by ordinary attribute
+    lookup and does **not** union it across base classes, so a subclass that
+    declares its own set silently discards the mixin's `{"about"}` — and the
+    note, identical on every state change, starts being written to history on
+    that entity alone. Nothing about that is visible in a diff of the subclass.
+    """
+    offenders = [
+        cls.__name__
+        for cls in _entity_classes_declaring_attributes()
+        if "about" not in getattr(cls, "_unrecorded_attributes", frozenset())
+    ]
+    assert not offenders, (
+        "entity classes whose `_unrecorded_attributes` shadows the mixin's and "
+        "drops `about`, so the note is written to the recorder:\n"
+        + "\n".join(sorted(offenders))
+    )
+
+
+def test_an_entity_with_its_own_attributes_still_emits_the_note() -> None:
+    """Mechanism, not coverage — and the two are different here.
+
+    The declaration test above passes while an entity's own
+    `extra_state_attributes` returns a bare dict that never went through
+    `_with_about`: the key is *declared* unrecorded and simply never emitted.
+    This asserts the note actually reaches the attribute dict on an entity
+    that overrides the property, which is the case that breaks.
+    """
+    from unittest.mock import MagicMock
+
+    from custom_components.huawei_router_5g.switch import (
+        GUEST_WIFI_DESCRIPTION,
+        HuaweiGuestWifiSwitch,
+    )
+
+    coordinator = MagicMock()
+    coordinator.data = {}
+    switch = HuaweiGuestWifiSwitch(coordinator, MagicMock(), GUEST_WIFI_DESCRIPTION)
+
+    assert switch.extra_state_attributes["about"] == GUEST_WIFI_DESCRIPTION.about
+
+
+def _documented_about_notes() -> dict[str, str]:
+    """Read every key-to-note pair out of `docs/about_attribute_list.md`.
+
+    Reads the shipped document rather than a copy in this file — a second copy
+    would agree with itself forever while the real document rotted.
+    """
+    import pathlib
+    import re
+
+    import custom_components.huawei_router_5g as component
+
+    path = (
+        pathlib.Path(component.__path__[0]).parent.parent
+        / "docs"
+        / "about_attribute_list.md"
+    )
+    row = re.compile(r"^\|[^|]+\|[^|]+\|\s*`([^`]+)`\s*\|(.*)\|\s*$")
+
+    notes: dict[str, str] = {}
+    for line in path.read_text(encoding="utf-8").splitlines():
+        match = row.match(line)
+        if match:
+            notes[match.group(1)] = match.group(2).strip()
+    return notes
+
+
+def test_about_attribute_list_doc_matches_the_code() -> None:
+    """`docs/about_attribute_list.md` and the descriptions must agree, both ways.
+
+    `dev_std_review` treats this file as a **descriptive document**, which
+    means an entry for an entity that does not exist fails as readily as a
+    missing one. The text is compared verbatim rather than only the key set: a
+    note reworded in the source while the document keeps the old wording is
+    the same defect as an absent one, and it is the more likely of the two.
+    """
+    from custom_components.huawei_router_5g.device_tracker import (
+        HuaweiRouterDeviceTracker,
+    )
+
+    documented = _documented_about_notes()
+    actual = {
+        key: getattr(desc, "about", None) or ""
+        for descriptions in _descriptions_by_platform().values()
+        for key, desc in descriptions.items()
+    }
+    actual["_attr_about"] = HuaweiRouterDeviceTracker._attr_about or ""
+
+    assert documented, (
+        "no note table found in docs/about_attribute_list.md — parser broken"
+    )
+
+    undocumented = sorted(set(actual) - set(documented))
+    assert not undocumented, "entities the document does not list:\n" + "\n".join(
+        undocumented
+    )
+
+    phantom = sorted(set(documented) - set(actual))
+    assert not phantom, (
+        "docs/about_attribute_list.md lists entities that do not exist:\n"
+        + "\n".join(phantom)
+    )
+
+    mismatched = [key for key in sorted(actual) if documented[key] != actual[key]]
+    assert not mismatched, (
+        "note text differs between the code and the document:\n" + "\n".join(mismatched)
+    )

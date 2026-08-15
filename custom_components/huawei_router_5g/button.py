@@ -17,7 +17,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import REBOOT_REFRESH_DELAY, RECONNECT_REFRESH_DELAY
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import HuaweiAboutEntity, build_device_info
 
 # Section 22. `1`, not `0`.
 #
@@ -38,10 +38,19 @@ class HuaweiButtonEntityDescription(ButtonEntityDescription):
     """Describes a Huawei Router 5G button entity."""
 
     group: str = "system"
+    # dev_standards Section 14 - the human-facing `about` note. Mandatory; a
+    # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
+    about: str | None = None
 
 
 REFRESH_DESCRIPTION = HuaweiButtonEntityDescription(
     key="refresh",
+    about=(
+        "Fetches from the router immediately instead of waiting for the next "
+        "poll. It works **even while Pause Polling is on** - an explicit "
+        "action by a person overrides the pause, while the next scheduled "
+        "poll still respects it."
+    ),
     translation_key="refresh",
     entity_category=EntityCategory.CONFIG,
     group="system",
@@ -49,6 +58,12 @@ REFRESH_DESCRIPTION = HuaweiButtonEntityDescription(
 
 REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
     key="reboot",
+    about=(
+        "Restarts the router. Everything on the network loses its connection "
+        "for a minute or two. A follow-up refresh is scheduled about sixty "
+        "seconds later so the entities recover without waiting for the next "
+        "poll."
+    ),
     translation_key="reboot",
     device_class=ButtonDeviceClass.RESTART,
     group="system",
@@ -56,6 +71,13 @@ REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
 
 RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
     key="reconnect",
+    about=(
+        "Drops the mobile data session and dials it again, which often re- "
+        "homes the router to a different cell. The LAN and WiFi stay up. The "
+        "router refuses the library's dedicated reconnect call, so this "
+        "issues a disconnect followed by a connect, and schedules a follow-up "
+        "refresh about twenty seconds later."
+    ),
     translation_key="reconnect",
     # Deliberately NOT ButtonDeviceClass.RESTART - that belongs to Reboot, and
     # giving both the same class invites a user to read them as duplicates of
@@ -65,6 +87,12 @@ RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
 
 CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
     key="clear_traffic",
+    about=(
+        "Resets the router's traffic statistics to zero. **Irreversible** - "
+        "the lifetime and monthly counters are held on the router, not here, "
+        "so nothing in Home Assistant can restore them. It sets Counters Last "
+        "Reset; it does not change Billing Cycle Day."
+    ),
     translation_key="clear_traffic",
     group="data",
 )
@@ -90,7 +118,9 @@ async def async_setup_entry(
 
 
 class HuaweiButton(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], ButtonEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    ButtonEntity,
 ):
     """Base class for Huawei Router 5G buttons."""
 

@@ -338,3 +338,66 @@ def test_parse_sms_list_empty_messages():
     assert parse_sms_list(data) == []
     data = {"Messages": {"Message": None}}
     assert parse_sms_list(data) == []
+
+
+# ---------------------------------------------------------------------------
+# HuaweiAboutEntity — the `about` note mechanism
+# ---------------------------------------------------------------------------
+
+
+def test_an_entity_with_no_note_is_left_exactly_as_it_was():
+    """No note means no key, not an empty one.
+
+    An `about: None` that still emitted the key would put a null attribute on
+    every entity that has not been given a note yet, which reads as a broken
+    note rather than an absent one.
+    """
+    from custom_components.huawei_router_5g.helpers import HuaweiAboutEntity
+
+    entity = HuaweiAboutEntity()
+
+    assert entity._with_about({"ssid": "Home"}) == {"ssid": "Home"}
+    assert entity._with_about(None) is None
+    assert entity.extra_state_attributes is None
+
+
+def test_the_note_is_read_from_the_description_when_there_is_no_class_override():
+    """Both sources resolve, and `_attr_about` wins.
+
+    Description-driven entities take the note from the description; the device
+    tracker has no description at all and sets `_attr_about` instead. Both
+    paths have to work, and the class-level value has to take precedence or
+    the tracker would silently publish nothing.
+    """
+    from unittest.mock import MagicMock
+
+    from custom_components.huawei_router_5g.helpers import HuaweiAboutEntity
+
+    entity = HuaweiAboutEntity()
+    entity.entity_description = MagicMock(about="From the description")
+    assert entity.extra_state_attributes == {"about": "From the description"}
+
+    entity._attr_about = "From the class"
+    assert entity.extra_state_attributes == {"about": "From the class"}
+
+
+def test_a_binary_sensor_with_no_attributes_of_its_own_still_carries_the_note():
+    """The mixin's default property is the path most entities take.
+
+    Most entities in this component publish nothing but the note, so this is
+    the common case rather than an edge one — and it is the case that breaks
+    if the mixin is listed after `CoordinatorEntity` in the bases, because the
+    platform's own `extra_state_attributes` then wins.
+    """
+    from unittest.mock import MagicMock
+
+    from custom_components.huawei_router_5g.binary_sensor import (
+        LTE_CA_DESCRIPTION,
+        HuaweiBinarySensor,
+    )
+
+    coordinator = MagicMock()
+    coordinator.data = {}
+    sensor = HuaweiBinarySensor(coordinator, MagicMock(), LTE_CA_DESCRIPTION)
+
+    assert sensor.extra_state_attributes == {"about": LTE_CA_DESCRIPTION.about}

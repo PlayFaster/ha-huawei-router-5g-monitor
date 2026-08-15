@@ -146,6 +146,66 @@ def get_network_type_label(code: str | None) -> str | None:
     return _NETWORK_TYPE_MAP.get(str(code), f"Unknown ({code})")
 
 
+# The single `about` attribute name, and the frozenset that carries it into
+# `_unrecorded_attributes`. Public on purpose: Home Assistant resolves
+# `_unrecorded_attributes` by ordinary attribute lookup and does **not** union
+# it across bases, so every entity class that declares its own set has to start
+# from this one. Reaching for `HuaweiAboutEntity._unrecorded_attributes`
+# instead would be a private access at six call sites.
+ABOUT_ATTRIBUTE = "about"
+ABOUT_UNRECORDED: frozenset[str] = frozenset({ABOUT_ATTRIBUTE})
+
+
+class HuaweiAboutEntity:
+    """Mixin exposing a static, human-facing ``about`` note as an attribute.
+
+    Ported from ``zte_router_5g`` (which took it from ``unifi_network_monitor``
+    and ``wifi_ssid_monitor``); keep the implementations interchangeable. Set the
+    text via an ``about`` field on the entity description — every description in
+    this component carries one and a sweep enforces it — or via ``_attr_about``
+    at class level for an entity that has no description.
+
+    The note shows in Tools and the More Info dialog but is listed in
+    ``_unrecorded_attributes``, so the recorder never writes it to history. That
+    is what makes it free: the text is identical on every state change, and
+    recording it would cost one copy per change forever
+    (``dev_standards`` Section 14).
+
+    **List this mixin FIRST in an entity's bases** so its
+    ``extra_state_attributes`` wins over the platform default. An entity that
+    defines its own ``extra_state_attributes`` must route the result through
+    ``_with_about``, or the note silently disappears for that entity only —
+    which is the one failure mode here that no type checker sees.
+
+    The text is hardcoded rather than translated. There is no HA-native
+    "entity description" field, and this is a pragmatic use of the attribute
+    channel rather than a translation surface.
+    """
+
+    _unrecorded_attributes = ABOUT_UNRECORDED
+    _attr_about: str | None = None
+
+    @property
+    def _about_text(self) -> str | None:
+        """Resolve the note from ``_attr_about`` or the entity description."""
+        if self._attr_about is not None:
+            return self._attr_about
+        description = getattr(self, "entity_description", None)
+        return getattr(description, "about", None) if description is not None else None
+
+    def _with_about(self, attrs: dict[str, Any] | None) -> dict[str, Any] | None:
+        """Merge the ``about`` note into an entity's own attribute dict."""
+        about = self._about_text
+        if about is None:
+            return attrs
+        return {ABOUT_ATTRIBUTE: about, **(attrs or {})}
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Default: expose only the ``about`` note when one is set."""
+        return self._with_about(None)
+
+
 def build_device_info(
     coordinator: HuaweiRouter5GDataUpdateCoordinator, group: str
 ) -> DeviceInfo:

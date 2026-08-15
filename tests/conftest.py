@@ -193,3 +193,15 @@ SAMPLE_ROUTER_DATA = {
         "dataswitch": "1",
     },
 }
+
+
+def without_about(attrs: dict | None) -> dict:
+    """Return an entity's attributes with the `about` note removed.
+
+    Every entity in this component publishes a static `about` note
+    (`dev_standards` Section 14), so a test asserting an exact attribute dict
+    would otherwise have to restate the prose and would break on every wording
+    change. Tests that care about the note assert it directly; tests that care
+    about the *data* attributes use this.
+    """
+    return {k: v for k, v in (attrs or {}).items() if k != "about"}

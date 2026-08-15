@@ -13,7 +13,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import ABOUT_UNRECORDED, HuaweiAboutEntity, build_device_info
 
 # Section 22. `0` (unlimited) — this platform is read-only. Entities are
 # coordinator-driven with no per-entity polling, so there is nothing to
@@ -65,15 +65,27 @@ async def async_setup_entry(
 
 
 class HuaweiRouterDeviceTracker(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], ScannerEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    ScannerEntity,
 ):
     """Representation of a Huawei Router tracked device."""
+
+    # This platform has no entity description — one entity is created per
+    # discovered client — so the note is set at class level instead.
+    _attr_about = (
+        "One entity per client the router has seen on the LAN or WiFi, keyed"
+        " by MAC address. `home` means the router currently lists it as"
+        " connected. Entities are created on first sighting and are not"
+        " removed automatically, so a one-off guest device leaves a permanent"
+        " entity — use the Cleanup Unused Entities action to clear them."
+    )
 
     # dev_standards Section 14. A device tracker publishes one entity per
     # client on the network, so these attributes are written to the recorder
     # once per client per poll. `associated_ssid` in particular is network
     # topology that does not belong in long-term history.
-    _unrecorded_attributes = frozenset(
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset(
         {"interface_type", "associated_ssid", "address_source"}
     )
 
@@ -164,12 +176,17 @@ class HuaweiRouterDeviceTracker(
         """Return device specific attributes."""
         host = self._host_data
         if not host:
-            return {}
-        return {
-            "interface_type": host.get("InterfaceType"),
-            "associated_ssid": host.get("AssociatedSsid"),
-            "address_source": host.get("AddressSource"),
-        }
+            return self._with_about(None) or {}
+        return (
+            self._with_about(
+                {
+                    "interface_type": host.get("InterfaceType"),
+                    "associated_ssid": host.get("AssociatedSsid"),
+                    "address_source": host.get("AddressSource"),
+                }
+            )
+            or {}
+        )
 
     @property  # type: ignore[misc]
     def device_info(self) -> DeviceInfo:

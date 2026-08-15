@@ -17,7 +17,7 @@ from custom_components.huawei_router_5g.switch import (
     HuaweiWifiSwitch,
     async_setup_entry,
 )
-from tests.conftest import assert_is_root
+from tests.conftest import assert_is_root, without_about
 
 # ---------------------------------------------------------------------------
 # HuaweiPausePollingSwitch
@@ -332,7 +332,7 @@ def test_guest_wifi_extra_attributes(mock_coordinator, mock_config_entry):
     switch = HuaweiGuestWifiSwitch(
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
-    assert switch.extra_state_attributes == {"ssid": "GuestNet"}
+    assert without_about(switch.extra_state_attributes) == {"ssid": "GuestNet"}
 
 
 def test_guest_wifi_extra_attributes_no_data(mock_coordinator, mock_config_entry):
@@ -341,7 +341,7 @@ def test_guest_wifi_extra_attributes_no_data(mock_coordinator, mock_config_entry
     switch = HuaweiGuestWifiSwitch(
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
-    assert switch.extra_state_attributes == {}
+    assert without_about(switch.extra_state_attributes) == {}
 
 
 # ---------------------------------------------------------------------------

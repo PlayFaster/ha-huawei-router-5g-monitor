@@ -14,7 +14,7 @@ from custom_components.huawei_router_5g.sensor import (
     HuaweiSensorEntityDescription,
     async_setup_entry,
 )
-from tests.conftest import assert_is_root, assert_links_to_parent
+from tests.conftest import assert_is_root, assert_links_to_parent, without_about
 
 # ---------------------------------------------------------------------------
 # System sensors
@@ -346,7 +346,7 @@ def test_sensor_sms_total_attributes_error(mock_coordinator, mock_config_entry):
     mock_coordinator.data = {"sms_count": {"LocalUnread": "fail"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "sms_total")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.extra_state_attributes == {}
+    assert without_about(sensor.extra_state_attributes) == {}
 
 
 # ---------------------------------------------------------------------------
@@ -489,7 +489,7 @@ def test_sensor_sms_total_no_data(mock_coordinator, mock_config_entry):
     mock_coordinator.data = {}
     desc = next(d for d in SENSOR_TYPES if d.key == "sms_total")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.extra_state_attributes == {}
+    assert without_about(sensor.extra_state_attributes) == {}
 
 
 def test_sensor_nr5g_band_no_nr(mock_coordinator, mock_config_entry):
@@ -506,7 +506,7 @@ def test_sensor_last_sms_empty(mock_coordinator, mock_config_entry):
     desc = next(d for d in SENSOR_TYPES if d.key == "last_sms")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value is None
-    assert sensor.extra_state_attributes == {}
+    assert without_about(sensor.extra_state_attributes) == {}
 
 
 def test_sensor_last_sms_attributes(mock_coordinator, mock_config_entry):
@@ -567,7 +567,7 @@ def test_sensor_last_sms_no_coordinator_data(mock_coordinator, mock_config_entry
     desc = next(d for d in SENSOR_TYPES if d.key == "last_sms")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
     assert sensor.native_value is None
-    assert sensor.extra_state_attributes == {}
+    assert without_about(sensor.extra_state_attributes) == {}
 
 
 def test_sensor_generic_attributes(mock_coordinator, mock_config_entry):
@@ -575,4 +575,4 @@ def test_sensor_generic_attributes(mock_coordinator, mock_config_entry):
     mock_coordinator.data = {"some": "data"}
     desc = next(d for d in SENSOR_TYPES if d.key == "rsrp")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.extra_state_attributes == {}
+    assert without_about(sensor.extra_state_attributes) == {}

@@ -12,6 +12,7 @@ from custom_components.huawei_router_5g.switch import (
     HuaweiMobileDataSwitch,
     HuaweiPausePollingSwitch,
 )
+from tests.conftest import without_about
 
 # ---------------------------------------------------------------------------
 # HuaweiPausePollingSwitch
@@ -141,7 +142,7 @@ def test_guest_wifi_extra_state_attributes_single_ssid_dict(
             }
         }
     }
-    assert switch.extra_state_attributes == {"ssid": "GuestDict"}
+    assert without_about(switch.extra_state_attributes) == {"ssid": "GuestDict"}
 
 
 def test_guest_wifi_extra_state_attributes_no_guest_ssid(
@@ -158,7 +159,7 @@ def test_guest_wifi_extra_state_attributes_no_guest_ssid(
             }
         }
     }
-    assert switch.extra_state_attributes == {}
+    assert without_about(switch.extra_state_attributes) == {}
 
 
 def test_guest_wifi_skips_non_guest_ssids_before_finding_the_guest_one(
@@ -211,7 +212,7 @@ def test_guest_wifi_skips_non_guest_ssids_before_finding_the_guest_one(
     # The two primaries are disabled and the guest is enabled, so a loop that
     # stopped early would report False rather than True.
     assert switch.is_on is True
-    assert switch.extra_state_attributes == {"ssid": "Home-Guest"}
+    assert without_about(switch.extra_state_attributes) == {"ssid": "Home-Guest"}
 
 
 # ---------------------------------------------------------------------------

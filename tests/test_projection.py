@@ -333,3 +333,75 @@ def test_projection_has_no_state_class() -> None:
     """
     projection = next(d for d in SENSOR_TYPES if d.key == "projected_usage")
     assert projection.state_class is None
+
+
+# ---------------------------------------------------------------------------
+# The `confidence` attribute — documented since the sensor shipped, and until
+# now never actually published
+# ---------------------------------------------------------------------------
+
+
+def _projection_sensor(data: dict[str, Any] | None):
+    """Build the Projected Usage sensor over a given payload."""
+    from unittest.mock import MagicMock
+
+    from custom_components.huawei_router_5g.sensor import HuaweiRouterSensor
+
+    description = next(d for d in SENSOR_TYPES if d.key == "projected_usage")
+    coordinator = MagicMock()
+    coordinator.data = data
+    return HuaweiRouterSensor(coordinator, MagicMock(), description)
+
+
+def test_the_projection_publishes_the_confidence_it_is_judged_by() -> None:
+    """An estimate with no way to weigh it is a number, not information.
+
+    `docs/all_sensors.md` and the README have both described a `confidence`
+    attribute since the sensor shipped, and `_Projection` has computed one all
+    along — it was simply never put into `extra_state_attributes`. Two
+    documents agreeing with each other about a thing the code does not do is
+    exactly the drift a both-directions check exists to catch.
+    """
+    sensor = _projection_sensor(_data())
+    attrs = sensor.extra_state_attributes
+
+    assert attrs["confidence"] in ("low", "medium", "high")
+    assert attrs["cycle_length_days"] >= 28
+    assert attrs["elapsed_days"] >= 0
+    assert attrs["basis"]
+    assert attrs["cycle_start"]
+    # The note travels with them; it is not displaced by the entity having
+    # attributes of its own.
+    assert attrs["about"].startswith("An estimate")
+
+
+def test_the_projection_publishes_only_the_note_when_there_is_no_cycle() -> None:
+    """A disabled monthly plan produces no figure, so there is nothing to judge.
+
+    The attributes must not be half-populated in that case, and the note must
+    still be there — it is the only thing telling a reader why the state is
+    unknown.
+    """
+    sensor = _projection_sensor(_data(start_date__SetMonthData="0"))
+    attrs = sensor.extra_state_attributes
+
+    assert sensor.native_value is None
+    assert set(attrs) == {"about"}
+
+
+def test_every_projection_attribute_is_excluded_from_the_recorder() -> None:
+    """Section 14: none of this is a time series.
+
+    `confidence` changes a handful of times per cycle and the cycle context is
+    constant within one, so recording them writes a row per poll to describe
+    something that did not move.
+    """
+    from custom_components.huawei_router_5g.sensor import HuaweiRouterSensor
+
+    assert {
+        "confidence",
+        "cycle_start",
+        "cycle_length_days",
+        "elapsed_days",
+        "basis",
+    } <= HuaweiRouterSensor._unrecorded_attributes

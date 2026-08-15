@@ -36,6 +36,8 @@ from .const import (
 )
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
+    ABOUT_UNRECORDED,
+    HuaweiAboutEntity,
     _parse_complex_float,
     _parse_complex_int,
     _safe_int,
@@ -118,6 +120,10 @@ class HuaweiSensorEntityDescription(SensorEntityDescription):
     group: str = "system"
     min_limit: float | None = None
     max_limit: float | None = None
+    # dev_standards Section 14 — the human-facing `about` note. Mandatory: a
+    # sweep in `tests/test_entity_hygiene.py` fails when a description ships
+    # without one, which is the only thing that keeps the set from decaying.
+    about: str | None = None
 
 
 # --- Guard Bands & Range Validation ---
@@ -287,6 +293,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- System Sub-device ---
     HuaweiSensorEntityDescription(
         key="model_name",
+        about=(
+            "The router's model as it reports it. Read once at setup and stored "
+            "on the config entry, so it stays correct even when the router is "
+            "unreachable."
+        ),
         translation_key="model_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -296,6 +307,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sw_version",
+        about=(
+            "Firmware version running on the router. Huawei ships the firmware "
+            "and the web interface separately, so this and Web UI Version move "
+            "independently and disagreeing versions are not a fault."
+        ),
         translation_key="sw_version",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -305,6 +321,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="last_updated",
+        about=(
+            "When this integration last completed a successful poll. It reports "
+            "the **integration's** health rather than the router's: a value going "
+            "stale means polling has stopped, whatever the individual sensors "
+            "still show."
+        ),
         translation_key="last_updated",
         device_class=SensorDeviceClass.TIMESTAMP,
         group="system",
@@ -312,6 +334,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wan_ip",
+        about=(
+            "The IPv4 address the operator has assigned to the router's WAN. "
+            "Usually a carrier-grade NAT address rather than a publicly reachable "
+            "one."
+        ),
         translation_key="wan_ip",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -321,6 +348,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wan_ipv6",
+        about=(
+            "The IPv6 address assigned to the router's WAN, where the operator "
+            "provides IPv6 at all."
+        ),
         translation_key="wan_ipv6",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -332,6 +363,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="uptime",
+        about=(
+            "How long the router has been powered on, in seconds. Disabled by "
+            "default because Uptime, which expresses the same fact as a "
+            "timestamp, is the better one to display."
+        ),
         translation_key="uptime",
         native_unit_of_measurement=UnitOfTime.SECONDS,
         suggested_unit_of_measurement=UnitOfTime.HOURS,
@@ -349,6 +385,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="uptime_timestamp",
+        about=(
+            "The moment the router last started, derived by subtracting its "
+            "uptime from the current time. A timestamp rather than a counter, so "
+            "it stays still while the router runs instead of ticking - which is "
+            "what makes it readable in history."
+        ),
         translation_key="uptime_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         group="system",
@@ -356,6 +398,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_duration",
+        about=(
+            "How long the current mobile data session has been up, in seconds. "
+            "Disabled by default in favour of Connection Uptime, which says the "
+            "same thing as a fixed point in time."
+        ),
         translation_key="current_connection_duration",
         native_unit_of_measurement=UnitOfTime.SECONDS,
         suggested_unit_of_measurement=UnitOfTime.HOURS,
@@ -373,6 +420,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_timestamp",
+        about=(
+            "The moment the current mobile data session was established. A reset "
+            "here without a router restart means the data connection dropped and "
+            "came back - the router itself stayed up."
+        ),
         translation_key="current_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         group="system",
@@ -380,6 +432,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_connection_time",
+        about=(
+            "Lifetime total of all connected time, in seconds, as the router "
+            "counts it. **Connected time, not elapsed time**: it does not advance "
+            "while the link is down. Disabled by default."
+        ),
         translation_key="total_connection_time",
         native_unit_of_measurement=UnitOfTime.SECONDS,
         suggested_unit_of_measurement=UnitOfTime.HOURS,
@@ -397,6 +454,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_connection_timestamp",
+        about=(
+            "Total Duration expressed as a point in time. It is not the date the "
+            "router was first used - it is now minus the accumulated connected "
+            "time, so any offline period shifts it forward."
+        ),
         translation_key="total_connection_timestamp",
         device_class=SensorDeviceClass.TIMESTAMP,
         group="system",
@@ -405,6 +467,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="battery",
+        about=(
+            "Battery charge, on the models that have one. This router family is "
+            "mains-powered in most variants, so the entity is disabled by default "
+            "and stays unavailable where there is no battery."
+        ),
         translation_key="battery",
         native_unit_of_measurement=PERCENTAGE,
         device_class=SensorDeviceClass.BATTERY,
@@ -421,6 +488,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wifi_users",
+        about=(
+            "Clients currently associated over WiFi, across all radios and SSIDs "
+            "including the guest network."
+        ),
         translation_key="wifi_users",
         state_class=SensorStateClass.MEASUREMENT,
         group="clients",
@@ -434,6 +505,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_connected",
+        about=(
+            "Every client the router currently reports as connected, wired and "
+            "wireless together. WiFi Connected and Wired Connected are its two "
+            "halves."
+        ),
         translation_key="total_connected",
         state_class=SensorStateClass.MEASUREMENT,
         group="clients",
@@ -455,6 +531,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wired_connected",
+        about=(
+            "Clients currently connected over the wired LAN ports. Together with "
+            "WiFi Connected it accounts for Total Connected, so a difference "
+            "between the three is a client the router classifies as neither."
+        ),
         translation_key="wired_connected",
         state_class=SensorStateClass.MEASUREMENT,
         group="clients",
@@ -478,6 +559,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wifi_capacity",
+        about=(
+            "The maximum number of WiFi clients the router will admit. A firmware "
+            "limit, not a licence - reaching it means new clients are refused."
+        ),
         translation_key="wifi_capacity",
         group="wifi",
         entity_registry_enabled_default=False,
@@ -492,6 +577,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="primary_dns",
+        about=(
+            "First IPv4 DNS server the operator handed the router. Devices on the "
+            "LAN are usually pointed at the router itself, which forwards here, "
+            "so this is what resolves names in practice unless something "
+            "overrides it."
+        ),
         translation_key="primary_dns",
         group="system",
         value_fn=lambda data: (
@@ -501,6 +592,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="secondary_dns",
+        about=(
+            "Second IPv4 DNS server the operator handed the router, used when the "
+            "first does not answer. A blank value is common and is not a fault."
+        ),
         translation_key="secondary_dns",
         group="system",
         value_fn=lambda data: (
@@ -510,6 +605,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="primary_ipv6_dns",
+        about=(
+            "First IPv6 DNS server the operator handed the router. Blank wherever "
+            "the operator provides no IPv6 service, which is the usual case on a "
+            "mobile data plan."
+        ),
         translation_key="primary_ipv6_dns",
         group="system",
         value_fn=lambda data: (
@@ -521,6 +621,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="secondary_ipv6_dns",
+        about=(
+            "Second IPv6 DNS server the operator handed the router, used when the "
+            "first does not answer. Blank wherever there is no IPv6 service."
+        ),
         translation_key="secondary_ipv6_dns",
         group="system",
         value_fn=lambda data: (
@@ -533,6 +637,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- Signal Sub-device ---
     HuaweiSensorEntityDescription(
         key="network_type",
+        about=(
+            "The radio access technology currently in use, decoded from the "
+            "router's numeric code - `19` becomes `LTE`, `51` becomes `5G NR "
+            "NSA`. A code with no known name is published as `Unknown (n)` rather "
+            "than hidden, so an unfamiliar reading is information and not a bug."
+        ),
         translation_key="network_type",
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -546,6 +656,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="preferred_network_mode",
+        about=(
+            "The network mode the router reports as being in force. The Preferred "
+            "Network Mode control writes it; this sensor reads it back, so a "
+            "disagreement between the two means the router refused or altered the "
+            "request."
+        ),
         translation_key="preferred_network_mode",
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -566,6 +682,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="operator",
+        about=(
+            "Name of the mobile network the router is registered to, as the "
+            "network reports it."
+        ),
         translation_key="operator",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="signal",
@@ -575,6 +695,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="plmn",
+        about=(
+            "The numeric operator code (MCC plus MNC) of the registered network - "
+            "the machine-readable twin of Operator. Useful when a network changes "
+            "its display name but not its identity."
+        ),
         translation_key="plmn",
         group="signal",
         value_fn=lambda data: (
@@ -584,6 +709,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="operator_search_mode",
+        about=(
+            "Whether the router chooses its network automatically or has been "
+            "pinned to one manually."
+        ),
         translation_key="operator_search_mode",
         group="signal",
         value_fn=lambda data: (
@@ -597,6 +726,14 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rsrp",
+        about=(
+            "LTE Reference Signal Received Power, in dBm: how strong the serving "
+            "cell's reference signal is at the router. This is the primary 'how "
+            "good is my signal' figure. Better than -80 is excellent, worse than "
+            "-100 is weak. Readings outside -150 to -30 dBm are discarded as "
+            "implausible rather than published, so a gap here is a rejected "
+            "reading, not a dead radio."
+        ),
         translation_key="rsrp",
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         suggested_display_precision=0,
@@ -609,6 +746,13 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rsrq",
+        about=(
+            "LTE Reference Signal Received Quality, in dB: reference signal power "
+            "relative to everything else the router hears on the channel. It "
+            "falls as the cell gets busier even when RSRP has not moved, so it "
+            "answers a different question from RSRP and is read alongside it, not "
+            "instead."
+        ),
         translation_key="rsrq",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
@@ -619,6 +763,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rssi",
+        about=(
+            "Total received power across the whole LTE channel in dBm, including "
+            "noise and other cells. Higher is not automatically better: a strong "
+            "RSSI beside a weak RSRP means most of what the router hears is not "
+            "its own cell."
+        ),
         translation_key="rssi",
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         suggested_display_precision=0,
@@ -631,6 +781,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sinr",
+        about=(
+            "LTE Signal to Interference plus Noise Ratio, in dB, and the single "
+            "best predictor of achievable throughput. Above 20 dB is excellent; "
+            "below 0 dB the wanted signal is quieter than everything competing "
+            "with it."
+        ),
         translation_key="sinr",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
@@ -641,6 +797,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="signal_bars",
+        about=(
+            "The LTE signal bars the router's own web interface shows, 0 to 5. It "
+            "is the router's summarised verdict rather than a measurement, so it "
+            "is stable and readable but too coarse to trend. Use LTE RSRP, RSRQ "
+            "and SINR when comparing over time."
+        ),
         translation_key="signal_bars",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -654,6 +816,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="signal_bars_nr",
+        about=(
+            "The 5G signal bars the router's own web interface shows, 0 to 5. As "
+            "with Signal Bars this is a summarised verdict, not a measurement."
+        ),
         translation_key="signal_bars_nr",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -667,6 +833,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="cell_id",
+        about=(
+            "Identifier of the LTE cell the router is attached to. An identifier, "
+            "not a measurement: a change means the router moved to a different "
+            "cell, and the number itself has no ordering."
+        ),
         translation_key="cell_id",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "cell_id"),
@@ -674,6 +845,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="pci",
+        about=(
+            "Physical Cell Identity of the serving LTE cell, 0 to 503. The short "
+            "identifier the radio uses to tell neighbouring cells apart. It is "
+            "not a quality figure and neighbouring cells reuse the numbers."
+        ),
         translation_key="pci",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "pci"),
@@ -681,6 +857,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="tac",
+        about=(
+            "Tracking Area Code of the current LTE cell - the group of cells the "
+            "network pages the router within. It changes only when the router "
+            "moves between tracking areas, so it is far more stable than LTE Cell "
+            "ID."
+        ),
         translation_key="tac",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "tac"),
@@ -688,6 +870,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="band",
+        about=(
+            "The full set of LTE carriers in use, including every aggregated "
+            "secondary carrier. Primary Band reports only the anchor carrier, so "
+            "the two reading differently is expected whenever carrier aggregation "
+            "is active - it is not a contradiction."
+        ),
         translation_key="band",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "band"),
@@ -695,6 +883,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="mode",
+        about=(
+            "The radio access technology in use, as the router's own signal block "
+            "names it. Network Type answers the same question from a different "
+            "field and with a fuller vocabulary."
+        ),
         translation_key="mode",
         group="signal",
         value_fn=lambda data: {"0": "2G", "2": "3G", "7": "4G"}.get(
@@ -704,6 +897,15 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="transmit_power",
+        about=(
+            "The router's own LTE transmit power. High values mean the router is "
+            "shouting to be heard, so this reflects distance and obstruction on "
+            "the **uplink** and says nothing about downlink quality. Multi- "
+            "carrier firmware reports a compound string (`PPusch:12dBm "
+            "PPucch:5dBm`), which is passed through unparsed rather than half- "
+            "parsed - the guard band therefore applies only to the single-number "
+            "case."
+        ),
         translation_key="transmit_power",
         group="signal",
         # Documented in docs/value_min_max.md since the band was first written,
@@ -719,6 +921,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="uplink_mcs",
+        about=(
+            "Modulation and Coding Scheme index chosen for the LTE uplink. As "
+            "with the downlink figure it is a scheduler decision, not a "
+            "measurement."
+        ),
         translation_key="uplink_mcs",
         group="signal",
         value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "ul_mcs")),
@@ -726,6 +933,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="downlink_mcs",
+        about=(
+            "Modulation and Coding Scheme index chosen for the LTE downlink. A "
+            "scheduler decision rather than a measurement: it rises as the "
+            "channel improves, and is the closest single number to 'bits per "
+            "symbol currently in use'."
+        ),
         translation_key="downlink_mcs",
         group="signal",
         value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "dl_mcs")),
@@ -733,6 +946,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="earfcn",
+        about=(
+            "The E-ARFCN channel number of the LTE carrier: where in the spectrum "
+            "the carrier sits. An identifier, so arithmetic on it means nothing."
+        ),
         translation_key="earfcn",
         group="signal",
         value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "earfcn")),
@@ -740,6 +957,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="rrc_status",
+        about=(
+            "Whether the LTE radio connection is `Connected` (actively exchanging "
+            "data) or `Idle` (attached but dormant). Idle is normal when nothing "
+            "is being transferred and is not a fault."
+        ),
         translation_key="rrc_status",
         group="signal",
         value_fn=lambda data: (
@@ -753,6 +975,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="ims",
+        about=(
+            "Whether the router is registered with the operator's IMS core, which "
+            "is what carries VoLTE and SMS over LTE. `Unregistered` is expected "
+            "on a data-only plan and is not a fault by itself."
+        ),
         translation_key="ims",
         group="signal",
         value_fn=lambda data: (
@@ -766,6 +993,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="lte_uplink_frequency",
+        about=(
+            "Centre frequency of the LTE uplink carrier, converted to MHz from "
+            "the raw value the router reports."
+        ),
         translation_key="lte_uplink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -778,6 +1009,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="lte_downlink_frequency",
+        about=(
+            "Centre frequency of the LTE downlink carrier, converted to MHz from "
+            "the raw value the router reports."
+        ),
         translation_key="lte_downlink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -790,6 +1025,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="lte_uplink_bandwidth",
+        about=(
+            "Width of the LTE uplink carrier in MHz - the capacity available "
+            "upward, not the rate in use."
+        ),
         translation_key="lte_uplink_bandwidth",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -807,6 +1046,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="lte_downlink_bandwidth",
+        about=(
+            "Width of the LTE downlink carrier in MHz. A capacity figure, not a "
+            "speed: a wide carrier with poor signal can be slower than a narrow "
+            "one with good signal."
+        ),
         translation_key="lte_downlink_bandwidth",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -824,6 +1068,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_uplink_frequency",
+        about=(
+            "Centre frequency of the 5G uplink carrier in MHz. On a paired band "
+            "it sits a fixed distance from the downlink frequency; on a shared "
+            "one the two are the same."
+        ),
         translation_key="5g_uplink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -838,6 +1087,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_downlink_frequency",
+        about=(
+            "Centre frequency of the 5G downlink carrier in MHz. Which band it "
+            "falls in decides the trade-off in play: low frequencies travel and "
+            "penetrate, high ones carry more."
+        ),
         translation_key="5g_downlink_frequency",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -852,6 +1106,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="transmission_mode",
+        about=(
+            "The LTE MIMO transmission mode the network has assigned. It is the "
+            "network's choice, not a setting on the router."
+        ),
         translation_key="transmission_mode",
         group="signal",
         value_fn=lambda data: _get_signal_value(data, "transmode"),
@@ -859,6 +1117,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="enodeb_id",
+        about=(
+            "Identifier of the LTE base station hosting the current cell, derived "
+            "from the cell ID. Several cells usually share one base station, so "
+            "this changes less often than LTE Cell ID and is the better one to "
+            "watch for 'has the router moved sites'."
+        ),
         translation_key="enodeb_id",
         group="signal",
         min_limit=0,
@@ -867,6 +1131,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="cqi_0",
+        about=(
+            "LTE Channel Quality Indicator for the first codeword. The modem's "
+            "own summary of how much data the channel can carry, so it moves with "
+            "interference as well as with signal strength. Higher is better; it "
+            "is not a percentage."
+        ),
         translation_key="cqi_0",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -880,6 +1150,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # 5G Entities
     HuaweiSensorEntityDescription(
         key="nr5g_band",
+        about=(
+            "The 5G NR band or bands the router is using. Blank or unavailable "
+            "when no 5G leg is attached, which is normal on an LTE-only "
+            "connection."
+        ),
         translation_key="nr5g_band",
         group="signal",
         value_fn=lambda data: _parse_nr_band_from_band(_get_signal_value(data, "band")),
@@ -887,6 +1162,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="nr_rsrp",
+        about=(
+            "The 5G NR equivalent of LTE RSRP, in dBm. On a non-standalone "
+            "network the 5G leg carries the data while LTE remains the anchor, so "
+            "this and LTE RSRP describe two live radio links, not one."
+        ),
         translation_key="nr_rsrp",
         native_unit_of_measurement=SIGNAL_STRENGTH_DECIBELS_MILLIWATT,
         suggested_display_precision=0,
@@ -899,6 +1179,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="nr_rsrq",
+        about=(
+            "The 5G NR equivalent of LTE RSRQ, in dB: 5G reference signal power "
+            "relative to the total power on the 5G carrier."
+        ),
         translation_key="nr_rsrq",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
@@ -909,6 +1193,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="nr_sinr",
+        about=(
+            "The 5G NR equivalent of LTE SINR, in dB. On a non-standalone "
+            "connection this is usually the figure that decides 5G throughput, "
+            "with LTE SINR governing the anchor."
+        ),
         translation_key="nr_sinr",
         native_unit_of_measurement="dB",
         state_class=SensorStateClass.MEASUREMENT,
@@ -919,6 +1208,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_uplink_bandwidth",
+        about=(
+            "Width of the 5G uplink carrier in MHz. Capacity upward, not the rate "
+            "in use, and typically much narrower than the downlink."
+        ),
         translation_key="5g_uplink_bandwidth",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -933,6 +1226,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_downlink_bandwidth",
+        about=("Width of the 5G downlink carrier in MHz. Capacity, not speed."),
         translation_key="5g_downlink_bandwidth",
         native_unit_of_measurement=UnitOfFrequency.MEGAHERTZ,
         suggested_display_precision=0,
@@ -947,6 +1241,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_uplink_mcs",
+        about=("Modulation and Coding Scheme index chosen for the 5G uplink."),
         translation_key="5g_uplink_mcs",
         group="signal",
         value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "nrulmcs")),
@@ -954,6 +1249,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_downlink_mcs",
+        about=(
+            "Modulation and Coding Scheme index chosen for the 5G downlink - the "
+            "network's judgement of how densely it can encode, given the channel."
+        ),
         translation_key="5g_downlink_mcs",
         group="signal",
         value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "nrdlmcs")),
@@ -961,6 +1260,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_transmit_power",
+        about=(
+            "The router's own 5G transmit power, with the same reading as LTE "
+            "Transmit Power: it describes the uplink effort, not the downlink."
+        ),
         translation_key="5g_transmit_power",
         group="signal",
         # See transmit_power — documented, never implemented.
@@ -973,6 +1276,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_earfcn",
+        about=(
+            "The NR-ARFCN channel number of the 5G carrier. An identifier for a "
+            "position in the spectrum, not a quantity."
+        ),
         translation_key="5g_earfcn",
         group="signal",
         value_fn=lambda data: _parse_complex_int(_get_signal_value(data, "nrearfcn")),
@@ -980,6 +1287,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_block_error_rate",
+        about=(
+            "The share of 5G transport blocks that failed and had to be resent. "
+            "Low single figures are normal. A persistently high value means the "
+            "link is being pushed harder than it can carry, which signal strength "
+            "alone does not reveal."
+        ),
         translation_key="5g_block_error_rate",
         group="signal",
         min_limit=0,
@@ -988,6 +1301,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_rank",
+        about=(
+            "Number of independent 5G MIMO layers in use, 1 to 4. Two or more "
+            "means the antennas are receiving genuinely different paths and the "
+            "link can carry proportionally more; rank 1 is common on a very clean "
+            "line of sight, where there is nothing to separate."
+        ),
         translation_key="5g_rank",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -997,6 +1316,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="5g_cqi_0",
+        about=(
+            "The 5G Channel Quality Indicator for the first codeword - the "
+            "modem's own summary of how much the 5G channel can carry. Higher is "
+            "better and it is not a percentage."
+        ),
         translation_key="5g_cqi_0",
         state_class=SensorStateClass.MEASUREMENT,
         group="signal",
@@ -1007,6 +1331,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- Data Sub-device ---
     HuaweiSensorEntityDescription(
         key="total_download",
+        about=(
+            "Lifetime bytes downloaded, as counted since the router's traffic "
+            "statistics were last cleared - not since manufacture."
+        ),
         translation_key="total_download",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1024,6 +1352,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_upload",
+        about=(
+            "Lifetime bytes uploaded since the traffic statistics were last cleared."
+        ),
         translation_key="total_upload",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1041,6 +1372,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="total_data",
+        about=(
+            "Lifetime download plus upload since the traffic statistics were last "
+            "cleared. The Clear Traffic Statistics button is what resets it."
+        ),
         translation_key="total_data",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1063,6 +1398,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_download_rate",
+        about=(
+            "Instantaneous download rate as the router reports it at the moment "
+            "of the poll. It is a sample, not an average, so between polls it "
+            "sees nothing - short bursts of traffic can pass entirely unrecorded."
+        ),
         translation_key="current_download_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
@@ -1079,6 +1419,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_upload_rate",
+        about=(
+            "Instantaneous upload rate sampled at the moment of the poll. As with "
+            "the download rate, traffic between polls is not seen."
+        ),
         translation_key="current_upload_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
@@ -1095,6 +1439,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="max_download_rate",
+        about=(
+            "The highest download rate the router has recorded. Not populated by "
+            "the H165-383 firmware, which is why the entity is disabled by "
+            "default rather than removed."
+        ),
         translation_key="max_download_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
@@ -1112,6 +1461,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="max_upload_rate",
+        about=(
+            "The highest upload rate the router has recorded. Like Max Download "
+            "Rate it is unpopulated on current firmware and disabled by default."
+        ),
         translation_key="max_upload_rate",
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
@@ -1129,6 +1482,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_upload",
+        about=(
+            "Bytes uploaded during the current data session, resetting with each "
+            "reconnection."
+        ),
         translation_key="current_connection_upload",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1145,6 +1502,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_connection_download",
+        about=(
+            "Bytes downloaded during the current data session. It resets whenever "
+            "the connection drops and reconnects, which is more often than the "
+            "monthly counters reset."
+        ),
         translation_key="current_connection_download",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1161,6 +1523,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="current_day_used",
+        about=(
+            "Total bytes used today, as the router counts a day. Recorded as a "
+            "`total_increasing` counter so its daily reset is understood as a "
+            "rollover rather than as a large negative step."
+        ),
         translation_key="current_day_used",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1183,6 +1550,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_download",
+        about=(
+            "Bytes downloaded in the current billing cycle, counted by the router "
+            "against the cycle start day it has been configured with - not "
+            "against the calendar month."
+        ),
         translation_key="month_download",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1201,6 +1573,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_download_gb",
+        about=(
+            "Month Download expressed in GB for convenience. The same underlying "
+            "counter as Month Download, rounded - not a second measurement, so "
+            "the two can never disagree by more than the rounding."
+        ),
         translation_key="month_download_gb",
         native_unit_of_measurement=UnitOfInformation.GIGABYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
@@ -1225,6 +1602,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_upload",
+        about=(
+            "Bytes uploaded in the current billing cycle, counted by the router "
+            "against its configured cycle start day rather than the calendar "
+            "month."
+        ),
         translation_key="month_upload",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1243,6 +1625,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_upload_gb",
+        about=(
+            "Month Upload expressed in GB. The same counter as Month Upload, rounded."
+        ),
         translation_key="month_upload_gb",
         native_unit_of_measurement=UnitOfInformation.GIGABYTES,
         device_class=SensorDeviceClass.DATA_SIZE,
@@ -1267,6 +1652,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_total",
+        about=(
+            "Download plus upload for the current billing cycle. This is the "
+            "figure a data allowance is usually measured against, and it is the "
+            "input to Projected Usage."
+        ),
         translation_key="month_total",
         native_unit_of_measurement=UnitOfInformation.BYTES,
         suggested_unit_of_measurement=UnitOfInformation.GIGABYTES,
@@ -1297,6 +1687,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- SMS Sub-device ---
     HuaweiSensorEntityDescription(
         key="sms_unread",
+        about=(
+            "Unread messages across both the device and the SIM. The two per- "
+            "location entities add up to this one."
+        ),
         translation_key="sms_unread",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1311,6 +1705,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_total_msg",
+        about=(
+            "Every message in every storage location - inbox, outbox and drafts, "
+            "on both the device and the SIM. The widest of the SMS counts."
+        ),
         translation_key="sms_total_msg",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1327,6 +1725,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_total",
+        about=(
+            "Messages stored in the router's own memory. Its attributes break the "
+            "same storage down by read, unread, sent, outbox and draft, which is "
+            "what makes a filling mailbox diagnosable before it is full."
+        ),
         translation_key="sms_total",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1343,6 +1746,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_unread_device",
+        about=(
+            "Unread messages stored in the router's own memory. Part of the "
+            "Unread Msg total, which adds this to the SIM-side count."
+        ),
         translation_key="sms_unread_device",
         state_class=SensorStateClass.MEASUREMENT,
         group="sms",
@@ -1355,6 +1762,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_inbox_device",
+        about=(
+            "Received messages held in the router's own memory, read and unread "
+            "together. Unread (Device) is the subset still waiting to be looked "
+            "at."
+        ),
         translation_key="sms_inbox_device",
         group="sms",
         min_limit=0,
@@ -1366,6 +1778,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_outbox_device",
+        about=(
+            "Sent messages retained in the router's memory. These occupy the same "
+            "storage as received ones, so a full outbox blocks incoming messages "
+            "just as effectively."
+        ),
         translation_key="sms_outbox_device",
         group="sms",
         min_limit=0,
@@ -1377,6 +1794,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_drafts_device",
+        about=(
+            "Unsent drafts held in the router's memory. They occupy the same "
+            "storage as received messages, so drafts left behind reduce the room "
+            "available for incoming ones."
+        ),
         translation_key="sms_drafts_device",
         group="sms",
         min_limit=0,
@@ -1388,6 +1810,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_deleted_device",
+        about=(
+            "Messages marked deleted but not yet purged from the router's memory. "
+            "They can still occupy storage until the router reclaims it."
+        ),
         translation_key="sms_deleted_device",
         group="sms",
         min_limit=0,
@@ -1399,6 +1825,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_capacity_device",
+        about=(
+            "How many messages the router's own memory can hold. Compare with "
+            "Total (Device): reaching it is what makes SMS Storage Full turn on, "
+            "and a full store silently drops incoming messages."
+        ),
         translation_key="sms_capacity_device",
         group="sms",
         min_limit=0,
@@ -1410,6 +1841,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_unread_sim",
+        about=(
+            "Unread messages stored on the SIM card. Part of the Unread Msg "
+            "total, which adds this to the device-side count."
+        ),
         translation_key="sms_unread_sim",
         group="sms",
         min_limit=0,
@@ -1421,6 +1856,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_inbox_sim",
+        about=(
+            "Received messages held on the SIM card, read and unread together. "
+            "Where a message lands depends on the router's storage preference, "
+            "not on the sender."
+        ),
         translation_key="sms_inbox_sim",
         group="sms",
         min_limit=0,
@@ -1432,6 +1872,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_outbox_sim",
+        about=(
+            "Sent messages retained on the SIM card. Retained copies occupy the "
+            "same limited storage as received messages, so an unpruned outbox can "
+            "block delivery."
+        ),
         translation_key="sms_outbox_sim",
         group="sms",
         min_limit=0,
@@ -1443,6 +1888,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_drafts_sim",
+        about=(
+            "Unsent drafts held on the SIM card. As with the device store, drafts "
+            "consume the same space that incoming messages need."
+        ),
         translation_key="sms_drafts_sim",
         group="sms",
         min_limit=0,
@@ -1454,6 +1903,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_capacity_sim",
+        about=(
+            "How many messages the SIM card can hold. SIM storage is typically an "
+            "order of magnitude smaller than the router's own, so it fills first "
+            "and is usually what triggers SMS Storage Full."
+        ),
         translation_key="sms_capacity_sim",
         group="sms",
         min_limit=0,
@@ -1465,6 +1919,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_messages_sim",
+        about=(
+            "Messages stored on the SIM card across every folder - inbox, outbox "
+            "and drafts. The SIM-side counterpart to Total (Device)."
+        ),
         translation_key="sms_messages_sim",
         group="sms",
         min_limit=0,
@@ -1476,6 +1934,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sms_new",
+        about=(
+            "Messages the router reports as newly arrived and not yet filed. A "
+            "transient count that normally settles to zero within a poll or two - "
+            "it is not the same as Unread Msg, which persists until the message "
+            "is read."
+        ),
         translation_key="sms_new",
         group="sms",
         min_limit=0,
@@ -1487,6 +1951,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="last_sms",
+        about=(
+            "The text of the most recent message. Its sender, timestamp and index "
+            "are attributes, all excluded from the recorder: republishing a phone "
+            "number on every poll is both a storage cost and a privacy one."
+        ),
         translation_key="last_sms",
         group="sms",
         value_fn=lambda data: None,  # Handled by property
@@ -1505,6 +1974,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- Identity (System, diagnostic, disabled by default) ------------------
     HuaweiSensorEntityDescription(
         key="imei",
+        about=(
+            "The modem's IMEI - the identifier of the radio hardware, not of the "
+            "SIM. Deliberately declared as text: given a unit or a device class, "
+            "fifteen digits become scientific notation."
+        ),
         translation_key="imei",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1513,6 +1987,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="imsi",
+        about=(
+            "The subscriber identity stored on the SIM. It identifies the "
+            "**subscription**, unlike IMEI which identifies the hardware. "
+            "Disabled by default and redacted from diagnostics downloads."
+        ),
         translation_key="imsi",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1521,6 +2000,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="iccid",
+        about=(
+            "The SIM card's own serial number, which stays with the card when it "
+            "moves between routers. Disabled by default and redacted from "
+            "diagnostics."
+        ),
         translation_key="iccid",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1529,6 +2013,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="sim_number",
+        about=(
+            "The phone number the SIM reports, where the operator has written one "
+            "to the card. Many data SIMs leave this blank, which is not a fault."
+        ),
         translation_key="sim_number",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1537,6 +2025,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="serial_number",
+        about=(
+            "The router's hardware serial number. An identifier: it carries no "
+            "unit, no device class and no display precision, deliberately, "
+            "because any one of those makes Home Assistant treat the digits as a "
+            "quantity and reformat them."
+        ),
         translation_key="serial_number",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1545,6 +2039,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="mcc_mnc",
+        about=(
+            "The mobile country and network codes of the SIM's home operator. "
+            "This is the SIM's home network, which is not necessarily the network "
+            "the router is registered to right now - compare with Operator Code "
+            "to see roaming."
+        ),
         translation_key="mcc_mnc",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1554,6 +2054,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- System information --------------------------------------------------
     HuaweiSensorEntityDescription(
         key="product_name",
+        about=(
+            "The marketing product name the firmware carries, which is often "
+            "longer and friendlier than Model Name and occasionally disagrees "
+            "with it."
+        ),
         translation_key="product_name",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -1561,6 +2066,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="web_ui_version",
+        about=(
+            "Version of the router's own web interface, which Huawei ships and "
+            "updates separately from the firmware - the two versions moving "
+            "independently is normal."
+        ),
         translation_key="web_ui_version",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -1568,6 +2078,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="carrier_build",
+        about=(
+            "The operator-specific build identifier baked into the firmware. It "
+            "identifies which carrier customisation is loaded, which is what "
+            "decides whether a given feature or endpoint exists at all."
+        ),
         translation_key="carrier_build",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -1575,6 +2090,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="supported_modes",
+        about=(
+            "The radio modes this hardware and firmware combination can offer. It "
+            "is the ceiling on what Preferred Network Mode can be set to, not a "
+            "statement of what is in use."
+        ),
         translation_key="supported_modes",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1583,6 +2103,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wan_dns",
+        about=(
+            "The full IPv4 DNS server list as the WAN block reports it. Primary "
+            "and Secondary DNS Server split the same information into two "
+            "readable entities; this one is the unsplit source."
+        ),
         translation_key="wan_dns",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1591,6 +2116,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="wan_dns_ipv6",
+        about=(
+            "The full IPv6 DNS server list as the WAN block reports it - the "
+            "unsplit source behind the two IPv6 DNS entities."
+        ),
         translation_key="wan_dns_ipv6",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1599,6 +2128,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="country_code",
+        about=(
+            "The country the router believes it is operating in, which governs "
+            "which radio and WiFi channels it will use."
+        ),
         translation_key="country_code",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1607,6 +2140,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="mtu",
+        about=(
+            "Maximum transmission unit of the mobile data connection. Relevant "
+            "when tunnelling or when large packets stall; the operator usually "
+            "sets it."
+        ),
         translation_key="mtu",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1617,6 +2155,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="apn",
+        about=(
+            "The access point name the active data profile is dialling. Different "
+            "APNs on the same SIM can mean different addressing and different "
+            "traffic treatment."
+        ),
         translation_key="apn",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="system",
@@ -1624,6 +2167,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="apn_profile",
+        about=(
+            "The name of the dial-up profile the APN comes from. The router "
+            "returns its profiles out of order, so the active one is resolved by "
+            "matching its index rather than by list position."
+        ),
         translation_key="apn_profile",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1633,6 +2181,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- Signal ---------------------------------------------------------------
     HuaweiSensorEntityDescription(
         key="primary_band",
+        about=(
+            "The primary LTE carrier on its own. LTE Band carries the full "
+            "aggregation, so `B1` here beside `B1+B3+B7` there is the same radio "
+            "state described at two levels of detail."
+        ),
         translation_key="primary_band",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1644,6 +2197,13 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="secondary_cell_pci",
+        about=(
+            "Physical Cell Identity of the aggregated secondary cell. **An "
+            "identifier, not a measurement**, despite reading as a small integer: "
+            "a rise or fall means a different cell, not a better or worse one. It "
+            "deliberately carries no unit and no state class so Home Assistant "
+            "keeps it out of long-term statistics."
+        ),
         translation_key="secondary_cell_pci",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1658,6 +2218,13 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="antenna_1",
+        about=(
+            "Whether antenna port 1 is using the `Internal` or an `External` "
+            "antenna. Reported per port, so this and Antenna 2 disagreeing is how "
+            "a mixed setup shows itself - there is deliberately no third 'Mix' "
+            "value. An unrecognised code is passed through raw rather than "
+            "guessed at."
+        ),
         translation_key="antenna_1",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="signal",
@@ -1665,6 +2232,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="antenna_2",
+        about=(
+            "Whether antenna port 2 is using the `Internal` or an `External` "
+            "antenna. See Antenna 1: the pair is what expresses a mixed setup."
+        ),
         translation_key="antenna_2",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="signal",
@@ -1673,6 +2244,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     # --- Data ----------------------------------------------------------------
     HuaweiSensorEntityDescription(
         key="counters_last_reset",
+        about=(
+            "When the traffic counters were last cleared **manually**. This is "
+            "not the billing boundary - Billing Cycle Day is - and a date here "
+            "months old alongside a monthly counter days old is the normal state, "
+            "not a contradiction."
+        ),
         translation_key="counters_last_reset",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="data",
@@ -1683,6 +2260,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="month_connected_time",
+        about=(
+            "**Connected** time this billing cycle, not elapsed time. It stops "
+            "advancing while the link is down, so it is not the denominator "
+            "behind Projected Usage - that uses wall-clock time from the cycle "
+            "start. The two agree only on a connection that never drops."
+        ),
         translation_key="month_connected_time",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.SECONDS,
@@ -1700,6 +2283,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="day_connected_time",
+        about=(
+            "Connected time so far today. Like Month Connected Time it counts "
+            "link-up seconds, not elapsed seconds."
+        ),
         translation_key="day_connected_time",
         device_class=SensorDeviceClass.DURATION,
         native_unit_of_measurement=UnitOfTime.SECONDS,
@@ -1715,6 +2302,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="data_allowance",
+        about=(
+            "The monthly data allowance configured **on the router**, in bytes. "
+            "It is whatever was typed into the router's own data-plan page, not "
+            "anything the operator confirms, so it is only as accurate as that "
+            "entry."
+        ),
         translation_key="data_allowance",
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
@@ -1729,6 +2322,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="billing_cycle_day",
+        about=(
+            "Day of the month the router rolls its monthly counters over. This is "
+            "the **billing boundary**; Counters Last Reset is the separate, "
+            "manual clear and the two are routinely months apart."
+        ),
         translation_key="billing_cycle_day",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="data",
@@ -1738,6 +2336,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="alert_threshold",
+        about=(
+            "The percentage of the allowance at which the router raises its own "
+            "usage warning. A router-side setting; it does not affect this "
+            "integration's entities."
+        ),
         translation_key="alert_threshold",
         native_unit_of_measurement=PERCENTAGE,
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -1748,6 +2351,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="line_state",
+        about=(
+            "The voice subsystem's own status string, read from the router's "
+            "`voicebusy` block. `Idle` means no call is in progress. This is the "
+            "one block in the payload that returns a bare string rather than a "
+            "record."
+        ),
         translation_key="line_state",
         entity_category=EntityCategory.DIAGNOSTIC,
         entity_registry_enabled_default=False,
@@ -1760,6 +2369,14 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     ),
     HuaweiSensorEntityDescription(
         key="projected_usage",
+        about=(
+            "An estimate of where this cycle's usage will finish, not a "
+            "measurement. Early in a cycle it rests mostly on the previous "
+            "cycle's rate and later mostly on this one's - the `confidence` "
+            "attribute is how to judge which. It deliberately carries **no state "
+            "class**, so nothing about a forecast enters long-term statistics; "
+            "the usage behind it is already there via Month Total."
+        ),
         translation_key="projected_usage",
         device_class=SensorDeviceClass.DATA_SIZE,
         native_unit_of_measurement=UnitOfInformation.BYTES,
@@ -1793,7 +2410,9 @@ async def async_setup_entry(
 
 
 class HuaweiRouterSensor(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], SensorEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    SensorEntity,
 ):
     """Representation of a Huawei Router sensor."""
 
@@ -1807,8 +2426,20 @@ class HuaweiRouterSensor(
     # a database-growth problem and a privacy one. None of these is useful as
     # history: they are a snapshot that only makes sense alongside the current
     # state.
-    _unrecorded_attributes = frozenset(
+    #
+    # `_unrecorded_attributes` is looked up by normal MRO and is NOT unioned
+    # across bases by Home Assistant, so a subclass that redeclares it shadows
+    # the mixin's `{"about"}` entirely. Every declaration in this component
+    # therefore starts from `ABOUT_UNRECORDED`; a test
+    # holds that.
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset(
         {
+            # projected_usage
+            "confidence",
+            "cycle_start",
+            "cycle_length_days",
+            "elapsed_days",
+            "basis",
             # sms_total
             "local_unread",
             "local_read",
@@ -1875,40 +2506,77 @@ class HuaweiRouterSensor(
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
-        """Return extra state attributes."""
+        """Return extra state attributes.
+
+        **Every return path goes through `_with_about`.** A bare `return {}`
+        here would drop the note for that entity only, which no type checker
+        and no per-entity test would notice.
+        """
+        if self.entity_description.key == "projected_usage":
+            # Documented in `docs/all_sensors.md` and the README since the
+            # sensor shipped, and computed by `_Projection` since then — but
+            # never actually published. `confidence` is the whole basis on
+            # which a user is meant to judge an estimate, so a figure without
+            # it is a number with no way to weigh it.
+            result = _projection(self.coordinator.data)
+            if result is None:
+                return self._with_about(None) or {}
+            return (
+                self._with_about(
+                    {
+                        "confidence": result.confidence,
+                        "cycle_start": result.cycle_start.isoformat(),
+                        "cycle_length_days": result.cycle_length_days,
+                        "elapsed_days": round(result.elapsed_days, 2),
+                        "basis": result.basis,
+                    }
+                )
+                or {}
+            )
+
         if self.entity_description.key == "sms_total":
             data = self.coordinator.data
             if not data or not data.get("sms_count"):
-                return {}
+                return self._with_about(None) or {}
             counts = data.get("sms_count", {})
             try:
-                return {
-                    "local_unread": int(counts.get("LocalUnread", 0)),
-                    "local_read": int(counts.get("LocalRead", 0)),
-                    "local_sent": int(counts.get("LocalSent", 0)),
-                    "local_outbox": int(counts.get("LocalOutbox", 0)),
-                    "local_draft": int(counts.get("LocalDraft", 0)),
-                    "local_max": int(counts.get("LocalMax", 0)),
-                    "sim_unread": int(counts.get("SimUnread", 0)),
-                    "sim_read": int(counts.get("SimRead", 0)),
-                    "sim_max": int(counts.get("SimMax", 0)),
-                }
+                return (
+                    self._with_about(
+                        {
+                            "local_unread": int(counts.get("LocalUnread", 0)),
+                            "local_read": int(counts.get("LocalRead", 0)),
+                            "local_sent": int(counts.get("LocalSent", 0)),
+                            "local_outbox": int(counts.get("LocalOutbox", 0)),
+                            "local_draft": int(counts.get("LocalDraft", 0)),
+                            "local_max": int(counts.get("LocalMax", 0)),
+                            "sim_unread": int(counts.get("SimUnread", 0)),
+                            "sim_read": int(counts.get("SimRead", 0)),
+                            "sim_max": int(counts.get("SimMax", 0)),
+                        }
+                    )
+                    or {}
+                )
             except (ValueError, TypeError):
-                return {}
+                return self._with_about(None) or {}
 
         if self.entity_description.key == "last_sms":
             messages = self._get_messages()
             if not messages:
-                return {}
+                return self._with_about(None) or {}
             latest = messages[0]
-            return {
-                "phone": latest["phone"],
-                "date": latest["date"],
-                "index": latest["index"],
-                "unread": not latest["read"],
-            }
+            return (
+                self._with_about(
+                    {
+                        "phone": latest["phone"],
+                        "date": latest["date"],
+                        "index": latest["index"],
+                        "unread": not latest["read"],
+                    }
+                )
+                or {}
+            )
 
-        return {}
+        return self._with_about(None) or {}
 
     @property
     def device_info(self) -> DeviceInfo:

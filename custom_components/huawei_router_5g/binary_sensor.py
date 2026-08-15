@@ -18,7 +18,13 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import DIAG_HEALTHY, DIAG_REASONS, DIAG_VERDICT_KEY
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info, is_ssid_on, parse_signal_value
+from .helpers import (
+    ABOUT_UNRECORDED,
+    HuaweiAboutEntity,
+    build_device_info,
+    is_ssid_on,
+    parse_signal_value,
+)
 
 # Section 22. `0` (unlimited) — this platform is read-only. Entities are
 # coordinator-driven with no per-entity polling, so there is nothing to
@@ -35,10 +41,18 @@ class HuaweiBinarySensorEntityDescription(BinarySensorEntityDescription):
     # no per-entity subclass is needed. The eleven original descriptions leave
     # it None and keep their own classes.
     value_fn: Callable[[dict[str, Any] | None], bool | None] | None = None
+    # dev_standards Section 14 — the human-facing `about` note. Mandatory; a
+    # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
+    about: str | None = None
 
 
 BEST_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="best_connection",
+    about=(
+        "On when both the LTE anchor and the 5G leg are healthy at once - the "
+        "state this hardware performs best in. Off does not mean a problem; "
+        "it means the router is running on one of the two rather than both."
+    ),
     translation_key="best_connection",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     group="signal",
@@ -46,6 +60,12 @@ BEST_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 SMS_STORAGE_FULL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sms_storage_full",
+    about=(
+        "On when message storage has no room left. A full store makes the "
+        "network stop delivering new messages, and nothing else in the "
+        "integration reports that - which is the whole reason this entity "
+        "exists."
+    ),
     translation_key="sms_storage_full",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -55,6 +75,11 @@ SMS_STORAGE_FULL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 WIFI_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="wifi_status",
+    about=(
+        "Whether the router's WiFi is on overall. It follows the **radio**, "
+        "not the individual SSID flags: with the radio off, the per-SSID "
+        "settings still read as enabled and mean nothing."
+    ),
     translation_key="wifi_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -63,6 +88,10 @@ WIFI_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 WIFI_24G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="wifi24g_status",
+    about=(
+        "Whether the 2.4 GHz radio is broadcasting. Off while WiFi Status is "
+        "on means that band alone has been disabled."
+    ),
     translation_key="wifi24g_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -71,6 +100,11 @@ WIFI_24G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 WIFI_5G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="wifi5g_status",
+    about=(
+        "Whether the 5 GHz radio is broadcasting. The lookup deliberately "
+        "steps past the guest network when matching, because a guest SSID on "
+        "the same radio would otherwise be mistaken for the main one."
+    ),
     translation_key="wifi5g_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -79,6 +113,11 @@ WIFI_5G_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 MOBILE_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="mobile_connection",
+    about=(
+        "On when the mobile data connection is established. This is the "
+        "router's link to the operator, not the router's link to the local "
+        "network - the LAN keeps working while this is off."
+    ),
     translation_key="mobile_connection",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -87,6 +126,10 @@ MOBILE_CONN_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 LTE_CA_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="lte_ca",
+    about=(
+        "On when LTE carrier aggregation is combining more than one carrier. "
+        "LTE Band lists which; Primary Band names only the anchor."
+    ),
     translation_key="lte_ca",
     entity_category=EntityCategory.DIAGNOSTIC,
     group="signal",
@@ -94,6 +137,11 @@ LTE_CA_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 ENDC_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="endc_status",
+    about=(
+        "On when EN-DC is active, meaning the router has a 5G leg attached "
+        "alongside its LTE anchor. This is what 'connected to 5G' means on a "
+        "non-standalone network."
+    ),
     translation_key="endc_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     group="signal",
@@ -101,6 +149,11 @@ ENDC_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 ENDC_RESTRICTED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="endc_restricted",
+    about=(
+        "On when the network is **withholding** 5G from this router. It is a "
+        "network-side restriction rather than a fault at this end, and it is "
+        "the usual explanation for good signal with no 5G leg."
+    ),
     translation_key="endc_restricted",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -109,6 +162,11 @@ ENDC_RESTRICTED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 SINGLE_SSID_MODE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="single_ssid_mode",
+    about=(
+        "On when both bands share one network name, so clients pick a band "
+        "themselves. Convenient, but it removes the ability to pin a device "
+        "to 2.4 GHz for range."
+    ),
     translation_key="single_ssid_mode",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -117,6 +175,11 @@ SINGLE_SSID_MODE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 ROAMING_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="roaming",
+    about=(
+        "On when the router is registered to a network other than the SIM's "
+        "home operator. Compare MCC MNC with Operator Code to see which "
+        "network that is."
+    ),
     translation_key="roaming",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -125,6 +188,16 @@ ROAMING_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="integration_health",
+    about=(
+        "This **integration's** verdict on itself, not the router's on "
+        "itself. It reports the failure Home Assistant cannot see: a poll "
+        "that succeeds while a whole capability is quietly missing. Its "
+        "`severity`, `issues`, `degraded_capabilities`, `drift` and "
+        "`last_good_update` attributes are a published contract, spelled the "
+        "same way across these integrations, and it deliberately never goes "
+        "unavailable - a health sensor that vanishes during an outage is "
+        "worse than none."
+    ),
     translation_key="integration_health",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -133,6 +206,12 @@ INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 SIM_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sim_status",
+    about=(
+        "On when the SIM is **not** usable - missing, locked out, or failing "
+        "to initialise. It is a `problem` sensor, so on means something is "
+        "wrong; that is deliberately the opposite polarity to reading it as "
+        "'SIM present'."
+    ),
     translation_key="sim_status",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -171,6 +250,14 @@ def _flag(data: dict[str, Any] | None, block: str, key: str) -> bool | None:
 
 POOR_SIGNAL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="poor_signal",
+    about=(
+        "The router's own verdict that its signal is poor, taken from a "
+        "single firmware flag rather than computed here. Both this and Speed "
+        "Limited have only ever been observed as off on this hardware, so "
+        "their polarity is an accepted assumption - if either ever reports a "
+        "problem that is not happening, that assumption is the thing to "
+        "revisit."
+    ),
     translation_key="poor_signal",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -180,6 +267,11 @@ POOR_SIGNAL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 SPEED_LIMITED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="speed_limited",
+    about=(
+        "The router's own flag saying its throughput is being capped. As with "
+        "Poor Signal, off is the only state observed on this hardware and the "
+        "polarity is an accepted assumption."
+    ),
     translation_key="speed_limited",
     # Deliberately no device class: throughput being limited is a state the
     # carrier chose, not a fault, and PROBLEM would render it as one.
@@ -191,6 +283,11 @@ SPEED_LIMITED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 DATA_SERVICE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="data_service",
+    about=(
+        "Whether the packet-switched (data) side of the network registration "
+        "is attached. Voice Service reports the circuit-switched side, and on "
+        "a data-only plan the two differ permanently."
+    ),
     translation_key="data_service",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -201,6 +298,11 @@ DATA_SERVICE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 VOICE_SERVICE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="voice_service",
+    about=(
+        "Whether the circuit-switched (voice) side of the network "
+        "registration is attached. Off on a data-only plan is expected, not a "
+        "fault."
+    ),
     translation_key="voice_service",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -214,6 +316,12 @@ VOICE_SERVICE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 DATA_PLAN_ENABLED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="data_plan_enabled",
+    about=(
+        "Whether the router's monthly data plan is switched on. With it off "
+        "the monthly counters never roll over, so Projected Usage reports "
+        "nothing rather than projecting against a cycle the router is not "
+        "keeping."
+    ),
     translation_key="data_plan_enabled",
     entity_category=EntityCategory.DIAGNOSTIC,
     group="data",
@@ -224,6 +332,11 @@ DATA_PLAN_ENABLED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 SIM_LOCKED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sim_locked",
+    about=(
+        "Whether SIM lock is enabled on the router. A configuration state, "
+        "not an alarm: it says the router will demand a PIN, not that it is "
+        "currently blocked."
+    ),
     translation_key="sim_locked",
     entity_category=EntityCategory.DIAGNOSTIC,
     entity_registry_enabled_default=False,
@@ -235,6 +348,11 @@ SIM_LOCKED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 ROAMING_AUTO_CONNECT_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="roaming_auto_connect",
+    about=(
+        "Whether the router will bring up data automatically while roaming. A "
+        "setting on the router, and the one that decides whether roaming "
+        "charges can be incurred without anyone acting."
+    ),
     translation_key="roaming_auto_connect",
     entity_category=EntityCategory.DIAGNOSTIC,
     entity_registry_enabled_default=False,
@@ -244,6 +362,11 @@ ROAMING_AUTO_CONNECT_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sip_alg",
+    about=(
+        "Whether the router's SIP application-layer gateway is enabled. It "
+        "rewrites VoIP signalling in transit, which helps some phone systems "
+        "and breaks others; there is no universally right setting."
+    ),
     translation_key="sip_alg",
     entity_category=EntityCategory.DIAGNOSTIC,
     entity_registry_enabled_default=False,
@@ -256,6 +379,13 @@ SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 ROUTER_DIAGNOSTICS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="router_diagnostics",
+    about=(
+        "The **router's** own verdict on its connection, from its one-key "
+        "diagnostic. It can disagree with Integration Health, and that is not "
+        "a fault: a perfectly healthy integration can faithfully report a "
+        "router that cannot reach the network. The `reasons` attribute names "
+        "the causes and `raw` carries the block they were read from."
+    ),
     translation_key="router_diagnostics",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
@@ -264,6 +394,11 @@ ROUTER_DIAGNOSTICS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 VOLTE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="volte",
+    about=(
+        "Whether VoLTE - voice carried over the LTE data channel - is "
+        "available. It depends on the operator provisioning it as well as on "
+        "the router supporting it, so off can be entirely correct."
+    ),
     translation_key="volte",
     entity_category=EntityCategory.DIAGNOSTIC,
     entity_registry_enabled_default=False,
@@ -274,6 +409,11 @@ VOLTE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 
 UPNP_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="upnp",
+    about=(
+        "Whether UPnP port forwarding is enabled, letting devices on the LAN "
+        "open inbound ports without being asked. Convenient for games and "
+        "consoles, and a real attack surface."
+    ),
     translation_key="upnp",
     entity_category=EntityCategory.DIAGNOSTIC,
     entity_registry_enabled_default=False,
@@ -335,7 +475,9 @@ async def async_setup_entry(
 
 
 class HuaweiBinarySensor(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], BinarySensorEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    BinarySensorEntity,
 ):
     """Base class for Huawei Router 5G binary sensors."""
 
@@ -656,7 +798,7 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
 
     # The detail belongs in attributes, and none of it is a time series — a
     # list of current issues has no meaning as history (Section 14).
-    _unrecorded_attributes = frozenset(
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset(
         {
             "severity",
             "issues",
@@ -694,13 +836,20 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
         are prior spellings found in the field and are not valid.
         """
         snapshot = self.coordinator.health_snapshot
-        return {
-            "severity": snapshot.get("severity"),
-            "issues": list(snapshot.get("issues", [])),
-            "degraded_capabilities": list(snapshot.get("degraded_capabilities", [])),
-            "drift": list(snapshot.get("drift", [])),
-            "last_good_update": snapshot.get("last_good_update"),
-        }
+        return (
+            self._with_about(
+                {
+                    "severity": snapshot.get("severity"),
+                    "issues": list(snapshot.get("issues", [])),
+                    "degraded_capabilities": list(
+                        snapshot.get("degraded_capabilities", [])
+                    ),
+                    "drift": list(snapshot.get("drift", [])),
+                    "last_good_update": snapshot.get("last_good_update"),
+                }
+            )
+            or {}
+        )
 
 
 class HuaweiValueBinarySensor(HuaweiBinarySensor):
@@ -739,7 +888,7 @@ class HuaweiRouterDiagnosticsSensor(HuaweiBinarySensor):
 
     # Section 14: the reason list changes only when something is wrong, but the
     # raw block is republished every poll and none of it is a time series.
-    _unrecorded_attributes = frozenset({"reasons", "raw", "verdict"})
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset({"reasons", "raw", "verdict"})
 
     @property
     def is_on(self) -> bool | None:
@@ -766,14 +915,19 @@ class HuaweiRouterDiagnosticsSensor(HuaweiBinarySensor):
         """
         block = (self.coordinator.data or {}).get("onekey_diag") or {}
         if not block:
-            return {}
+            return self._with_about(None) or {}
         reasons = [
             label
             for key, label in DIAG_REASONS.items()
             if str(block.get(key, "0")) not in ("0", "")
         ]
-        return {
-            "verdict": block.get(DIAG_VERDICT_KEY),
-            "reasons": reasons,
-            "raw": dict(block),
-        }
+        return (
+            self._with_about(
+                {
+                    "verdict": block.get(DIAG_VERDICT_KEY),
+                    "reasons": reasons,
+                    "raw": dict(block),
+                }
+            )
+            or {}
+        )

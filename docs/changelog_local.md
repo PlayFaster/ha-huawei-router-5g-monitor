@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev18\] - 2026-08-15 - `about` Attribute Notes on Every Entity](#120-dev18---2026-08-15---about-attribute-notes-on-every-entity)
   - [\[1.2.0-dev17\] - 2026-08-15 - Router Diagnostics Sensor](#120-dev17---2026-08-15---router-diagnostics-sensor)
   - [\[1.2.0-dev16\] - 2026-08-15 - WiFi Switch; Voice Entities](#120-dev16---2026-08-15---wifi-switch-voice-entities)
   - [\[1.2.0-dev15\] - 2026-08-15 - Follow-Up Refresh Fires While Paused](#120-dev15---2026-08-15---follow-up-refresh-fires-while-paused)
@@ -107,6 +108,27 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev18] - 2026-08-15 - `about` Attribute Notes on Every Entity
+
+### Added
+
+- **An `about` note on all 158 entity descriptions plus the device tracker.** A short, static attribute saying what the reading means and, where it matters, what it does not. Mechanism ported from `zte_router_5g`: an `about` field on each description, a `HuaweiAboutEntity` mixin in `helpers.py` that exposes it and lists it in `_unrecorded_attributes`, and `_with_about` for the entities that publish attributes of their own.
+- **`docs/about_attribute_list.md`**, reconciled against the code in both directions by `test_about_attribute_list_doc_matches_the_code`. It compares the note **text**, not just the key set.
+- **Five sweeps** so the set cannot decay: every description carries a note, the note is long enough to be a note, the device tracker's class-level note exists, `about` stays out of the recorder on every class that redeclares `_unrecorded_attributes`, and the note actually reaches the attribute dict on an entity that overrides `extra_state_attributes`.
+
+### Fixed
+
+- **Projected Usage never published its `confidence` attribute.** `_Projection` has computed it since the sensor shipped and both `docs/all_sensors.md` and the README have described it, but nothing ever put it into `extra_state_attributes`. It now publishes `confidence`, `cycle_start`, `cycle_length_days`, `elapsed_days` and `basis`, all excluded from the recorder. An estimate with no way to weigh it is a number, not information.
+- **`docs/all_sensors.md` had four tables broken by a stray blank line**, so 38 entity rows rendered as plain text rather than as table rows, and one WiFi row carried six cells in a five-column table. Found by `markdownlint`, which had not been run over the document since those rows were added.
+
+### Notes
+
+- **`_unrecorded_attributes` is not unioned across base classes.** Home Assistant resolves it by ordinary attribute lookup, so a subclass declaring its own set silently discards the mixin's `{"about"}`. Every declaration in the component now starts from the public `ABOUT_UNRECORDED`, and a sweep holds it — the failure is invisible in a diff of the subclass.
+- The minimum note length is enforced deliberately. It caught nineteen notes on the first run that were restatements of the entity name; all nineteen were rewritten rather than the bar lowered.
+- **Suite 644 → 655**, 100% line and branch coverage, 0 partial branches, assertion audit PASSED, ruff and `mypy --strict` clean, IQS static PASSED.
 
 ---
 

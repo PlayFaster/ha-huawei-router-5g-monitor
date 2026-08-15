@@ -15,7 +15,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_STOP_POLLING
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import ABOUT_UNRECORDED, HuaweiAboutEntity, build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -38,10 +38,19 @@ class HuaweiSwitchEntityDescription(SwitchEntityDescription):
     """Describes a Huawei Router 5G switch entity."""
 
     group: str = "system"
+    # dev_standards Section 14 - the human-facing `about` note. Mandatory; a
+    # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
+    about: str | None = None
 
 
 PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="pause_polling",
+    about=(
+        "Stops the scheduled polling without removing the integration. "
+        "Entities hold their last values rather than going unavailable. "
+        "Explicit actions - Refresh Now, and the refresh after a control "
+        "change - still reach the router while this is on."
+    ),
     translation_key="pause_polling",
     entity_category=EntityCategory.CONFIG,
     group="system",
@@ -49,6 +58,12 @@ PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
 
 MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="mobile_data",
+    about=(
+        "Turns the mobile data connection on or off. The LAN and WiFi are "
+        "unaffected, so this does not disconnect local devices from each "
+        "other - only from the internet. A refusal by the router raises an "
+        "error rather than reporting an unearned success."
+    ),
     translation_key="mobile_data",
     entity_category=EntityCategory.CONFIG,
     group="system",
@@ -56,6 +71,12 @@ MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
 
 WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="wifi",
+    about=(
+        "Turns the router's WiFi radios on or off. It writes the **radio** "
+        "switch rather than the per-SSID flags, because those flags are gated "
+        "by the radio and writing them while it is off changes nothing - an "
+        "earlier implementation that did so appeared to work and did not."
+    ),
     translation_key="wifi",
     entity_category=EntityCategory.CONFIG,
     group="wifi",
@@ -63,6 +84,12 @@ WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
 
 GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="wifi_guest_network",
+    about=(
+        "Turns the guest network on or off. The `ssid` attribute names the "
+        "network being controlled. Worth knowing before leaving it on: on "
+        "this hardware the guest SSID is configured open, so an unattended "
+        "`on` is an unauthenticated network on air."
+    ),
     translation_key="wifi_guest_network",
     entity_category=EntityCategory.CONFIG,
     group="wifi",
@@ -92,7 +119,9 @@ async def async_setup_entry(
 
 
 class HuaweiSwitch(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], SwitchEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    SwitchEntity,
 ):
     """Base class for Huawei Router 5G switches."""
 
@@ -254,7 +283,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
     # dev_standards Section 14. The guest SSID is a static string republished
     # on every poll; recording it adds a row per poll and puts the network name
     # into long-term history.
-    _unrecorded_attributes = frozenset({"ssid"})
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset({"ssid"})
 
     @property
     def is_on(self) -> bool | None:
@@ -302,7 +331,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         """Return the state attributes."""
         data = self.coordinator.data
         if not data:
-            return {}
+            return self._with_about(None) or {}
         multi_settings = data.get("wlan_multi_basic_settings") or {}
         ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
         if isinstance(ssids, dict):
@@ -310,5 +339,5 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
 
         for ssid in ssids:
             if str(ssid.get("wifiisguestnetwork")) == "1":
-                return {"ssid": ssid.get("WifiSsid")}
-        return {}
+                return self._with_about({"ssid": ssid.get("WifiSsid")}) or {}
+        return self._with_about(None) or {}

@@ -19,7 +19,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import HuaweiAboutEntity, build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,11 +39,21 @@ class HuaweiNumberEntityDescription(NumberEntityDescription):
     """Describes Huawei number entity."""
 
     group: str = "system"
+    # dev_standards Section 14 - the human-facing `about` note. Mandatory; a
+    # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
+    about: str | None = None
 
 
 # Define the entity description for static metadata
 POLLING_INTERVAL_DESCRIPTION = HuaweiNumberEntityDescription(
     key="polling_interval",
+    about=(
+        "How often this integration asks the router for data, in seconds. It "
+        "is saved to the config entry, so it survives a restart. Changes are "
+        "debounced for two seconds so dragging the slider does not fire a "
+        "poll per step; a pending change is flushed if the entity is removed "
+        "mid-debounce rather than silently discarded."
+    ),
     translation_key="polling_interval",
     native_min_value=30,
     native_max_value=3600,
@@ -76,7 +86,9 @@ async def async_setup_entry(
 
 
 class HuaweiPollingInterval(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], NumberEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    NumberEntity,
 ):
     """Number entity to control the polling interval with persistence."""
 

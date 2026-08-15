@@ -46,7 +46,6 @@ _Group: `system`_
 | Mobile Data | `mobile_data` | Switch | — | Config | Toggle mobile data connection on/off. |
 | Preferred Network Mode | `preferred_network_mode` | Select | — | Config | Control network mode selection. |
 | SIM Card Status | `sim_card_status` | Binary Sensor | — | Diagnostic | ON if SIM card is detected and active. |
-
 | IMEI | `imei` | Sensor | - | Diagnostic | **Disabled by default.** Text, not numeric - no state class, unit or precision. Excluded from long-term statistics. |
 | IMSI | `imsi` | Sensor | - | Diagnostic | **Disabled by default.** As IMEI. |
 | ICCID | `iccid` | Sensor | - | Diagnostic | **Disabled by default.** As IMEI. |
@@ -71,6 +70,7 @@ _Group: `system`_
 | Line State | `line_state` | Sensor | - | Diagnostic | **Disabled by default.** Voice line state, e.g. `Idle`. The only block in the payload that is a bare string rather than a dict. |
 | VoLTE | `volte` | Binary Sensor | - | Diagnostic | **Disabled by default.** Real VoLTE state, unlike SIP ALG which is a firewall setting. |
 | Router Diagnostics | `router_diagnostics` | Binary Sensor | - | Diagnostic | The router's own verdict on its connection, from `onekey_diag`. Problem device class. `connection_status` `2` is healthy — **not a boolean**. Attributes carry the reasons and the raw block. Distinct from Integration Health, which reports on the integration rather than the router. |
+
 ---
 
 ## 2. Signal Sub-Device (60 Entities)
@@ -131,7 +131,6 @@ _Group: `signal`_
 | Roaming Status | `roaming_status` | Binary Sensor | — | Diagnostic | ON if roaming is active. |
 | 5G Uplink Frequency | `5g_uplink_frequency` | Sensor | MHz | Diagnostic | `nruplinkfrequency` field, scaled. |
 | 5G Downlink Frequency | `5g_downlink_frequency` | Sensor | MHz | Diagnostic | `nrdownlinkfrequency` field, scaled. |
-
 | Primary Band | `primary_band` | Sensor | - | Diagnostic | **Disabled by default.** The primary carrier only. `band` carries the full aggregation - the two are not in conflict. |
 | Secondary Cell PCI | `secondary_cell_pci` | Sensor | - | Diagnostic | **Disabled by default.** An identifier despite reading as a small integer, so treated as text and excluded from long-term statistics. |
 | Antenna 1 | `antenna_1` | Sensor | - | Diagnostic | `Internal` or `External`. Reports the antenna in use, not the configured mode. Unmapped codes pass through raw. |
@@ -140,6 +139,7 @@ _Group: `signal`_
 | Speed Limited | `speed_limited` | Binary Sensor | - | Diagnostic | **Disabled by default.** The router's own verdict. No device class - a carrier limiting throughput is not a fault. |
 | Data Service | `data_service` | Binary Sensor | - | Diagnostic | Packet-switched registration. Connectivity device class. |
 | Voice Service | `voice_service` | Binary Sensor | - | Diagnostic | **Disabled by default.** Circuit-switched registration. Says nothing about a call in progress; no endpoint on this hardware does. |
+
 ---
 
 ## 3. Data Sub-Device (24 Entities)
@@ -164,7 +164,6 @@ _Group: `data`_
 | Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | **Disabled by default.** Rounded to 2 decimals. No LTS (use `month_upload` bytes sensor for LTS). |
 | Month Total | `month_total` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
 | Clear Traffic Statistics | `clear_traffic` | Button | - | - | Resets traffic counters. |
-
 | Counters Last Reset | `counters_last_reset` | Sensor | Date | Diagnostic | When the counters were last cleared **by hand**. Not the billing boundary - that is Billing Cycle Day. |
 | Month Connected Time | `month_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** **Connected** time this cycle, not elapsed. Excluded from long-term statistics. |
 | Day Connected Time | `day_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** As above. |
@@ -173,6 +172,7 @@ _Group: `data`_
 | Alert Threshold | `alert_threshold` | Sensor | % | Diagnostic | Excluded from long-term statistics. |
 | Data Plan Enabled | `data_plan_enabled` | Binary Sensor | - | Diagnostic | Whether the monthly package is set. Decides whether the three above mean anything. |
 | Projected Usage | `projected_usage` | Sensor | Bytes | - | End-of-cycle forecast. **No state class, deliberately** - it is an estimate, and the usage behind it is already in long-term statistics via Month Total. Carries a `confidence` attribute. |
+
 ---
 
 ## 4. SMS Sub-Device (22 Entities)
@@ -218,8 +218,8 @@ _Group: `wifi`_
 | Single SSID Mode | `single_ssid_mode` | Binary | Diagnostic | ON if 2.4GHz/5GHz merged. |
 | User Capacity | `wifi_capacity` | Sensor | Diagnostic | **Disabled by default.** Max supported users. |
 | Guest Network | `wifi_guest_network` | Switch | Config | Toggle for guest SSID. |
+| WiFi | `wifi` | Switch | Config | Master switch — the **radios**, not the individual networks. The Guest switch works at the SSID level, which the radio gates. |
 
-| WiFi | `wifi` | Switch | - | Config | Master switch — the **radios**, not the individual networks. The Guest switch works at the SSID level, which the radio gates. |
 ---
 
 ## 6. Clients Sub-Device (3 Entities + Trackers)

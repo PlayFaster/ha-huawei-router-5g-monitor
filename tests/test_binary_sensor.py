@@ -35,7 +35,7 @@ from custom_components.huawei_router_5g.binary_sensor import (
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
-from tests.conftest import assert_links_to_parent
+from tests.conftest import assert_links_to_parent, without_about
 
 # ---------------------------------------------------------------------------
 # HuaweiBestConnectionSensor
@@ -834,11 +834,11 @@ def test_the_raw_block_is_published_alongside_the_labels() -> None:
     attrs = _diag_sensor(_diag(signal_status="3")).extra_state_attributes
     assert attrs["raw"]["signal_status"] == "3"
     assert attrs["reasons"] == ["Signal problem"]
-    assert _diag_sensor({}).extra_state_attributes == {}
+    assert without_about(_diag_sensor({}).extra_state_attributes) == {}
 
 
 def test_the_diagnostics_attributes_are_unrecorded() -> None:
     """Section 14: none of this is a time series."""
     assert HuaweiRouterDiagnosticsSensor._unrecorded_attributes == frozenset(
-        {"reasons", "raw", "verdict"}
+        {"reasons", "raw", "verdict", "about"}
     )

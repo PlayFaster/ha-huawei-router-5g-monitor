@@ -15,7 +15,7 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import HuaweiAboutEntity, build_device_info
 
 # Section 22. `1`, not `0`.
 #
@@ -40,6 +40,9 @@ class HuaweiSelectEntityDescription(SelectEntityDescription):
     value_fn: Callable[[Any], str | None]
     setter_fn: Callable[[Any, str], Coroutine[Any, Any, None]]
     group: str = "system"
+    # dev_standards Section 14 - the human-facing `about` note. Mandatory; a
+    # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
+    about: str | None = None
 
 
 NETWORK_MODE_MAPPING = {
@@ -58,6 +61,13 @@ NETWORK_MODE_INV_MAPPING = {v: k for k, v in NETWORK_MODE_MAPPING.items()}
 SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
     HuaweiSelectEntityDescription(
         key="network_mode",
+        about=(
+            "Restricts which radio technologies the router may use. `Auto` lets "
+            "it choose. Pinning to a single mode can stabilise a marginal "
+            "connection or can strand it entirely if that mode is unavailable "
+            "where the router sits. Preferred Network Mode, the sensor, reads "
+            "back what the router says is in force."
+        ),
         translation_key="network_mode",
         options=list(NETWORK_MODE_MAPPING.keys()),
         entity_category=EntityCategory.CONFIG,
@@ -89,7 +99,9 @@ async def async_setup_entry(
 
 
 class HuaweiRouterSelect(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], SelectEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    SelectEntity,
 ):
     """Representation of a Huawei Router select."""
 

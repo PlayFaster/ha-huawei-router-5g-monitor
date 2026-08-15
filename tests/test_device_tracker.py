@@ -9,7 +9,7 @@ from custom_components.huawei_router_5g.device_tracker import (
     HuaweiRouterDeviceTracker,
     async_setup_entry,
 )
-from tests.conftest import assert_links_to_parent
+from tests.conftest import assert_links_to_parent, without_about
 
 
 def test_device_tracker_properties(mock_coordinator, mock_config_entry):
@@ -44,7 +44,7 @@ def test_device_tracker_properties(mock_coordinator, mock_config_entry):
     assert tracker.mac_address == "AA:BB:CC:DD:EE:01"
     assert tracker.hostname == "Laptop-1"
     assert tracker.ip_address == "192.168.8.100"
-    assert tracker.extra_state_attributes == {
+    assert without_about(tracker.extra_state_attributes) == {
         "interface_type": "Ethernet",
         "associated_ssid": "MyWiFi",
         "address_source": "DHCP",
@@ -85,7 +85,7 @@ def test_device_tracker_missing_host(mock_coordinator):
     assert tracker.is_connected is False
     assert tracker.name == "LOST_MAC"
     assert tracker.hostname is None
-    assert tracker.extra_state_attributes == {}
+    assert without_about(tracker.extra_state_attributes) == {}
 
 
 def test_device_tracker_malformed_data(mock_coordinator):

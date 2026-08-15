@@ -237,6 +237,25 @@ This integration provides **121+ entities** (depending on your firmware) organiz
 > - Devices can be disabled from the main device page: (⋮ menu) > **Disable Device** which also disables all the device entities.
 > - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
 
+### ℹ️ What Each Entity Means — the `about` Attribute
+
+Every entity this integration creates carries an **`about`** attribute: a short note saying what the reading means and, where it matters, what it does **not** mean. Open any entity's More Info dialog, or look at it in **Developer Tools → States**, and the note is there.
+
+It exists because a lot of these entities are not self-explanatory from their names, and several read as contradictions until you know why:
+
+| Entity | What the note tells you |
+| :-- | :-- |
+| **Primary Band** vs **LTE Band** | One is the anchor carrier, the other the full aggregation. They disagree by design. |
+| **Secondary Cell PCI** | An identifier, not a measurement, despite reading as a small integer. |
+| **Counters Last Reset** vs **Billing Cycle Day** | The manual clear, and the billing boundary. They are routinely months apart. |
+| **Month Connected Time** | Connected time, not elapsed time — and not the denominator behind Projected Usage. |
+| **Projected Usage** | An estimate. Its `confidence` attribute is how to judge it, and it deliberately carries no `state_class`. |
+| **Router Diagnostics** vs **Integration Health** | The router's verdict, and this integration's. They can disagree, and that is not a fault. |
+
+The full list is in [`docs/about_attribute_list.md`](docs/about_attribute_list.md), which a test reconciles against the code in both directions.
+
+The note is excluded from the recorder, so it costs nothing in database size however often the entity changes.
+
 ### 📊 Long Term Statistics (LTS)
 
 Home Assistant stores Long Term Statistics for numeric sensors that have a `state_class` set. This integration enables LTS only for sensors where long-term trend data is genuinely useful:
