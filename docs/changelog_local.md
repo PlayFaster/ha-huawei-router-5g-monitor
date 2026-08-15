@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev16\] - 2026-08-15 - WiFi Switch; Voice Entities](#120-dev16---2026-08-15---wifi-switch-voice-entities)
   - [\[1.2.0-dev15\] - 2026-08-15 - Follow-Up Refresh Fires While Paused](#120-dev15---2026-08-15---follow-up-refresh-fires-while-paused)
   - [\[1.2.0-dev14\] - 2026-08-15 - Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---follow-up-refresh-after-reboot-and-reconnect)
   - [\[1.2.0-dev13\] - 2026-08-15 - Reconnect Button Fixed](#120-dev13---2026-08-15---reconnect-button-fixed)
@@ -105,6 +106,20 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev16] - 2026-08-15 - WiFi Switch; Voice Entities
+
+### Added
+
+- **A master WiFi switch**, which an earlier attempt could not make work. There are two levels: the **radios** (`wlan/status-switch-settings`) and the per-SSID flags (`wlan/multi-basic-settings`). The SSID flags are gated by the radio, so writing them while the radio is off changes nothing — that is why the Guest switch works and a WiFi switch built the same way did not.
+- The library's own `wlan.wifi_network_switch()` answers `100005: Request format error` on this hardware. The write round-trips the endpoint's own GET response with `wifienable` flipped, the same pattern as `set_guest_wifi`. Verified both directions live.
+- **Line State** sensor and **VoLTE** binary sensor. `voice.voicebusy()` returns `Idle` — live line state. An earlier pass reported no call state existed, which was wrong and came from a bulk sweep that had corrupted its own session.
+
+### Fixed
+
+- **Ten fetched blocks were missing from `ENDPOINT_NAMES`** — the eight added with §T-4 plus the two voice blocks. A block absent from that map cannot be reported as a degraded capability, so those endpoints could have failed every poll with Integration Health staying green.
 
 ---
 

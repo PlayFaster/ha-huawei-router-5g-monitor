@@ -10,7 +10,7 @@ NAME = "Huawei Router 5G Monitor"
 CONF_SCAN_INTERVAL = "scan_interval"
 DEFAULT_SCAN_INTERVAL = 180
 CONF_STOP_POLLING = "stop_polling"
-# Overall budget for one poll — all fifteen endpoints together.
+# Overall budget for one poll — all twenty-five endpoints together.
 FETCH_TIMEOUT = 30
 
 # Per-request transport timeout, passed to `Connection`. Deliberately well
@@ -35,7 +35,7 @@ REPAIR_NAMES: tuple[str, ...] = (REPAIR_AUTH_FAILED, REPAIR_CONN_ERROR)
 
 # --- Section 19: Integration Health ------------------------------------------
 #
-# `api.get_data()` fetches fifteen endpoints and **silently omits** any optional
+# `api.get_data()` fetches twenty-five endpoints and **silently omits** any optional
 # one that fails — only `device_information` raises. So a poll can succeed with
 # a whole capability missing and nothing anywhere says so. That is precisely the
 # silent failure Section 19 exists to surface.
@@ -58,6 +58,20 @@ ENDPOINT_NAMES: dict[str, str] = {
     "wlan_host_list": "WiFi clients",
     "wlan_wifi_feature_switch": "WiFi feature switch",
     "wlan_multi_basic_settings": "WiFi networks",
+    # Added with the §T-4 entity set. Omitting these was an oversight: a block
+    # absent from this map cannot be reported as a degraded capability, so the
+    # endpoint could fail every poll and Section 19 would stay green.
+    # `test_integration_health` now sweeps the fetch list against this map.
+    "start_date": "Data plan",
+    "converged_status": "SIM and country",
+    "dial_up_profiles": "APN profiles",
+    "dial_up_connection": "Connection settings",
+    "antenna_type": "Antenna selection",
+    "csps_state": "Network registration",
+    "security_sip": "SIP ALG",
+    "security_upnp": "UPnP",
+    "voice_busy": "Voice line state",
+    "voice_volte": "VoLTE status",
 }
 
 # `device_information` is the one endpoint whose absence already raises, so it

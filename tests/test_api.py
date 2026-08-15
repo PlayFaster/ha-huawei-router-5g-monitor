@@ -1621,3 +1621,104 @@ async def test_reconnect_error_resets_client_and_raises():
         await api.reconnect()
 
     assert api._client is None
+
+
+# ---------------------------------------------------------------------------
+# Master WiFi switch (§T-5)
+# ---------------------------------------------------------------------------
+
+
+def _wifi_client(radios):
+    """Build a client whose radio block returns `radios`."""
+    client = MagicMock()
+    client.wlan.status_switch_settings.return_value = {"radios": {"radio": radios}}
+    return client
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_round_trips_the_radio_block():
+    """The GET response is written back whole, with only `wifienable` changed.
+
+    Building a payload from scratch drops the fields the response carries and
+    this code does not understand — the same reasoning as `set_guest_wifi`.
+    """
+    api = _make_api()
+    api._client = _wifi_client(
+        [
+            {"wifienable": "0", "index": "0", "ID": "Radio.1.", "RestrictState": "0"},
+            {"wifienable": "0", "index": "1", "ID": "Radio.2.", "RestrictState": "0"},
+        ]
+    )
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_wifi(True)
+
+    endpoint, payload = api._client.wlan._session.post_set.call_args[0]
+    assert endpoint == "wlan/status-switch-settings"
+    radios = payload["radios"]["radio"]
+    assert [r["wifienable"] for r in radios] == ["1", "1"]
+    # Everything else survived the round trip.
+    assert radios[0]["ID"] == "Radio.1."
+    assert radios[0]["RestrictState"] == "0"
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_does_not_use_the_broken_library_helper():
+    """`wlan.wifi_network_switch()` answers `100005` on this hardware.
+
+    It builds its payload from `find_wlan_settings`/`save_wlan_settings`, and
+    the router rejects the result. Verified on a live B535, 2026-08-15 — and it
+    is the most likely reason an earlier attempt at this control was abandoned.
+    """
+    api = _make_api()
+    api._client = _wifi_client([{"wifienable": "1", "index": "0"}])
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_wifi(False)
+
+    api._client.wlan.wifi_network_switch.assert_not_called()
+    api._client.wlan.set_multi_basic_settings.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_accepts_a_single_radio_returned_as_a_dict():
+    """Accept a bare dict, which this API returns for a single radio."""
+    api = _make_api()
+    api._client = _wifi_client({"wifienable": "0", "index": "0"})
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_wifi(True)
+
+    payload = api._client.wlan._session.post_set.call_args[0][1]
+    assert payload["radios"]["radio"][0]["wifienable"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_raises_when_the_router_reports_no_radios():
+    """A model that does not expose this block must fail loudly, not silently.
+
+    Writing nothing and reporting success is the failure shape this project has
+    already shipped twice.
+    """
+    api = _make_api()
+    api._client = _wifi_client([])
+    api._connection = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        pytest.raises(HuaweiConnectionError, match="no WiFi radios"),
+    ):
+        await api.set_wifi(True)
+
+    api._client.wlan._session.post_set.assert_not_called()

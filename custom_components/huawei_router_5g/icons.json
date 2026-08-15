@@ -70,6 +70,9 @@
       "upnp": {
         "default": "mdi:lan-connect"
       },
+      "volte": {
+        "default": "mdi:phone-voip"
+      },
       "wifi24g_status": {
         "default": "mdi:wifi",
         "state": {
@@ -224,6 +227,9 @@
       },
       "last_updated": {
         "default": "mdi:update"
+      },
+      "line_state": {
+        "default": "mdi:phone-classic"
       },
       "lte_downlink_bandwidth": {
         "default": "mdi:transfer-down"
@@ -483,11 +489,14 @@
       }
     },
     "switch": {
+      "mobile_data": {
+        "default": "mdi:signal-4g"
+      },
       "pause_polling": {
         "default": "mdi:pause-circle-outline"
       },
-      "mobile_data": {
-        "default": "mdi:signal-4g"
+      "wifi": {
+        "default": "mdi:wifi"
       },
       "wifi_guest_network": {
         "default": "mdi:wifi-lock"

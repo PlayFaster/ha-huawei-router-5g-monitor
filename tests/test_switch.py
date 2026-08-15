@@ -10,9 +10,11 @@ from custom_components.huawei_router_5g.switch import (
     GUEST_WIFI_DESCRIPTION,
     MOBILE_DATA_DESCRIPTION,
     PAUSE_POLLING_DESCRIPTION,
+    WIFI_DESCRIPTION,
     HuaweiGuestWifiSwitch,
     HuaweiMobileDataSwitch,
     HuaweiPausePollingSwitch,
+    HuaweiWifiSwitch,
     async_setup_entry,
 )
 from tests.conftest import assert_is_root
@@ -361,4 +363,73 @@ async def test_switch_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 3
+    assert len(entities) == 4
+    assert {e.entity_description.key for e in entities} == {
+        "pause_polling",
+        "mobile_data",
+        "wifi",
+        "wifi_guest_network",
+    }
+
+
+# ---------------------------------------------------------------------------
+# Master WiFi switch
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_the_wifi_switch_reads_the_radio_state() -> None:
+    """`WifiStatus` tracks the radios, and is already polled.
+
+    Reading the radio block instead would be a second round trip for the same
+    fact. Confirmed to follow the radios in both directions on a live B535.
+    """
+    coordinator = MagicMock()
+    entry = MagicMock()
+    entry.unique_id = "abc"
+    switch = HuaweiWifiSwitch(coordinator, entry, WIFI_DESCRIPTION)
+
+    coordinator.data = {"monitoring_status": {"WifiStatus": "1"}}
+    assert switch.is_on is True
+    coordinator.data = {"monitoring_status": {"WifiStatus": "0"}}
+    assert switch.is_on is False
+    coordinator.data = {"monitoring_status": {}}
+    assert switch.is_on is None
+    coordinator.data = None
+    assert switch.is_on is None
+
+
+@pytest.mark.asyncio
+async def test_the_wifi_switch_writes_and_then_refreshes() -> None:
+    """The refresh sits outside the error boundary.
+
+    Inside it, a read blip reports a successful write as failed and invites the
+    user to retry a command with a real-world effect.
+    """
+    coordinator = MagicMock()
+    coordinator.api.set_wifi = AsyncMock()
+    coordinator.async_force_refresh = AsyncMock()
+    entry = MagicMock()
+    entry.unique_id = "abc"
+    switch = HuaweiWifiSwitch(coordinator, entry, WIFI_DESCRIPTION)
+
+    await switch.async_turn_on()
+    coordinator.api.set_wifi.assert_awaited_once_with(True)
+    await switch.async_turn_off()
+    coordinator.api.set_wifi.assert_awaited_with(False)
+    assert coordinator.async_force_refresh.await_count == 2
+
+
+@pytest.mark.asyncio
+async def test_a_refused_wifi_write_raises_rather_than_reporting_success() -> None:
+    """§22 / §O-4: an unverified write must never report success."""
+    coordinator = MagicMock()
+    coordinator.api.set_wifi = AsyncMock(side_effect=OSError("nope"))
+    coordinator.async_force_refresh = AsyncMock()
+    entry = MagicMock()
+    entry.unique_id = "abc"
+    switch = HuaweiWifiSwitch(coordinator, entry, WIFI_DESCRIPTION)
+
+    with pytest.raises(HomeAssistantError, match="Enable WiFi failed"):
+        await switch.async_turn_on()
+    coordinator.async_force_refresh.assert_not_awaited()

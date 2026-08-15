@@ -160,6 +160,9 @@
       "last_updated": {
         "name": "Last Updated"
       },
+      "line_state": {
+        "name": "Line State"
+      },
       "lte_downlink_bandwidth": {
         "name": "LTE Downlink Bandwidth"
       },
@@ -476,6 +479,9 @@
       "voice_service": {
         "name": "Voice Service"
       },
+      "volte": {
+        "name": "VoLTE"
+      },
       "wifi24g_status": {
         "name": "2.4GHz Status"
       },
@@ -487,11 +493,14 @@
       }
     },
     "switch": {
+      "mobile_data": {
+        "name": "Mobile Data"
+      },
       "pause_polling": {
         "name": "Pause Polling"
       },
-      "mobile_data": {
-        "name": "Mobile Data"
+      "wifi": {
+        "name": "WiFi"
       },
       "wifi_guest_network": {
         "name": "Guest Network"

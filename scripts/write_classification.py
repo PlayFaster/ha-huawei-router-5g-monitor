@@ -100,6 +100,13 @@ ATTENDED: dict[str, str] = {
         "cannot tell apart from a dead session - the same reason set_net_mode "
         "is here. Not exercised unattended; the owner verifies it by hand."
     ),
+    "set_wifi": (
+        "Turns the WiFi radios off. Reversible in one call, but a stranded OFF "
+        "drops every wireless client in the house, so it fails the 'either "
+        "resting state must be harmless' rule. Works at the RADIO level "
+        "(wlan/status-switch-settings), not the SSID level - the library's own "
+        "wifi_network_switch() answers 100005 on this hardware."
+    ),
     "set_guest_wifi": (
         "Looks cosmetic and is not. On the live B535 the guest SSID carries "
         "`WifiAuthmode: OPEN` — a stranded ON leaves an unauthenticated "
@@ -143,6 +150,7 @@ OFFERED_WHEN_ATTENDED: frozenset[str] = frozenset(
         "set_mobile_data",
         "set_net_mode",
         "set_guest_wifi",
+        "set_wifi",
     }
 )
 

@@ -1,22 +1,22 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 161 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 164 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
-| **System** | 45 | Core router info, WAN configuration, and global integration settings. |
+| **System** | 47 | Core router info, WAN configuration, and global integration settings. |
 | **Signal** | 60 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 24 | Traffic statistics, download/upload rates, and monthly usage. |
 | **SMS** | 22 | Detailed message counts per storage bank and recent message content. |
-| **WiFi** | 6 | Wireless radio status, capacity, and guest network controls. |
+| **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
 | **Clients** | 3 + trackers | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **161** | Plus one device tracker per discovered client. |
+| **Total** | **164** | Plus one device tracker per discovered client. |
 
 ---
 
-## 1. System Sub-Device (45 Entities)
+## 1. System Sub-Device (47 Entities)
 
 _Group: `system`_
 
@@ -68,6 +68,8 @@ _Group: `system`_
 | SIP ALG | `sip_alg` | Binary Sensor | - | Diagnostic | **Disabled by default.** The firewall's SIP helper, not VoIP status. The commonest cause of one-way audio behind a CPE. |
 | UPnP | `upnp` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
 | Reconnect | `reconnect` | Button | - | - | Drops and re-establishes the data session. Separate from Reboot, which restarts the device. |
+| Line State | `line_state` | Sensor | - | Diagnostic | **Disabled by default.** Voice line state, e.g. `Idle`. The only block in the payload that is a bare string rather than a dict. |
+| VoLTE | `volte` | Binary Sensor | - | Diagnostic | **Disabled by default.** Real VoLTE state, unlike SIP ALG which is a firewall setting. |
 ---
 
 ## 2. Signal Sub-Device (60 Entities)
@@ -203,7 +205,7 @@ _Group: `sms`_
 
 ---
 
-## 5. WiFi Sub-Device (6 Entities)
+## 5. WiFi Sub-Device (7 Entities)
 
 _Group: `wifi`_
 
@@ -216,6 +218,7 @@ _Group: `wifi`_
 | User Capacity | `wifi_capacity` | Sensor | Diagnostic | **Disabled by default.** Max supported users. |
 | Guest Network | `wifi_guest_network` | Switch | Config | Toggle for guest SSID. |
 
+| WiFi | `wifi` | Switch | - | Config | Master switch — the **radios**, not the individual networks. The Guest switch works at the SSID level, which the radio gates. |
 ---
 
 ## 6. Clients Sub-Device (3 Entities + Trackers)

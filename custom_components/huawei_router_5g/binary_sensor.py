@@ -253,6 +253,16 @@ SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     value_fn=lambda data: _flag(data, "security_sip", "SipStatus"),
 )
 
+VOLTE_DESCRIPTION = HuaweiBinarySensorEntityDescription(
+    key="volte",
+    translation_key="volte",
+    entity_category=EntityCategory.DIAGNOSTIC,
+    entity_registry_enabled_default=False,
+    group="system",
+    # Real VoLTE state, unlike the SIP ALG flag which is a firewall setting.
+    value_fn=lambda data: _flag(data, "voice_volte", "volte_enable"),
+)
+
 UPNP_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="upnp",
     translation_key="upnp",
@@ -272,6 +282,7 @@ VALUE_BINARY_SENSORS: Final[tuple[HuaweiBinarySensorEntityDescription, ...]] = (
     ROAMING_AUTO_CONNECT_DESCRIPTION,
     SIP_ALG_DESCRIPTION,
     UPNP_DESCRIPTION,
+    VOLTE_DESCRIPTION,
 )
 
 

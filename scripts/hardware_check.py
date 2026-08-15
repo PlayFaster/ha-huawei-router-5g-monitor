@@ -303,6 +303,13 @@ async def _mobile_data_state(api: HuaweiRouter5GAPI) -> bool | None:
     return None if raw is None else raw == "1"
 
 
+async def _wifi_state(api: HuaweiRouter5GAPI) -> bool | None:
+    """Read whether the WiFi radios are on."""
+    data = await api.get_data()
+    raw = (data.get("monitoring_status") or {}).get("WifiStatus")
+    return None if raw in (None, "") else str(raw) == "1"
+
+
 async def _guest_wifi_state(api: HuaweiRouter5GAPI) -> bool | None:
     """Read whether any SSID flagged as a guest network is enabled."""
     data = await api.get_data()
@@ -340,6 +347,21 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
             "set_guest_wifi",
             lambda: _guest_wifi_state(api),
             api.set_guest_wifi,
+        ),
+    )
+
+    await _offer(
+        report,
+        "set_wifi",
+        "Toggles the WiFi radios and puts them back.\n"
+        "Every wireless client in the house drops while they are off, and a\n"
+        "crash between the toggle and the restore leaves them down.",
+        lambda: _toggle_and_restore(
+            api,
+            report,
+            "set_wifi",
+            lambda: _wifi_state(api),
+            api.set_wifi,
         ),
     )
 

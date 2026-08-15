@@ -285,6 +285,11 @@ class HuaweiRouter5GAPI:
                     ("csps_state", lambda: client.net.csps_state()),
                     ("security_sip", lambda: client.security.sip()),
                     ("security_upnp", lambda: client.security.upnp()),
+                    # `voice_busy` returns a bare string ("Idle"), not a dict -
+                    # the only block in this payload that does. Anything walking
+                    # the payload must tolerate that.
+                    ("voice_busy", lambda: client.voice.voicebusy()),
+                    ("voice_volte", lambda: client.voice.volte()),
                 ]
                 for key, fetcher in fetch_tasks:
                     try:
@@ -444,6 +449,58 @@ class HuaweiRouter5GAPI:
                 )
             except Exception:
                 _LOGGER.exception("Set net mode failed")
+                raise
+
+    async def set_wifi(self, enable: bool) -> None:
+        """Turn the WiFi radios on or off.
+
+        **This is the master switch, and it is a different level from the guest
+        network.** The router keeps radio state in `wlan/status-switch-settings`
+        and per-SSID state in `wlan/multi-basic-settings`; the SSID flags are
+        gated by the radio, so writing them while the radio is off changes
+        nothing. An earlier attempt at this control worked at the SSID level
+        and could not turn WiFi on, which is why.
+
+        **The library's own helper does not work here.**
+        `client.wlan.wifi_network_switch()` builds its payload from
+        `find_wlan_settings`/`save_wlan_settings` and the router answers
+        `100005: Request format error`. Verified on a live B535, 2026-08-15.
+
+        What works is round-tripping the endpoint's own GET response with
+        `wifienable` flipped - the same pattern as `set_guest_wifi`, and for the
+        same reason: the response carries fields we neither understand nor need
+        to, and a payload built from scratch drops them.
+
+        Measured both directions on the same device: radios `0,0 -> 1,1` with
+        `WifiStatus` `0 -> 1`, and back. The SSIDs follow the radio on their
+        own - enabling brought up the two primaries and left the guest and
+        secondary networks off, which is the router remembering their state
+        rather than anything this write sets.
+        """
+
+        def _write(client: Client) -> None:
+            """Read the radio block, flip every radio, write it back whole."""
+            settings = client.wlan.status_switch_settings()
+            radios = settings.get("radios", {}).get("radio", [])
+            if isinstance(radios, dict):
+                radios = [radios]
+            if not radios:
+                # A router with no radios to switch is not a write failure to
+                # retry; it means this model does not expose the endpoint the
+                # way the reference B535 does.
+                raise HuaweiConnectionError("Router returned no WiFi radios to switch")
+            for radio in radios:
+                radio["wifienable"] = "1" if enable else "0"
+            settings["radios"] = {"radio": radios}
+            client.wlan._session.post_set(  # noqa: SLF001
+                "wlan/status-switch-settings", settings
+            )
+
+        async with self._lock:
+            try:
+                await self._execute_with_retry(_write)
+            except Exception:
+                _LOGGER.exception("Set WiFi failed")
                 raise
 
     async def set_guest_wifi(self, enable: bool) -> None:

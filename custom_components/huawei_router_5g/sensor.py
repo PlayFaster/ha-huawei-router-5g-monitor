@@ -1747,6 +1747,18 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         value_fn=lambda data: _safe_int(_block(data, "start_date", "MonthThreshold")),
     ),
     HuaweiSensorEntityDescription(
+        key="line_state",
+        translation_key="line_state",
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        # `voice.voicebusy()` returns a BARE STRING ("Idle"), not a dict - the
+        # only block in this payload that does. An earlier pass concluded this
+        # API offered no call state at all; that came from a bulk sweep which
+        # had corrupted its own session, and it was wrong.
+        value_fn=lambda data: (data or {}).get("voice_busy") or None,
+    ),
+    HuaweiSensorEntityDescription(
         key="projected_usage",
         translation_key="projected_usage",
         device_class=SensorDeviceClass.DATA_SIZE,

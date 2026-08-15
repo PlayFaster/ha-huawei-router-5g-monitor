@@ -54,6 +54,13 @@ MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
     group="system",
 )
 
+WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
+    key="wifi",
+    translation_key="wifi",
+    entity_category=EntityCategory.CONFIG,
+    group="wifi",
+)
+
 GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="wifi_guest_network",
     translation_key="wifi_guest_network",
@@ -78,6 +85,7 @@ async def async_setup_entry(
                 coordinator, entry, PAUSE_POLLING_DESCRIPTION, initial_pause_state
             ),
             HuaweiMobileDataSwitch(coordinator, entry, MOBILE_DATA_DESCRIPTION),
+            HuaweiWifiSwitch(coordinator, entry, WIFI_DESCRIPTION),
             HuaweiGuestWifiSwitch(coordinator, entry, GUEST_WIFI_DESCRIPTION),
         ]
     )
@@ -193,6 +201,50 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         # Outside the error boundary on purpose. The write has already
         # succeeded; a blip while re-reading must not report the write as
         # failed and invite a retry of a command with a real-world effect.
+        await self.coordinator.async_force_refresh()
+
+
+class HuaweiWifiSwitch(HuaweiSwitch):
+    """Master WiFi switch - the radios, not the individual networks.
+
+    **A different level from the guest switch**, and that distinction is why an
+    earlier attempt at this control could not be made to work. The router keeps
+    radio state in `wlan/status-switch-settings` and per-SSID state in
+    `wlan/multi-basic-settings`; the SSID flags are gated by the radio, so
+    writing them while the radio is off changes nothing.
+
+    Reads `monitoring_status.WifiStatus`, which is already polled - the radio
+    block would be a second round trip for the same fact. Confirmed to track
+    the radios in both directions on a live B535.
+    """
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return True if the WiFi radios are on."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        raw = (data.get("monitoring_status") or {}).get("WifiStatus")
+        return None if raw in (None, "") else str(raw) == "1"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the WiFi radios on."""
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the WiFi radios off."""
+        await self._async_set(False)
+
+    async def _async_set(self, enable: bool) -> None:
+        """Write the radio state, raising if the router refused."""
+        action = "Enable" if enable else "Disable"
+        try:
+            await self.coordinator.api.set_wifi(enable)
+        except Exception as err:
+            _LOGGER.exception("%s: %s WiFi failed", self._entry.title, action)
+            raise HomeAssistantError(f"{action} WiFi failed: {err}") from err
+
+        # Outside the error boundary - see HuaweiMobileDataSwitch._async_set.
         await self.coordinator.async_force_refresh()
 
 

@@ -717,6 +717,7 @@ def test_every_value_binary_sensor_reads_its_flag(description) -> None:
         "dial_up_connection": {"RoamAutoConnectEnable": "1"},
         "security_sip": {"SipStatus": "1"},
         "security_upnp": {"UpnpStatus": "1"},
+        "voice_volte": {"volte_enable": "1"},
     }
     coordinator = MagicMock()
     coordinator.data = data
