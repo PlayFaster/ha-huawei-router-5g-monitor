@@ -255,3 +255,92 @@ async def test_every_live_entity_publishes_its_about_note(
     assert not missing, "live entities publishing no about note:\n" + "\n".join(
         sorted(missing)
     )
+
+
+# ---------------------------------------------------------------------------
+# Section 12 — translations and icons, resolved against LIVE entities
+#
+# `test_entity_hygiene.py` reconciles both against **source**, by regex over
+# `translation_key="..."` and by reading the description tuples. That catches
+# drift and is worth keeping, but it is not what §12's tag asks for: the tag
+# specifies live entities, because source-reading cannot tell whether an
+# entity was actually constructed, which platform it landed on, or whether a
+# key reachable in a module is reachable at runtime. An entity built by a
+# factory, skipped by a capability check, or filed under a different platform
+# than its module suggests is invisible to a regex and obvious here.
+# ---------------------------------------------------------------------------
+
+
+def _translations(name: str) -> dict:
+    import json
+    import pathlib
+
+    import custom_components.huawei_router_5g as component
+
+    path = pathlib.Path(component.__path__[0]) / name
+    return json.loads(path.read_text(encoding="utf-8"))
+
+
+@pytest.mark.asyncio
+async def test_every_live_entity_resolves_its_name(
+    hass: HomeAssistant, live_entry: MockConfigEntry
+) -> None:
+    """Every constructed entity's `translation_key` must resolve, per platform.
+
+    Checked **per platform**, which is the part source-reading cannot do. A key
+    filed under `sensor` in `strings.json` while its entity is built on
+    `binary_sensor` resolves fine to any check that flattens the file, and
+    shows the user a raw key.
+    """
+    missing: list[str] = []
+
+    async with _live_entities(hass, live_entry) as entities:
+        for name in ("strings.json", "translations/en.json"):
+            entity_section = _translations(name).get("entity", {})
+            for entity in entities:
+                key = getattr(entity, "translation_key", None)
+                if not key:
+                    continue
+                platform = entity.entity_id.split(".", 1)[0]
+                if key not in entity_section.get(platform, {}):
+                    missing.append(f"{name}: {platform}.{key} ({entity.entity_id})")
+
+    assert not missing, "live entities with no translated name:\n" + "\n".join(
+        sorted(set(missing))
+    )
+
+
+@pytest.mark.asyncio
+async def test_every_live_entity_has_an_icon_or_derives_one(
+    hass: HomeAssistant, live_entry: MockConfigEntry
+) -> None:
+    """A live entity must get its icon from `icons.json` or a `device_class`.
+
+    Without either, HA falls back to a generic dot. That is not an error and
+    nothing logs — it just looks unfinished, which is why this needs a test
+    rather than a glance.
+
+    Also checked per platform, and against what was actually built rather than
+    against the description tuples.
+    """
+    icons = _translations("icons.json").get("entity", {})
+    bare: list[str] = []
+
+    async with _live_entities(hass, live_entry) as entities:
+        for entity in entities:
+            key = getattr(entity, "translation_key", None)
+            if not key:
+                continue
+            platform = entity.entity_id.split(".", 1)[0]
+            if key in icons.get(platform, {}):
+                continue
+            if getattr(entity, "device_class", None) is not None:
+                continue
+            if getattr(entity, "icon", None):
+                continue
+            bare.append(f"{platform}.{key} ({entity.entity_id})")
+
+    assert not bare, (
+        "live entities with neither an icon nor a device_class:\n"
+        + "\n".join(sorted(bare))
+    )

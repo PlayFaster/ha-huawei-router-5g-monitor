@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev24\] - 2026-08-15 - Section 6 and Section 12 Tests Verified Against Real Regressions](#120-dev24---2026-08-15---section-6-and-section-12-tests-verified-against-real-regressions)
   - [\[1.2.0-dev23\] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router](#120-dev23---2026-08-15---review-findings-implemented-options-changes-now-reach-the-router)
   - [\[1.2.0-dev22\] - 2026-08-15 - Code Review](#120-dev22---2026-08-15---code-review)
   - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS De-duplication and the Event Payload Contract](#120-dev21---2026-08-15---depth-review-sms-de-duplication-and-the-event-payload-contract)
@@ -115,6 +116,21 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev24] - 2026-08-15 - Section 6 and Section 12 Tests Verified Against Real Regressions
+
+`dev_standards` §11 requires that a test claimed against a `**Test:**` tag has been **shown to fail** when the thing it guards is broken. Verifying the tests added in `[1.2.0-dev23]` changed two of the claims.
+
+### Added
+
+- **Rounding tests for §6.** `[1.2.0-dev23]` added rounding to `parse_signal_value` with no test covering it, so the tag could not honestly be claimed. Four tests: the rounding itself, that it reaches `_safe_float` (a refactor giving the wrapper its own conversion would leave the entities unrounded while the parse test still passed), that the None/empty/garbage guards are unweakened, and that whole numbers are untouched.
+- **§12's checks rewritten against LIVE entities.** The first version read source with a regex over `translation_key="..."`. The tag specifies _live entities_, and the difference is not cosmetic: source-reading cannot tell which platform an entity actually landed on. Both checks now iterate constructed entities and resolve **per platform**.
+
+### Notes
+
+- **Verification, and what it changed.** For §14 the first attempted regression — dropping `about` from a subclass's `_unrecorded_attributes` — was caught by the **existing static sweep as well**, so it proved nothing about the new test. Breaking it the way the section actually describes did: an attribute key added inside the projection's `extra_state_attributes`, which is built by a function on the description. **Static passed; the runtime sweep failed.** For §12, a live key was filed under the wrong platform in `strings.json` — the source-reading check passed and the live check failed, which is why that test was rewritten rather than recorded as a partial.
+- Every regression was applied to a byte copy and restored with an `md5sum` comparison, per `agent_conventions.md` §2. Nothing was restored from git.
+- Suite **720 → 726**, 100% line and branch coverage, 0 partial branches.
 
 ## [1.2.0-dev23] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router
 

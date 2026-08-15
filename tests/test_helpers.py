@@ -596,3 +596,57 @@ def test_the_metadata_offset_heuristic_at_its_edges(messages, expected_indexes):
     parsed = parse_sms_list({"Messages": {"Message": messages}})
 
     assert [m["index"] for m in parsed] == expected_indexes
+
+
+# ---------------------------------------------------------------------------
+# Section 6 — rounding at parse time
+# ---------------------------------------------------------------------------
+
+
+def test_parse_rounds_at_parse_time() -> None:
+    """Router noise must not reach the recorder verbatim.
+
+    `parse_signal_value` is the single point every numeric value in the
+    component passes through — `_safe_int` and `_safe_float` both delegate to
+    it — so this is the only place rounding has to happen.
+    """
+    from custom_components.huawei_router_5g.helpers import parse_signal_value
+
+    assert parse_signal_value("99.930600002408") == 99.931
+    assert parse_signal_value(-85.7777777) == -85.778
+    assert parse_signal_value("-95.1234567dBm") == -95.123
+
+
+def test_rounding_reaches_the_safe_wrappers() -> None:
+    """The wrappers must inherit the rounding, not bypass it.
+
+    Asserted separately because these are what the entity descriptions
+    actually call. A future refactor that gave `_safe_float` its own
+    conversion would leave `parse_signal_value` rounding and the entities
+    unrounded, and the test above would still pass.
+    """
+    from custom_components.huawei_router_5g.helpers import _safe_float
+
+    assert _safe_float("12.98765") == 12.988
+
+
+def test_rounding_does_not_weaken_the_input_guards() -> None:
+    """Rounding must not change how bad input is handled."""
+    from custom_components.huawei_router_5g.helpers import _safe_float
+
+    assert _safe_float(None) is None
+    assert _safe_float("") is None
+    assert _safe_float("N/A") is None
+    assert _safe_float("not a number") is None
+
+
+def test_rounding_leaves_integers_alone() -> None:
+    """The common case is an integer and must be untouched.
+
+    Most values this router reports are whole numbers. Rounding exists for
+    float artefacts of the `0.30000000000000004` kind, not to alter readings.
+    """
+    from custom_components.huawei_router_5g.helpers import _safe_float, _safe_int
+
+    assert _safe_float("-95") == -95.0
+    assert _safe_int("4") == 4
