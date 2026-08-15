@@ -66,6 +66,24 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # entry fires against a coordinator whose API is already logged out.
         self._pending_refresh: CALLBACK_TYPE | None = None
 
+        # Single-slot memo for the usage projection, held per entry.
+        #
+        # The projection has two consumers on the same state write — the
+        # sensor's value and its `confidence` attribute — so without this it
+        # is computed twice per poll to produce two halves of one answer.
+        #
+        # **Per coordinator rather than per module.** A module-level slot is
+        # shared by every config entry, so two routers each replace the
+        # other's entry on every poll and the memo never hits — it degrades
+        # to no memo at all, silently, on exactly the installs that poll most.
+        # It also survives between tests, which makes ordering matter.
+        #
+        # Keyed by identity, not equality: the payload is replaced wholesale
+        # on each refresh, so `is` is correct and cheap. Holding the payload
+        # is what makes identity safe — it cannot be collected and have its
+        # `id()` reused while it is still the key.
+        self.projection_cache: tuple[Any, Any] | None = None
+
         # The non-live options this entry was built with. The update listener
         # compares against it to tell a connection change, which must reload,
         # from a tuning change, which must not (Section 9). Set by

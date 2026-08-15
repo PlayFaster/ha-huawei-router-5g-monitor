@@ -5,6 +5,9 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev28\] - 2026-08-15 - Projection Memo Per Entry; Placeholder and Source-Read Fixes](#120-dev28---2026-08-15---projection-memo-per-entry-placeholder-and-source-read-fixes)
+  - [\[1.2.0-dev27\] - 2026-08-15 - Drop `url-normalize`](#120-dev27---2026-08-15---drop-url-normalize)
+  - [\[1.2.0-dev25\] - 2026-08-15 - Tighten Two Sweeps; Drop the Redundant Refresh](#120-dev25---2026-08-15---tighten-two-sweeps-drop-the-redundant-refresh)
   - [\[1.2.0-dev24\] - 2026-08-15 - Section 6 and Section 12 Tests Verified Against Real Regressions](#120-dev24---2026-08-15---section-6-and-section-12-tests-verified-against-real-regressions)
   - [\[1.2.0-dev23\] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router](#120-dev23---2026-08-15---review-findings-implemented-options-changes-now-reach-the-router)
   - [\[1.2.0-dev22\] - 2026-08-15 - Code Review](#120-dev22---2026-08-15---code-review)
@@ -116,6 +119,54 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev28] - 2026-08-15 - Projection Memo Per Entry; Placeholder and Source-Read Fixes
+
+### Fixed
+
+- **The projection memo was module-level and shared by every config entry.** Introduced in `[1.2.0-dev23]` to stop the projection being computed twice per state write, it held a single slot for the whole component — so with two routers configured each poll replaced the other's entry and the memo never hit. It degraded to no memo at all, silently, on exactly the installs that poll most, and it also persisted between tests. Moved to `coordinator.projection_cache`, where it is naturally per entry and dies with the entry, alongside `reload_signature` which is there for the same reason.
+- **The Section 12 translation checks read mutated source.** They grep `translation_key="..."` out of `.py` files resolved from the imported package, which points into `mutants/` during a mutation run. mutmut mutates **function bodies**, and `coordinator.py:382` and `:398` use `translation_key=` inside the function that raises a repair issue — so the checks collected `XXauth_failedXX` and `AUTH_FAILED` and correctly reported that they do not resolve, failing clean-test collection and aborting the run before a single mutant was tested. `_component_root()` now resolves through `_shipped_root()` and reads what ships. **Literals in module-level constants are never mutated**, which is why `zte_router_5g` runs the same check over a `sensor.py` holding 75 `translation_key` literals and is unaffected — all 75 are in a module-level tuple.
+
+### Added
+
+- **Two tests for the `write_not_confirmed` placeholder.** The message text and the `translation_placeholders` dict were written separately and nothing brought them together; a mismatch is invisible in review and at runtime to everyone except the user, who sees a raw `{action}`. The first renders the shipped message and asserts both that the substitution happened and that no unfilled placeholder survives, in both translation files. The second reads the raise site and asserts the supplied names match the message's. Neither closes the loop alone.
+
+### Notes
+
+- A `value_fn` receives only the payload and cannot reach the coordinator, so `native_value` now reads the memoised projection directly — joining the two keys it already special-cases. `_projected_bytes` remains the description's `value_fn`, uncached, so the description sweeps still see one and the calculation stays testable from a bare payload. Four `test_projection.py` cases repointed to `_compute_projection`, which is what they were testing.
+- Suite **726 → 728**, 100% line and branch coverage, 0 partial branches. `ruff` and `mypy custom_components/ --strict` clean.
+- **Still open:** the Section 9 reload has never been exercised against a real Home Assistant. A config-name change was observed **not** to poll, where the code says it should reload — unresolved.
+
+## [1.2.0-dev27] - 2026-08-15 - Drop `url-normalize`
+
+### Removed
+
+- **`url-normalize==3.0.0`** from `.validate/requirements_custom.txt` and, through the sync, `requirements_test.txt`. Nothing imported it. `api.py`'s `_normalize_router_url` and `config_flow.py`'s `_clean_host` do the work in-tree — bare IPs, missing or uppercase scheme, trailing slashes — and `api.py` records why: the `url_normalize` / `idna` stack was avoided deliberately to remove a UTS46 import race during HA startup. `manifest.json` never listed it, so users were never installing it, and `huawei-lte-api` does not require it (`pycryptodomex`, `requests`, `xmltodict`). `zte_router_5g` and `unifi_network_monitor` carry no reference to it either.
+
+### Changed
+
+- `manifest.json` reformatted. **Its `version` still reads `1.2.0-dev25`** and does not match this commit's tag.
+
+### Notes
+
+- A spelling and formatting pass over `requirements_test.txt`, `docs/huawei_how_to_access.md` and three test files was committed separately as `e38709e`, **tagged `[1.2.0-dev24]` in error** — that tag already belonged to `a24a38a`. `dev26` is unused.
+
+## [1.2.0-dev25] - 2026-08-15 - Tighten Two Sweeps; Drop the Redundant Refresh
+
+### Fixed
+
+- **The Section 14 runtime sweep's floor was 20 against an actual 161.** `test_no_live_entity_publishes_a_recorded_attribute` asserts how many entities it inspected so it cannot pass over an empty set. The figure was a guess made when the test was written; measured afterwards it is 161, so the sweep would have reported success with seven eighths of the component silently dropping out. Raised to 150, with the measured number recorded beside it.
+- **The Section 12 icon check accepted `_attr_icon` as satisfying it.** Any entity setting an icon in code passed without an `icons.json` entry — which is the hole, not an exemption: §12 wants icons in `icons.json` where they are translatable and reviewable in one place. Now only an `icons.json` entry or a `device_class` counts.
+- **An unverified write forced a full refresh.** The Section 22 read-back's third outcome — the write succeeded, the confirming read did not answer — ended in `async_force_refresh()`, so a transient blip cost two reads **and** all 26 endpoints. That is more work than the debounced refresh the read-back replaced, and it lands precisely when the router is already struggling. Removed; the next scheduled poll settles it. Both tests now assert the refresh is **not** awaited, which is the load-bearing assertion in each.
+
+### Changed
+
+- `sensor.py` added to `.validate/mutmut_modules.txt`. It is the project's highest-value module for mutation — every guard band and every `value_fn` — and was the only omission among the three projects that run mutation testing.
+
+### Notes
+
+- Suite **726 passing**, 100% line and branch coverage, 0 partial branches. Coverage held without new tests: the removed branch took its own partial with it.
+- **A third behaviour change was added to the `[1.2.0-dev23]` entry rather than left unstated** — a _refused_ write now takes about two seconds to report, because `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice. A confirmed write is a single read and remains faster than what it replaced.
 
 ## [1.2.0-dev24] - 2026-08-15 - Section 6 and Section 12 Tests Verified Against Real Regressions
 

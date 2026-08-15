@@ -230,37 +230,28 @@ def _month_used_bytes(data: dict[str, Any] | None) -> int | None:
     return (down or 0) + (up or 0)
 
 
-_PROJECTION_CACHE: list[tuple[dict[str, Any] | None, _Projection | None]] = []
-"""Single-slot memo for `_projection`, keyed on the coordinator payload.
+def _projection(coordinator: Any) -> _Projection | None:
+    """Return this entry's projection, computing it at most once per poll.
 
-The projection has **two** consumers on the same poll — `_projected_bytes`,
-which is the sensor's `value_fn`, and the entity's `extra_state_attributes`,
-which needs `confidence` and the cycle bounds from the same calculation. Both
-run on every state write, so without this the whole thing is computed twice
-per poll to produce two halves of one answer.
+    Memoised on the **coordinator**, not on this module. Both consumers — the
+    sensor's value and its `confidence` attribute — run on the same state
+    write, so an uncached call does the whole calculation twice to produce two
+    halves of one answer.
 
-Keyed by **identity, not equality**: the coordinator replaces `data` wholesale
-on each refresh, so `is` is both correct and cheap, and a mutation in place
-would be a bug elsewhere. The slot holds a strong reference to the payload it
-was computed from, which is what makes identity safe — the object cannot be
-collected and have its `id()` reused while it is still the cache key.
+    A module-level slot looked equivalent and was not: it is shared by every
+    config entry, so with two routers each poll replaces the other's entry and
+    the memo never hits. It degrades to no memo at all, silently, on exactly
+    the installs that poll most. It also persisted between tests.
 
-Held in a list rather than rebound as a module global so the memo does not
-need a `global` statement, which `ruff` rejects and which would make the
-mutation harder to see at the call site.
-"""
-
-
-def _projection(data: dict[str, Any] | None) -> _Projection | None:
-    """Return the projection for `data`, computing it at most once per poll.
-
-    Thin memo over `_compute_projection`. See `_PROJECTION_CACHE` for why the
-    key is identity and why holding the payload is what makes that safe.
+    See `coordinator.projection_cache` for why the key is identity and why
+    holding the payload is what makes that safe.
     """
-    if _PROJECTION_CACHE and _PROJECTION_CACHE[0][0] is data:
-        return _PROJECTION_CACHE[0][1]
+    data = coordinator.data
+    cached = coordinator.projection_cache
+    if cached is not None and cached[0] is data:
+        return cast("_Projection | None", cached[1])
     result = _compute_projection(data)
-    _PROJECTION_CACHE[:] = [(data, result)]
+    coordinator.projection_cache = (data, result)
     return result
 
 
@@ -318,8 +309,15 @@ def _compute_projection(data: dict[str, Any] | None) -> _Projection | None:
 
 
 def _projected_bytes(data: dict[str, Any] | None) -> int | None:
-    """Return the projected end-of-cycle byte count, or None."""
-    result = _projection(data)
+    """Return the projected end-of-cycle byte count, or None.
+
+    Uncached, and **not** the path the entity uses — `native_value` reads the
+    memoised projection off the coordinator, because a `value_fn` receives
+    only the payload and cannot reach it. Kept as the description's `value_fn`
+    so the sweeps that require one still see it, and so the calculation stays
+    testable from a bare payload.
+    """
+    result = _compute_projection(data)
     return None if result is None else result.projected_bytes
 
 
@@ -2520,6 +2518,15 @@ class HuaweiRouterSensor(
             messages = self._get_messages()
             return messages[0]["content"] if messages else None
 
+        if self.entity_description.key == "projected_usage":
+            # Read the memoised projection rather than calling the `value_fn`,
+            # which takes only the payload and so cannot reach the cache. This
+            # is the half that makes the memo pay: without it the value and
+            # the `confidence` attribute each compute the projection in full,
+            # on every state write.
+            result = _projection(self.coordinator)
+            return None if result is None else result.projected_bytes
+
         val = self.entity_description.value_fn(self.coordinator.data)
 
         # Apply guard bands
@@ -2552,7 +2559,7 @@ class HuaweiRouterSensor(
             # never actually published. `confidence` is the whole basis on
             # which a user is meant to judge an estimate, so a figure without
             # it is a number with no way to weigh it.
-            result = _projection(self.coordinator.data)
+            result = _projection(self.coordinator)
             if result is None:
                 return self._with_about(None) or {}
             return (

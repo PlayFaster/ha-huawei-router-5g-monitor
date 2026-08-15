@@ -27,11 +27,11 @@ from custom_components.huawei_router_5g.helpers import (
 from custom_components.huawei_router_5g.sensor import (
     SENSOR_TYPES,
     _antenna,
+    _compute_projection,
     _current_apn_profile,
     _identifier,
     _month_used_bytes,
     _projected_bytes,
-    _projection,
 )
 
 TZ = ZoneInfo("Europe/Dublin")
@@ -189,13 +189,13 @@ def test_a_disabled_cycle_is_recognised_in_every_spelling(spelling: str) -> None
     Huawei reports `SetMonthData` as `"0"`/`"1"`, but casing is guaranteed
     nowhere in this API.
     """
-    assert _projection(_data(start_date__SetMonthData=spelling)) is None
+    assert _compute_projection(_data(start_date__SetMonthData=spelling)) is None
     assert _projected_bytes(_data(start_date__SetMonthData=spelling)) is None
 
 
 def test_an_enabled_cycle_projects() -> None:
     """The positive case, so the test above cannot pass by always returning None."""
-    result = _projection(_data())
+    result = _compute_projection(_data())
     assert result is not None
     assert result.projected_bytes >= result.bytes_used
 
@@ -203,12 +203,12 @@ def test_an_enabled_cycle_projects() -> None:
 @pytest.mark.parametrize("bad", ["0", "32", "", "not-a-day", None])
 def test_an_impossible_start_day_projects_nothing(bad: str | None) -> None:
     """Reject a start day outside 1 to 31 - it cannot describe a real cycle."""
-    assert _projection(_data(start_date__StartDay=bad)) is None
+    assert _compute_projection(_data(start_date__StartDay=bad)) is None
 
 
 def test_missing_counters_project_nothing() -> None:
     """No usage figure means no projection, rather than a projection of zero."""
-    assert _projection(_data(month_statistics={})) is None
+    assert _compute_projection(_data(month_statistics={})) is None
 
 
 def test_confidence_rises_with_elapsed_time() -> None:

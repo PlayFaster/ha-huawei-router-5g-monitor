@@ -342,3 +342,79 @@ def test_the_guest_extractor_returns_none_when_there_is_no_guest_network() -> No
 
     assert _guest_enable_flag({"Ssids": {"Ssid": []}}) is None
     assert _guest_enable_flag({}) is None
+
+
+# ---------------------------------------------------------------------------
+# The translated message
+# ---------------------------------------------------------------------------
+
+
+def test_the_refusal_message_renders_its_placeholder() -> None:
+    """`{action}` must actually substitute, in both translation files.
+
+    The message text and the `translation_placeholders` dict were written
+    separately and nothing had ever brought them together. A mismatch is
+    invisible in code review and invisible at runtime to everyone except the
+    user, who is shown a raw `{action}` in the error dialog.
+
+    Renders the shipped string with the placeholder the entity actually
+    passes, and asserts both that the substitution happened and that no
+    unfilled placeholder is left behind.
+    """
+    import json
+    import pathlib
+    import re
+
+    import custom_components.huawei_router_5g as component
+
+    for name in ("strings.json", "translations/en.json"):
+        path = pathlib.Path(component.__path__[0]) / name
+        message = json.loads(path.read_text(encoding="utf-8"))["exceptions"][
+            "write_not_confirmed"
+        ]["message"]
+
+        # The placeholder set the entity supplies. Named here rather than
+        # imported so a rename on either side fails this test rather than
+        # quietly agreeing with itself.
+        rendered = message.format(action="Enable mobile data")
+
+        assert "Enable mobile data" in rendered, f"{name}: placeholder not substituted"
+        assert not re.search(r"\{\w+\}", rendered), (
+            f"{name}: unfilled placeholder left in the rendered message: {rendered}"
+        )
+
+
+def test_the_entity_passes_the_placeholder_the_message_expects() -> None:
+    """The names in the message and in the code must be the same names.
+
+    The test above proves `{action}` renders. This proves the entity supplies
+    `action` and not something else — together they close the loop, and
+    neither does it alone.
+    """
+    import json
+    import pathlib
+    import re
+
+    import custom_components.huawei_router_5g as component
+
+    path = pathlib.Path(component.__path__[0]) / "strings.json"
+    message = json.loads(path.read_text(encoding="utf-8"))["exceptions"][
+        "write_not_confirmed"
+    ]["message"]
+    expected = set(re.findall(r"\{(\w+)\}", message))
+
+    source = (pathlib.Path(component.__path__[0]) / "switch.py").read_text(
+        encoding="utf-8"
+    )
+    block = re.search(
+        r'translation_key="write_not_confirmed".*?translation_placeholders='
+        r"\{(.*?)\}",
+        source,
+        re.DOTALL,
+    )
+    assert block, "the raise site has moved — this test can no longer see it"
+    supplied = set(re.findall(r'"(\w+)":', block.group(1)))
+
+    assert expected == supplied, (
+        f"message expects {sorted(expected)}, entity supplies {sorted(supplied)}"
+    )

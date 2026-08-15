@@ -1144,18 +1144,28 @@ def test_about_attribute_list_doc_matches_the_code() -> None:
 
 
 def _component_root():
-    """Return the shipped component directory.
+    """Return the component directory as **shipped**, not as mutated.
 
-    Resolved from the imported package rather than from a literal path, for
-    the same reason `_shipped_root` walks upward: under `mutmut` the tests run
-    from a rewritten copy, and a hardcoded `custom_components/...` string
-    reads whichever tree the process happens to be sitting in.
+    The imported package points into `mutants/` during a mutation run, where
+    the `.py` files carry mutmut's rewrites. That matters here because these
+    checks read *source*: mutmut mutates function bodies, so a literal inside
+    a function is rewritten — `translation_key="auth_failed"` at
+    `coordinator.py:382` becomes `XXauth_failedXX` and `AUTH_FAILED`. A check
+    that greps for translation keys then collects the mutants' own strings and
+    correctly reports that they do not resolve in `strings.json`, failing the
+    clean-test collection and aborting the whole run before a single mutant is
+    tested. Observed 2026-08-15, when `coordinator.py` joined the module list.
+
+    Literals in module-level constants are never mutated, which is why
+    `zte_router_5g` carries the same check over a `sensor.py` holding 75
+    `translation_key` literals and is unaffected — they all sit in a
+    module-level tuple.
+
+    Resolving through `_shipped_root()` steps out of the mutant tree and reads
+    what ships, which is what these checks are about in either case. It never
+    falls back to a copy: a genuinely missing tree still raises.
     """
-    import pathlib
-
-    import custom_components.huawei_router_5g as component
-
-    return pathlib.Path(component.__path__[0])
+    return _shipped_root() / "custom_components" / "huawei_router_5g"
 
 
 def _translation_file(name: str) -> dict:
