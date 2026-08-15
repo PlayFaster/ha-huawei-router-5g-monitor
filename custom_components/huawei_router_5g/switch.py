@@ -195,9 +195,15 @@ class HuaweiSwitch(
             self.async_write_ha_state()
             return
 
-        # Unverified. Nothing to publish and nothing to raise; the next
-        # scheduled poll settles it.
-        await self.coordinator.async_force_refresh()
+        # Unverified: the write reached the router, the read that would have
+        # proved it did not. Nothing to publish and nothing to raise.
+        #
+        # **Deliberately no refresh here.** Forcing one would fetch all 26
+        # endpoints to re-ask a question the router has just failed to answer,
+        # so the transient case would cost two reads *and* a full poll — more
+        # work than the debounced refresh this mechanism replaced, in exactly
+        # the situation where the router is already struggling. The next
+        # scheduled poll settles it at no extra cost.
 
 
 def _guest_enable_flag(block: dict[str, Any]) -> Any:

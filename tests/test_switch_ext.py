@@ -296,7 +296,7 @@ async def test_a_successful_write_is_not_reported_as_failed_by_a_read_blip(
     and invite the user to repeat a command with a real-world effect.
 
     So: no exception, nothing published as confirmed, and the state left for
-    the next poll to settle. The behaviour changed here — before Section 22
+    the next poll to settle. The behavior changed here — before Section 22
     this path raised, because the confirmation was a full coordinator refresh
     whose exception propagated.
     """
@@ -318,5 +318,7 @@ async def test_a_successful_write_is_not_reported_as_failed_by_a_read_blip(
     mock_api.set_mobile_data.assert_awaited_once_with(True)
     # Not confirmed, so nothing is published as fact...
     switch.async_write_ha_state.assert_not_called()
-    # ...and the next poll is asked to settle it instead.
-    mock_coordinator.async_force_refresh.assert_awaited_once()
+    # ...and no refresh is forced either. Re-asking all 26 endpoints when the
+    # router has just failed to answer one costs more than the debounced
+    # refresh this replaced. The next scheduled poll settles it.
+    mock_coordinator.async_force_refresh.assert_not_awaited()

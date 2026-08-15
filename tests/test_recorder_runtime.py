@@ -226,7 +226,11 @@ async def test_no_live_entity_publishes_a_recorded_attribute(
     # renamed, a platform reshaped — the sweep would pass over an empty set and
     # go on passing after a real regression. This is the assertion that makes
     # the test non-vacuous, and it is the one that has mattered elsewhere.
-    assert checked >= 20, (
+    # Measured at 161 on 2026-08-15. The floor sits just below that rather
+    # than at a token value: set to 20 it would have passed with seven eighths
+    # of the component silently dropping out of the sweep, which is the exact
+    # failure this assertion exists to catch.
+    assert checked >= 150, (
         f"sweep inspected only {checked} entities publishing attributes — "
         "SWEEP_DATA is stale, not the component"
     )
@@ -316,6 +320,8 @@ async def test_every_live_entity_has_an_icon_or_derives_one(
 ) -> None:
     """A live entity must get its icon from `icons.json` or a `device_class`.
 
+    Those two only — a hardcoded `_attr_icon` does not count.
+
     Without either, HA falls back to a generic dot. That is not an error and
     nothing logs — it just looks unfinished, which is why this needs a test
     rather than a glance.
@@ -336,8 +342,11 @@ async def test_every_live_entity_has_an_icon_or_derives_one(
                 continue
             if getattr(entity, "device_class", None) is not None:
                 continue
-            if getattr(entity, "icon", None):
-                continue
+            # `_attr_icon` is deliberately NOT accepted. Section 12 wants icons
+            # in `icons.json`, where they are translatable and reviewable in
+            # one place; a hardcoded `_attr_icon` satisfies the eye and defeats
+            # the check. Allowing it here made the sweep pass for any entity
+            # that set one, which is the hole rather than the exemption.
             bare.append(f"{platform}.{key} ({entity.entity_id})")
 
     assert not bare, (

@@ -274,14 +274,21 @@ async def test_a_confirmed_write_publishes_without_a_refresh() -> None:
 
 
 @pytest.mark.asyncio
-async def test_an_unverified_write_falls_back_to_a_refresh() -> None:
-    """Unverified publishes nothing as fact and leaves it to the next poll."""
+async def test_an_unverified_write_does_nothing_and_waits() -> None:
+    """Unverified publishes nothing, raises nothing, and forces no refresh.
+
+    The refresh assertion is the load-bearing one. Forcing a poll here would
+    fetch all 26 endpoints to re-ask a question the router has just failed to
+    answer — costing two reads *and* a full poll in the transient case, which
+    is more work than the debounced refresh this mechanism replaced and lands
+    precisely when the router is already struggling.
+    """
     switch, coordinator = _switch(None)
 
     await switch.async_turn_on()
 
     switch.async_write_ha_state.assert_not_called()
-    coordinator.async_force_refresh.assert_awaited_once()
+    coordinator.async_force_refresh.assert_not_awaited()
 
 
 # ---------------------------------------------------------------------------

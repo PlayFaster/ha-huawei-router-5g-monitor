@@ -55,3 +55,4 @@
 */diagnostics.py
 */device_tracker.py
 */coordinator.py
+*/sensor.py
