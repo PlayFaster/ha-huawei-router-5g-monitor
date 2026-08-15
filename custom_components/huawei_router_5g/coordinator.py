@@ -255,27 +255,24 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         the entities sit wrong until the next scheduled poll - twenty minutes
         by default.
 
-        Declines in two cases, both deliberate:
+        **A paused integration still gets the refresh**, and that is the point
+        rather than an oversight. Section 13 holds that an explicit user action
+        must not be swallowed by the pause, and the follow-up is part of the
+        press rather than background polling - with polling paused it is the
+        *only* way the user ever sees the result of the button they pushed.
+        Every other write path in this integration already forces through the
+        pause; this one was the exception until 2026-08-15. `unifi_network_monitor`
+        reached the same conclusion first.
 
-        * **Polling is paused.** The user asked for no background fetching, and
-          a timer they did not start is background fetching. The write itself
-          still goes through; only the follow-up is suppressed.
-        * **The delay would land after the next scheduled poll.** On a short
-          interval the ordinary poll already covers it, and firing anyway would
-          just add a fetch.
+        The one case it declines is when a scheduled poll would arrive first
+        anyway - which can only happen while polling is running.
 
         A second press replaces the pending refresh rather than queueing a
         second one.
         """
-        if self.entry.options.get(CONF_STOP_POLLING, False):
-            _LOGGER.debug(
-                "%s: Polling is paused; not scheduling a follow-up refresh.",
-                self.entry.title,
-            )
-            return
-
+        paused = bool(self.entry.options.get(CONF_STOP_POLLING, False))
         interval = self.update_interval.total_seconds() if self.update_interval else 0
-        if interval and delay >= interval:
+        if not paused and interval and delay >= interval:
             _LOGGER.debug(
                 "%s: Poll interval %ss is shorter than the %ss follow-up; "
                 "letting the scheduled poll cover it.",

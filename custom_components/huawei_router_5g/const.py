@@ -82,7 +82,8 @@ HEALTH_STRIKE_LIMIT = 3
 # a reboot takes well under a minute to start answering again. Both carry
 # headroom.
 #
-# Neither fires while polling is paused, and neither fires when it would land
+# Both fire even while polling is paused - the follow-up is part of the button
+# press, not background polling (Section 13). Neither fires when it would land
 # after the next scheduled poll anyway - see `async_schedule_refresh`.
 RECONNECT_REFRESH_DELAY = 20
 REBOOT_REFRESH_DELAY = 60

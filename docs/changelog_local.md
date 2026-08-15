@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev15\] - 2026-08-15 - Follow-Up Refresh Fires While Paused](#120-dev15---2026-08-15---follow-up-refresh-fires-while-paused)
   - [\[1.2.0-dev14\] - 2026-08-15 - Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---follow-up-refresh-after-reboot-and-reconnect)
   - [\[1.2.0-dev13\] - 2026-08-15 - Reconnect Button Fixed](#120-dev13---2026-08-15---reconnect-button-fixed)
   - [\[1.2.0-dev12\] - 2026-08-15 - huawei-lte-api 2.0.1](#120-dev12---2026-08-15---huawei-lte-api-201)
@@ -104,6 +105,19 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev15] - 2026-08-15 - Follow-Up Refresh Fires While Paused
+
+### Changed
+
+- **The follow-up refresh after Reboot and Reconnect now fires even while polling is paused.** §13 already required that an explicit user action must not be swallowed by the pause; the follow-up is part of the press, and while paused it is the only way the result is ever seen. Every other write path here already forced through the pause, so this was the exception.
+- The interval shortcut no longer applies while paused — the poll it would defer to returns cached data.
+
+### Notes
+
+- `unifi_network_monitor` had the correct behaviour already. Recorded as `x_proj_chores` C-011 and written into `dev_standards.md` §13 at **1.23.0**, so ZTE inherits the settled rule.
 
 ---
 

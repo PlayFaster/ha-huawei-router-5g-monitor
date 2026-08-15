@@ -709,16 +709,15 @@ async def test_a_disruptive_write_schedules_one_follow_up_refresh(
 
 
 @pytest.mark.asyncio
-async def test_no_follow_up_refresh_while_polling_is_paused(
-    mock_hass, mock_config_entry
-):
-    """A timer the user did not start is background polling.
+async def test_the_follow_up_refresh_fires_even_while_polling_is_paused(mock_hass):
+    """Section 13: an explicit user action must not be swallowed by the pause.
 
-    They asked for none. The write itself still goes through; only the
-    follow-up is suppressed.
+    The follow-up is part of the button press, not background polling — and
+    with polling paused it is the *only* way the user ever sees the result of
+    the button they pushed. Every other write path here already forces through
+    the pause; this one was the exception until 2026-08-15.
     """
     coordinator = _refresh_coordinator(mock_hass)
-    coordinator.update_interval = timedelta(seconds=1200)
     coordinator.entry.options = {"stop_polling": True}
 
     with patch(
@@ -726,8 +725,27 @@ async def test_no_follow_up_refresh_while_polling_is_paused(
     ) as later:
         coordinator.async_schedule_refresh(20)
 
-    later.assert_not_called()
-    assert coordinator._pending_refresh is None
+    later.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_a_paused_integration_ignores_the_interval_shortcut(mock_hass):
+    """While paused there is no scheduled poll to defer to.
+
+    The interval check exists to avoid a redundant fetch. Paused, the poll it
+    would defer to returns cached data, so deferring would mean the user never
+    sees the result at all.
+    """
+    coordinator = _refresh_coordinator(mock_hass)
+    coordinator.update_interval = timedelta(seconds=30)
+    coordinator.entry.options = {"stop_polling": True}
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        coordinator.async_schedule_refresh(60)
+
+    later.assert_called_once()
 
 
 @pytest.mark.asyncio
