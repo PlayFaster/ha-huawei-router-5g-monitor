@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev13\] - 2026-08-15 - Reconnect Button Fixed](#120-dev13---2026-08-15---reconnect-button-fixed)
   - [\[1.2.0-dev12\] - 2026-08-15 - huawei-lte-api 2.0.1](#120-dev12---2026-08-15---huawei-lte-api-201)
   - [\[1.2.0-dev11\] - 2026-08-15 - New Entity Set and Data-Usage Projection](#120-dev11---2026-08-15---new-entity-set-and-data-usage-projection)
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
@@ -102,6 +103,20 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev13] - 2026-08-15 - Reconnect Button Fixed
+
+### Fixed
+
+- **Reconnect failed with `-1: Unknown` on every press.** `net/reconnect` is refused by this hardware even though the library exposes it and the router advertises the feature (`net_feature_switch.reconnect_switch` is `1`). A method existing in the library says nothing about the device accepting it.
+- Now posts `dialup/dial` `Action: 0` then `Action: 1`. Verified live: `CurrentConnectTime` 135 → 5, serving again inside five seconds.
+
+### Notes
+
+- The disconnect half has no public wrapper — `DialUp.dial()` hardcodes `Action: 1` — so it reaches through `_session.post_set` under a reasoned suppression. The connect half uses the public method.
+- Caught only by pressing the button. The suite passed, and so did the contract test, because the method genuinely exists.
 
 ---
 

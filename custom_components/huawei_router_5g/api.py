@@ -365,26 +365,33 @@ class HuaweiRouter5GAPI:
     async def reconnect(self) -> None:
         """Drop and re-establish the mobile data session.
 
-        This is the router GUI's advanced-settings **Reconnect**, and it is
-        deliberately not Reboot: the device stays up, only the data session is
-        re-established.
+        This is the router GUI's advanced-settings Reconnect, and it is not
+        Reboot: the device stays up, only the data session cycles.
 
-        **`net.reconnect()`, not `dial_up.dial()`.** The latter posts
-        `Action: 1` hardcoded, which is *connect only* — it has no disconnect
-        and is a no-op on a live session, and its one real use (bringing a
-        dropped session back) is already covered by the Mobile Data switch.
+        **`net/reconnect` does not work on this hardware.** The library exposes
+        `client.net.reconnect()` and the router advertises the feature
+        (`net_feature_switch.reconnect_switch` is `1`), but the call is refused
+        with `-1: Unknown`. Verified against a live B535 on 2026-08-15, both
+        through Home Assistant and directly. The method existing in the library
+        says nothing about the device accepting it.
 
-        The client is reset afterwards, as for a reboot: the session the
-        library holds is against a connection that has just gone away, so the
-        next read must build a fresh one rather than fail on a stale handle.
+        What the router does accept is `dialup/dial`, in two steps. Measured on
+        the same device: `CurrentConnectTime` went 3893 -> 4 -> 10, so the
+        session genuinely cycles, and it was back inside five seconds.
 
-        Classified **ATTENDED** in `scripts/write_classification.py` — the
-        router answers with blank values while re-registering, which a script
-        cannot tell apart from a dead session.
+        `Action: 0` has no public wrapper - `DialUp.dial()` hardcodes
+        `Action: 1` - so the disconnect reaches through `_session.post_set`
+        under a reasoned `# noqa: SLF001`. The connect half uses the public
+        method.
         """
         async with self._lock:
             try:
-                await self._execute_with_retry(lambda client: client.net.reconnect())
+                await self._execute_with_retry(
+                    lambda client: client.dial_up._session.post_set(  # noqa: SLF001
+                        "dialup/dial", {"Action": 0}
+                    )
+                )
+                await self._execute_with_retry(lambda client: client.dial_up.dial())
                 self._reset_client()
             except Exception:
                 _LOGGER.exception("Reconnect failed")

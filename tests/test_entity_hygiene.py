@@ -609,7 +609,11 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "Probed against a live B535 on 2026-08-14: the GET returns Ssids, "
         "DbhoEnable and modify_guest_ssid, so the public setter would silently "
         "discard band-steering and guest-SSID state on each toggle. "
-        "Round-tripping the full GET response is the correct behavior here."
+        "Round-tripping the full GET response is the correct behavior here. "
+        "Second use, added 2026-08-15: reconnect posts dialup/dial Action 0. "
+        "net/reconnect is refused by this hardware with -1: Unknown despite "
+        "the library exposing it, and DialUp.dial() hardcodes Action 1, so "
+        "there is no public wrapper for the disconnect half."
     ),
     ("device_tracker.py", "type: ignore[attr-defined]"): (
         "ScannerEntity is re-exported from homeassistant.components.device_tracker "

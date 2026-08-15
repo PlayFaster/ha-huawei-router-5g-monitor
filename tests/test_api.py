@@ -1557,14 +1557,15 @@ async def test_execute_with_retry_raises_non_expiry_error():
 
 
 @pytest.mark.asyncio
-async def test_reconnect_uses_net_reconnect_not_dial():
-    """`net.reconnect()`, not `dial_up.dial()`.
+async def test_reconnect_cycles_the_dialup_session():
+    """`dialup/dial` Action 0 then 1 - NOT `net.reconnect()`.
 
-    They are not alternatives. `dial()` posts `Action: 1` hardcoded, which is
-    connect-only: it has no disconnect, is a no-op on a live session, and its
-    one real use is already covered by the Mobile Data switch. Only
-    `net.reconnect()` drops and re-establishes, which is what the router GUI's
-    Reconnect does.
+    `net/reconnect` is refused by this hardware with `-1: Unknown` even though
+    the library exposes it and the router advertises the feature. The method
+    existing says nothing about the device accepting it, which is why this
+    asserts the two-step dialup path instead.
+
+    Verified live on 2026-08-15: `CurrentConnectTime` went 3893 -> 4 -> 10.
     """
     api = _make_api()
     mock_client = MagicMock()
@@ -1576,8 +1577,11 @@ async def test_reconnect_uses_net_reconnect_not_dial():
     ):
         await api.reconnect()
 
-    mock_client.net.reconnect.assert_called_once_with()
-    mock_client.dial_up.dial.assert_not_called()
+    mock_client.dial_up._session.post_set.assert_called_once_with(
+        "dialup/dial", {"Action": 0}
+    )
+    mock_client.dial_up.dial.assert_called_once_with()
+    mock_client.net.reconnect.assert_not_called()
 
 
 @pytest.mark.asyncio
