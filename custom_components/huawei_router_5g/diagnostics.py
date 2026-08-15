@@ -193,6 +193,15 @@ NEVER_SWEPT_KEYS = {
     "Date",
     "date",
     "DeviceName",
+    # The same two versions again, under the names `ConfigEntry.data` stores
+    # them (Section 2's Flat Identity pattern). The router's spellings were
+    # listed when the four-part-version false positive was first found in
+    # Phase 2a; the entry's were not, and `11.0.1.1` was being published as
+    # `ip-1` in every download since. Found by a test written for a mutation
+    # finding, not by review — the third time on this module that a key was
+    # covered under one spelling and missed under another.
+    "sw_version",
+    "hw_version",
 }
 
 # Each octet bounded to 0-255, and not adjacent to a word character, `.` or `(`

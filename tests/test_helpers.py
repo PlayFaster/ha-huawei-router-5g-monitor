@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.helpers import (
     _parse_complex_float,
@@ -401,3 +403,196 @@ def test_a_binary_sensor_with_no_attributes_of_its_own_still_carries_the_note():
     sensor = HuaweiBinarySensor(coordinator, MagicMock(), LTE_CA_DESCRIPTION)
 
     assert sensor.extra_state_attributes == {"about": LTE_CA_DESCRIPTION.about}
+
+
+# ---------------------------------------------------------------------------
+# Mutation findings, recommendations_20260815.md
+# ---------------------------------------------------------------------------
+
+
+def _device_info_coordinator():
+    """Build the coordinator stub `build_device_info` reads from."""
+    coordinator = MagicMock()
+    coordinator.entry.title = "My Router"
+    coordinator.entry.options = {}
+    coordinator.entry.entry_id = "entry-abc"
+    coordinator.mac = "001122334455"
+    coordinator.model = "H165-383"
+    coordinator.sw_version = "1.0.1"
+    coordinator.hw_version = "v1"
+    coordinator.api.url = "http://192.168.8.1"
+    return coordinator
+
+
+def test_build_device_info_links_to_the_named_parent():
+    """The parent link names a specific device, and nothing checked which.
+
+    Covers finding ASSERT.1 from recommendations_20260815.md.
+
+    `assert_links_to_parent()` asserts on HA 2026.8+ only that `via_device_id`
+    is **truthy** — it never inspects the identifier it is passed. With a
+    mocked device registry that id is truthy whatever arguments produced it,
+    so `via_device_link(hass, None, None, None)` passed a dozen tests.
+
+    Asserting at the call boundary is the proportionate fix: it is the one
+    place a mocked registry cannot hide the arguments. The helper is
+    deliberately left alone — resolving the id through the registry would need
+    a real `hass` in every test that uses it.
+    """
+    from unittest.mock import patch
+
+    coordinator = _device_info_coordinator()
+
+    with patch(
+        "custom_components.huawei_router_5g.helpers.via_device_link",
+        return_value={"via_device_id": "resolved"},
+    ) as link:
+        build_device_info(coordinator, "signal")
+
+    link.assert_called_once()
+    args = link.call_args.args
+    assert args[0] is coordinator.hass
+    assert args[1] == DOMAIN
+    assert args[2] == "001122334455_system"
+    assert args[3] == "entry-abc"
+
+
+def test_build_device_info_carries_the_hardware_identity():
+    """Section 2: the registry must be right while the hardware is offline.
+
+    Covers finding RETVAL.1 from recommendations_20260815.md. All three fields
+    could be set to None, or dropped from the call entirely, with the suite
+    green. Distinct sentinels, so a swap cannot pass either.
+    """
+    coordinator = _device_info_coordinator()
+    coordinator.model = "MODEL-SENTINEL"
+    coordinator.sw_version = "SW-SENTINEL"
+    coordinator.hw_version = "HW-SENTINEL"
+
+    info = build_device_info(coordinator, "data")
+
+    assert info["model"] == "MODEL-SENTINEL"
+    assert info["sw_version"] == "SW-SENTINEL"
+    assert info["hw_version"] == "HW-SENTINEL"
+
+
+def test_build_device_info_names_a_group_it_has_never_heard_of():
+    """The group map is a display-name override, not a registration.
+
+    Covers finding BVA.5 from recommendations_20260815.md. The
+    `group.capitalize()` fallback is what makes a seventh sub-device degrade
+    gracefully instead of being named "My Router None".
+    """
+    info = build_device_info(_device_info_coordinator(), "storage")
+
+    assert info["name"] == "My Router Storage"
+
+
+@pytest.mark.parametrize("sentinel", ["", "N/A", "--", None])
+def test_the_routers_no_value_sentinels_parse_to_none(sentinel):
+    """`"--"` must reach a sensor as unknown, not as the string `"--"`.
+
+    Covers finding ERR.3 from recommendations_20260815.md.
+
+    The guard is decorative in `parse_signal_value`, whose fall-through hits
+    `float()` and returns None anyway — but load-bearing in these two, where
+    the fall-through returns the raw string. Without it a numeric sensor
+    publishes the literal `"--"` as its state.
+    """
+    assert _parse_complex_int(sentinel) is None
+    assert _parse_complex_float(sentinel) is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1970000khz", 1970000.0),
+        ("1970000KHz", 1970000.0),
+        ("3.5ghz", 3.5),
+        ("3.5GHz", 3.5),
+    ],
+)
+def test_khz_and_ghz_suffixes_are_stripped(raw, expected):
+    """Two of the nine unit suffixes were never exercised.
+
+    Covers finding ERR.4 from recommendations_20260815.md. The other seven had
+    their mutants killed, so this was a precise gap rather than a thin area.
+    `khz` is the one that matters: the router reports `ulfrequency` and
+    `dlfrequency` in kHz, and an unparsed value takes four sensors to unknown.
+
+    The mixed-case forms are included because the comparison runs on a
+    lower-cased copy and nothing proved that.
+    """
+    assert parse_signal_value(raw) == expected
+
+
+def test_a_message_missing_every_optional_field_takes_the_defaults():
+    """A firmware that omits a field must not take the SMS sensors down.
+
+    Covers finding ERR.2 from recommendations_20260815.md. Every message dict
+    in the suite carried every field, so no default was ever taken — and one
+    of them raises when absent: `int(msg.get("Index", None))` is `int(None)`,
+    a TypeError that propagates out of the parser.
+    """
+    parsed = parse_sms_list({"Messages": {"Message": [{"Index": "7"}]}})
+
+    assert len(parsed) == 1
+    assert parsed[0]["index"] == 7
+    assert parsed[0]["phone"] == ""
+    assert parsed[0]["content"] == ""
+    assert parsed[0]["date"] == ""
+    assert parsed[0]["read"] is False
+
+
+def test_entries_that_are_not_messages_are_dropped_rather_than_parsed():
+    """The filter is `isinstance` **and** `"Index" in msg`, not either.
+
+    Covers finding ERR.2 from recommendations_20260815.md. Under `or`, a bare
+    string reaches `msg.get` and raises; a dict with no `Index` is parsed as
+    though it were a message.
+    """
+    parsed = parse_sms_list(
+        {
+            "Messages": {
+                "Message": [
+                    {"Index": "1", "Content": "real"},
+                    {"Content": "no index — metadata, not a message"},
+                    "not a dict at all",
+                ]
+            }
+        }
+    )
+
+    assert len(parsed) == 1
+    assert parsed[0]["index"] == 1
+
+
+@pytest.mark.parametrize(
+    ("messages", "expected_indexes"),
+    [
+        # One real message must be kept — this is what `> 1` decides.
+        ([{"Index": "5", "Content": "only"}], [5]),
+        # A leading metadata element carries neither key, and is dropped.
+        ([{"Count": "2"}, {"Index": "9", "Content": "real"}], [9]),
+        # Two real messages: neither is metadata, so neither is dropped.
+        (
+            [{"Index": "1", "Content": "a"}, {"Index": "2", "Content": "b"}],
+            [1, 2],
+        ),
+    ],
+)
+def test_the_metadata_offset_heuristic_at_its_edges(messages, expected_indexes):
+    """Some firmware prefixes the list with a count element.
+
+    Covers finding BVA.4 from recommendations_20260815.md. The suite only ever
+    supplied well-formed multi-message lists whose first element was a real
+    message, so neither edge of the length test nor either side of the
+    metadata test was exercised — including a straight inversion of the
+    condition.
+
+    The indexes are asserted, not just the count: on count alone the
+    single-message and metadata cases are indistinguishable.
+    """
+    parsed = parse_sms_list({"Messages": {"Message": messages}})
+
+    assert [m["index"] for m in parsed] == expected_indexes

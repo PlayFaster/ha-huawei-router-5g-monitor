@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev20\] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Was Being Published as an IP Token](#120-dev20---2026-08-15---mutation-findings-implemented-firmware-version-was-being-published-as-an-ip-token)
   - [\[1.2.0-dev19\] - 2026-08-15 - Mutation Testing Configured and First Run Triaged](#120-dev19---2026-08-15---mutation-testing-configured-and-first-run-triaged)
   - [\[1.2.0-dev18\] - 2026-08-15 - `about` Attribute Notes on Every Entity](#120-dev18---2026-08-15---about-attribute-notes-on-every-entity)
   - [\[1.2.0-dev17\] - 2026-08-15 - Router Diagnostics Sensor](#120-dev17---2026-08-15---router-diagnostics-sensor)
@@ -109,6 +110,28 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.0-dev20] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Was Being Published as an IP Token
+
+### Fixed
+
+- **The diagnostics sweep was rewriting the firmware version as an address.** `ConfigEntry.data` stores the version under `sw_version`; `NEVER_SWEPT_KEYS` listed only the router's own spelling, `SoftwareVersion`. A four-part version such as `11.0.1.1` matches the IPv4 shape exactly, so **every diagnostics download since the Phase 2a rewrite has published `ip-1` in its place**. `sw_version` and `hw_version` are now listed alongside the router's spellings. Section 20 requires the diagnostic substance to survive, and the firmware version is the first thing a maintainer reads.
+
+  Found by a test written for a mutation finding, not by review. It is the **third** time on this module that a key was covered under one spelling and missed under another — the other two were `Spn` versus `spn` and `Mccmnc` versus `Numeric`, both found by the live-capture audit.
+
+### Added
+
+- **27 tests implementing the 13 findings** in `.notes/issues/testing_deeper/recommendations_20260815.md`. The largest group asserts what the diagnostics sanitizer **produces** rather than only what it removes: that identifiers are replaced by tokens rather than deleted, that the tokens carry their prefixes, and that two different inputs get two different tokens. Every previous assertion was negative, and deleting every address satisfies a negative assertion completely.
+- `cycle_bounds` is now tested with a deliberately awkward `now`, at the exact cycle boundary, and rolling backwards from January into December. The projection's blended rate is pinned to a hand-computed value rather than a range.
+- `build_device_info` now has its parent link asserted at the call boundary, and its three hardware-identity fields asserted with distinct sentinels.
+- `parse_sms_list` is tested with fields missing, with non-message entries, and at both edges of its metadata-offset heuristic; `parse_signal_value` with the `khz` and `ghz` suffixes; both complex parsers with the router's `""` / `N/A` / `--` sentinels.
+
+### Notes
+
+- **Correction to `[1.2.0-dev19]`.** That entry called the diagnostics finding "the backstop has never been driven by a MAC or an IPv4 address", on the assumption that `re.sub` raises when its replacement function returns `None`. **It does not** — it treats `None` as an empty replacement and deletes the match, so the backstop _is_ reached and the mutants survived for a different reason: the tests could not tell tokenisation from deletion. Verified by applying the mutation to a byte copy, running the suite against it (39 tests, all green) and restoring with a hash check. The finding is real and is fixed here; its mechanism and severity in that entry were wrong, and the report has been corrected in place.
+- **Suite 655 → 682**, 100% line and branch coverage, 0 partial branches, assertion audit PASSED, ruff and `mypy --strict` clean, IQS static PASSED.
 
 ---
 

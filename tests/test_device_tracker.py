@@ -290,3 +290,57 @@ async def test_listener_does_not_call_add_entities_when_nothing_is_new():
     assert async_add_entities.call_count == 1, (
         "async_add_entities was called again with no new clients"
     )
+
+
+# ---------------------------------------------------------------------------
+# Mutation findings, recommendations_20260815.md
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_an_empty_host_block_adds_nothing_and_does_not_raise():
+    """The realistic degraded shape: the keys present, the contents empty.
+
+    Covers finding ERR.5 from recommendations_20260815.md.
+
+    `test_device_tracker_setup_entry_malformed_initial` covers a host source
+    that is not a dict, which takes the `isinstance` guard instead. The case
+    left uncovered is the one the router actually produces when nothing is
+    connected — and under the surviving mutation `hosts.extend(None)` raises
+    `TypeError`, taking platform setup down entirely.
+    """
+    coordinator = MagicMock()
+    coordinator.data = {"lan_host_info": {}, "wlan_host_list": {"Hosts": {}}}
+    entry = MagicMock()
+    entry.runtime_data = coordinator
+    add_entities = MagicMock()
+
+    await async_setup_entry(MagicMock(), entry, add_entities)
+
+    assert add_entities.call_args.args[0] == []
+
+
+@pytest.mark.asyncio
+async def test_new_trackers_are_added_with_update_before_add():
+    """A newly discovered client gets a state now, not at the next poll.
+
+    Covers finding ERR.5 from recommendations_20260815.md. The flag could be
+    flipped to False, set to None, or dropped, and nothing noticed — the
+    existing tests count the entities and never look at how they were added.
+    """
+    coordinator = MagicMock()
+    coordinator.data = {
+        "lan_host_info": {
+            "Hosts": {"Host": [{"MacAddress": "AA:BB:CC:DD:EE:09", "Active": "1"}]}
+        },
+        "wlan_host_list": {"Hosts": {"Host": []}},
+    }
+    entry = MagicMock()
+    entry.runtime_data = coordinator
+    add_entities = MagicMock()
+
+    await async_setup_entry(MagicMock(), entry, add_entities)
+
+    entities, update_before_add = add_entities.call_args.args
+    assert len(entities) == 1
+    assert update_before_add is True

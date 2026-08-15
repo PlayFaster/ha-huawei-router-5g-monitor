@@ -405,3 +405,93 @@ def test_every_projection_attribute_is_excluded_from_the_recorder() -> None:
         "elapsed_days",
         "basis",
     } <= HuaweiRouterSensor._unrecorded_attributes
+
+
+# ---------------------------------------------------------------------------
+# Mutation findings, recommendations_20260815.md
+# ---------------------------------------------------------------------------
+
+
+def test_the_blended_rate_is_exactly_the_weighted_mean() -> None:
+    """The forecast a user reads, pinned to a hand-computed value.
+
+    Covers finding BVA.1 from recommendations_20260815.md.
+
+    `test_a_prior_rate_moves_only_the_unobserved_remainder` asserts a
+    direction and a bound, and four mutations of the blend line satisfy that
+    for its inputs: `+` becoming `-`, `*` becoming `/`, and the weight
+    becoming `1.0 + weight` or `2.0 - weight`. A range assertion cannot
+    separate a correct weighted mean from an incorrect one.
+
+    Every term here is deliberately distinct so no two mutations coincide:
+        weight       = 10 / (10 + 5)  = 2/3
+        current_rate = 100 / 10       = 10.0
+        rate         = 2/3·10 + 1/3·5 = 8.333...
+        projected    = 100 + 20·rate  = 266.666...
+    """
+    projected = project_cycle_usage(
+        used=100.0,
+        elapsed_days=10.0,
+        cycle_length_days=30,
+        prior_rate=5.0,
+        credibility_days=5.0,
+    )
+
+    assert projected == pytest.approx(266.6666667, rel=1e-6)
+
+
+def test_the_cycle_boundary_is_exactly_local_midnight() -> None:
+    """The normalisation was never exercised, because no test made it work.
+
+    Covers finding BVA.2 from recommendations_20260815.md. Every `now` in the
+    cycle tests was constructed at a round time, so zeroing the time-of-day
+    was a no-op on every input the suite supplied and all four components
+    could be deleted with the suite green.
+
+    It is not cosmetic: `elapsed_days` is measured from `start`, so a boundary
+    carrying the current time-of-day skews the projection by up to a day at
+    the point in the cycle where it is least stable anyway.
+
+    The four components are asserted individually so a failure names the one
+    that was lost.
+    """
+    awkward = datetime(2026, 8, 15, 17, 43, 21, 123456, tzinfo=TZ)
+
+    start, end, _ = cycle_bounds(1, awkward)
+
+    for boundary in (start, end):
+        assert boundary.hour == 0
+        assert boundary.minute == 0
+        assert boundary.second == 0
+        assert boundary.microsecond == 0
+
+
+def test_a_now_exactly_on_the_boundary_belongs_to_the_new_cycle() -> None:
+    """`start > now`, not `>=` — one instant a month turns on it.
+
+    Covers finding BVA.3 from recommendations_20260815.md. Under `>=` the
+    first moment of a new cycle rolls back a whole month: `elapsed_days` jumps
+    from zero to about thirty and the projection is computed against the
+    previous cycle.
+    """
+    start, _, length = cycle_bounds(1, datetime(2026, 8, 1, 0, 0, 0, 0, tzinfo=TZ))
+
+    assert start == datetime(2026, 8, 1, 0, 0, tzinfo=TZ)
+    assert length == 31
+
+
+def test_a_january_date_before_the_start_day_rolls_back_to_december() -> None:
+    """The backward roll is a different branch from the forward one.
+
+    Covers finding COMBO.1 from recommendations_20260815.md.
+    `test_a_december_cycle_rolls_into_january` covers a December cycle whose
+    *end* lands in January. This is the other direction: a January `now`
+    falling before the start day, so the cycle in flight began last December —
+    and the year arithmetic behind it had three surviving mutations.
+    """
+    start, end, _ = cycle_bounds(15, datetime(2027, 1, 9, 12, 0, tzinfo=TZ))
+
+    assert start.year == 2026
+    assert start.month == 12
+    assert start.day == 15
+    assert end == datetime(2027, 1, 15, 0, 0, tzinfo=TZ)

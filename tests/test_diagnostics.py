@@ -509,3 +509,151 @@ async def test_a_real_ipv6_address_in_free_text_is_still_caught(entry):
     assert "2001:db8::1" not in text
     assert "2001:0db8:0000:0000:0000:0000:0000:0001" not in text
     assert result["data"]["block"]["elided"].startswith("route via ip6-")
+
+
+# ---------------------------------------------------------------------------
+# Mutation findings, recommendations_20260815.md
+#
+# Everything above asserts a **negative** — that no input identifier survives
+# into the output. That is the property that matters most, and it is not
+# sufficient on its own: deleting every address satisfies it, and so does
+# collapsing every MAC in the document to a single token. Section 20 requires
+# pseudonymization rather than blanking, and says in terms that a sanitizer
+# which guts the file has failed as surely as one that leaks. These assert
+# what the sanitizer *produces*.
+# ---------------------------------------------------------------------------
+
+
+def _two_client_payload() -> dict:
+    """Return a payload with two clients and an unenumerated free-text key."""
+    payload = _payload()
+    payload["lan_host_info"]["Hosts"]["Host"].append(
+        {
+            "HostName": "Erins-Laptop",
+            "MacAddress": "AA:BB:CC:DD:EE:02",
+            "IpAddress": "192.168.8.101",
+            "Active": "1",
+        }
+    )
+    # A routable address, deliberately — every existing fixture uses an RFC1918
+    # one, and the private-range half of the rule would otherwise cover for the
+    # branch under test. The MAC is hyphen-separated for the same reason: the
+    # regex accepts both and only the colon form appears above.
+    payload["another_future_block"] = {
+        "some_key": "peer AA-BB-CC-DD-EE-03 reached 8.8.4.4 ok",
+    }
+    return payload
+
+
+@pytest.mark.asyncio
+async def test_identifiers_are_replaced_by_tokens_not_merely_removed(entry):
+    """Section 20: pseudonymize, do not blank.
+
+    Covers finding DIAG.1 from recommendations_20260815.md.
+
+    Sixteen mutants survived on this one gap, including replacing the sweep's
+    substitution with a function returning `None` — which does **not** raise,
+    it deletes the match. The output would read "peer  reached  ok" and every
+    existing assertion would still pass, because every existing assertion is
+    about what is absent.
+    """
+    entry.runtime_data.data = _two_client_payload()
+    result, dumped = await _dump(entry)
+
+    block = result["data"]["another_future_block"]["some_key"]
+
+    # The identifiers are gone — and something stands in their place.
+    assert "AA-BB-CC-DD-EE-03" not in dumped
+    assert "8.8.4.4" not in dumped
+    assert "mac-" in block, f"the MAC was removed rather than tokenized: {block!r}"
+    assert "ip-" in block, f"the address was removed rather than tokenized: {block!r}"
+    # The surrounding prose must survive, or the file is useless to a reader.
+    assert block.startswith("peer ")
+    assert block.endswith(" ok")
+
+
+@pytest.mark.asyncio
+async def test_two_different_identifiers_get_two_different_tokens(entry):
+    """The converse of the stability test, and the one that was missing.
+
+    Covers finding DIAG.1 from recommendations_20260815.md.
+    `test_the_same_identifier_gets_the_same_token_across_the_document` is
+    satisfied trivially when *everything* yields the same token — which is
+    exactly what `tokenizer.token("mac", None)` produces, and it survived.
+    """
+    entry.runtime_data.data = _two_client_payload()
+    result, _ = await _dump(entry)
+
+    hosts = result["data"]["lan_host_info"]["Hosts"]["Host"]
+    macs = [h["MacAddress"] for h in hosts]
+    names = [h["HostName"] for h in hosts]
+
+    assert len(set(macs)) == 2, f"both clients share one MAC token: {macs}"
+    assert len(set(names)) == 2, f"both clients share one name token: {names}"
+    # The prefix is what makes the document readable; nothing checked it.
+    assert all(m.startswith("mac-") for m in macs), macs
+    assert all(n.startswith("name-") for n in names), names
+
+
+@pytest.mark.asyncio
+async def test_a_list_of_bare_strings_keeps_its_key(entry):
+    """The key is what routes a value; the list branch can drop it.
+
+    Covers finding DIAG.3 from recommendations_20260815.md. Every list in the
+    fixtures held dicts, whose own keys are then used, so dropping the key
+    when recursing into a list was invisible.
+
+    A name is the right probe: it has no shape, so the structural sweep cannot
+    rescue it and the test isolates key propagation.
+    """
+    payload = _payload()
+    payload["some_block_with_a_name_list"] = {"HostName": ["Sams-iPhone", "Erins-Pad"]}
+    entry.runtime_data.data = payload
+
+    result, dumped = await _dump(entry)
+
+    names = result["data"]["some_block_with_a_name_list"]["HostName"]
+    assert "Erins-Pad" not in dumped
+    assert all(n.startswith("name-") for n in names), names
+
+
+@pytest.mark.asyncio
+async def test_the_entry_data_section_is_present_and_sanitized(entry):
+    """The whole `data` section could become None with the suite green.
+
+    Covers finding RETVAL.1 from recommendations_20260815.md. `entry.data` is
+    where the Flat Identity pattern keeps the model and firmware version — the
+    fields a maintainer reads first — and nothing asserted the section existed.
+    """
+    result, dumped = await _dump(entry)
+
+    data = result["entry"]["data"]
+    assert data is not None
+    assert data["model"] == "B535s-232"
+    assert data["sw_version"] == "11.0.1.1"
+    assert "DC:71:96:11:22:33" not in dumped
+    assert data["mac"].startswith("mac-")
+
+    coordinator = result["coordinator"]
+    assert coordinator["consecutive_failures"] == 2
+    assert "last_update_success_time" in coordinator
+    assert "update_interval_seconds" in coordinator
+
+
+@pytest.mark.asyncio
+async def test_an_empty_value_under_a_redacted_key_stays_empty(entry):
+    """`**REDACTED**` in place of nothing tells the reader a value was there.
+
+    Covers finding ERR.1 from recommendations_20260815.md. The guard runs only
+    under a `TO_REDACT` or carrier key, and the existing empty-value test does
+    not use one.
+    """
+    payload = _payload()
+    payload["device_information"]["Imei"] = ""
+    payload["current_plmn"]["Spn"] = None
+    entry.runtime_data.data = payload
+
+    result, _ = await _dump(entry)
+
+    assert result["data"]["device_information"]["Imei"] == ""
+    assert result["data"]["current_plmn"]["Spn"] is None
