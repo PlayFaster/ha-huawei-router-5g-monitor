@@ -202,6 +202,56 @@ Returned `100002: No support`. **Do not add, do not retry.**
 
 ---
 
+## 🆕 What 2.0.1 added, and what a proper scan found
+
+**Method: a full surface diff, not a probe.** 1.11.0 was unpacked alongside 2.0.1 and both enumerated — every group, every method signature, every enum member, every exception. That is the only way to answer "what is new" without guessing, and it is what the earlier field-level scans could not do.
+
+**The surface barely moved.** 70 groups and 336 methods → 70 groups and 340 methods. No new groups, no enum changes, no exception changes. Most signature diffs are `Dict[str, Any]` → `dict[str, Any]` typing modernisation.
+
+### Six methods added
+
+| Method | Live value | Worth |
+| :-- | :-- | :-- |
+| **`monitoring.onekey_diag()`** | Ten fields — `connection_status`, `signal_status`, `sim_status`, `dialupswitch_off`, `datalimit_off`, `roam_off`, `staticdns`, `apnstatus`, `modemdialup_err`, `speedLimitStatus` | **The router's own self-diagnosis.** This is `status_plan` §S-6's target, and it now exists |
+| **`voice.volte()`** | `volte_enable='1'`, `ui_display_ims='1'` | Real VoLTE state, which the SIP ALG flag is not |
+| `wlan.guesttime_setting()` | `isvalidtime='1'`, `remaintime='0'`, `extendtime='30'` | Guest-WiFi time limit |
+| `security.acl()` | `https_enable='1'`, `icmp_enable='0'`, `acs_enable='0'` | Remote-management access control |
+| `user.rule()` | Password-length and complexity policy | Low |
+| `diagnosis.wan_service_name()` | `'INTERNET'` | Low |
+
+`onekey_diag`'s `speedLimitStatus` reads `0`, matching `monitoring_status.speedLimitStatus` — the two blocks cross-validate.
+
+### Two methods removed — and both were already handled
+
+`device.control` and `device.reboot` are gone. This integration calls `device.set_control(ControlModeEnum.REBOOT)`, chosen in `[1.1.3-dev10]` precisely because it survives 2.0.0. **No change was needed.**
+
+### A correction the scan forced: the voice group IS readable
+
+An earlier pass concluded there was "no registration status, no call state, no line status — nothing that changes when a call happens". **That was wrong**, and it came from the bulk sweep that had corrupted its own session. Re-probed in small batches on fresh connections:
+
+| Method | Live value |
+| :-- | :-- |
+| **`voice.voicebusy()`** | **`Idle`** — the line state. It is exactly the live call state the earlier pass said did not exist |
+| `voice.sipaccount()` | SIP proxy and register server addresses, **plus an account password field** |
+| `voice.sipserver()` | Server profile, IP type, secondary server |
+| `voice.voiperstatus()` | `voiper_enable='1'` |
+| `voice.voiceadvance()` | `dtmfmethod='InBand'`, `EchoCancellationEnable='1'` |
+| `voice.featureswitch()`, `.functioncode()`, `.speeddial()` | Readable; thin or empty here |
+
+Only `voice.codec()` refuses.
+
+> [!WARNING]
+>
+> **`voice.sipaccount()` returns a password.** If it is ever added to the fetch set, the key must go into `diagnostics.py`'s `TO_REDACT` in the same change — the diagnostics download dumps `coordinator.data` wholesale.
+
+**The method lesson, since this is the second time it has bitten.** Probe in **small batches on fresh sessions** and re-verify every negative. A single bulk sweep of this API produces false `100003` results that read exactly like a genuine permission boundary, and both the "no VoIP state" and the "`wlan.multi_basic_settings` needs login" conclusions came from one.
+
+### Still unmeasured
+
+`online_update.status()` returns `CurrentComponentStatus='14'` — the same `14` that `monitoring_status.OnlineUpdateStatus` reports and that was rejected as an undecodable code. It now has a context that might decode it; not pursued.
+
+---
+
 ## 📚 Related documents
 
 - `ha-zte-router-5g-monitor/docs/zte_how_to_access.md` — the ZTE companion, organised by `cmd` name because that interface is two endpoints with a parameter.
