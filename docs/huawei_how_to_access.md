@@ -32,11 +32,21 @@ Base URL is normalised by `_normalize_router_url` in `api.py`; a bare host such 
 
 ## 🔧 Authentication
 
-### One login, and most reads do not need it
+### One login — and it is required
 
-The router accepts a single username and password — **there is no separate `admin` account or elevated tier**. `Connection(url, username=..., password=...)` logs in during construction; passing `username=None` produces an **anonymous** session, which is what this integration does today, because the config entry stores an empty username.
+The router accepts a single username and password — **there is no separate `admin` account or elevated tier.** One credential is the whole authentication model; the evidence for that is at the end of this section.
 
-**Anonymous is enough for everything the integration polls.** Device information, signal, monitoring, traffic, SMS, connected clients and WiFi settings all answer without credentials on this firmware.
+`Connection(url, username=..., password=...)` logs in during construction. The config entry stores an **empty username with a real password**, and the library authenticates on the password alone — so this is an **authenticated session, not an anonymous one**.
+
+> [!IMPORTANT]
+>
+> **The stored password is load-bearing. Clearing it breaks the integration outright.**
+>
+> `device.information` — the `CRITICAL_ENDPOINT`, whose failure aborts the whole fetch — returns **`100003: No rights (needs login)`** on an anonymous session. Verified 2026-08-16 as a sole call on a fresh connection, so it is not the bulk-sweep artefact described below.
+>
+> An earlier revision of this document claimed the integration ran anonymously and that "anonymous is enough for everything the integration polls". **Both statements were wrong.** Had they been true, every poll would have aborted on the critical endpoint.
+
+Some reads _do_ answer anonymously — `device.basic_information`, `device.vendorname` and `system.deviceinfoex` all did on the same probe. That is what made the wrong claim plausible. It does not generalise, and `device.information` is the counter-example that matters.
 
 Roughly **90 of the library's ~240 read methods answer `100003: No rights (needs login)`** — the configuration surface: WiFi security settings, MAC filters, VPN, USB storage, voice/SIP account details, firmware update controls. Supplying the stored password as `admin` was tested and made **no difference to any of them**, so they are not a credential problem — they need a session this API grants differently, or the model does not permit them at all.
 
@@ -176,6 +186,9 @@ They are listed here as the record of the decision and the live values it was ma
 | `net.net_feature_switch` | 9 capability flags | Same |
 | `wlan.wifi_feature_switch` | 49 keys, 47 unread | Polled, but almost entirely firmware **capability** flags rather than state |
 | `config_statistic.config` | 60+ keys | A firmware config template — dated `2012`, values are defaults. Mirrors `start_date` but is not live state |
+| `device.vendorname` | `version_name='ZOWEE'` | The **ODM**, not the brand. See the trap in Field formats |
+| `device.basic_information` | `classify='cpe'`, `devicename`, `spreadname_en` | Every field duplicates `device_information`. HA Core reads it as a fallback for models where `device.information` is thin; unnecessary here, where that endpoint answers every poll |
+| `system.deviceinfoex` | `UpTime`, `custinfo`, `devcap` | `UpTime` duplicates `device_information.uptime`; the rest are capability flags and `devcap.Vendor` is empty |
 
 ### Readable, never reviewed
 
@@ -189,7 +202,6 @@ Found by the endpoint sweep and **not** assessed. Recorded so the next person st
 | `diagnosis.diagnose_ping`, `.diagnose_traceroute` | 11, 6 | **The router will run a ping or traceroute on request.** Interesting and unexplored |
 | `diagnosis.time_reboot` | 4 | **Scheduled reboot, and it is ENABLED on the reference unit.** `enable='1'`, `dayinterval='7'`, `begintime='60'`, `endtime='300'` — a reboot every 7 days in a window that reads as 01:00–05:00 if the times are minutes past midnight, which is **inference from the values fitting, not measurement**. Worth knowing even if never exposed: it explains a weekly uptime reset, and it interacts with reboot detection. `zte_router_5g` exposes an equivalent |
 | `online_update.status`, `.configuration`, `.autoupdate_config` | 8, 4, 2 | Firmware update state — may decode `monitoring_status.OnlineUpdateStatus`, which was rejected as an unknown code |
-| `system.deviceinfoex` | 14 | Extended device information |
 | `sms.config` | 16 | SMS behavior settings |
 | `net.net_mode_list` | 3 | The modes this device will accept — could validate the Network Mode select |
 | `led.appctrlled` | 3 | LED control |
@@ -220,6 +232,10 @@ Returned `100002: No support`. **Do not add, do not retry.**
 **`device_signal.band` is the full carrier aggregation; `bandInfo` is only the primary.** `band` returns `20MHz@500(B1) + 15MHz@1875(B3) + ...` while `bandInfo` returns `B1`. Two sensors showing these side by side read as a contradiction unless one explains itself.
 
 **`dial_up.profiles` returns profiles out of order.** The list came back indexed 1, 3, 2. Resolve `CurrentProfile` by matching the `Index` field, never by list position.
+
+**`device.vendorname` returns the ODM, not the brand.** It answers `{"version_name": "ZOWEE"}` on the reference unit — Zowee Technology, the contract manufacturer. Wiring it into the device registry's `manufacturer` would replace a correct "Huawei" with a name the owner has never heard of. **`manufacturer` is therefore a hardcoded `"Huawei"` in `helpers.py` and `__init__.py`, deliberately.**
+
+There is **no brand field anywhere on this hardware**. Probed 2026-08-16: `device.information` has none, `device.basic_information` gives only `classify: cpe` and `devicename`, and `system.deviceinfoex` carries `devcap.Vendor` — the one field actually named for it — as an **empty string**. Brovi and SoyeaLink units will therefore also show as "Huawei"; the README says so under Compatibility. Anything better would have to be asked of the user in the config flow, not sniffed from the payload.
 
 **`ImeiSvn` is the IMEI Software Version Number**, a two-digit manufacturer revision counter (`01`). There is no public table to decode it further, and `SoftwareVersion` already says the same thing readably.
 
