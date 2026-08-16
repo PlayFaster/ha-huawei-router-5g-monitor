@@ -55,6 +55,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
     - **Huawei 4G/LTE B-Series CPEs**: **B525**, **B528**, **B535**, **B618**, **B715**, **B818** (4G Router 3 Prime), **B310**, **B315**.
     - **Huawei HiLink USB Modems / Mobile Wi-Fi**: **E3372**, **E8372**, **E5573**, **E5577** (in HiLink / Ethernet mode).
   - _(Note: While protocol support for these models is built into `huawei-lte-api`, they remain unverified on live hardware for this custom integration)._
+  - _(Note: All devices, including Brovi and SoyeaLink models, are listed with the manufacturer **Huawei** in Home Assistant. The model name is read from the router.)_
 
 - **Not Compatible (Incompatible Router Families)**:
   - ❌ **Huawei Landline & Mesh Wi-Fi Routers (WS5200, AX3, AX3 Pro, WiFi Mesh 3/7)** — These landline mesh routers do not run the cellular HiLink modem API. Use **[`vmakeev/huawei_mesh_router`](https://github.com/vmakeev/huawei_mesh_router)** instead.
@@ -96,12 +97,140 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 - **RF Engineering Data**: Monitor CQI, MCS, Transmit Power, and Carrier Aggregation status.
 - **Frequency Tracking**: Active 5G/LTE bands, EARFCN, and uplink/downlink frequencies.
 
+#### 📶 Reading Your Signal Data
+
+This integration reports extensive cellular radio metrics. This section explains which ones matter, what to expect, and how to optimize router placement or external antennas.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+#### Start with two numbers
+
+| Look at  | To answer                         | Entity                |
+| :------- | :-------------------------------- | :-------------------- |
+| **SINR** | _How fast will this actually go?_ | `5G SINR`, `LTE SINR` |
+| **RSRP** | _Do I have coverage at all?_      | `5G RSRP`, `LTE RSRP` |
+
+**SINR (Signal Quality) is the single most useful number.** It measures your signal against background noise plus interference from competing transmitters, and it tracks achievable throughput more closely than raw signal strength.
+
+**RSRP (Signal Strength) is raw received power.** It tells you whether the cell tower reaches you, not how well the connection will perform.
+
+They move independently, and that is the point:
+
+- **Strong RSRP, poor SINR** — you are close to a busy or overlapping tower sector. Plenty of raw signal, but high interference. Speeds disappoint despite "full bars".
+- **Weak RSRP, good SINR** — you are far out from the tower but the sector is quiet. Often perfectly usable, and sometimes faster than the first case.
+
+#### What the numbers mean
+
+| Metric         | Excellent | Good       | Fair        | Poor   |
+| :------------- | :-------- | :--------- | :---------- | :----- |
+| **SINR** (dB)  | > 20      | 13 to 20   | 0 to 13     | < 0    |
+| **RSRP** (dBm) | > −80     | −80 to −90 | −90 to −100 | < −100 |
+| **RSRQ** (dB)  | > −10     | −10 to −15 | −15 to −20  | < −20  |
+| **RSSI** (dBm) | > −65     | −65 to −75 | −75 to −85  | < −85  |
+
+RSRP, RSRQ and RSSI are negative — **closer to zero is stronger**.
+
+---
+
+| Acronym | Means | Think Of | Answers |
+| :-- | :-- | :-- | :-- |
+| **SINR** | Signal-to-Interference-plus-Noise Ratio | **"Signal Quality"** | _How fast will this actually go?_ |
+| **RSRP** | Reference Signal Received Power | **"Signal Strength"** | _Do I have coverage at all?_ |
+| **RSRQ** | Reference Signal Received Quality | **"Connection Congestion"** | _Is the channel congested/busy?_ |
+| **RSSI** | Received Signal Strength Indicator | **"Total Power"** | _How much raw RF energy reaches the modem?_ |
+
+---
+
+> [!TIP]
+>
+> Every entity created by this integration carries an **`about`** note explaining what it measures and where to find standard threshold bands. Click the entity → **⋮ menu → Details**.
+
+#### Treat these as a starting point, not a verdict
+
+What counts as "good enough" is specific to your location. A reading that would be poor for someone 500m from a mast can be entirely fine at 4km on a quiet sector, because the two are limited by different things — interference in the first case, noise in the second.
+
+The most useful questions are comparative:
+
+- **Is this router position better than that position?**
+- **Is today worse than last week?**
+
+#### Establish your own baseline
+
+When the connection is performing well, note your SINR, RSRP, and RSRQ values. **That is your reference.** A subsequent drop in SINR from 18 dB to 4 dB tells you far more than a generic lookup table.
+
+#### Comparing over time (no code needed)
+
+Individual readings fluctuate with radio traffic. Home Assistant can average readings for smooth comparison:
+
+1. Go to **Settings → Devices & Services → Helpers → Create Helper**
+2. Choose **Combine the state of several sensors** → **Statistics**
+3. Select **`5G SINR`** (or **`LTE SINR`** if operating in LTE-only mode).
+4. Set characteristic to **Arithmetic mean** and max age to **15 minutes**.
+
+Use this smoothed sensor to compare different antenna orientations or monitor historical degradation over time in a History card.
+
+#### Is there one number for overall quality?
+
+Simple answer — **No**.
+
+There is no universal formula combining SINR, RSRP and RSRQ into a single score because the bottleneck depends on whether your site is noise-limited or interference-limited. The two closest indicators are:
+
+- **SINR** — the best single measure of usable throughput.
+- **`Signal Bars`** (and **`5G Signal Bars`**, 0–5) — the modem's internal composite summary.
+
+---
+
+</details>
+
 ### 📉 Data Usage Tracking
 
 - **Monthly Data Usage**: Track your monthly download, upload and total data usage.
 - **Session Usage**: Track your download and upload for this session/connection (i.e. since last router restart).
 - **Daily Usage**: Track your total usage (upload + download) for today.
 - **Download & Upload Speed**: Track your upload and download speeds. Note: This is valid, but only at the instant data was fetched from the router.
+
+#### Understanding the Usage Projection
+
+**Projected Usage** (`sensor.huawei_5g_data_projected_usage`) answers the question standard usage counters cannot: _am I on course to stay within or exceed my monthly data cap?_
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+The forecast uses an active run-rate: usage period-to-date is divided by elapsed cycle days, and that average daily rate is carried across the days remaining in the billing period.
+
+| Attribute | Meaning |
+| :-- | :-- |
+| `confidence` | `low`, `medium`, or `high` — how much of the figure rests on observed usage rather than extrapolation. Reaches `high` around a quarter of the way through a cycle. |
+| `basis` | How the estimate was calculated (e.g. `run_rate_only`). |
+| `cycle_day` | Where you are in the cycle (e.g. `12 of 31`). |
+| `cycle_start` | The date the current billing cycle began. |
+| `cycle_source` | `router` when resolved from `Billing Cycle Day`, or `calendar_assumed` when defaulting to the 1st of the month. |
+
+**On the first day of a cycle it reads low.** With only a few hours of data, the calculation clamps slightly to prevent wild over-projections. It becomes highly accurate from day 2 onwards.
+
+**It is not recorded in long-term statistics** by design. It is an end-of-cycle estimate useful for live alerting rather than historical tracking (historical data volume is already tracked by **Month Total**).
+
+To avoid false alarms at cycle rollover, gate your automations on the `confidence` attribute:
+
+```yaml
+condition:
+  - condition: template
+    value_template: |
+      {{ state_attr('sensor.huawei_5g_data_projected_usage', 'confidence') != 'low' }}
+```
+
+**Billing Cycle Alignment**: The calculation synchronizes with the router's **Billing Cycle Day** (`sensor.huawei_5g_data_billing_cycle_day`) if configured, automatically adjusting for varying month lengths.
+
+---
+
+</details>
 
 ### 📋 Essential Router Management
 
@@ -141,14 +270,40 @@ This integration provides **159 entities** (some disabled by default, and a few 
 | 👥 **Clients** | 3 Sensors, 1+ Device Tracker | Total Connected, Wired Connected, WiFi Connected, Dynamically tracked LAN/WLAN Clients | None |
 | 🔩 **SMS Actions** | 4 Actions | Send, Delete, and List SMS | — |
 
-> [!TIP]
->
-> **Clean up your UI: Disable Unnecessary Devices or Entities**
->
-> - If you are running in Bridge Mode, you may not need the Clients sub-device
-> - If you never use the Router's SMS you may not need the SMS sub-device
-> - Devices can be disabled from the main device page: (⋮ menu) > **Disable Device** which also disables all the device entities.
-> - Individual entities can be disabled via the entity properties, or in bulk on the entities list page.
+### 🧩 Tailoring What's Monitored
+
+**Installed with its defaults, this integration needs no adjustment** — everything works out of the box. But it exposes 150+ entities, and you may not want all of them. You have options.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+#### 1. Do nothing (the easy option)
+
+If you're simply not interested in some sensors, **you don't need to do anything — just ignore them.** The overhead is minimal (a disabled entity costs nothing; even an enabled one is just a row on a card). If in doubt, leave everything as-is.
+
+#### 2. Disable sensors or sub-devices (standard Home Assistant)
+
+Use Home Assistant's built-in visibility controls — nothing specific to this integration:
+
+- **One sensor:** click the entity → **⚙️ (settings)** → turn **Enabled** off.
+- **A whole sub-device:** open its device page (e.g. _Huawei 5G Clients_) → **⋮ menu → Disable device** — this disables every entity on that card at once.
+
+Typical cases:
+
+- If you run in **Bridge Mode** or use another router for DHCP/DNS, you may have no use for the **Clients** sub-device.
+- If you never use cellular SMS, you can disable the **SMS** sub-device.
+- If you do not monitor WiFi status from HA, you can disable the **WiFi** sub-device.
+
+Disabled entities stay in the registry (greyed out) and can be re-enabled any time. This hides them from your UI; the integration still polls as normal.
+
+---
+
+</details>
+
+<br>
 
 ### ℹ️ What Each Entity Means — the `about` Attribute
 
@@ -169,9 +324,17 @@ The full list is in [`docs/about_attribute_list.md`](docs/about_attribute_list.m
 
 The note is excluded from the recorder, so it costs nothing in database size however often the entity changes.
 
+<br>
+
 ### 📊 Long Term Statistics (LTS)
 
 Home Assistant stores Long Term Statistics for numeric sensors that have a `state_class` set. This integration enables LTS only for sensors where long-term trend data is genuinely useful:
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 | Sensors with LTS enabled | Why |
 | :-- | :-- |
@@ -214,6 +377,10 @@ The following sensors have **no LTS** to avoid unnecessary database growth:
 > ```
 >
 > Restart Home Assistant after saving. The sensor will begin accumulating LTS from that point forward.
+
+---
+
+</details>
 
 ## 🔘 Controls & Settings
 
@@ -379,19 +546,24 @@ Fires automatically when a new incoming SMS is detected. Use as an automation tr
 
 ## 💡 Example Automations
 
-Entity IDs below use the default prefix huawei_5g. If you set a custom name during setup, or have renamed since, replace huawei_5g with your configured prefix.
+Entity IDs below use the default prefix `huawei_5g`. If you set a custom name during setup, or have renamed since, replace `huawei_5g` with your configured prefix.
 
 ### 💬 SMS Examples
 
 #### 📨 Forward Incoming SMS to Mobile
 
-This automation fires when a new SMS is detected and forwards the content to your mobile phone.
+<details>
+
+<summary> &nbsp; &nbsp; This automation fires when a new SMS is detected and forwards the content to your mobile phone.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
 
 ```yaml
-alias: "SMS: Forward to Mobile"
+alias: "Huawei SMS: Forward to Mobile"
 triggers:
   - trigger: event
     event_type: huawei_router_5g_sms_received
+    note: "Fires immediately when the polling cycle detects a new SMS."
 actions:
   - action: notify.mobile_app_your_phone
     data:
@@ -399,12 +571,22 @@ actions:
       message: "{{ trigger.event.data.content }}"
 ```
 
+---
+
+</details>
+
+<br>
+
 #### 🧹 Automated Inbox Maintenance
 
-Keep your router's SMS storage clean by automatically deleting old messages while keeping the most recent ones for safety.
+<details>
+
+<summary> &nbsp; &nbsp; Keep your router's SMS storage clean by automatically deleting old messages while keeping the most recent ones for safety.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
 
 ```yaml
-alias: "SMS: Weekly Inbox Cleanup"
+alias: "Huawei SMS: Weekly Inbox Cleanup"
 triggers:
   - trigger: time
     at: "03:00:00"
@@ -415,16 +597,27 @@ conditions:
 actions:
   - action: huawei_router_5g.delete_all_sms
     data:
-      entry_id: <your_config_entry_id> # This is GUI selectable in the Automation Editor.
+      entry_id: <your_config_entry_id>
       keep_last: 5
+    note: "Preserves the 5 most recent messages while clearing older SMS."
 ```
+
+---
+
+</details>
+
+<br>
 
 #### 📜 Fetch and Process Inbox via Automation
 
-Example of using the `get_sms_list` action response in an automation to count messages from a specific sender.
+<details>
+
+<summary> &nbsp; &nbsp; Example of using the `get_sms_list` action response in an automation to count messages from a specific sender.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
 
 ```yaml
-alias: "SMS: Count OTP Messages"
+alias: "Huawei SMS: Count OTP Messages"
 triggers:
   - trigger: time
     at: "09:00:00"
@@ -435,9 +628,10 @@ triggers:
 actions:
   - action: huawei_router_5g.get_sms_list
     data:
-      entry_id: <your_config_entry_id> # This is GUI selectable in the Automation Editor.
+      entry_id: <your_config_entry_id>
       count: 50
     response_variable: inbox
+    note: "Fetches inbox messages into an action response variable."
   - action: notify.persistent_notification
     data:
       message: |
@@ -445,35 +639,109 @@ actions:
         list | count }} messages from your bank in the inbox.
 ```
 
-### 🚨 Data Usage Alert
+---
 
-Monitor your data consumption and get notified when you approach your monthly limit. The example below assumes the data sensors display in **GB**. If your sensors are not in GB, check their unit and adjust the thresholds and templates accordingly.
+</details>
+
+<br>
+
+### 📡 Connection, Data & Signal Automations
+
+#### 🚨 Data Usage Alert
+
+<details>
+
+<summary> &nbsp; &nbsp; Monitor your data consumption and get notified when you approach your daily or monthly threshold.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
 
 ```yaml
-alias: "Huawei: High Data Usage Alert"
+alias: "Huawei Data: High Data Usage Alert"
+description: "Notifies when daily or monthly traffic exceeds defined limits"
+mode: single
 triggers:
   - trigger: numeric_state
     entity_id: sensor.huawei_5g_data_day_used
-    above: 10 # 10 GB - use 10000000000 if the sensor displays Bytes (B)
+    above: 10737418240 # 10 GB in bytes
+    note: "Triggers when daily traffic crosses the 10 GB threshold."
   - trigger: numeric_state
     entity_id: sensor.huawei_5g_data_month_total
-    above: 500 # 500 GB - use 500000000000 if the sensor displays Bytes (B)
+    above: 536870912000 # 500 GB in bytes
+    note: "Triggers when monthly total crosses 500 GB."
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: notify.persistent_notification
     data:
-      title: "High Data Usage Alert"
+      title: "Huawei Data: High Usage Alert"
       message: |
         Significant data usage detected:
-        Today: {{ states('sensor.huawei_5g_data_day_used') | float(0) | round(0) }} GB
-        This Month: {{ states('sensor.huawei_5g_data_month_total') | float(0) | round(0) }} GB
+        Today: {{ (states('sensor.huawei_5g_data_day_used') | float(0) / 1073741824) | round(1) }} GB
+        This Month: {{ (states('sensor.huawei_5g_data_month_total') | float(0) / 1073741824) | round(1) }} GB
 ```
 
-### 📶 Signal Quality Alert
+---
 
-Monitor for poor connection quality based on 5G status, signal bars, and link quality (CQI).
+</details>
+
+<br>
+
+#### 🔮 Projected Overage Alert
+
+<details>
+
+<summary> &nbsp; &nbsp; Warn when you are on course to exceed your monthly data allowance, rather than waiting until you already have.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
 
 ```yaml
-alias: "Signal: Poor Quality Connection Alert"
+alias: "Huawei Data: Projected Overage Alert"
+description: "Warns when the projected end-of-cycle usage is set to exceed the allowance"
+mode: single
+triggers:
+  - trigger: numeric_state
+    entity_id: sensor.huawei_5g_data_projected_usage
+    above: sensor.huawei_5g_data_data_allowance
+    for:
+      hours: 2
+    note: |
+      The threshold follows the router's configured allowance.
+      If you do not have a data plan configured on the router,
+      replace the entity_id above with a fixed byte value
+      (e.g. 500000000000 for 500 GB).
+conditions:
+  - condition: template
+    value_template: |
+      {{ state_attr('sensor.huawei_5g_data_projected_usage', 'confidence') != 'low' }}
+    note: |
+      Skips early cycle days when the projection baseline is too
+      short and swings widely.
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "Huawei Data: Projected to Exceed Allowance"
+      message: |
+        On current usage this billing cycle is projected to finish at
+        {{ (states('sensor.huawei_5g_data_projected_usage') | float(0) / 1073741824) | round(1) }} GB
+        (confidence: {{ state_attr('sensor.huawei_5g_data_projected_usage', 'confidence') }}).
+```
+
+---
+
+</details>
+
+<br>
+
+#### 📶 Signal Quality Alert
+
+<details>
+
+<summary> &nbsp; &nbsp; Monitor for poor connection quality based on 5G NSA status, signal bars, and link quality (CQI).<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+```yaml
+alias: "Huawei Signal: Poor Quality Connection Alert"
+description: "Notifies when connection quality degrades"
+mode: single
 triggers:
   - trigger: state
     entity_id:
@@ -485,8 +753,9 @@ triggers:
       - "unavailable"
     for: "00:05:00"
     note: |
-      Ignores unknown and unavailable states so router reboots or transient polling
-      failures do not trigger false degradation alerts.
+      Ignores unknown and unavailable states so router reboots
+      or transient polling failures do not trigger false
+      degradation alerts.
   - trigger: numeric_state
     entity_id:
       - sensor.huawei_5g_signal_5g_signal_bars
@@ -494,6 +763,7 @@ triggers:
       - sensor.huawei_5g_signal_5g_cqi
     below: 4
     for: "00:05:00"
+    note: "Watches for sustained low signal bars or channel quality."
 conditions:
   - condition: or
     conditions:
@@ -515,7 +785,7 @@ conditions:
         entity_id: sensor.huawei_5g_signal_5g_cqi
         below: 4
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: notify.persistent_notification
     data:
       title: "Poor Signal Quality Detected"
       message: |
@@ -527,56 +797,308 @@ actions:
         - 5G CQI: {{ states('sensor.huawei_5g_signal_5g_cqi') }}
 ```
 
-### 🩺 System Health & Connectivity Alerts
+---
 
-Monitor for router reboots or connection resets by watching the uptime and connection duration sensors.
+</details>
+
+<br>
+
+#### 📻 Cell Tower Change Alert
+
+<details>
+
+<summary> &nbsp; &nbsp; Be told when the router moves to a different cell tower or band, which often explains a sudden change in speed or signal.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
 
 ```yaml
-alias: "System: Router Reboot or Reset Alert"
+alias: "Huawei Signal: Serving Cell Tower Changed"
+description: "Notifies when the router attaches to a different cellular tower"
+mode: single
 triggers:
-  - trigger: template
-    value_template: |
-      {% set uptime = states('sensor.huawei_5g_system_uptime') | as_datetime %} {{ uptime is not none and (now() - uptime).total_seconds() < 120 }}
-    id: reboot # Trigger if uptime is less than 2 minutes (indicates a recent reboot)
-  - trigger: template
-    value_template: |
-      {% set conn = states('sensor.huawei_5g_system_connection_uptime') | as_datetime %} {{ conn is not none and (now() - conn).total_seconds() < 120 }}
-    id: reconnect # Trigger if connection duration is less than 2 minutes (indicates a recent reconnect)
+  - trigger: state
+    entity_id: sensor.huawei_5g_signal_cell_id
+    not_from:
+      - "unknown"
+      - "unavailable"
+    not_to:
+      - "unknown"
+      - "unavailable"
+    note: |
+      Fires only when the serving cell ID changes to another
+      valid cell ID, ignoring unknown or unavailable transitions
+      during restarts.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: notify.persistent_notification
     data:
-      title: "Huawei Router Notification"
-      message: >
-        {% if trigger.id == "reboot" %}
-          The router has rebooted. 
-          System Uptime: {{ states('sensor.huawei_5g_system_uptime') }}
-        {% else %}
-          The mobile connection was reset/reconnected.
-          Connection Uptime: {{ states('sensor.huawei_5g_system_connection_uptime') }}
-        {% endif %}
+      title: "Huawei: Serving Cell Tower Changed"
+      message: |
+        Cell ID: {{ trigger.from_state.state }} → {{ trigger.to_state.state }}
+        LTE Band: {{ states('sensor.huawei_5g_signal_lte_band') }} (RSRP: {{ states('sensor.huawei_5g_signal_lte_rsrp') }} dBm)
+        5G Band: {{ states('sensor.huawei_5g_signal_5g_nr_band') }} (RSRP: {{ states('sensor.huawei_5g_signal_5g_rsrp') }} dBm)
+    note: "Reports new cellular bands and RSRP levels alongside the tower ID."
 ```
 
-### 🔁 Auto-Resume Polling
+---
 
-Ensure polling is turned back on automatically if someone forgets to resume it after managing the router.
+</details>
+
+<br>
+
+### 🩺 System Health & Connectivity Alerts
+
+#### 🩺 Integration Health Problem Alert
+
+<details>
+
+<summary> &nbsp; &nbsp; Be alerted when the integration's self-checks detect a persistent fault or contract drift in router API responses.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
 
 ```yaml
-alias: "Huawei: Auto-Resume Polling"
+alias: "Huawei Health: Integration Health Problem Alert"
+description: "Notifies when the integration's self-checks detect a persistent fault"
+mode: single
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.huawei_5g_system_integration_health
+    to: "on"
+    for:
+      minutes: 10
+    note: |
+      The 10-minute buffer ensures transient timeouts or router
+      reboots do not generate false alarms.
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "Huawei Router Monitor needs attention"
+      message: |
+        Issues detected:
+        {{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'issues') | join('; ') }}
+        Last good update: {{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'last_good_update') }}
+    note: "Issues attribute contains human-readable error descriptions."
+```
+
+---
+
+</details>
+
+<br>
+
+#### 🔄 Router Reboot Alert
+
+<details>
+
+<summary> &nbsp; &nbsp; Monitor and get alerted when the router restarts.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+```yaml
+alias: "Huawei System: Router Reboot Alert"
+description: "Notifies when the router uptime timestamp changes, indicating a restart"
+mode: single
+triggers:
+  - trigger: state
+    entity_id: sensor.huawei_5g_system_uptime
+    not_from:
+      - "unknown"
+      - "unavailable"
+    not_to:
+      - "unknown"
+      - "unavailable"
+    note: "Fires when the boot timestamp shifts, ignoring state dropouts."
+actions:
+  - action: notify.persistent_notification
+    data:
+      title: "Huawei Router Rebooted"
+      message: "The router has rebooted. System Uptime: {{ states('sensor.huawei_5g_system_uptime') }}"
+```
+
+---
+
+</details>
+
+<br>
+
+#### 🔁 Auto-Reconnect on Prolonged Outage
+
+<details>
+
+<summary> &nbsp; &nbsp; Recover automatically from a stuck cellular connection by triggering a reconnect.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+```yaml
+alias: "Huawei System: Auto-Reconnect on Prolonged Outage"
+description: "Attempts cellular reconnect after a sustained data outage"
+mode: single
+max_exceeded: silent
+triggers:
+  - trigger: state
+    entity_id: binary_sensor.huawei_5g_signal_mobile_connection
+    to: "off"
+    not_from:
+      - "unknown"
+      - "unavailable"
+    for:
+      minutes: 15
+    note: |
+      Deliberately waits 15 minutes before taking action to allow
+      transient carrier blips to resolve naturally.
+actions:
+  - action: button.press
+    target:
+      entity_id: button.huawei_5g_system_reconnect
+    note: |
+      Re-establishes cellular data session without requiring a
+      full hardware reboot.
+  - delay:
+      minutes: 5
+    note: "Allows 5 minutes for the modem to re-attach before reporting."
+  - action: notify.persistent_notification
+    data:
+      title: "Huawei Router Auto-Reconnected"
+      message: "Cellular data session re-established after a 15-minute outage."
+```
+
+---
+
+</details>
+
+<br>
+
+### 🔄 Polling Control Automations
+
+#### 🔁 Auto-Resume Polling
+
+<details>
+
+<summary> &nbsp; &nbsp; Ensure polling is turned back on automatically if someone forgets to resume it after managing the router web UI.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+```yaml
+alias: "Huawei System: Auto-Resume Polling"
 description: "Turn polling back on after 1 hour if it was manually paused."
+mode: single
 triggers:
   - trigger: state
     entity_id: switch.huawei_5g_system_pause_polling
     to: "on"
     for: "01:00:00"
+    note: "Safety net for when Pause Polling is left on after web UI work."
 actions:
   - action: switch.turn_off
     target:
       entity_id: switch.huawei_5g_system_pause_polling
+    note: "Resuming polling triggers an immediate coordinator fetch."
 ```
+
+---
+
+</details>
+
+<br>
+
+#### 🔄 Dynamic Polling Interval Schedule
+
+<details>
+
+<summary> &nbsp; &nbsp; Poll frequently during the daytime and back off overnight to reduce load on the router and the database.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+```yaml
+alias: "Huawei System: Set Polling Interval by Time of Day"
+description: "Tightens poll interval during daytime and relaxes overnight"
+mode: single
+triggers:
+  - trigger: time
+    at: "07:00:00"
+    id: "day"
+    note: "Switch to daytime cadence."
+  - trigger: time
+    at: "23:00:00"
+    id: "night"
+    note: "Relax polling overnight."
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: "day"
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.huawei_5g_system_polling_interval
+            data:
+              value: 60
+            note: "Poll every 60 seconds during peak daytime hours."
+      - conditions:
+          - condition: trigger
+            id: "night"
+        sequence:
+          - action: number.set_value
+            target:
+              entity_id: number.huawei_5g_system_polling_interval
+            data:
+              value: 900
+            note: "Poll every 15 minutes overnight to save database space."
+```
+
+---
+
+</details>
+
+<br>
+
+#### 🔍 Morning Signal & Status Report
+
+<details>
+
+<summary> &nbsp; &nbsp; Send a status report each morning, triggering an explicit data fetch first so the reading is fully up to date.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+```yaml
+alias: "Huawei Signal: Morning Status Report"
+description: "Forces a fresh data poll and sends a morning signal summary"
+mode: single
+triggers:
+  - trigger: time
+    at: "08:00:00"
+actions:
+  - action: button.press
+    target:
+      entity_id: button.huawei_5g_system_refresh_now
+    note: |
+      Refresh Now fetches immediately even if Pause Polling is
+      on — explicit user actions always reach the router.
+  - delay:
+      seconds: 15
+    note: "Allows coordinator fetch to finish before reading states."
+  - action: notify.persistent_notification
+    data:
+      title: "Huawei Morning Router Report"
+      message: |
+        Network: {{ states('sensor.huawei_5g_signal_network_type') }}
+        Signal Bars: {{ states('sensor.huawei_5g_signal_signal_bars') }}/5
+        LTE RSRP: {{ states('sensor.huawei_5g_signal_lte_rsrp') }} dBm
+        5G RSRP: {{ states('sensor.huawei_5g_signal_5g_rsrp') }} dBm
+        Monthly Usage: {{ (states('sensor.huawei_5g_data_month_total') | float(0) / 1073741824) | round(1) }} GB
+        Last Updated: {{ states('sensor.huawei_5g_system_last_updated') }}
+```
+
+---
+
+</details>
 
 ## 📥 Installation
 
 ### ✨ HACS (Recommended)
+
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PlayFaster&repository=ha-huawei-router-5g-monitor&category=integration)
+
+Use the **shortcut badge** above, and then proceed to Step #3 or just ...
 
 1. Add this [repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) as a **Custom Repository** in HACS:
    - Open HACS in Home Assistant
@@ -588,10 +1110,41 @@ actions:
 
 ### 💾 Manual Installation
 
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
 1. Download the [latest release](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases).
 2. Copy the `custom_components/huawei_router_5g` folder to your Home Assistant `custom_components` directory
 3. Restart Home Assistant
 4. Go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor"
+
+---
+
+</details>
+
+<br>
+
+### 🔄 Updating
+
+Standard HACS custom-repository integration update behavior:
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
+- For Manual installs: replace the `custom_components/huawei_router_5g` folder and restart.
+- Your settings and entity customizations carry over — Configure options, connection details, renamed entities, enabled/disabled choices, and dashboards.
+- New sensors in a release (if any) appear on the first restart after updating.
+
+---
+
+</details>
 
 ## 🔧 Configuration
 
@@ -622,6 +1175,12 @@ After installation, open **Settings > Devices & Services > Huawei Router 5G Moni
 
 The integration uses a custom `DataUpdateCoordinator` designed for high stability:
 
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
 - **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
 - **Triggered Refresh**: Actions like **Reboot** or **Delete SMS** trigger an immediate API refresh to provide instant feedback.
 - **3-Strike Logic**: To avoid "Unavailable" flickers during momentary router congestion or signal loss:
@@ -630,37 +1189,89 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
   3. **Third Failure**: Marks all entities as `Unavailable` and logs an error.
 - **Auto-Recovery**: Once the router is back online, the integration restores all entities automatically.
 
+---
+
+</details>
+
+<br>
+
 ### 🆔 Identity & Stable Entities
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 - **MAC-Based Identity**: The integration uses the router's unique hardware MAC address as the primary key. This ensures that even if your router's IP address changes (DHCP), Home Assistant will track the same device and preserve your history and automations.
 - **Flat Identity Pattern**: Device information (Model, MAC, Version) remains stable and visible even if the router is temporarily offline.
 - **Reconfiguration**: If you change your router's IP or password, use the **Reconfigure** button on the integration card to update settings without losing any data.
 - **Data Validation**: Router values are checked for validity against defined guard limits. Out-of-range sensor values (e.g., impossible signal metrics) are ignored or marked as unknown to ensure data integrity.
 
+---
+
+</details>
+
+<br>
+
 ### 🔄 Dynamic Polling & Standard System Options
 
 - **Both Available**: The integration provides dynamic polling controls, to pause polling or change polling interval. It also functions normally with the standard Home Assistant **System options** > **Enable polling for changes** toggle.
+
+---
+
+<br>
 
 ## ❓ FAQ & Troubleshooting
 
 ### 🔌 Connection & Authentication
 
-#### **"Failed to connect to router" Error**
+#### 🔌 **"Failed to connect to router" Error**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 - Verify the IP address is correct (the Huawei default is `192.168.8.1`).
-- Confirm the username is `admin`.
+- Confirm the username is `admin` (or blank if unauthenticated WebUI).
 - Verify the password is correct (case-sensitive).
 - Ensure the router is powered on and not currently rebooting.
 
+---
+
+</details>
+
+<br>
+
 #### 🔒 **Why can't I access the router web UI while this integration is running?**
 
-- Huawei routers are generally tolerant of concurrent sessions (e.g., via the web UI and Home Assistant), but it can be an issue.
-- Use the **Pause Polling** switch in Home Assistant to halt polling and free up the session.
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- Huawei routers are generally tolerant of concurrent sessions, but some firmware models restrict simultaneous authenticated web sessions.
+- Use the **Pause Polling** switch in Home Assistant to halt background polling and free up the session.
 - Resume polling when you are done with the web UI.
+
+---
+
+</details>
+
+<br>
 
 ### 🩺 Is the integration itself healthy?
 
 The **Integration Health** sensor (`binary_sensor.huawei_5g_system_integration_health`, on the System device) answers the question the other entities cannot: whether the integration is working, as distinct from whether the router is up.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 It exists because the router can answer a poll _successfully_ while a whole capability is missing — SMS, WiFi clients, monthly usage — in which case the affected sensors just go blank with no explanation anywhere. It reports:
 
@@ -677,28 +1288,21 @@ Two things worth knowing:
 - **It is never `unavailable`.** Every other entity correctly goes unavailable when the router is unreachable; this one stays on to explain why.
 - **A single failed poll does not turn it on.** A problem must persist for three consecutive polls — except on a cold start, where there are no held values and it flags immediately.
 
-```yaml
-automation:
-  - alias: "Huawei router integration problem"
-    triggers:
-      - trigger: state
-        entity_id: binary_sensor.huawei_5g_system_integration_health
-        to: "on"
-        not_from:
-          - unknown
-          - unavailable
-        for: "00:05:00"
-    actions:
-      - action: notify.persistent_notification
-        data:
-          title: "Huawei router integration needs attention"
-          message: >-
-            {{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'issues') | join('; ') }}
-```
+---
+
+</details>
+
+<br>
 
 ### 📊 Diagnostics & Entity Values
 
 #### ❔ **Some sensors showing "Unknown"**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 - Most sensors showing okay with some unknown **is expected behavior**.
   - The integration fetches everything it can from the router API.
@@ -706,13 +1310,56 @@ automation:
   - 5G NR sensors will show "Unknown" when the router is operating in LTE-only mode.
   - These sensors can be disabled to avoid clutter.
 
+---
+
+</details>
+
+<br>
+
 #### 🛑 **All sensors showing "Unavailable" or "Unknown"**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
 - This is normal during a router reboot or if the router is temporarily unreachable.
   - The integration will automatically recover once the connection is restored.
 - If sensors do not recover, perform these checks:
   - Ensure you can log into the router's web UI (confirms it is up and the password is correct).
   - Check your Home Assistant logs for specific error messages.
-  - Delete and re-add the integration.
+  - Try **⋮ > Reload** on the integration card.
+  - Delete and re-add the integration only if Reload does not help.
+
+---
+
+</details>
+
+<br>
+
+#### 🐛 **How do I download diagnostics?**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+**Settings > Devices & Services > Huawei Router 5G Monitor > ⋮ (three dots) > Download diagnostics.**
+
+This is by far the most useful file to attach to a GitHub issue. It allows maintainers to see the exact structure of responses your router firmware returns without exposing sensitive private details.
+
+**It is redacted before it is written**, across multiple layers:
+
+- **Blanked outright** — your password, username, IMEI, SIM IMSI/ICCID, and carrier identity.
+- **Pseudonymized** — IP addresses, client MAC addresses, and cell tower identifiers become stable tokens (`ip-1`, `mac-1`, `cell-1`).
+- **SMS Sanitized** — Message bodies and phone numbers are completely stripped.
+- **What stays** — firmware version, signal metrics, frequency bands, byte counters, uptime, and integration health metrics.
+
+---
+
+</details>
 
 ## ❗ Known Limitations /❔ What's Missing?
 

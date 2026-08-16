@@ -28,9 +28,16 @@ Forward plans, deferred decisions, and declined directions for the Huawei 5G Rou
 
 The coordinator holds a single failure counter for the whole fetch. `api.get_data()` already tolerates individual endpoint failures by omitting them, and the Integration Health sensor now reports that — but there is no per-endpoint backoff, so a permanently dead endpoint is retried on every poll forever.
 
+Strengthened 2026-08-16 by the ecosystem review in `.notes/info/other_huawei_projects/analysis_and_learnings.md`, which reports ISP-customised firmwares (Three UK, Vodafone) locking whole endpoint families behind `100003: No rights`. Two things make this concrete rather than theoretical:
+
+- The reference H165 already returns a permanent `100002: No support` for `monitoring.daily_data_limit`, and the fix was to **hand-remove it from the fetch list** — a manual, per-device answer to what is really a per-firmware problem. `api.py` says so in a comment.
+- `100002` and `100003` are distinguishable from a transient failure, so suppression can key off the response code rather than guessing from a strike count. `_endpoint_strikes` in `coordinator.py` already counts consecutive per-endpoint misses; the counter exists, nothing consumes it for backoff.
+
+Any suppression must re-probe periodically — `100003` can change with a firmware update or a re-login at a different auth level.
+
 - **Value**: ⭐⭐
 - **Effort**: Medium
-- **Trigger**: Evidence that a persistently failing endpoint is costing meaningful poll time on real hardware.
+- **Trigger**: Evidence that a persistently failing endpoint is costing meaningful poll time on real hardware, **or** a user report from an ISP-locked device where a hand-edit of the fetch list is not available to them.
 
 ---
 
