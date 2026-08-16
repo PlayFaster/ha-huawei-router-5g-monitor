@@ -133,6 +133,15 @@ HEALTH_STRIKE_LIMIT = 3
 # Both fire even while polling is paused - the follow-up is part of the button
 # press, not background polling (Section 13). Neither fires when it would land
 # after the next scheduled poll anyway - see `async_schedule_refresh`.
+# Seconds to wait after a network-mode write before re-reading it.
+#
+# The router applies the change, drops the radio and re-registers, answering
+# abnormally throughout — including answering the write itself with
+# `-1: Unknown`. Reading back before the radio settles reports the old mode and
+# looks exactly like a refusal. Matches the settle time `hardware_check.py` has
+# used for the reconnect path, which exercises the same re-registration.
+NET_MODE_SETTLE = 15
+
 RECONNECT_REFRESH_DELAY = 20
 REBOOT_REFRESH_DELAY = 60
 

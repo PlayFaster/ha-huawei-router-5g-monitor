@@ -86,11 +86,13 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
         options=list(NETWORK_MODE_MAPPING.keys()),
         entity_category=EntityCategory.CONFIG,
         group="system",
-        no_confirmation=(
-            "Changing the radio mode drops and re-registers the connection. "
-            "The router answers abnormally for several seconds while doing so, "
-            "which a read-back would report as a refused write."
-        ),
+        # Confirmed, but inside `api.set_net_mode` rather than here, because the
+        # router answers the write itself with `-1: Unknown` while it
+        # re-registers the radio. This description previously carried a
+        # `no_confirmation` reason saying a read-back would report a refused
+        # write — true only of an *immediate* read-back. After the settle delay
+        # the read is reliable, and it is the only thing that can tell an
+        # applied change from a refused one, since both answer `-1`.
         value_fn=lambda data: (
             NETWORK_MODE_INV_MAPPING.get(
                 str(data.get("net_mode", {}).get("NetworkMode"))

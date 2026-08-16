@@ -6,6 +6,7 @@ All changes to this project will be documented in this file. This is the detaile
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
   - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
+  - [\[1.2.0-dev42\] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked](#120-dev42---2026-08-16---network-mode-reported-failure-for-a-write-that-worked)
   - [\[1.2.0-dev39\] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes](#120-dev39---2026-08-16---four-broken-hyphens-shipped-in-entity-notes)
   - [\[1.2.0-dev38\] - 2026-08-16 - About Notes Reviewed; US Spelling Swept](#120-dev38---2026-08-16---about-notes-reviewed-us-spelling-swept)
   - [\[1.2.0-dev37\] - 2026-08-16 - Roadmap Scoped to Features; Cleanup Limitation Documented](#120-dev37---2026-08-16---roadmap-scoped-to-features-cleanup-limitation-documented)
@@ -137,6 +138,24 @@ All changes to this project will be documented in this file. This is the detaile
 ### Bumps
 
 - **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.10 to v2.0.12
+
+## [1.2.0-dev42] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked
+
+The attended hardware tier was run against the live router by the owner — every scripted write passed except `clear_traffic_statistics`, which was deliberately not run. It found one real defect, and three defects in the script itself. **This is the case the script exists for: nothing in the unit suite could have found it, because the router's own answer is the thing that was wrong.**
+
+### Fixed
+
+- **Changing the network mode reported an error for a change that worked.** The router applies the new mode, begins re-registering the radio, and answers the POST with `-1: Unknown` while doing so. `set_net_mode` treated that as a refusal and raised, so `async_select_option` raised, so Home Assistant showed an error — confirmed by the owner both from the script and from the HA UI, with the router's own web interface showing the new mode immediately afterwards. **The fact was already documented in the right place and the wrong conclusion drawn from it**: the `no_confirmation` reason on the select said a read-back would report a refused write, which is true of an _immediate_ read-back and false after the radio settles. `-1` is now treated as **applied, response unverifiable** — settle for `NET_MODE_SETTLE`, re-read `net_mode`, and let that decide. A genuine refusal also answers `-1`, and the read-back is the only thing that separates the two.
+- **`net_mode` added to `READ_BACK_ENDPOINTS`; `no_confirmation` removed from the network-mode select.** Three tests asserted the old belief structurally — that no reader may exist for a connection-affecting write — and are updated with the distinction that removed it: where the resulting state is readable once things settle, wait and read. Reconnect stays excluded, because nothing it reports afterwards separates a dial that worked from one that did not.
+- **The guest-WiFi check tested nothing when the radio was off.** The guest SSID is gated by the radio, and the radio is normally off on the reference unit — so the usual case, not an edge one. The check now reads `WifiStatus` first and skips loudly with the reason.
+- **`set_net_mode` wrote the mode the router was already in.** It targeted `00` unconditionally, so on a router already set to Auto it proved nothing either way — and produced the `-1` that started this. It now targets a mode that differs from current.
+- **`send_sms` and `delete_sms` were never exercised.** Both were classified ATTENDED and excluded from the script on the grounds that each needs a target typed at a prompt, where a mistyped number reaches a stranger and a mistyped index destroys the wrong message. **That reasoning was about asking for a target, not about the writes.** The paired check does not ask: the message goes to the SIM's own `Msisdn`, read from the router, and the delete targets only the index that check created. Neither is offered alone — a send without a delete leaves litter, a delete without a send has nothing safe to remove. The possible operator charge is stated in the prompt.
+
+### Notes
+
+- **Nine of the ten writes are now verified against real hardware.** `clear_traffic_statistics` is the exception, by the owner's choice — it is irreversible and puts a step change into long-term statistics.
+- `scripts/write_classification.py` and the script's module docstring both carried the "deliberately unscripted" reasoning for SMS; both now record why it no longer holds.
+- Suite **812 passing**, ruff and mypy clean.
 
 ## [1.2.0-dev39] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes
 

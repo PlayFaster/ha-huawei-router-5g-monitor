@@ -20,8 +20,8 @@ from huawei_lte_api.exceptions import (
     ResponseErrorLoginRequiredException,
 )
 
-from .const import REQUEST_TIMEOUT
-from .helpers import _safe_int
+from .const import NET_MODE_SETTLE, REQUEST_TIMEOUT
+from .helpers import _safe_int, confirm_write
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -54,6 +54,7 @@ READ_BACK_ENDPOINTS: dict[str, Callable[[Any], Any]] = {
     "mobile_dataswitch": lambda client: client.dial_up.mobile_dataswitch(),
     "monitoring_status": lambda client: client.monitoring.status(),
     "wlan_multi_basic_settings": lambda client: client.wlan.multi_basic_settings(),
+    "net_mode": lambda client: client.net.net_mode(),
 }
 """Endpoints a write path may re-read to confirm itself (Section 22).
 
@@ -489,7 +490,25 @@ class HuaweiRouter5GAPI:
                 raise
 
     async def set_net_mode(self, mode: str) -> None:
-        """Set the preferred network mode."""
+        """Set the preferred network mode.
+
+        **The router applies the change and then answers the POST with
+        `-1: Unknown`.** Verified on a live B535 / H165-383 on 2026-08-16:
+        starting from `03` (4G Only), a write of `00` (Auto) raised, and the
+        router's own web interface showed Auto immediately afterwards. The same
+        error surfaces in Home Assistant when the Network Mode select is used.
+
+        The cause is the one already documented on that select: setting the mode
+        drops and re-registers the radio, and the router answers abnormally
+        while it does. That was known, but the conclusion drawn from it was that
+        only a *read-back* would be unreliable. The POST response is unreliable
+        for the same reason and cannot be trusted on its own.
+
+        So `-1` is not treated as a refusal. It means **applied, response
+        unverifiable** — the radio state is settled for and `net_mode` re-read,
+        and that read decides the outcome. A genuine refusal also returns `-1`,
+        and the read-back is what separates the two.
+        """
         async with self._lock:
             from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
 
@@ -501,6 +520,31 @@ class HuaweiRouter5GAPI:
                         networkmode=mode,
                     )
                 )
+            except ResponseErrorException as err:
+                if str(err.code) != "-1":
+                    _LOGGER.exception("Set net mode failed")
+                    raise
+
+                _LOGGER.debug(
+                    "Set net mode answered -1 while re-registering; "
+                    "confirming by read-back"
+                )
+                await asyncio.sleep(NET_MODE_SETTLE)
+                confirmed = await confirm_write(
+                    self,
+                    "net_mode",
+                    lambda block: block.get("NetworkMode"),
+                    mode,
+                    label="set_net_mode",
+                )
+                if confirmed is False:
+                    _LOGGER.error("Set net mode was refused by the router")
+                    raise
+                if confirmed is None:
+                    _LOGGER.warning(
+                        "Set net mode could not be confirmed; the router did "
+                        "not answer the read-back. The change may have applied."
+                    )
             except Exception:
                 _LOGGER.exception("Set net mode failed")
                 raise

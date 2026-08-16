@@ -243,7 +243,7 @@ condition:
 
 This integration features **dynamic polling**, the ability to pause polling completely or to change the polling interval.
 
-- **Pause Polling**: Switch to halt polling when you need uninterrupted access to the router's web UI (Huawei only allows a single active login session).
+- **Pause Polling**: Switch to halt polling when you want to avoid extra network requests while managing the router's web UI.
 - **Configurable Update Interval**: Dynamically adjust the scan interval (30s to 1 hour, default `180` seconds) via a number entity or automation.
 
 > [!TIP]
@@ -305,7 +305,7 @@ Disabled entities stay in the registry (greyed out) and can be re-enabled any ti
 
 <br>
 
-### ℹ️ What Each Entity Means — the `about` Attribute
+### 📖 What Each Entity Means — the `about` Attribute
 
 Every entity this integration creates carries an **`about`** attribute: a short note saying what the reading means and, where it matters, what it does **not** mean. Open any entity's More Info dialog, or look at it in **Developer Tools → States**, and the note is there.
 

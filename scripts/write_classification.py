@@ -138,10 +138,14 @@ EXERCISED_BY_HARDWARE_CHECK: frozenset[str] = frozenset({"logout"})
 
 # ATTENDED writes the script offers under `--attended`.
 #
-# `send_sms` and `delete_sms` are classified but deliberately unscripted. Both
-# need a target the operator supplies — a phone number, a message index — and a
-# menu that prompts for one invites a mistyped number sending a real message to
-# a stranger, or deleting the wrong message. They stay a manual exercise.
+# `send_sms` and `delete_sms` were excluded here until 2026-08-16, on the
+# grounds that each needs a target the operator supplies and a prompt for one
+# invites a mistyped number reaching a stranger or a mistyped index destroying
+# the wrong message. That reasoning was about *asking for a target*, not about
+# the writes themselves, and the script no longer asks: the message goes to the
+# SIM's own `Msisdn`, read from the router, and the delete targets only the
+# index that check created. They are offered as a single paired check —
+# separately, a send leaves litter and a delete has nothing safe to remove.
 OFFERED_WHEN_ATTENDED: frozenset[str] = frozenset(
     {
         "reboot",
@@ -151,6 +155,8 @@ OFFERED_WHEN_ATTENDED: frozenset[str] = frozenset(
         "set_net_mode",
         "set_guest_wifi",
         "set_wifi",
+        "send_sms",
+        "delete_sms",
     }
 )
 

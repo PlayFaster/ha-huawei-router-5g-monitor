@@ -151,11 +151,16 @@ def test_connection_affecting_writes_have_no_read_back_reader() -> None:
     """Section 22's exclusion, enforced rather than left as a comment.
 
     Anything that re-establishes the connection answers abnormally *while
-    succeeding*, so a read-back reports a working command as failed. Network
-    mode and Reconnect are this integration's two, and the protection is that
-    no reader exists for the endpoints they would need.
+    succeeding*, so an **immediate** read-back reports a working command as
+    failed. Reconnect is this integration's one, and the protection is that no
+    reader exists for the endpoint it would need.
+
+    Network mode was here too, and the distinction that removed it is worth
+    keeping: re-registering the radio makes the router's answers unreliable
+    *for a while*, not permanently. Where the resulting state is readable once
+    things settle — as the mode is, and a dial is not — the right answer is to
+    wait and read, not to give up on confirming.
     """
-    assert "net_mode" not in READ_BACK_ENDPOINTS
     assert "dial_up_connection" not in READ_BACK_ENDPOINTS
 
 
@@ -214,7 +219,7 @@ async def test_read_back_refuses_an_endpoint_with_no_reader() -> None:
     api = HuaweiRouter5GAPI("192.168.8.1", "admin", "pw")
 
     with pytest.raises(ValueError, match="no read-back reader"):
-        await api.read_back("net_mode")
+        await api.read_back("dial_up_connection")
 
 
 # ---------------------------------------------------------------------------
@@ -463,13 +468,20 @@ def test_only_connection_affecting_writes_declare_an_exclusion() -> None:
     that write is never confirmed without going to `api.py` to notice a reader
     is missing.
 
-    Network mode and Reconnect are the two: both re-establish the connection,
-    so the router answers abnormally *while succeeding*. Adding a third is a
-    reviewable act; this fails when one appears.
+    Reconnect is the only one. It re-establishes the connection, so the router
+    answers abnormally *while succeeding*, and nothing it reports afterwards
+    distinguishes a dial that worked from one that did not.
+
+    **Network mode was on this list and no longer is.** It re-registers the
+    radio for the same reason, but it differs in the way that matters: the mode
+    it ends up in is readable. Confirmed live on 2026-08-16 — the write answers
+    `-1: Unknown` and applies anyway — so `api.set_net_mode` settles for the
+    radio and re-reads `net_mode`. Adding a fourth exclusion is a reviewable
+    act; this fails when one appears.
     """
     declared = {item.key for _, item in _write_descriptions() if item.no_confirmation}
 
-    assert declared == {"network_mode", "reconnect"}
+    assert declared == {"reconnect"}
 
 
 def test_every_declared_exclusion_states_a_reason() -> None:
@@ -493,7 +505,14 @@ def test_no_excluded_write_has_a_read_back_reader() -> None:
     reader in `READ_BACK_ENDPOINTS`. They can drift apart silently: adding a
     reader for an excluded write would re-enable confirmation on a control
     that cannot confirm, while the entity still claims it is excluded.
+
+    **`net_mode` was on this list and now has a reader, deliberately.** It was
+    excluded on the belief that the router's answer could not be trusted; that
+    is true of the write's own response, which returns `-1: Unknown` while
+    succeeding, and false of a read taken after the radio settles. Reconnect
+    stays excluded because nothing it reports afterwards separates a dial that
+    worked from one that did not.
     """
-    excluded_endpoints = {"net_mode", "dial_up_connection", "dial_up_profiles"}
+    excluded_endpoints = {"dial_up_connection", "dial_up_profiles"}
 
     assert not (excluded_endpoints & set(READ_BACK_ENDPOINTS))

@@ -28,10 +28,18 @@ Two tiers, and the separation is the whole safety story:
      stated *before* the prompt. Nothing in this tier runs without a human
      answering `y`, and the default answer is always no.
 
-`send_sms` and `delete_sms` are classified ATTENDED but deliberately **not**
-offered here. Both need a target typed at a prompt — a phone number, a message
-index — and a mistyped one sends a real message to a stranger or destroys the
-wrong message. They stay a manual exercise.
+`send_sms` and `delete_sms` are offered as **one paired check**, added
+2026-08-16. They were previously excluded on the grounds that both need a target
+typed at a prompt, where a mistyped number sends a real message to a stranger
+and a mistyped index destroys the wrong message. That objection was about
+*typing a target*, not about the writes, and it is answered by never asking for
+one: the message goes to the SIM's own `Msisdn`, read from the router, and the
+delete only ever targets the index that check just created. Neither is offered
+alone — a send with no delete leaves litter, and a delete with no send has
+nothing safe to remove.
+
+The send may still cost money with your operator, which is why it is the one
+check that names its cost in the prompt.
 
 Usage, inside the devcontainer, **from anywhere** — paths are resolved from
 `__file__`, not the working directory:
@@ -59,6 +67,7 @@ import json
 import os
 import pathlib
 import sys
+from datetime import UTC, datetime
 from typing import Any
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
@@ -72,6 +81,12 @@ DOMAIN = "huawei_router_5g"
 # Seconds to let the radio re-register before reading a value back. Only the
 # attended tier waits: nothing in the safe tier disturbs the connection.
 RECONNECT_SETTLE = 15.0
+
+# An SMS to your own number is not instant and delivery is the network's, not
+# the router's. Six polls at five seconds gives it thirty seconds before the
+# check gives up and tells the operator to delete it by hand.
+SMS_DELIVERY_POLL = 5.0
+SMS_DELIVERY_ATTEMPTS = 6
 
 # A reboot on the reference B535 takes well under three minutes; the budget is
 # generous because a slow return is a wait, not a failure.
@@ -393,20 +408,39 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
     print(_yellow("  Attended tier - each write is confirmed separately."))
     print(_dim("  Answering anything but 'y' skips. Ctrl-C also skips."))
 
-    await _offer(
-        report,
-        "set_guest_wifi",
-        "Toggles the guest network and puts it back.\n"
-        "On the reference B535 the guest SSID is OPEN - unauthenticated - so a\n"
-        "crash between the toggle and the restore leaves it broadcasting.",
-        lambda: _toggle_and_restore(
-            api,
+    # The guest SSID is gated by the radio: with WiFi off, writing the per-SSID
+    # flag changes nothing observable and the check would pass or fail on
+    # nothing. **The radio is normally off on the reference unit**, so this is
+    # the usual case and not an edge one. Skipping loudly beats reporting a
+    # result that means nothing.
+    radio_on = await _wifi_state(api)
+    if radio_on is False:
+        print()
+        print(f"  {_cyan('set_guest_wifi')}")
+        print(f"    {_yellow('SKIPPED - the WiFi radio is off.')}")
+        print(f"    {_dim('The guest SSID is gated by the radio, so this write')}")
+        print(f"    {_dim('cannot be observed. Turn WiFi on and re-run to test it.')}")
+        report.skip("set_guest_wifi", "WiFi radio is off - guest SSID is gated by it")
+    else:
+        if radio_on is None:
+            print()
+            print(
+                f"    {_yellow('WifiStatus unreadable - guest result may not be meaningful')}"
+            )
+        await _offer(
             report,
             "set_guest_wifi",
-            lambda: _guest_wifi_state(api),
-            api.set_guest_wifi,
-        ),
-    )
+            "Toggles the guest network and puts it back.\n"
+            "On the reference B535 the guest SSID is OPEN - unauthenticated - so a\n"
+            "crash between the toggle and the restore leaves it broadcasting.",
+            lambda: _toggle_and_restore(
+                api,
+                report,
+                "set_guest_wifi",
+                lambda: _guest_wifi_state(api),
+                api.set_guest_wifi,
+            ),
+        )
 
     await _offer(
         report,
@@ -450,6 +484,15 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
 
     await _offer(
         report,
+        "send_sms / delete_sms",
+        "Sends one message to the SIM's own number, then deletes it.\n"
+        "YOUR OPERATOR MAY CHARGE FOR THIS. Nothing else in this suite costs\n"
+        "money. The delete only ever targets the message this check sent.",
+        lambda: _check_send_and_delete_sms(api, report),
+    )
+
+    await _offer(
+        report,
         "clear_traffic_statistics",
         "IRREVERSIBLE. Zeroes the router's byte counters, and puts a step\n"
         "change into Home Assistant's long-term statistics for every total\n"
@@ -481,13 +524,92 @@ async def _check_net_mode(api: HuaweiRouter5GAPI, report: Report) -> None:
     current = (data.get("net_mode") or {}).get("NetworkMode")
     print(f"    {_dim(f'current NetworkMode is {current!r}')}")
 
-    await api.set_net_mode("00")  # 00 = auto, the least disruptive target
+    # The target must differ from the current mode, or the write proves nothing
+    # either way. `00` (Auto) is the least disruptive target; when the router is
+    # already on Auto, `03` (4G Only) is the fallback — still a mode this
+    # hardware holds, and the check restores nothing, so the operator is told.
+    target = "03" if current == "00" else "00"
+    print(f"    {_dim(f'setting {target!r}')}")
+
+    await api.set_net_mode(target)
     await asyncio.sleep(RECONNECT_SETTLE)
 
     after = (await api.get_data()).get("net_mode", {}).get("NetworkMode")
-    report.record(after == "00", "set_net_mode", f"{current} -> {after}")
-    if current != "00":
+    report.record(after == target, "set_net_mode", f"{current} -> {after}")
+    if current != after:
         print(f"    {_yellow(f'NOT restored - set it back to {current!r} yourself')}")
+
+
+async def _check_send_and_delete_sms(api: HuaweiRouter5GAPI, report: Report) -> None:
+    """Send a message to the router's own SIM, then delete it.
+
+    **These two are paired on purpose.** `send_sms` alone leaves a message in
+    the store; `delete_sms` alone has nothing safe to delete — deleting an
+    arbitrary index would destroy a real message. Sending to the SIM's own
+    number produces something this script owns and may remove.
+
+    The send may cost money. That is why the prompt states it and why this is
+    the only check that asks the operator to confirm a number.
+    """
+    data = await api.get_data()
+    own = (data.get("device_information") or {}).get("Msisdn")
+    if not own:
+        report.skip(
+            "send_sms", "the SIM reports no number, so there is nowhere safe to send"
+        )
+        report.skip("delete_sms", "no message was sent, so there is nothing to delete")
+        return
+
+    print(f"    {_dim(f'sending to the SIM own number {own!r}')}")
+    if not _confirm(f"send an SMS to {own}? (your operator may charge)"):
+        report.skip("send_sms", "declined")
+        report.skip("delete_sms", "no message was sent")
+        return
+
+    marker = f"hardware_check {datetime.now(UTC):%Y-%m-%dT%H:%M:%SZ}"
+    before = await _sms_indexes(api)
+    await api.send_sms([own], marker)
+    report.record(True, "send_sms", f"sent {marker!r}")
+
+    # Delivery is not instant and is not this integration's to guarantee, so
+    # poll rather than assume. A message that never arrives is a delivery
+    # question, not a defect in the write.
+    arrived: int | None = None
+    for _ in range(SMS_DELIVERY_ATTEMPTS):
+        await asyncio.sleep(SMS_DELIVERY_POLL)
+        new = await _sms_indexes(api) - before
+        if new:
+            arrived = max(new)
+            break
+
+    if arrived is None:
+        report.skip(
+            "delete_sms",
+            f"the message did not arrive within "
+            f"{SMS_DELIVERY_ATTEMPTS * SMS_DELIVERY_POLL:.0f}s - "
+            f"delete it by hand if it lands later",
+        )
+        return
+
+    await api.delete_sms(arrived)
+    remaining = await _sms_indexes(api)
+    report.record(arrived not in remaining, "delete_sms", f"index {arrived} removed")
+
+
+async def _sms_indexes(api: HuaweiRouter5GAPI) -> set[int]:
+    """Return the set of inbox message indexes, empty if the box is unreadable."""
+    listing = await api.get_sms_list()
+    messages = (listing or {}).get("Messages") or {}
+    entries = messages.get("Message") or []
+    if isinstance(entries, dict):
+        entries = [entries]
+    out: set[int] = set()
+    for entry in entries:
+        try:
+            out.add(int(entry.get("Index")))
+        except (TypeError, ValueError):
+            continue
+    return out
 
 
 async def _check_clear_traffic(api: HuaweiRouter5GAPI, report: Report) -> None:
