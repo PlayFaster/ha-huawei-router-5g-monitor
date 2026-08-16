@@ -242,19 +242,34 @@ class HuaweiAboutEntity:
         return self._with_about(None)
 
 
+SUB_DEVICE_LABELS: dict[str, str] = {
+    "system": "System",
+    "signal": "Signal",
+    "data": "Data",
+    "sms": "SMS",
+    "clients": "Clients",
+    "wifi": "WiFi",
+}
+"""Display label for each sub-device group.
+
+Module level rather than local so a test can reconcile it against the groups
+the entity descriptions actually use. That reconciliation is necessary because
+`build_device_info` falls back to `group.capitalize()`, which produces **the
+identical string** for `system`, `signal`, `data` and `clients` — so a mistyped
+key in this map is invisible to every behavioural test, and four mutations of
+it survive mutation testing by construction.
+
+The fallback is kept deliberately: a `KeyError` here would fail entity setup
+for a typo, which is a worse outcome than a slightly wrong label. The test is
+what makes the typo visible.
+"""
+
+
 def build_device_info(
     coordinator: HuaweiRouter5GDataUpdateCoordinator, group: str
 ) -> DeviceInfo:
     """Build standardized DeviceInfo dict for platforms."""
-    group_names = {
-        "system": "System",
-        "signal": "Signal",
-        "data": "Data",
-        "sms": "SMS",
-        "clients": "Clients",
-        "wifi": "WiFi",
-    }
-    display_group = group_names.get(group, group.capitalize())
+    display_group = SUB_DEVICE_LABELS.get(group, group.capitalize())
     sub_name = f"{coordinator.entry.title} {display_group}"
 
     mac = coordinator.mac
@@ -331,7 +346,12 @@ def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:
 
     return [
         {
-            "index": int(msg.get("Index", 0)),
+            # `or 0`, not a `.get` default: the filter below admits a message
+            # whose `Index` key is present but null, which an empty `<Index/>`
+            # element becomes. A default only applies to a missing key, so
+            # `int(None)` raised and took the whole list down rather than one
+            # message. Found by a mutation test on 2026-08-15.
+            "index": int(msg.get("Index") or 0),
             "phone": msg.get("Phone", ""),
             "content": msg.get("Content", ""),
             "date": msg.get("Date", ""),

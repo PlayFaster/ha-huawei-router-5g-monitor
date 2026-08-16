@@ -418,3 +418,82 @@ def test_the_entity_passes_the_placeholder_the_message_expects() -> None:
     assert expected == supplied, (
         f"message expects {sorted(expected)}, entity supplies {sorted(supplied)}"
     )
+
+
+# ---------------------------------------------------------------------------
+# Section 22 — the exclusion, declared on the entity rather than inferred
+# ---------------------------------------------------------------------------
+
+
+def _write_descriptions():
+    """Return every write-capable entity description, with its module."""
+    from custom_components.huawei_router_5g import button, select, switch
+
+    found = []
+    for module in (button, select, switch):
+        for name, obj in vars(module).items():
+            if name.startswith("_"):
+                continue
+            candidates = obj if isinstance(obj, tuple) else (obj,)
+            found.extend(
+                (module.__name__.rsplit(".", 1)[-1], item)
+                for item in candidates
+                if hasattr(item, "key") and hasattr(item, "no_confirmation")
+            )
+    return found
+
+
+def test_the_write_platforms_all_carry_the_exclusion_field() -> None:
+    """Guard the guard: the sweep below is worthless if the field is absent.
+
+    A platform whose description class lacks `no_confirmation` contributes no
+    entries at all, so the exclusion sweep would pass over an empty set.
+    """
+    modules = {module for module, _ in _write_descriptions()}
+
+    assert {"button", "select", "switch"} <= modules
+    assert len(_write_descriptions()) >= 8
+
+
+def test_only_connection_affecting_writes_declare_an_exclusion() -> None:
+    """The declared set must match the set that genuinely cannot confirm.
+
+    Section 22 asks for the exclusion to be visible **on the entity**, not
+    left as an unwritten rule — a reviewer reading `select.py` should see why
+    that write is never confirmed without going to `api.py` to notice a reader
+    is missing.
+
+    Network mode and Reconnect are the two: both re-establish the connection,
+    so the router answers abnormally *while succeeding*. Adding a third is a
+    reviewable act; this fails when one appears.
+    """
+    declared = {item.key for _, item in _write_descriptions() if item.no_confirmation}
+
+    assert declared == {"network_mode", "reconnect"}
+
+
+def test_every_declared_exclusion_states_a_reason() -> None:
+    """A bare flag records the decision without the reasoning behind it.
+
+    The next reader has to know *why* this write cannot be confirmed, or the
+    exclusion looks like an omission and gets removed.
+    """
+    for module, item in _write_descriptions():
+        if item.no_confirmation is None:
+            continue
+        assert len(item.no_confirmation) >= 60, (
+            f"{module}.{item.key} declares an exclusion with no real reason"
+        )
+
+
+def test_no_excluded_write_has_a_read_back_reader() -> None:
+    """The declaration and the structural protection must agree.
+
+    Two mechanisms guard the same rule — the field here and the absence of a
+    reader in `READ_BACK_ENDPOINTS`. They can drift apart silently: adding a
+    reader for an excluded write would re-enable confirmation on a control
+    that cannot confirm, while the entity still claims it is excluded.
+    """
+    excluded_endpoints = {"net_mode", "dial_up_connection", "dial_up_profiles"}
+
+    assert not (excluded_endpoints & set(READ_BACK_ENDPOINTS))

@@ -48,6 +48,20 @@ class HuaweiSwitchEntityDescription(SwitchEntityDescription):
     # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
     about: str | None = None
 
+    # dev_standards Section 22 — the write-confirmation exclusion, declared
+    # where a reviewer reading this entity will see it.
+    #
+    # A write that re-establishes the connection makes the router answer
+    # abnormally **while succeeding**, so a targeted read-back reports a
+    # working command as failed. The protection is also structural — no reader
+    # exists in `api.py::READ_BACK_ENDPOINTS` for the endpoints these need —
+    # but the section asks for the exclusion to be visible on the entity
+    # rather than left as an unwritten rule two modules away.
+    #
+    # `None` means the write is confirmable and is expected to confirm. A
+    # string is the reason it never will be.
+    no_confirmation: str | None = None
+
 
 PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="pause_polling",

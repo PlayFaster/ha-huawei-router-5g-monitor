@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev31\] - 2026-08-15 - Mutation Testing Complete: 80 Tests, One Defect](#120-dev31---2026-08-15---mutation-testing-complete-80-tests-one-defect)
   - [\[1.2.0-dev30\] - 2026-08-15 - Verification Pass: Live Read-Back, Timer Callbacks, Stale Documents](#120-dev30---2026-08-15---verification-pass-live-read-back-timer-callbacks-stale-documents)
   - [\[1.2.0-dev29\] - 2026-08-15 - CI Bump Ruff](#120-dev29---2026-08-15---ci-bump-ruff)
   - [\[1.2.0-dev28\] - 2026-08-15 - Projection Memo Per Entry; Placeholder and Source-Read Fixes](#120-dev28---2026-08-15---projection-memo-per-entry-placeholder-and-source-read-fixes)
@@ -121,6 +122,29 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev31] - 2026-08-15 - Mutation Testing Complete: 80 Tests, One Defect
+
+Two runs and a triage — the documented cadence. **1633 mutants; survivors 356 → 231, killed 1277 → 1400**, zero timeouts. `coordinator.py` alone went 237 → 126. Suite **730 → 810**, 100% line and branch throughout.
+
+### Fixed
+
+- **`parse_sms_list` lost the entire inbox on one malformed message.** The comprehension admits any message whose `Index` **key** is present, and an empty `<Index/>` element arrives as `None`. A `.get` default only applies to a _missing_ key, so `int(None)` raised `TypeError` — and because the raise happens inside the comprehension, one bad message discarded every other message with it. Fixed with `int(msg.get("Index") or 0)`. Found by a test written against a surviving mutant.
+
+### Added
+
+- **80 tests**, each written against a specific survivor. The largest groups: coordinator construction and its six `contextlib.suppress` latch-restore blocks (88 survivors — every prior test supplied _valid_ stored data, so the handler was never entered and narrowing what it suppressed changed nothing observable); the poll path's `update_health` flags, repair-issue arguments and strike boundary (~69); and the `parse_sms_list`, `_current_apn_profile` and `_parse_nr_band_from_band` value paths.
+- **`no_confirmation` on the button, select and switch entity descriptions** — Section 22's requirement that a write-confirmation exclusion be _declared on the entity_, not left as an unwritten rule two modules away. Network Mode and Reconnect carry it with their reason. Four sweeps hold it, including one asserting the declaration and the structural protection cannot drift apart. **§22 moves to DONE.**
+
+### Changed
+
+- **`build_device_info`'s label map is hoisted to `SUB_DEVICE_LABELS`** and reconciled in both directions against the groups the descriptions actually use. Its `group.capitalize()` fallback produces **the identical string** for `system`, `signal`, `data` and `clients`, so a mistyped key there is invisible to every behavioural test — four mutations of it survive by construction. The fallback is kept deliberately: a `KeyError` would fail entity setup over a typo, which is worse than a slightly wrong label. Verified by introducing a typo and watching the new check fail.
+
+### Notes
+
+- **The parked P-10 decision was based on a false premise and is withdrawn, not deferred.** `sensor.py` was expected to produce over a thousand survivors of `about`-note text, forcing a choice between moving the notes to their own module and a project-scoped `do_not_mutate_patterns`. It produced **53, and not one is a note**: `mutmut` mutates function bodies, and the notes live in a module-level tuple. Nothing needs moving.
+- **The 231 remaining survivors are triaged, not unknown**, and are predominantly equivalent mutants — falsy-default swaps, `cast()` annotation strings with no runtime effect, and the four `SUB_DEVICE_LABELS` keys above. The cadence is two runs and chasing a mutation score is explicitly warned against, so this is the end state.
+- **A triage error, recorded rather than smoothed over.** The first `helpers.py` / `sensor.py` batch killed 9 mutants against `coordinator.py`'s 111, because those tests were aimed at mutants that cannot be killed — classified from the _shape_ of the diff instead of from what the mutation would actually produce. A third batch closed the genuinely killable remainder in `device_tracker`, `_tracked_macs` and `build_device_info`.
 
 ## [1.2.0-dev30] - 2026-08-15 - Verification Pass: Live Read-Back, Timer Callbacks, Stale Documents
 
@@ -247,7 +271,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Notes
 
-- `code_review` ran with `SINCE=f5ae452` — the baseline this work started from — and reports **0 Critical, 0 High, 2 Medium, 1 Low**. Report at `.notes/code_review/code_review_20260815_0850.md`. It is deliberately the last pass of the sequence, after the mutation run and both depth reviews, and a thin result is the expected outcome rather than a failure to look.
+- `code_review` ran with `SINCE=f5ae452` — the baseline this work started from — and reports **0 Critical, 0 High, 2 Medium, 1 Low**. Report at `.notes/code_review/code_review_20260815_0756.md`. It is deliberately the last pass of the sequence, after the mutation run and both depth reviews, and a thin result is the expected outcome rather than a failure to look.
 - **The dominant theme is absence rather than error.** Neither Medium finding is wrong code; both are a missing connection. The projection is derived independently by `native_value` and by `extra_state_attributes` — they cannot disagree today, and nothing structural keeps it that way. And an Options-flow change to host, username or password never reaches the running integration, because there is no update listener and no reload: Reauth and Reconfigure both reload, Options edits the same three fields and does not.
 - **The Options-flow gap is left for its own commit.** It is a user-visible behaviour change — an options edit would start reloading the entry — and it was raised independently by `dev_std_review` earlier in this run. It is recorded as `status_plan.md` §P-9 and in the review, from two directions, rather than folded into a review commit.
 - Masked-errors companion check clean on all three classes. The single Class C finding of this run — `assert_links_to_parent()` asserting only that `via_device_id` was truthy — was fixed in `[1.2.0-dev20]`.

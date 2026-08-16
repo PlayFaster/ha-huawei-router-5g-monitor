@@ -44,6 +44,20 @@ class HuaweiSelectEntityDescription(SelectEntityDescription):
     # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
     about: str | None = None
 
+    # dev_standards Section 22 — the write-confirmation exclusion, declared
+    # where a reviewer reading this entity will see it.
+    #
+    # A write that re-establishes the connection makes the router answer
+    # abnormally **while succeeding**, so a targeted read-back reports a
+    # working command as failed. The protection is also structural — no reader
+    # exists in `api.py::READ_BACK_ENDPOINTS` for the endpoints these need —
+    # but the section asks for the exclusion to be visible on the entity
+    # rather than left as an unwritten rule two modules away.
+    #
+    # `None` means the write is confirmable and is expected to confirm. A
+    # string is the reason it never will be.
+    no_confirmation: str | None = None
+
 
 NETWORK_MODE_MAPPING = {
     "Auto": "00",
@@ -72,6 +86,11 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
         options=list(NETWORK_MODE_MAPPING.keys()),
         entity_category=EntityCategory.CONFIG,
         group="system",
+        no_confirmation=(
+            "Changing the radio mode drops and re-registers the connection. "
+            "The router answers abnormally for several seconds while doing so, "
+            "which a read-back would report as a refused write."
+        ),
         value_fn=lambda data: (
             NETWORK_MODE_INV_MAPPING.get(
                 str(data.get("net_mode", {}).get("NetworkMode"))

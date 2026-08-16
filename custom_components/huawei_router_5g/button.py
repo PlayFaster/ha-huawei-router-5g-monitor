@@ -50,6 +50,20 @@ class HuaweiButtonEntityDescription(ButtonEntityDescription):
     # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
     about: str | None = None
 
+    # dev_standards Section 22 — the write-confirmation exclusion, declared
+    # where a reviewer reading this entity will see it.
+    #
+    # A write that re-establishes the connection makes the router answer
+    # abnormally **while succeeding**, so a targeted read-back reports a
+    # working command as failed. The protection is also structural — no reader
+    # exists in `api.py::READ_BACK_ENDPOINTS` for the endpoints these need —
+    # but the section asks for the exclusion to be visible on the entity
+    # rather than left as an unwritten rule two modules away.
+    #
+    # `None` means the write is confirmable and is expected to confirm. A
+    # string is the reason it never will be.
+    no_confirmation: str | None = None
+
 
 REFRESH_DESCRIPTION = HuaweiButtonEntityDescription(
     key="refresh",
@@ -91,6 +105,11 @@ RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
     # giving both the same class invites a user to read them as duplicates of
     # one another. Reconnect leaves the device running.
     group="system",
+    no_confirmation=(
+        "Re-establishing the data session is the whole point of this button, "
+        "so the router is expected to answer abnormally immediately after it. "
+        "A follow-up refresh twenty seconds later reports the outcome instead."
+    ),
 )
 
 CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
