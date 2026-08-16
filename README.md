@@ -25,6 +25,8 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [🎯 Use Cases](#-use-cases)
   - [✅ Features](#-features)
   - [🔍 What You Get](#-what-you-get)
+  - [🔘 Controls \& Settings](#-controls--settings)
+  - [💬 SMS Actions \& Services](#-sms-actions--services)
   - [📸 Screenshots](#-screenshots)
   - [💡 Example Automations](#-example-automations)
   - [📥 Installation](#-installation)
@@ -121,108 +123,6 @@ This integration features **dynamic polling**, the ability to pause polling comp
 >
 > - Set it to 30 seconds during periods of heavy use, to examine connection quality or when you need to receive new SMS messages quickly, and set it higher afterwards, to avoid taxing the router and your Home Assistant database.
 
-### 💬 SMS Management Actions
-
-Provides unread SMS count and latest message content sensors, a `huawei_router_5g_sms_received` event for automation triggers, and four service actions for full programmatic control.
-
-- The `Last Msg` sensor displays the most recent message received **OR** _sent_.
-- In the examples below, the `entry_id:` of your router, where required, is drop-down menu selectable from the editor GUI.
-
-> The `delete_all_sms` service action below provides programmatic cleanup of your inbox, and accepts a `keep_last` parameter to preserve recent messages.
-
-#### `huawei_router_5g.send_sms`
-
-Send an SMS message via the router.
-
-| Parameter | Required | Description |
-| :-- | :-- | :-- |
-| `entry_id` | No | The router to use. Optional if only one router is configured. |
-| `target` | **Yes** | Recipient phone number(s) (e.g. `+353871234567`). |
-| `message` | **Yes** | Message content. |
-
-```yaml
-action: huawei_router_5g.send_sms
-data:
-  target: "+1234567891011"
-  message: "Hello from Home Assistant!"
-```
-
-#### `huawei_router_5g.delete_sms`
-
-Delete a single SMS by its storage index. Use the `index` field from `get_sms_list` or from the `huawei_router_5g_sms_received` event.
-
-| Parameter | Required | Description |
-| :-- | :-- | :-- |
-| `entry_id` | No | The router to use. Defaults to your only router; required if more than one is configured. |
-| `index` | **Yes** | Storage index of the message to delete (integer ≥ 0). |
-
-```yaml
-action: huawei_router_5g.delete_sms
-data:
-  entry_id: <your_config_entry_id>
-  index: 3
-```
-
-#### `huawei_router_5g.delete_all_sms`
-
-Bulk delete SMS messages from the router inbox.
-
-| Parameter | Required | Default | Range | Description |
-| :-- | :-- | :-- | :-- | :-- |
-| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
-| `keep_last` | No | `0` | 0–50 | Number of most recent messages to preserve. `0` deletes all. |
-
-```yaml
-action: huawei_router_5g.delete_all_sms
-data:
-  entry_id: <your_config_entry_id>
-  keep_last: 5
-```
-
-#### `huawei_router_5g.get_sms_list`
-
-Fetch a list of SMS messages. Supports **Action Responses** — use the output directly in automations and scripts.
-
-| Parameter | Required | Default | Range | Description |
-| :-- | :-- | :-- | :-- | :-- |
-| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
-| `page` | No | `1` | 1–100 | Page number for pagination. |
-| `count` | No | `20` | 1–50 | Messages per page. |
-| `box_type` | No | `1` | See below | Mailbox to read from. |
-
-**`box_type` values:** `1` Local Inbox · `2` Local Sent · `3` Local Draft · `4` Local Trash · `5` SIM Inbox · `6` SIM Sent · `7` SIM Draft · `8` Mix Inbox · `9` Mix Sent · `10` Mix Draft
-
-**Response — each message in `messages`:**
-
-| Field     | Type    | Description                                                  |
-| :-------- | :------ | :----------------------------------------------------------- |
-| `index`   | Integer | Storage index — pass to `delete_sms` to delete this message. |
-| `phone`   | Text    | Sender's phone number.                                       |
-| `content` | Text    | Message body.                                                |
-| `date`    | Text    | Date/time string.                                            |
-| `read`    | Boolean | `true` if read, `false` if unread.                           |
-
-```yaml
-action: huawei_router_5g.get_sms_list
-data:
-  entry_id: <your_config_entry_id>
-  count: 50
-  box_type: 1
-response_variable: inbox
-```
-
-#### `huawei_router_5g_sms_received` Event
-
-Fires automatically when a new incoming SMS is detected. Use as an automation trigger.
-
-| Field | Type | Description |
-| :-- | :-- | :-- |
-| `entry_id` | Text | Config entry ID of the router that received the message. |
-| `phone` | Text | Sender's phone number. |
-| `content` | Text | Message body. |
-| `date` | Text | Date/time of the message. |
-| `index` | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
-
 ## 🔍 What You Get
 
 This integration provides **159 entities** (some disabled by default, and a few unpopulated depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client, so the live total is higher.
@@ -314,6 +214,150 @@ The following sensors have **no LTS** to avoid unnecessary database growth:
 > ```
 >
 > Restart Home Assistant after saving. The sensor will begin accumulating LTS from that point forward.
+
+## 🔘 Controls & Settings
+
+Rather than hiding settings in configuration menus, several configuration parameters are exposed directly as Home Assistant control entities, allowing you to monitor and control them from dashboards or automations:
+
+### 📡 Network Settings (System Device)
+
+- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select the preferred network mode dynamically. Options include `Auto`, `4G Only`, `5G Only`, `4G/3G/2G Auto`, etc.
+
+### 🔧 Router Administration & Polling (System Device)
+
+- **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Switch to halt polling to allow exclusive access to the router web UI.
+- **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
+- **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch). **This works even while Pause Polling is on** — an explicit action always fetches, while scheduled polls stay paused.
+- **Reboot Router** (`button.huawei_5g_system_reboot`): Reboot the router on demand.
+- **Reconnect Cellular** (`button.huawei_5g_system_reconnect`): Re-establish the cellular data connection on demand.
+- **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
+
+> [!NOTE]
+>
+> If the router refuses a control change — mobile data, guest WiFi or network mode — Home Assistant reports an **error** on the action rather than silently reverting.
+
+### 🛜 WiFi Settings (WiFi Device)
+
+- **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi_network`): Toggle the primary 2.4 GHz and 5 GHz wireless hardware radios on or off.
+- **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
+
+## 💬 SMS Actions & Services
+
+Provides unread SMS count and latest message content sensors, a `huawei_router_5g_sms_received` event for automation triggers, and dedicated service actions for full programmatic control.
+
+- The `Last Msg` sensor displays the most recent message received **OR** _sent_.
+- In the examples below, the `entry_id:` of your router, where required, is drop-down menu selectable from the editor GUI.
+
+> The `delete_all_sms` service action below provides programmatic cleanup of your inbox, and accepts a `keep_last` parameter to preserve recent messages.
+
+### `huawei_router_5g.send_sms`
+
+Send an SMS message via the router.
+
+| Parameter | Required | Description |
+| :-- | :-- | :-- |
+| `entry_id` | No | The router to use. Optional if only one router is configured. |
+| `target` | **Yes** | Recipient phone number(s) (e.g. `+353871234567`). |
+| `message` | **Yes** | Message content. |
+
+```yaml
+action: huawei_router_5g.send_sms
+data:
+  target: "+1234567891011"
+  message: "Hello from Home Assistant!"
+```
+
+### `huawei_router_5g.delete_sms`
+
+Delete a single SMS by its storage index. Use the `index` field from `get_sms_list` or from the `huawei_router_5g_sms_received` event.
+
+| Parameter | Required | Description |
+| :-- | :-- | :-- |
+| `entry_id` | No | The router to use. Defaults to your only router; required if more than one is configured. |
+| `index` | **Yes** | Storage index of the message to delete (integer ≥ 0). |
+
+```yaml
+action: huawei_router_5g.delete_sms
+data:
+  entry_id: <your_config_entry_id>
+  index: 3
+```
+
+### `huawei_router_5g.delete_all_sms`
+
+Bulk delete SMS messages from the router inbox.
+
+| Parameter | Required | Default | Range | Description |
+| :-- | :-- | :-- | :-- | :-- |
+| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
+| `keep_last` | No | `0` | 0–50 | Number of most recent messages to preserve. `0` deletes all. |
+
+```yaml
+action: huawei_router_5g.delete_all_sms
+data:
+  entry_id: <your_config_entry_id>
+  keep_last: 5
+```
+
+### `huawei_router_5g.get_sms_list`
+
+Fetch a list of SMS messages. Supports **Action Responses** — use the output directly in automations and scripts.
+
+| Parameter | Required | Default | Range | Description |
+| :-- | :-- | :-- | :-- | :-- |
+| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
+| `page` | No | `1` | 1–100 | Page number for pagination. |
+| `count` | No | `20` | 1–50 | Messages per page. |
+| `box_type` | No | `1` | See below | Mailbox to read from. |
+
+**`box_type` values:** `1` Local Inbox · `2` Local Sent · `3` Local Draft · `4` Local Trash · `5` SIM Inbox · `6` SIM Sent · `7` SIM Draft · `8` Mix Inbox · `9` Mix Sent · `10` Mix Draft
+
+**Response — each message in `messages`:**
+
+| Field     | Type    | Description                                                  |
+| :-------- | :------ | :----------------------------------------------------------- |
+| `index`   | Integer | Storage index — pass to `delete_sms` to delete this message. |
+| `phone`   | Text    | Sender's phone number.                                       |
+| `content` | Text    | Message body.                                                |
+| `date`    | Text    | Date/time string.                                            |
+| `read`    | Boolean | `true` if read, `false` if unread.                           |
+
+```yaml
+action: huawei_router_5g.get_sms_list
+data:
+  entry_id: <your_config_entry_id>
+  count: 50
+  box_type: 1
+response_variable: inbox
+```
+
+### `huawei_router_5g.cleanup_unused_entities`
+
+Preview or remove stale `device_tracker` entities that were created for transient or old guest clients.
+
+| Parameter | Required | Default | Description |
+| :-- | :-- | :-- | :-- |
+| `entry_id` | No | — | The router to use. Defaults to your only router; required if more than one is configured. |
+| `dry_run` | No | `true` | When `true`, returns a preview list of entities that would be removed without deleting them. |
+
+```yaml
+action: huawei_router_5g.cleanup_unused_entities
+data:
+  entry_id: <your_config_entry_id>
+  dry_run: false
+```
+
+### `huawei_router_5g_sms_received` Event
+
+Fires automatically when a new incoming SMS is detected. Use as an automation trigger.
+
+| Field | Type | Description |
+| :-- | :-- | :-- |
+| `entry_id` | Text | Config entry ID of the router that received the message. |
+| `phone` | Text | Sender's phone number. |
+| `content` | Text | Message body. |
+| `date` | Text | Date/time of the message. |
+| `index` | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
 
 ## 📸 Screenshots
 
@@ -572,29 +616,6 @@ After installation, open **Settings > Devices & Services > Huawei Router 5G Moni
 | Username | Router login username.                                      |
 | Password | Admin password (update if changed on the router).           |
 
-### 🔘 Runtime Controls & Settings (Entities)
-
-Rather than hiding settings in configuration menus, several configuration parameters are exposed directly as Home Assistant control entities, allowing you to monitor and control them from dashboards or automations:
-
-#### 📡 Network Settings (System Device)
-
-- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select the preferred network mode dynamically. Options include `Auto`, `4G Only`, `5G Only`, `4G/3G/2G Auto`, etc.
-
-#### 🔧 Router Administration & Polling (System Device)
-
-- **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Switch to halt polling to allow exclusive access to the router web UI.
-- **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
-- **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch). **This works even while Pause Polling is on** — an explicit action always fetches, while scheduled polls stay paused.
-- **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
-
-> [!NOTE]
->
-> If the router refuses a control change — mobile data, guest WiFi or network mode — Home Assistant now reports an **error** on the action. Previously the change appeared to succeed and then silently reverted on the next poll, leaving nothing but a log line to explain it.
-
-#### 🛜 WiFi & Client Settings (WiFi Device)
-
-- **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
-
 ## 🔩 Under the Hood - Technical Architecture
 
 ### 🔄 Data Polling & 3-Strike Resilience 🩹
@@ -686,7 +707,6 @@ automation:
   - These sensors can be disabled to avoid clutter.
 
 #### 🛑 **All sensors showing "Unavailable" or "Unknown"**
-
 - This is normal during a router reboot or if the router is temporarily unreachable.
   - The integration will automatically recover once the connection is restored.
 - If sensors do not recover, perform these checks:
@@ -697,7 +717,6 @@ automation:
 ## ❗ Known Limitations /❔ What's Missing?
 
 - **Firmware Dependencies**: API feature availability varies by ISP and firmware builds.
-- **WiFi Toggles**: There are sensors to track the status of 2.4/5GHz WiFi (on/off), and a toggle for the Guest WiFi Network, but no toggles for standard (non-guest) WiFi. This is not planned at this time. Based on my testing this is not possible with my router and the API.
 - **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
 - **Device tracking creates an entity per network client.** Each carries that device's MAC address, hostname and IP. That is what makes presence detection work, but it does mean the integration holds an inventory of everything on your network — including guests' phones. Two things follow: the per-client attributes are **excluded from long-term history** (they are current state only), and a **diagnostics download replaces every MAC, hostname, IP and SSID with a stable placeholder** before you see it. If you would rather not track clients at all, disable the `device_tracker` entities in Home Assistant; the rest of the integration is unaffected.
 

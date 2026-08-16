@@ -1,5 +1,40 @@
 # Changelog
 
+## [1.2.0] - 2026-08-16
+
+### Summary
+
+- **38 New Entities & End-of-Cycle Forecast**: Adds broad diagnostic, system, and signal sensors across eight new router endpoints, including a Projected Usage forecast sensor.
+- **Controls & Actions**: Adds a Master Wi-Fi switch, a Reconnect button, and a device tracker cleanup action.
+- **Resilience & Health**: Introduces an Integration Health diagnostic sensor with contract drift detection, automated follow-up refreshes after reboots, and per-request transport timeouts.
+- **Entity Identity & Security**: Migrates device tracker unique IDs to entry-scoped identifiers and upgrades the underlying client library to `huawei-lte-api` 2.0.1 with enhanced SCRAM session handling.
+
+### Added
+
+- **New Router & Signal Entities**: Added 38 entities across eight new router endpoints, including six identity sensors, nine System sensors, four System binary sensors (including VoLTE), eight Signal entities, a data-plan block, a Line State sensor, and a **Router Diagnostics** sensor reporting the router's internal connection status.
+- **Projected Data Usage**: Added a data usage forecast sensor that calculates projected monthly bandwidth consumption with credibility and confidence attributes.
+- **Master Wi-Fi Switch**: Added a master Wi-Fi radio control switch that safely toggles the 2.4 GHz and 5 GHz hardware radios.
+- **Reconnect Button**: Added a button to re-establish cellular data sessions on demand.
+- **Entity Cleanup Action**: Added a `cleanup_unused_entities` action (with dry-run preview by default) to remove stale device tracker entities left behind by transient guest devices.
+- **Integration Health Diagnostic Sensor**: Added a system health sensor that monitors endpoint availability, catches total connection outages, and alerts on firmware contract drift.
+- **Action Icons & Context**: Added full icon translations for all registered actions across automation and script editors.
+
+### Changed
+
+- **Underlying Client Library**: Updated the underlying `huawei-lte-api` library to 2.0.1, ensuring compatibility with modern SCRAM authentication and future firmware releases.
+- **Follow-Up Refresh Automation**: Pressing Reboot or Reconnect now automatically schedules an asynchronous follow-up poll when the router reconnects, including while background polling is paused.
+- **Per-Request Timeouts**: Isolated slow or unresponsive router endpoints so a single stalled query does not fail the entire coordinator update cycle.
+- **HACS Minimum Version Requirement**: Enforced the minimum Home Assistant version requirement (2025.1.0) in HACS package metadata.
+
+### Fixed
+
+- **Device Tracker Multi-Router Conflicts**: Migrated device tracker unique IDs to be scoped per configuration entry, preventing entity collisions and missing client devices on setups with multiple Huawei routers.
+- **Session Logout & Traffic Reset Calls**: Corrected library method bindings for session logout and traffic counter clearing, ensuring active sessions are properly closed on reload.
+- **SMS Parsing Resilience**: Hardened inbox parsing to handle empty message indices without dropping remaining inbox items.
+- **Repair Issue Titles**: Added vendor-prefixed translation strings for authentication failure and connection loss repairs in the Home Assistant Repairs dashboard.
+
+_Full technical detail for every change in this release is in [`docs/changelog_local.md`](docs/changelog_local.md)._
+
 ## [1.1.2] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening
 
 ### Added
