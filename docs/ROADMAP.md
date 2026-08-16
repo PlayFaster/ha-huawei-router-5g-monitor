@@ -8,7 +8,7 @@ Forward plans, deferred decisions, and declined directions for the Huawei 5G Rou
 >
 > **This file holds features only.**
 >
-> Chores — testing work, tooling, lint, refactors, version conventions, bug fixes — do **not** belong here at any stage, however large. They go to [`x_proj_chores.md`](../../../shared/SharedNotes/issues/x_project/x_proj_chores.md) or to the project's `status_plan.md`. A chore that is already finished does not earn a place in **Done** by having been finished.
+> Chores — testing work, tooling, lint, refactors, version conventions, bug fixes — do **not** belong here at any stage, however large. They go to `x_proj_chores.md` /shared/SharedNotes/issues/x_project/x_proj_chores.md or to the project's `status_plan.md`. A chore that is already finished does not earn a place in **Done** by having been finished.
 >
 > **A roadmap item that gets done moves to the Done group below.** Work that was never on the roadmap is not added there once complete — that is what [`changelog_local.md`](changelog_local.md) is for, and it remains the authoritative history of everything shipped.
 
