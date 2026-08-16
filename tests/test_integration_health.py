@@ -221,10 +221,17 @@ def test_an_empty_successful_payload_is_not_total_degradation(coordinator):
 
 
 def test_health_computation_can_never_crash_the_poll_it_diagnoses(coordinator, caplog):
-    """A malformed payload must degrade to "unknown", not raise.
+    """A malformed payload must degrade, not raise.
 
     This exists to diagnose a broken update; taking the update down with it
-    would be strictly worse than not having it at all.
+    would be strictly worse than not having it at all. That half is unchanged.
+
+    **What it degrades *to* changed on 2026-08-16**, after `masked_errors_check`
+    raised it as a Class A finding. The snapshot previously came back clean —
+    `severity: None`, no issues — so a verdict that had stopped working
+    reported "no problems" indefinitely, and the only trace was a DEBUG line.
+    The one state this sensor must never report cleanly is its own failure, so
+    it now carries `health_verdict_unavailable` and warns once per session.
     """
     caplog.set_level(logging.DEBUG)
 
@@ -233,8 +240,12 @@ def test_health_computation_can_never_crash_the_poll_it_diagnoses(coordinator, c
     ):
         coordinator.update_health({"anything": 1}, failed=False, cold_start=False)
 
-    assert coordinator.health_snapshot["issues"] == []
-    assert coordinator.health_snapshot["severity"] is None
+    # Still degrades rather than raising — the original guarantee.
+    assert coordinator.health_snapshot is not None
+
+    # ...but it no longer claims to be healthy.
+    assert coordinator.health_snapshot["severity"] == "warning"
+    assert coordinator.health_snapshot["issues"] == ["health_verdict_unavailable"]
     assert "Health computation failed" in caplog.text
 
 

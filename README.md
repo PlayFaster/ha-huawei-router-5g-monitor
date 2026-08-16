@@ -212,7 +212,7 @@ Fires automatically when a new incoming SMS is detected. Use as an automation tr
 
 ## 🔍 What You Get
 
-This integration provides **121+ entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**.
+This integration provides **159 entities** (some disabled by default, and a few unpopulated depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client, so the live total is higher.
 
 > [!NOTE]
 >

@@ -90,6 +90,11 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # `async_setup_entry`; seeded here so the attribute always exists.
         self.reload_signature: dict[str, Any] = {}
 
+        # One-shot latch so a persistently failing health computation warns
+        # once per session rather than once per poll. Reset on the first
+        # success, so a fault that returns is reported again.
+        self._health_compute_failed = False
+
         # Section 19 health state. Deliberately NOT stored in `self.data`,
         # which is None before the first success and frozen at last-good values
         # during an outage — a verdict held there could never describe the
@@ -172,20 +177,43 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         failure that stopped it being updated.
 
         Wrapped so a malformed payload can never crash the update it is
-        diagnosing: on any internal error this degrades to "healthy/unknown"
-        and logs at debug.
+        diagnosing. **The wrapper stays; where the failure goes changed.**
+
+        It previously logged at DEBUG and then set a *healthy* snapshot — so a
+        verdict that had stopped working reported "no problems" for ever, at a
+        level nobody runs. This sensor exists to explain an outage; the one
+        state it must never report cleanly is its own failure. Found by
+        `masked_errors_check` on 2026-08-16 as a Class A finding.
+
+        The first failure per session warns; the rest are debug, because a
+        broken computation is broken on every poll and one warning per poll is
+        how a warning stops being read. The snapshot now carries the failure
+        rather than hiding it.
         """
         try:
             self.health_snapshot = self._compute_health(
                 data, failed=failed, cold_start=cold_start
             )
+            self._health_compute_failed = False
         except Exception:
-            _LOGGER.debug(
-                "%s: Health computation failed; reporting unknown.",
-                self.entry.title,
-                exc_info=True,
-            )
-            self.health_snapshot = self._healthy_snapshot()
+            if not self._health_compute_failed:
+                self._health_compute_failed = True
+                _LOGGER.warning(
+                    "%s: Health computation failed; the Integration Health "
+                    "verdict is unavailable until this is fixed.",
+                    self.entry.title,
+                    exc_info=True,
+                )
+            else:
+                _LOGGER.debug(
+                    "%s: Health computation still failing.",
+                    self.entry.title,
+                    exc_info=True,
+                )
+            snapshot = self._healthy_snapshot()
+            snapshot["severity"] = "warning"
+            snapshot["issues"] = ["health_verdict_unavailable"]
+            self.health_snapshot = snapshot
 
     def _compute_health(
         self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool

@@ -324,3 +324,63 @@ async def test_a_session_expiry_is_retried_once_before_counting(hass_stub) -> No
     assert await coordinator._async_update_data() == GOOD
     assert coordinator.api.get_data.await_count == 2
     assert coordinator.consecutive_failures == 0
+
+
+# ---------------------------------------------------------------------------
+# The health verdict failing to compute is itself a health problem
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_failed_health_computation_is_visible_not_silent(
+    hass_stub, caplog
+) -> None:
+    """A broken health verdict must not report as healthy at DEBUG level.
+
+    **Found by `masked_errors_check` 2026-08-16, Class A.** The wrapper around
+    `_compute_health` is correct and must stay — a verdict that crashed the
+    poll it is diagnosing would be worse than no verdict. What was wrong is
+    where the failure went: `_LOGGER.debug`, then a snapshot that reads
+    *healthy*.
+
+    Integration Health exists to explain an outage. If the thing that explains
+    outages breaks, it reports "no problems" for ever, at a log level nobody
+    runs. The first failure is now a warning, and the snapshot says the verdict
+    is unavailable rather than clean.
+    """
+    coordinator = _coordinator(hass_stub)
+
+    with patch.object(
+        coordinator, "_compute_health", side_effect=ValueError("bad payload")
+    ):
+        coordinator.update_health(GOOD, failed=False, cold_start=False)
+
+    assert "health" in caplog.text.lower()
+    assert any(r.levelname == "WARNING" for r in caplog.records), (
+        "a failed health computation was not raised above DEBUG"
+    )
+    snapshot = coordinator.health_snapshot
+    assert snapshot["severity"] is not None, "a broken verdict reported as healthy"
+    assert any("health" in str(i).lower() for i in snapshot["issues"]), (
+        "the snapshot does not say the verdict itself is unavailable"
+    )
+
+
+@pytest.mark.asyncio
+async def test_repeated_health_failures_warn_only_once(hass_stub, caplog) -> None:
+    """One warning per session, not one per poll.
+
+    A verdict that is broken is broken on every poll. Warning each time turns
+    a real signal into log spam at the polling interval, which is how a
+    warning stops being read.
+    """
+    coordinator = _coordinator(hass_stub)
+
+    with patch.object(
+        coordinator, "_compute_health", side_effect=ValueError("bad payload")
+    ):
+        for _ in range(4):
+            coordinator.update_health(GOOD, failed=False, cold_start=False)
+
+    warnings = [r for r in caplog.records if r.levelname == "WARNING"]
+    assert len(warnings) == 1, f"expected one warning, got {len(warnings)}"

@@ -1,18 +1,18 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 166 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+This document provides a comprehensive list of all 159 static entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
 
 ## Summary
 
 | Sub-Device | Entity Count | Description |
 | :-- | :-- | :-- |
 | **System** | 48 | Core router info, WAN configuration, and global integration settings. |
-| **Signal** | 60 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
+| **Signal** | 58 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
 | **Data** | 24 | Traffic statistics, download/upload rates, and monthly usage. |
-| **SMS** | 22 | Detailed message counts per storage bank and recent message content. |
+| **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
 | **WiFi** | 7 | Wireless radio status, capacity, and guest network controls. |
 | **Clients** | 4 + trackers | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **166** | Plus one device tracker per discovered client. |
+| **Total** | **159** | Plus one device tracker per discovered client — three at the time of the 2026-08-16 review, so 162 live. |
 
 ---
 
@@ -73,7 +73,7 @@ _Group: `system`_
 
 ---
 
-## 2. Signal Sub-Device (60 Entities)
+## 2. Signal Sub-Device (58 Entities)
 
 _Group: `signal`_
 
@@ -109,8 +109,6 @@ _Group: `signal`_
 | LTE Transmission Mode | `transmission_mode` | Sensor | - | Diagnostic |  |
 | eNodeB ID | `enodeb_id` | Sensor | - | Diagnostic |  |
 | LTE CQI | `lte_cqi` | Sensor | - | - | Promoted from Diagnostic. |
-| LTE Uplink Frequency (Secondary) | `uplink_frequency` | Sensor | MHz | Diagnostic | `ulfrequency` field in kHz, scaled /1000. |
-| LTE Downlink Frequency (Secondary) | `downlink_frequency` | Sensor | MHz | Diagnostic | `dlfrequency` field in kHz, scaled /1000. |
 | 5G NR Band | `5g_nr_band` | Sensor | - | Diagnostic | Parsed from `band` string (e.g. `N28`). |
 | 5G RSRP | `5g_rsrp` | Sensor | dBm | - | Range: -150 to -30. |
 | 5G RSRQ | `5g_rsrq` | Sensor | dB | - | Range: -50 to 0. |
@@ -175,7 +173,7 @@ _Group: `data`_
 
 ---
 
-## 4. SMS Sub-Device (22 Entities)
+## 4. SMS Sub-Device (18 Entities)
 
 _Group: `sms`_
 
@@ -203,6 +201,7 @@ _Group: `sms`_
 | Delete Sms | `delete_sms` | Service | — | — | Delete an SMS message by its index. |
 | Delete All Sms | `delete_all_sms` | Service | — | — | Delete all SMS messages from the router inbox. |
 | Get Sms List | `get_sms_list` | Service | — | — | Fetch a list of SMS messages from the router. |
+| Cleanup Unused Entities | `cleanup_unused_entities` | Service | — | — | Remove device tracker entities for clients the router no longer reports. Defaults to a dry run and returns the list it would remove; the Clients button is the same work, commit-only. |
 
 ---
 

@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev32\] - 2026-08-16 - Sensor Review and Masked-Errors Audit](#120-dev32---2026-08-16---sensor-review-and-masked-errors-audit)
   - [\[1.2.0-dev31\] - 2026-08-15 - Mutation Testing Complete: 80 Tests, One Defect](#120-dev31---2026-08-15---mutation-testing-complete-80-tests-one-defect)
   - [\[1.2.0-dev30\] - 2026-08-15 - Verification Pass: Live Read-Back, Timer Callbacks, Stale Documents](#120-dev30---2026-08-15---verification-pass-live-read-back-timer-callbacks-stale-documents)
   - [\[1.2.0-dev29\] - 2026-08-15 - CI Bump Ruff](#120-dev29---2026-08-15---ci-bump-ruff)
@@ -123,6 +124,23 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.0-dev32] - 2026-08-16 - Sensor Review and Masked-Errors Audit
+
+Two shared prompts run against the live integration: `sensor_review` (SCOPE=Full, Via_HAB) and `masked_errors_check`. Reports at `.notes/sensors_states/ha_sensor_review_20260816_1437.md` and `.notes/issues/masked_errors/masked_errors_20260816_1525.md`.
+
+### Fixed
+
+- **A failed health computation reported the integration as healthy, at DEBUG level.** `update_health` caught any error from `_compute_health`, logged it at `_LOGGER.debug`, and then installed a **clean** snapshot — so a verdict that had stopped working reported "no problems" indefinitely, with the only trace at a level nobody runs. The wrapper is right and stays: a verdict that crashed the poll it diagnoses would be worse than no verdict. What was wrong is where the failure went. **This sensor exists to explain an outage, so the one state it must never report cleanly is its own failure.** The first failure per session now logs at WARNING and the snapshot carries `severity: warning` and `health_verdict_unavailable`; later failures stay at DEBUG, because a broken computation is broken on every poll and one warning per poll is how a warning stops being read. Found by `masked_errors_check` as its only actionable finding.
+- **`docs/all_sensors.md` did not reconcile with the live integration** — the long-standing **P-5**, now with specifics. Two rows described sensors that exist nowhere in code or HA (`uplink_frequency`, `downlink_frequency`, the "(Secondary)" LTE frequency pair). The header claimed **166** static entities against **159**; the Signal, SMS and Clients section headings and summary rows were each wrong by a different amount; and `cleanup_unused_entities` was registered as an action but undocumented. Every section heading now reconciles against its own rows, verified programmatically rather than by eye.
+- **`README.md` claimed "121+ entities"** against 159 static plus one tracker per client.
+
+### Notes
+
+- **Findings that were checked and turned out to be nothing**, recorded because a future run will otherwise re-derive them: the 38 apparent unit mismatches are all either native-versus-displayed units (`suggested_unit_of_measurement`) or an artefact of the WiFi and Clients tables having no Unit column; `value_min_max.md` reconciles exactly, 70 keys both directions; and all 162 live entities publish an `about` note.
+- **The masked-errors audit found nothing in three of four classes, and that is the result rather than a failure to look.** Class B's required fix pattern is already implemented in both halves — a 100-second inactivity check before the request and expiry-code retry after it. Class C is covered by an assertion audit reporting 0 of 677. Class D's two `type: ignore` were verified by removing them and reading mypy's actual message; both are real and both carry accurate justifications in the allow-list.
+- **One "obvious fix" was tried and rejected.** Importing `ScannerEntity` from `homeassistant.components.device_tracker.entity` removes the `attr-defined` error entirely — and would be backwards: HA deprecated that submodule path in 2026.6 with removal in 2027.6, and `DEVELOPMENT.md` records the fix as moving _to_ the top-level import. The suppression covers a re-export gap, not a missing attribute.
+- Suite **812 passing**, 100% line and branch coverage. Both shared prompts were updated from what the runs exposed; those changes are outside this repository.
+
 ## [1.2.0-dev31] - 2026-08-15 - Mutation Testing Complete: 80 Tests, One Defect
 
 Two runs and a triage — the documented cadence. **1633 mutants; survivors 356 → 231, killed 1277 → 1400**, zero timeouts. `coordinator.py` alone went 237 → 126. Suite **730 → 810**, 100% line and branch throughout.
@@ -188,7 +206,7 @@ A pass over work that had been **verified and then invalidated by later changes*
 
 - A `value_fn` receives only the payload and cannot reach the coordinator, so `native_value` now reads the memoised projection directly — joining the two keys it already special-cases. `_projected_bytes` remains the description's `value_fn`, uncached, so the description sweeps still see one and the calculation stays testable from a bare payload. Four `test_projection.py` cases repointed to `_compute_projection`, which is what they were testing.
 - Suite **726 → 728**, 100% line and branch coverage, 0 partial branches. `ruff` and `mypy custom_components/ --strict` clean.
-- **Still open:** the Section 9 reload has never been exercised against a real Home Assistant. A config-name change was observed **not** to poll, where the code says it should reload — unresolved.
+- **The Section 9 reload was verified live on 2026-08-15** and the `dev_standards` cell is now DONE. Renaming the entry through Configure renamed the entry **and all six sub-devices** and triggered a fetch — both are the reload seen from its effects, since sub-device names are written into the registry from `entry.title` at setup and only a rebuild rewrites them. Entity names correctly did not change. **An earlier attempt on the same build showed the title changing alone**; the probable cause is that the running Home Assistant still held the code loaded before the listener existed, which is plausible rather than confirmed and cannot be established after the fact.
 
 ## [1.2.0-dev27] - 2026-08-15 - Drop `url-normalize`
 
