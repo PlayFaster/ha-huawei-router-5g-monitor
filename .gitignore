@@ -92,8 +92,6 @@ uv.lock
 loc_only/
 scratch/
 .scratch/
-# Throwaway probe scripts run against the live router. Never committed:
-# two were, on 2026-08-15, because a cleanup ran in the wrong directory.
 .scratch_*
 
 # AI

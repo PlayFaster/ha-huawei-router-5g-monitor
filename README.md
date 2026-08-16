@@ -35,6 +35,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [❌ Removal](#-removal)
   - [📝 Maintenance Status](#-maintenance-status)
   - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
+  - [🔀 Other Options](#-other-options)
   - [📄 License](#-license)
 
 ## 🔧 Compatibility & Tested Devices
@@ -43,8 +44,20 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 - **Fully Tested**:
   - **Huawei 5G CPE Pro 6 (H165-383)** — tested firmware: `4.4.0.1(H1600SP2Cxxxx)`
-- **Expected Compatible**: Any Huawei LTE/5G router supported by the `huawei-lte-api` library or the Home Assistant core Huawei LTE integration should work, but compatibility with untested models cannot be guaranteed.
-- **Not Supported**: Non-Huawei hardware.
+  - _This is currently the primary model verified on live hardware._
+
+- **Expected Compatible (Huawei HiLink XML API Family)**:
+  - Other Huawei, Brovi, and SoyeaLink 5G/4G cellular routers supported by the `huawei-lte-api` library or Home Assistant core are expected to work, including:
+    - **Huawei 5G CPE Series**: **H112-370 / H112-372** (5G CPE Pro), **H122-373** (5G CPE Pro 2), **H138-380** (5G CPE Pro 3), **H155-381 / H158-381** (5G CPE Pro 5), **H312-371** (5G Outdoor CPE).
+    - **Brovi & SoyeaLink Rebranded 5G/LTE Models**: **Brovi 5G CPE Pro**, **Brovi E3372-325**, **SoyeaLink B535-333**.
+    - **Huawei 4G/LTE B-Series CPEs**: **B525**, **B528**, **B535**, **B618**, **B715**, **B818** (4G Router 3 Prime), **B310**, **B315**.
+    - **Huawei HiLink USB Modems / Mobile Wi-Fi**: **E3372**, **E8372**, **E5573**, **E5577** (in HiLink / Ethernet mode).
+  - _(Note: While protocol support for these models is built into `huawei-lte-api`, they remain unverified on live hardware for this custom integration)._
+
+- **Not Compatible (Incompatible Router Families)**:
+  - ❌ **Huawei Landline & Mesh Wi-Fi Routers (WS5200, AX3, AX3 Pro, WiFi Mesh 3/7)** — These landline mesh routers do not run the cellular HiLink modem API. Use **[`vmakeev/huawei_mesh_router`](https://github.com/vmakeev/huawei_mesh_router)** instead.
+  - ❌ **Legacy VDSL/Fiber Gateways (e.g. Huawei HG659)** — These use gateway-specific presence detection APIs. Use **[`JohnPaton/huawei-hg659`](https://github.com/JohnPaton/huawei-hg659)** instead.
+  - ❌ **Non-Huawei / Non-HiLink hardware.**
 
 **🌐 Network:**
 
@@ -728,6 +741,26 @@ This integration stands on the shoulders of several excellent open-source projec
 - 🙏 **[huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended)** (@william-aqn): The expanded SMS functionality in this integration is based on this work. If SMS features are what you need, this component paired with the core integration is an excellent option.
 - **Personal prior work**: The structure and integration architecture draw on my own custom components for [TP-Link 5G](https://github.com/PlayFaster/ha-tplink-router-5g-monitor) and [ZTE 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) routers.
 - This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
+
+---
+
+## 🔀 Other Options
+
+This integration is specifically optimized as a high-performance monitor for Huawei, Brovi, and SoyeaLink 5G/4G cellular CPE routers (primarily tested on the **Huawei 5G CPE Pro 6 / H165-383**, and designed for the H-series, B-series, and HiLink USB modems).
+
+Depending on your specific hardware, deployment setup, or preferred feature set, several other excellent Home Assistant options exist:
+
+- 🏠 **[Home Assistant Core: Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/)** by @scop, @fphammerle, @joostlek, and Home Assistant Core contributors  
+  _Best for:_ Most users with a standard Huawei LTE/5G router who want an officially supported, core-maintained integration for basic signal telemetry, data volume, and SMS notifications.
+
+- 💬 **[`william-aqn/huawei_lte_extended`](https://github.com/william-aqn/huawei_lte_extended)** by @william-aqn  
+  _Best for:_ Users who are happily running the official HA Core Huawei LTE integration but wish to augment it with expanded SMS inbox sensors and dedicated SMS management services.
+
+- 🌐 **[`vmakeev/huawei_mesh_router`](https://github.com/vmakeev/huawei_mesh_router)** by @vmakeev  
+  _Best for:_ Huawei Landline Wi-Fi Mesh and WS-Series Routers (WS5200, AX3, AX3 Pro, WiFi Mesh 3/7). Specialized for LAN/Wi-Fi connected client tracking, guest Wi-Fi control, and mesh node discovery.
+
+- 🔌 **[`JohnPaton/huawei-hg659`](https://github.com/JohnPaton/huawei-hg659)** by @JohnPaton  
+  _Best for:_ Legacy Huawei HG659 VDSL/Fiber gateways used for basic device presence detection.
 
 ---
 
