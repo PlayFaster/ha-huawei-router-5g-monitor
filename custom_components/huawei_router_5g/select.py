@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
@@ -14,6 +14,11 @@ from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .const import (
+    NETWORK_MODE_FALLBACK,
+    NETWORK_MODE_LABELS,
+    network_mode_label,
+)
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import HuaweiAboutEntity, build_device_info
 
@@ -59,17 +64,18 @@ class HuaweiSelectEntityDescription(SelectEntityDescription):
     no_confirmation: str | None = None
 
 
-NETWORK_MODE_MAPPING = {
-    "Auto": "00",
-    "4G/3G/2G Auto": "030201",
-    "4G/3G Auto": "0302",
-    "4G/2G Auto": "0301",
-    "4G Only": "03",
-    "3G/2G Auto": "0201",
-    "3G Only": "02",
-    "2G Only": "01",
-}
-NETWORK_MODE_INV_MAPPING = {v: k for k, v in NETWORK_MODE_MAPPING.items()}
+def _label_to_code(label: str) -> str:
+    """Resolve a displayed option back to the code the router expects.
+
+    Handles the `Unknown (nn)` form as well, so a mode this integration cannot
+    name is still selectable rather than merely visible.
+    """
+    for code, name in NETWORK_MODE_LABELS.items():
+        if name == label:
+            return code
+    if label.startswith("Unknown (") and label.endswith(")"):
+        return label[len("Unknown (") : -1]
+    return "00"
 
 
 SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
@@ -83,7 +89,10 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
             "back what the router says is in force."
         ),
         translation_key="network_mode",
-        options=list(NETWORK_MODE_MAPPING.keys()),
+        # Replaced at setup by the router's own `AccessList`. This value is the
+        # fallback for a device that will not publish one — see
+        # `NETWORK_MODE_FALLBACK`.
+        options=[network_mode_label(c) or c for c in NETWORK_MODE_FALLBACK],
         entity_category=EntityCategory.CONFIG,
         group="system",
         # Confirmed, but inside `api.set_net_mode` rather than here, because the
@@ -94,15 +103,11 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
         # the read is reliable, and it is the only thing that can tell an
         # applied change from a refused one, since both answer `-1`.
         value_fn=lambda data: (
-            NETWORK_MODE_INV_MAPPING.get(
-                str(data.get("net_mode", {}).get("NetworkMode"))
-            )
+            network_mode_label(data.get("net_mode", {}).get("NetworkMode"))
             if data
             else None
         ),
-        setter_fn=lambda api, mode_label: api.set_net_mode(
-            NETWORK_MODE_MAPPING.get(mode_label, "00")
-        ),
+        setter_fn=lambda api, mode_label: api.set_net_mode(_label_to_code(mode_label)),
     ),
 )
 
@@ -112,11 +117,27 @@ async def async_setup_entry(
     entry: ConfigEntry,
     async_add_entities: AddEntitiesCallback,
 ) -> None:
-    """Set up the select platform."""
+    """Set up the select platform.
+
+    The mode list is read from the router once, here, rather than polled: it is
+    static configuration that changes only with a firmware update. A router that
+    will not publish one keeps the fallback list.
+    """
     coordinator = entry.runtime_data
-    async_add_entities(
-        [HuaweiRouterSelect(coordinator, description) for description in SELECTS]
-    )
+
+    codes = await coordinator.api.get_supported_net_modes()
+    if codes:
+        _LOGGER.debug("Router accepts network modes %s", codes)
+
+    entities = []
+    for description in SELECTS:
+        if description.key == "network_mode" and codes:
+            description = replace(
+                description,
+                options=[network_mode_label(code) or code for code in codes],
+            )
+        entities.append(HuaweiRouterSelect(coordinator, description))
+    async_add_entities(entities)
 
 
 class HuaweiRouterSelect(

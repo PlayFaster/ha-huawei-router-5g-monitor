@@ -895,24 +895,64 @@ async def test_set_mobile_data_error():
 
 
 @pytest.mark.asyncio
-async def test_set_net_mode_success():
-    """Test successful net mode setting."""
+async def test_set_net_mode_sends_the_routers_own_bands_back():
+    """A mode change must not assert band values from a library table.
+
+    `net/net-mode` takes all three fields together, so a mode change has to
+    supply bands too. It used to send `LTEBandEnum.ALL` / `NetworkBandEnum.ALL`
+    — constants never checked against the device. The reference H165-383 clamps
+    them to its own supported mask, so the assumption was invisible there; a
+    router that took the value literally would have had its band selection
+    silently reset on every mode change.
+
+    The current bands are now read and handed straight back, which asks the
+    router to keep what it has.
+    """
     api = _make_api()
     api._client = MagicMock()
     api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {
+        "NetworkMode": "00",
+        "LTEBand": "7A0880800D5",
+        "NetworkBand": "2000004680380",
+    }
 
-    from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
-
-    mode = "03"
+    mode = "08"
     with patch(
         "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
     ):
         await api.set_net_mode(mode)
 
     api._client.net.set_net_mode.assert_called_once_with(
-        lteband=LTEBandEnum.ALL.value,
-        networkband=NetworkBandEnum.ALL.value,
-        networkmode=mode,
+        lteband="7A0880800D5",
+        networkband="2000004680380",
+        networkmode="08",
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_falls_back_to_all_when_bands_unreadable():
+    """An unreadable band read must not block the mode change.
+
+    A mode change that cannot name any band is worse than one using the old
+    assumption, so the library constants remain the fallback — but only there.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.side_effect = RuntimeError("no answer")
+
+    from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_net_mode("03")
+
+    api._client.net.set_net_mode.assert_called_once_with(
+        lteband=f"{LTEBandEnum.ALL.value:x}",
+        networkband=f"{NetworkBandEnum.ALL.value:x}",
+        networkmode="03",
     )
 
 

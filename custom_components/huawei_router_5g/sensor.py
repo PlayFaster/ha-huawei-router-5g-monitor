@@ -33,6 +33,7 @@ from .const import (
     PROJECTION_CONFIDENCE_LOW,
     PROJECTION_CONFIDENCE_MEDIUM,
     PROJECTION_CREDIBILITY_DAYS,
+    network_mode_label,
 )
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
@@ -698,16 +699,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         group="signal",
         entity_category=EntityCategory.DIAGNOSTIC,
         value_fn=lambda data: (
-            {
-                "00": "Auto",
-                "01": "2G Only",
-                "02": "3G Only",
-                "03": "4G Only",
-                "0302": "4G/3G Auto",
-                "0301": "4G/2G Auto",
-                "0201": "3G/2G Auto",
-                "030201": "4G/3G/2G Auto",
-            }.get(str(data.get("net_mode", {}).get("NetworkMode")))
+            network_mode_label(data.get("net_mode", {}).get("NetworkMode"))
             if data
             else None
         ),

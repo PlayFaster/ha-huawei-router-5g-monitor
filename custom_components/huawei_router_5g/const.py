@@ -133,6 +133,67 @@ HEALTH_STRIKE_LIMIT = 3
 # Both fire even while polling is paused - the follow-up is part of the button
 # press, not background polling (Section 13). Neither fires when it would land
 # after the next scheduled poll anyway - see `async_schedule_refresh`.
+# --- Network mode -----------------------------------------------------------
+#
+# Code to label for `net_mode.NetworkMode`. **One table, used by both the select
+# and the Preferred Network Mode sensor.** They previously held separate copies
+# of this mapping in two modules, and both were missing `08` — so a router in 5G
+# Only reported `unknown` twice, from one cause.
+#
+# `08` is 5G Only, established 2026-08-16 on a live H165-383: the web interface
+# offers exactly three modes, `net.net_mode_list()` returns exactly three codes
+# (`00`, `08`, `03`), and `00`/`03` were already known. The router reported `08`
+# while its interface showed 5G Only. **The code list is authoritative; the name
+# is inference** — `AccessList` publishes codes without names.
+#
+# `huawei-lte-api`'s `NetworkModeEnum` is the origin of the other seven and has
+# no 5G member at all: it predates 5G. Copying its vocabulary is what left a 5G
+# integration unable to name the mode its own hardware was in. The library does
+# not constrain us — `set_net_mode` takes `networkmode` as a plain `str` and
+# passes it through unvalidated.
+NETWORK_MODE_LABELS: dict[str, str] = {
+    "00": "Auto",
+    "01": "2G Only",
+    "02": "3G Only",
+    "0201": "3G/2G Auto",
+    "03": "4G Only",
+    "0301": "4G/2G Auto",
+    "0302": "4G/3G Auto",
+    "030201": "4G/3G/2G Auto",
+    "08": "5G Only",
+}
+
+# Offered when `net.net_mode_list()` cannot be read. Deliberately the pre-2026-08
+# hardcoded set plus `08`: a device that will not publish its own list is one we
+# know nothing about, so widening the offer there would invite refused writes.
+NETWORK_MODE_FALLBACK: tuple[str, ...] = (
+    "00",
+    "030201",
+    "0302",
+    "0301",
+    "03",
+    "0201",
+    "02",
+    "01",
+    "08",
+)
+
+
+def network_mode_label(code: str | None) -> str | None:
+    """Return a display label for a raw NetworkMode code.
+
+    An unrecognized code is rendered `Unknown (nn)` rather than dropped, the
+    same way `network_type` handles a code with no known name. That choice is
+    the whole lesson of `08`: for months the router sat in a valid mode this
+    integration could not name, and because the unmapped case returned `None`
+    both entities read `unknown` — indistinguishable from a dead endpoint.
+    """
+    if code in (None, ""):
+        return None
+    text = str(code)
+    return NETWORK_MODE_LABELS.get(text, f"Unknown ({text})")
+
+
 # Seconds to wait after a network-mode write before re-reading it.
 #
 # The router applies the change, drops the radio and re-registers, answering

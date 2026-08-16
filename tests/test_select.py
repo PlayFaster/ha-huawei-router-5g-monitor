@@ -74,11 +74,70 @@ async def test_select_setup_entry():
     entry = MagicMock()
     entry.entry_id = "test"
     coordinator = MagicMock()
+    coordinator.api.get_supported_net_modes = AsyncMock(return_value=None)
+    entry.runtime_data = coordinator
     hass.data = {DOMAIN: {"test": coordinator}}
 
     async_add_entities = MagicMock()
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
+
+
+@pytest.mark.asyncio
+async def test_setup_offers_only_the_modes_the_router_accepts():
+    """The option list comes from the router, not from a table.
+
+    The reference H165-383 publishes `["00", "08", "03"]` — exactly the three
+    its web interface offers. The select previously offered eight modes copied
+    from `huawei-lte-api`'s `NetworkModeEnum`, **five of which this router
+    rejects**, while omitting `08`, the mode it was actually in.
+    """
+    entry = MagicMock()
+    entry.entry_id = "test"
+    coordinator = MagicMock()
+    coordinator.api.get_supported_net_modes = AsyncMock(return_value=["00", "08", "03"])
+    entry.runtime_data = coordinator
+
+    added = []
+    await async_setup_entry(MagicMock(), entry, lambda items: added.extend(items))
+
+    options = added[0].entity_description.options
+    assert options == ["Auto", "5G Only", "4G Only"]
+
+
+@pytest.mark.asyncio
+async def test_setup_falls_back_when_the_router_will_not_list_modes():
+    """A router that will not publish a list keeps the full fallback set."""
+    entry = MagicMock()
+    entry.entry_id = "test"
+    coordinator = MagicMock()
+    coordinator.api.get_supported_net_modes = AsyncMock(return_value=None)
+    entry.runtime_data = coordinator
+
+    added = []
+    await async_setup_entry(MagicMock(), entry, lambda items: added.extend(items))
+
+    options = added[0].entity_description.options
+    assert "Auto" in options
+    assert "5G Only" in options
+    assert len(options) == 9
+
+
+def test_an_unmapped_mode_is_named_not_hidden():
+    """`Unknown (nn)` beats `unknown`, and must round-trip back to the code.
+
+    This is the `08` lesson in test form: an unmapped code used to return
+    `None`, so a router in a perfectly valid mode read as `unknown` —
+    indistinguishable from a dead endpoint. It must also remain selectable.
+    """
+    from custom_components.huawei_router_5g.const import network_mode_label
+    from custom_components.huawei_router_5g.select import _label_to_code
+
+    assert network_mode_label("77") == "Unknown (77)"
+    assert _label_to_code("Unknown (77)") == "77"
+    assert network_mode_label("08") == "5G Only"
+    assert _label_to_code("5G Only") == "08"
+    assert network_mode_label(None) is None
 
 
 @pytest.mark.asyncio

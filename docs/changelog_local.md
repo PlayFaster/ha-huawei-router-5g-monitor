@@ -6,6 +6,7 @@ All changes to this project will be documented in this file. This is the detaile
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
   - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
+  - [\[1.2.0-dev43\] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name](#120-dev43---2026-08-17---the-router-was-in-a-5g-mode-the-integration-could-not-name)
   - [\[1.2.0-dev42\] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked](#120-dev42---2026-08-16---network-mode-reported-failure-for-a-write-that-worked)
   - [\[1.2.0-dev39\] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes](#120-dev39---2026-08-16---four-broken-hyphens-shipped-in-entity-notes)
   - [\[1.2.0-dev38\] - 2026-08-16 - About Notes Reviewed; US Spelling Swept](#120-dev38---2026-08-16---about-notes-reviewed-us-spelling-swept)
@@ -138,6 +139,27 @@ All changes to this project will be documented in this file. This is the detaile
 ### Bumps
 
 - **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.10 to v2.0.12
+
+## [1.2.0-dev43] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name
+
+Found by the owner setting **5G Only** in the router's web interface and watching the Home Assistant select go `unknown`. One symptom, four causes.
+
+### Fixed
+
+- **`08` — 5G Only — was missing from the mode table, so both entities read `unknown`.** The router reports `NetworkMode: '08'`; nothing mapped it. **The origin is `huawei-lte-api`'s `NetworkModeEnum`, which has no 5G member at all** — it ends at `MODE_4G_3G_AUTO` and predates 5G. This integration copied that vocabulary wholesale, which is how a 5G integration ended up unable to name the mode its own hardware was in. The library never constrained us: `set_net_mode` takes `networkmode` as a plain `str` and passes it through unvalidated, as its own docstring says.
+- **The same mapping existed twice, in two modules, and both were wrong.** `select.py` held one copy and the Preferred Network Mode sensor held another inline. One cause, two `unknown` entities. Now a single `NETWORK_MODE_LABELS` in `const.py`.
+- **The select offered eight modes, five of which this router rejects.** Options now come from **`net.net_mode_list()`**, read once at setup — the router publishes `AccessList.Access = ["00", "08", "03"]`, exactly the three its web interface offers. `docs/huawei_how_to_access.md` had listed this endpoint under "readable, never reviewed" with the note _"could validate the Network Mode select"_. That note was right and nothing had acted on it. A router that will not publish a list keeps a fallback set.
+- **An unmapped code now renders `Unknown (nn)` instead of vanishing.** `network_type` has always done this, and its `about` note explains why: an unfamiliar reading should be information, not a silent gap. Had the select done the same, `08` would have surfaced on day one instead of reading as a dead endpoint. The `Unknown (nn)` form round-trips, so such a mode stays selectable.
+- **A mode change no longer asserts band values from a library table.** `set_net_mode` sent `LTEBandEnum.ALL` and `NetworkBandEnum.ALL` on every write — constants never checked against the device. The reference H165-383 clamps them (after writing `ALL` it reports `LTEBand=7A0880800D5`, its own supported mask), so the assumption was invisible here; **a router that took the value literally would have had its band selection silently reset on every mode change.** The router's current bands are now read and handed straight back, asking it to keep what it has. The constants survive only as a fallback when that read fails.
+
+### Changed
+
+- `README.md` said the options "include `Auto`, `4G Only`, `5G Only`, `4G/3G/2G Auto`, etc." — a list matching neither the router nor the select. It now says the options are read from the router, gives the reference device's three, and explains the `Unknown (nn)` form.
+
+### Notes
+
+- **`08` = 5G Only is inference, and the record should say so.** `AccessList` publishes codes without names. The identification rests on three agreeing facts: the web interface offers exactly three modes, the router accepts exactly three codes, and `00`/`03` were already known. The code list is authoritative; the name is not.
+- Suite **812 → 816**, ruff and mypy clean. Four new tests: the router's bands are sent back, the fallback when they cannot be read, options derived from `AccessList`, and the `Unknown (nn)` round trip.
 
 ## [1.2.0-dev42] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked
 

@@ -388,7 +388,7 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 ### 📡 Network Settings (System Device)
 
-- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select the preferred network mode dynamically. Options include `Auto`, `4G Only`, `5G Only`, `4G/3G/2G Auto`, etc.
+- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select the preferred network mode dynamically. **The options are read from your router**, so the list matches what its own web interface offers — on the reference 5G CPE Pro 6 that is `Auto`, `5G Only` and `4G Only`. A mode your router reports but this integration cannot name is shown as `Unknown (nn)` rather than hidden, and can still be selected.
 
 ### 🔧 Router Administration & Polling (System Device)
 
@@ -1158,7 +1158,7 @@ Setup is handled entirely via the UI. You will need the same details that you us
 
 - **Host** — Router IP Address/URL (e.g., `http://192.168.8.1` — the Huawei default)
 - **Username** — Router login username (often blank for Huawei, otherwise whatever you use in the Router WebUI)
-- **Password** — Admin password for the router web interface
+- **Password** — Admin password for the router web interface, required.
 - **Name** — Custom prefix for all devices and entities (default: `Huawei 5G`). This determines entity IDs — e.g. the default produces `sensor.huawei_5g_data_month_total`. Change this if you have multiple routers or prefer a different naming scheme.
 
 ### 🔩 Runtime Options

@@ -489,6 +489,69 @@ class HuaweiRouter5GAPI:
                 _LOGGER.exception("Set mobile data failed")
                 raise
 
+    async def _band_arguments(self) -> tuple[str, str]:
+        """Return the LTE and network band masks to send with a mode change.
+
+        `net/net-mode` takes all three fields together, so a mode change must
+        supply bands as well. This previously sent `LTEBandEnum.ALL` and
+        `NetworkBandEnum.ALL` — **library constants, never checked against the
+        device.** On the reference H165-383 that is harmless because the router
+        clamps: after writing `ALL` it reported `LTEBand=7A0880800D5`, its own
+        supported mask, and a `NetworkBand` matching neither the value sent nor
+        anything in its published list.
+
+        **That is one device's behaviour, not a guarantee.** A model that took
+        the value literally would have every mode change silently widen or reset
+        whatever band selection the user had made. So the router's *current*
+        bands are read and sent back unchanged, which asks it to keep what it
+        has rather than asserting a value from a table.
+
+        Falls back to the library constants only when the read fails, since a
+        mode change that cannot name any band is worse than one using the old
+        assumption.
+        """
+        from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
+
+        fallback = (f"{LTEBandEnum.ALL.value:x}", f"{NetworkBandEnum.ALL.value:x}")
+        try:
+            current = await self._execute_with_retry(
+                lambda client: client.net.net_mode()
+            )
+        except Exception:
+            _LOGGER.debug("Could not read current bands; sending ALL", exc_info=True)
+            return fallback
+
+        lteband = str(current.get("LTEBand") or "") or fallback[0]
+        networkband = str(current.get("NetworkBand") or "") or fallback[1]
+        return lteband, networkband
+
+    async def get_supported_net_modes(self) -> list[str] | None:
+        """Return the mode codes this router accepts, or None if it will not say.
+
+        `net.net_mode_list()` publishes `AccessList.Access` — on the reference
+        H165-383, `["00", "08", "03"]`, exactly the three its web interface
+        offers. The select previously offered eight modes taken from the
+        library's enum, five of which **this router rejects**, and omitted the
+        one it was actually in.
+
+        Read once at setup rather than polled: it is static configuration, and
+        a mode set only changes with a firmware update.
+        """
+        try:
+            listing = await self._execute_with_retry(
+                lambda client: client.net.net_mode_list()
+            )
+        except Exception:
+            _LOGGER.debug("net_mode_list unavailable", exc_info=True)
+            return None
+
+        access = (listing or {}).get("AccessList", {}).get("Access")
+        if isinstance(access, str):
+            access = [access]
+        if not isinstance(access, list) or not access:
+            return None
+        return [str(code) for code in access]
+
     async def set_net_mode(self, mode: str) -> None:
         """Set the preferred network mode.
 
@@ -510,13 +573,13 @@ class HuaweiRouter5GAPI:
         and the read-back is what separates the two.
         """
         async with self._lock:
-            from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
+            lteband, networkband = await self._band_arguments()
 
             try:
                 await self._execute_with_retry(
                     lambda client: client.net.set_net_mode(
-                        lteband=LTEBandEnum.ALL.value,
-                        networkband=NetworkBandEnum.ALL.value,
+                        lteband=lteband,
+                        networkband=networkband,
                         networkmode=mode,
                     )
                 )
