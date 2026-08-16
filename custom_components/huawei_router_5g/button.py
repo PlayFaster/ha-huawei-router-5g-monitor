@@ -94,9 +94,9 @@ REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
 RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
     key="reconnect",
     about=(
-        "Drops the mobile data session and dials it again, which often re- "
-        "homes the router to a different cell. The LAN and WiFi stay up. The "
-        "router refuses the library's dedicated reconnect call, so this "
+        "Drops the mobile data session and dials it again, which often "
+        "re-homes the router to a different cell. The LAN and WiFi stay up. "
+        "The router refuses the library's dedicated reconnect call, so this "
         "issues a disconnect followed by a connect, and schedules a follow-up "
         "refresh about twenty seconds later."
     ),

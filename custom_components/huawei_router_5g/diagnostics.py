@@ -142,10 +142,10 @@ MAC_KEYS = {
     "BSSID",
 }
 # A user-assigned device name is often a person's name ("Sam's iPhone"), and an
-# SSID identifies a household and frequently its neighbours too.
+# SSID identifies a household and frequently its neighbors too.
 NAME_KEYS = {"HostName", "DeviceNameFromHost", "ActualName"}
 SSID_KEYS = {"Ssid", "WifiSsid", "AssociatedSsid", "SsidName"}
-# Cell, area and neighbour identifiers. A serving cell id plus a tracking area
+# Cell, area and neighbor identifiers. A serving cell id plus a tracking area
 # plus an operator resolves to a mast in open databases, so these are treated
 # as one class regardless of radio technology.
 #

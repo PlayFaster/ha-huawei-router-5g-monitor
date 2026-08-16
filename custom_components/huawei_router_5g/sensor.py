@@ -932,11 +932,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         about=(
             "The router's own LTE transmit power. High values mean the router is "
             "shouting to be heard, so this reflects distance and obstruction on "
-            "the **uplink** and says nothing about downlink quality. Multi- "
-            "carrier firmware reports a compound string (`PPusch:12dBm "
-            "PPucch:5dBm`), which is passed through unparsed rather than half- "
-            "parsed - the guard band therefore applies only to the single-number "
-            "case."
+            "the **uplink** and says nothing about downlink quality. "
+            "Multi-carrier firmware reports a compound string (`PPusch:12dBm "
+            "PPucch:5dBm`), which is passed through unparsed rather than "
+            "half-parsed - the guard band therefore applies only to the "
+            "single-number case."
         ),
         translation_key="transmit_power",
         group="signal",
@@ -1720,8 +1720,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="sms_unread",
         about=(
-            "Unread messages across both the device and the SIM. The two per- "
-            "location entities add up to this one."
+            "Unread messages across both the device and the SIM. The two "
+            "per-location entities add up to this one."
         ),
         translation_key="sms_unread",
         state_class=SensorStateClass.MEASUREMENT,
@@ -2254,7 +2254,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
             "Whether antenna port 1 is using the `Internal` or an `External` "
             "antenna. Reported per port, so this and Antenna 2 disagreeing is how "
             "a mixed setup shows itself - there is deliberately no third 'Mix' "
-            "value. An unrecognised code is passed through raw rather than "
+            "value. An unrecognized code is passed through raw rather than "
             "guessed at."
         ),
         translation_key="antenna_1",
