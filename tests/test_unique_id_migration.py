@@ -7,7 +7,7 @@ suffixing it. The entity now scopes its own id to the config entry.
 
 **The migration is what makes that non-breaking**, so it is what these tests
 are about. Rewriting the existing registry row preserves the `entity_id`, the
-name, the area, the enabled state and every customisation — only `unique_id`
+name, the area, the enabled state and every customization — only `unique_id`
 changes. Without it the old rows would be orphaned and new entities minted with
 `_2` suffixes, breaking every automation that referenced them.
 """

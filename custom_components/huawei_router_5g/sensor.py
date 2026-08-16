@@ -432,7 +432,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="current_connection_duration",
         about=(
             "How long the current mobile data session has been up, in seconds. "
-            "Disabled by default in favour of Connection Uptime, which says the "
+            "Disabled by default in favor of Connection Uptime, which says the "
             "same thing as a fixed point in time."
         ),
         translation_key="current_connection_duration",
@@ -593,7 +593,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="wifi_capacity",
         about=(
             "The maximum number of WiFi clients the router will admit. A firmware "
-            "limit, not a licence - reaching it means new clients are refused."
+            "limit, not a license - reaching it means new clients are refused."
         ),
         translation_key="wifi_capacity",
         group="wifi",
@@ -831,7 +831,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="signal_bars",
         about=(
             "The LTE signal bars the router's own web interface shows, 0 to 5. It "
-            "is the router's summarised verdict rather than a measurement, so it "
+            "is the router's summarized verdict rather than a measurement, so it "
             "is stable and readable but too coarse to trend. Use LTE RSRP, RSRQ "
             "and SINR when comparing over time."
         ),
@@ -850,7 +850,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="signal_bars_nr",
         about=(
             "The 5G signal bars the router's own web interface shows, 0 to 5. As "
-            "with Signal Bars this is a summarised verdict, not a measurement."
+            "with Signal Bars this is a summarized verdict, not a measurement."
         ),
         translation_key="signal_bars_nr",
         state_class=SensorStateClass.MEASUREMENT,
@@ -879,8 +879,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="pci",
         about=(
             "Physical Cell Identity of the serving LTE cell, 0 to 503. The short "
-            "identifier the radio uses to tell neighbouring cells apart. It is "
-            "not a quality figure and neighbouring cells reuse the numbers."
+            "identifier the radio uses to tell neighboring cells apart. It is "
+            "not a quality figure and neighboring cells reuse the numbers."
         ),
         translation_key="pci",
         group="signal",
@@ -1026,7 +1026,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="lte_uplink_frequency",
         about=(
-            "Centre frequency of the LTE uplink carrier, converted to MHz from "
+            "Center frequency of the LTE uplink carrier, converted to MHz from "
             "the raw value the router reports."
         ),
         translation_key="lte_uplink_frequency",
@@ -1042,7 +1042,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="lte_downlink_frequency",
         about=(
-            "Centre frequency of the LTE downlink carrier, converted to MHz from "
+            "Center frequency of the LTE downlink carrier, converted to MHz from "
             "the raw value the router reports."
         ),
         translation_key="lte_downlink_frequency",
@@ -1101,7 +1101,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="5g_uplink_frequency",
         about=(
-            "Centre frequency of the 5G uplink carrier in MHz. On a paired band "
+            "Center frequency of the 5G uplink carrier in MHz. On a paired band "
             "it sits a fixed distance from the downlink frequency; on a shared "
             "one the two are the same."
         ),
@@ -1120,7 +1120,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="5g_downlink_frequency",
         about=(
-            "Centre frequency of the 5G downlink carrier in MHz. Which band it "
+            "Center frequency of the 5G downlink carrier in MHz. Which band it "
             "falls in decides the trade-off in play: low frequencies travel and "
             "penetrate, high ones carry more."
         ),
@@ -1283,7 +1283,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="5g_downlink_mcs",
         about=(
             "Modulation and Coding Scheme index chosen for the 5G downlink - the "
-            "network's judgement of how densely it can encode, given the channel."
+            "network's judgment of how densely it can encode, given the channel."
         ),
         translation_key="5g_downlink_mcs",
         group="signal",
@@ -2112,7 +2112,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="carrier_build",
         about=(
             "The operator-specific build identifier baked into the firmware. It "
-            "identifies which carrier customisation is loaded, which is what "
+            "identifies which carrier customization is loaded, which is what "
             "decides whether a given feature or endpoint exists at all."
         ),
         translation_key="carrier_build",
@@ -2174,7 +2174,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="mtu",
         about=(
             "Maximum transmission unit of the mobile data connection. Relevant "
-            "when tunnelling or when large packets stall; the operator usually "
+            "when tunneling or when large packets stall; the operator usually "
             "sets it."
         ),
         translation_key="mtu",
@@ -2188,7 +2188,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="apn",
         about=(
-            "The access point name the active data profile is dialling. Different "
+            "The access point name the active data profile is dialing. Different "
             "APNs on the same SIM can mean different addressing and different "
             "traffic treatment."
         ),

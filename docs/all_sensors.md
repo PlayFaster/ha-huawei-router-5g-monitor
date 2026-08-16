@@ -54,7 +54,7 @@ _Group: `system`_
 | MCC MNC | `mcc_mnc` | Sensor | - | Diagnostic | **Disabled by default.** Operator code. As IMEI. |
 | Product Name | `product_name` | Sensor | - | Diagnostic | Marketing name, e.g. `5G CPE 6`. |
 | Web UI Version | `web_ui_version` | Sensor | - | Diagnostic |  |
-| Carrier Build | `carrier_build` | Sensor | - | Diagnostic | The `iniversion` customisation build. |
+| Carrier Build | `carrier_build` | Sensor | - | Diagnostic | The `iniversion` customization build. |
 | Supported Modes | `supported_modes` | Sensor | - | Diagnostic | **Disabled by default.** Static capability list. |
 | WAN DNS | `wan_dns` | Sensor | - | Diagnostic | **Disabled by default.** Comma-separated. |
 | WAN DNS IPv6 | `wan_dns_ipv6` | Sensor | - | Diagnostic | **Disabled by default.** |

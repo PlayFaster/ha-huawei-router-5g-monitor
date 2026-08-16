@@ -77,7 +77,7 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
         key="network_mode",
         about=(
             "Restricts which radio technologies the router may use. `Auto` lets "
-            "it choose. Pinning to a single mode can stabilise a marginal "
+            "it choose. Pinning to a single mode can stabilize a marginal "
             "connection or can strand it entirely if that mode is unavailable "
             "where the router sits. Preferred Network Mode, the sensor, reads "
             "back what the router says is in force."

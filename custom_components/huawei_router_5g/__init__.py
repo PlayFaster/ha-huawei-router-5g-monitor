@@ -269,7 +269,7 @@ async def _async_migrate_tracker_unique_ids(
     id; this rewrites the ids already in the registry to match.
 
     **Rewriting the registry row is what makes the change non-breaking.** The
-    `entity_id`, name, area, enabled state and every customisation live on that
+    `entity_id`, name, area, enabled state and every customization live on that
     row and are preserved — only `unique_id` changes. Skipping this would
     orphan the old rows and mint new entities with `_2` suffixes, breaking
     every automation and dashboard that referenced them.

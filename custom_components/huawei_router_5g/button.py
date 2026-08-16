@@ -128,13 +128,11 @@ CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
 CLEANUP_DESCRIPTION = HuaweiButtonEntityDescription(
     key="cleanup_unused_entities",
     about=(
-        "Removes the tracker entities for clients the router no longer "
-        "reports. A device seen once leaves a permanent entity, so this is "
-        "how a guest's phone gets cleared. **This button commits the removal "
-        "with no preview** - run the Clean up unused entities action first if "
-        "you want to see the list, because it defaults to a dry run. Nothing "
-        "is removed while the router has not answered, so an outage cannot "
-        "look like every client leaving at once."
+        "Removes tracker entities for clients **the router no longer "
+        "reports** - it cannot remove a client the router still lists, and "
+        "Huawei routers keep away devices for months. **Commits immediately "
+        "with no preview**; run the Clean up unused entities action first for "
+        "a dry run. Nothing is removed while the router has not answered."
     ),
     translation_key="cleanup_unused_entities",
     entity_category=EntityCategory.CONFIG,

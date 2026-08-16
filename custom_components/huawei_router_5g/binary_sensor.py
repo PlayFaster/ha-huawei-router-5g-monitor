@@ -189,14 +189,11 @@ ROAMING_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="integration_health",
     about=(
-        "This **integration's** verdict on itself, not the router's on "
-        "itself. It reports the failure Home Assistant cannot see: a poll "
-        "that succeeds while a whole capability is quietly missing. Its "
-        "`severity`, `issues`, `degraded_capabilities`, `drift` and "
-        "`last_good_update` attributes are a published contract, spelled the "
-        "same way across these integrations, and it deliberately never goes "
-        "unavailable - a health sensor that vanishes during an outage is "
-        "worse than none."
+        "This **integration's** verdict on itself, not the router's: it "
+        "reports the failure Home Assistant cannot see, a poll that succeeds "
+        "while a whole capability is quietly missing. Its `severity`, "
+        "`issues`, `degraded_capabilities`, `drift` and `last_good_update` "
+        "attributes are a published contract, and it never goes unavailable."
     ),
     translation_key="integration_health",
     device_class=BinarySensorDeviceClass.PROBLEM,
@@ -208,7 +205,7 @@ SIM_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sim_status",
     about=(
         "On when the SIM is **not** usable - missing, locked out, or failing "
-        "to initialise. It is a `problem` sensor, so on means something is "
+        "to initialize. It is a `problem` sensor, so on means something is "
         "wrong; that is deliberately the opposite polarity to reading it as "
         "'SIM present'."
     ),
@@ -251,12 +248,10 @@ def _flag(data: dict[str, Any] | None, block: str, key: str) -> bool | None:
 POOR_SIGNAL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="poor_signal",
     about=(
-        "The router's own verdict that its signal is poor, taken from a "
-        "single firmware flag rather than computed here. Both this and Speed "
-        "Limited have only ever been observed as off on this hardware, so "
-        "their polarity is an accepted assumption - if either ever reports a "
-        "problem that is not happening, that assumption is the thing to "
-        "revisit."
+        "The router's own verdict that its signal is poor, from a single "
+        "firmware flag rather than computed here. The threshold it uses is "
+        "not published, so read it as a hint - judge signal by LTE RSRP and "
+        "SINR."
     ),
     translation_key="poor_signal",
     device_class=BinarySensorDeviceClass.PROBLEM,
@@ -268,9 +263,9 @@ POOR_SIGNAL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 SPEED_LIMITED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="speed_limited",
     about=(
-        "The router's own flag saying its throughput is being capped. As with "
-        "Poor Signal, off is the only state observed on this hardware and the "
-        "polarity is an accepted assumption."
+        "The router's own flag saying its throughput is being capped. The "
+        "conditions it uses are not published, so it is a hint rather than a "
+        "measurement."
     ),
     translation_key="speed_limited",
     # Deliberately no device class: throughput being limited is a state the
@@ -364,7 +359,7 @@ SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sip_alg",
     about=(
         "Whether the router's SIP application-layer gateway is enabled. It "
-        "rewrites VoIP signalling in transit, which helps some phone systems "
+        "rewrites VoIP signaling in transit, which helps some phone systems "
         "and breaks others; there is no universally right setting."
     ),
     translation_key="sip_alg",
