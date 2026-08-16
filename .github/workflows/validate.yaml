@@ -21,7 +21,7 @@ permissions:
 jobs:
   validate:
     # Branch @main — update SHA after pushing .github changes v2.0.5
-    uses: PlayFaster/.github/.github/workflows/validate.yaml@1fcce18024ce90d2d31e5f5aea0671c131660714
+    uses: PlayFaster/.github/.github/workflows/validate.yaml@bd40d667b8c09451824f722cfaa03bf1f786b38f
     with:
       category: integration
       component_name: huawei_router_5g
