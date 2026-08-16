@@ -514,6 +514,10 @@ data:
   dry_run: false
 ```
 
+> [!NOTE]
+>
+> This only removes entities for clients your **router** has already dropped. Huawei routers keep away devices listed for months, and those are reported as long as they remain. To clear them, delete them in the router's own web interface, _then_ use this action.
+
 ### `huawei_router_5g_sms_received` Event
 
 Fires automatically when a new incoming SMS is detected. Use as an automation trigger.
