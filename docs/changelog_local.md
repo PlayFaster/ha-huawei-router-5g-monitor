@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev52\] - 2026-08-17 - Two New Tests Asserted Nothing](#120-dev52---2026-08-17---two-new-tests-asserted-nothing)
   - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
   - [\[1.2.0-dev50\] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks](#120-dev50---2026-08-17---client-tracking-opt-out-assessed-the-poll-is-cheaper-than-it-looks)
   - [\[1.2.0-dev47\] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested](#120-dev47---2026-08-17---coverage-back-to-100-the-new-code-was-untested)
@@ -44,11 +45,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -138,6 +139,19 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev52] - 2026-08-17 - Two New Tests Asserted Nothing
+
+Caught by **Validate All → Tests: Assertion Audit**, which failed with two tests not on the allow-list. Both were added at `[1.2.0-dev47]`, in the commit whose entry says coverage was restored to 100%.
+
+### Fixed
+
+- **`test_set_net_mode_treats_minus_one_as_applied_when_the_readback_agrees`** and **`test_set_net_mode_unverified_readback_does_not_raise`** awaited `set_net_mode` and checked nothing, passing on "did not raise". Real assertions added: the first now checks the write was attempted, that it **waited `NET_MODE_SETTLE` before reading** — reading immediately is the failure the old `no_confirmation` reason was really describing — and that the read-back targeted `net_mode` for the mode requested. The second checks the read-back ran and that an unverified write **warns**, with wording saying the change may have applied rather than implying it failed.
+
+### Notes
+
+- **Not allow-listed, and that was the right call.** An allow-list entry would have recorded the gap rather than closed it, on the same day plan item 10 took this project from four zero-assertion tests to zero. Audit now reports **0 of 694**.
+- The two were written to close a coverage gap, and they did — coverage counts a line as covered when it executes, whether or not anything checks the result. **Coverage and assertion count measure different things, and passing one says nothing about the other.** Both tests ran the code they targeted; neither would have failed if the behaviour had been wrong.
 
 ## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor
 

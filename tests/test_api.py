@@ -18,7 +18,7 @@ from custom_components.huawei_router_5g.api import (
     HuaweiRouter5GAPI,
     _normalize_router_url,
 )
-from custom_components.huawei_router_5g.const import REQUEST_TIMEOUT
+from custom_components.huawei_router_5g.const import NET_MODE_SETTLE, REQUEST_TIMEOUT
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -1869,13 +1869,27 @@ async def test_set_net_mode_treats_minus_one_as_applied_when_the_readback_agrees
         patch(
             "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
         ),
-        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()
+        ) as mock_sleep,
         patch(
             "custom_components.huawei_router_5g.api.confirm_write",
             new=AsyncMock(return_value=True),
-        ),
+        ) as mock_confirm,
     ):
         await api.set_net_mode("00")
+
+    # The write was attempted, and `-1` did not stop it being treated as applied.
+    api._client.net.set_net_mode.assert_called_once()
+
+    # It waited for the radio before reading. Reading immediately is what the
+    # old `no_confirmation` reason was really describing.
+    mock_sleep.assert_awaited_once_with(NET_MODE_SETTLE)
+
+    # And it confirmed against `net_mode`, for the mode it asked for.
+    mock_confirm.assert_awaited_once()
+    assert mock_confirm.await_args.args[1] == "net_mode"
+    assert mock_confirm.await_args.args[3] == "00"
 
 
 @pytest.mark.asyncio
@@ -1922,9 +1936,19 @@ async def test_set_net_mode_unverified_readback_does_not_raise():
         patch(
             "custom_components.huawei_router_5g.api.confirm_write",
             new=AsyncMock(return_value=None),
-        ),
+        ) as mock_confirm,
+        patch("custom_components.huawei_router_5g.api._LOGGER") as mock_logger,
     ):
         await api.set_net_mode("08")
+
+    # The read-back ran and could not decide.
+    mock_confirm.assert_awaited_once()
+
+    # An unverified write is not silent: it warns, and the wording tells the
+    # user the change may have applied rather than implying it failed.
+    mock_logger.warning.assert_called_once()
+    assert "could not be confirmed" in mock_logger.warning.call_args[0][0]
+    assert "may have applied" in mock_logger.warning.call_args[0][0]
 
 
 @pytest.mark.asyncio
