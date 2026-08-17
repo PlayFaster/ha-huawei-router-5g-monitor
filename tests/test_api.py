@@ -1762,3 +1762,85 @@ async def test_set_wifi_raises_when_the_router_reports_no_radios():
         await api.set_wifi(True)
 
     api._client.wlan._session.post_set.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# get_supported_net_modes() and the `-1` read-back path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_reads_the_access_list():
+    """The accepted modes come from `AccessList.Access`.
+
+    The reference H165-383 answers `["00", "08", "03"]` — Auto, 5G Only and
+    4G Only, exactly the three its web interface offers.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.return_value = {
+        "AccessList": {"Access": ["00", "08", "03"]},
+        "BandList": {"Band": []},
+    }
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() == ["00", "08", "03"]
+
+
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_accepts_a_single_string():
+    """A router offering one mode may return a bare string rather than a list."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.return_value = {"AccessList": {"Access": "00"}}
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() == ["00"]
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        {},
+        {"AccessList": {}},
+        {"AccessList": {"Access": []}},
+        {"AccessList": {"Access": {"unexpected": "shape"}}},
+    ],
+    ids=["empty", "no-access-key", "empty-list", "wrong-type"],
+)
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_returns_none_on_an_unusable_answer(listing):
+    """`None` means *not known*, and the select keeps its full fallback list.
+
+    Distinguishing this from an empty list matters: an empty list would leave a
+    dropdown with no options at all on hardware that simply answers oddly.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.return_value = listing
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() is None
+
+
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_swallows_a_failed_read():
+    """A router that refuses the endpoint must not raise into setup."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.side_effect = RuntimeError("no support")
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() is None

@@ -5,11 +5,11 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
   - [\[1.2.0-dev46\] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen](#120-dev46---2026-08-17---the-right-mode-list-published-too-late-to-be-seen)
   - [\[1.2.0-dev45\] - 2026-08-17 - README Review Findings Applied](#120-dev45---2026-08-17---readme-review-findings-applied)
   - [\[1.2.0-dev43\] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name](#120-dev43---2026-08-17---the-router-was-in-a-5g-mode-the-integration-could-not-name)
   - [\[1.2.0-dev42\] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked](#120-dev42---2026-08-16---network-mode-reported-failure-for-a-write-that-worked)
+  - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
   - [\[1.2.0-dev39\] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes](#120-dev39---2026-08-16---four-broken-hyphens-shipped-in-entity-notes)
   - [\[1.2.0-dev38\] - 2026-08-16 - About Notes Reviewed; US Spelling Swept](#120-dev38---2026-08-16---about-notes-reviewed-us-spelling-swept)
   - [\[1.2.0-dev37\] - 2026-08-16 - Roadmap Scoped to Features; Cleanup Limitation Documented](#120-dev37---2026-08-16---roadmap-scoped-to-features-cleanup-limitation-documented)
@@ -41,11 +41,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -136,12 +136,6 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
-## [1.2.0-dev40] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12
-
-### Bumps
-
-- **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.10 to v2.0.12
-
 ## [1.2.0-dev46] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen
 
 `[1.2.0-dev43]` made the network-mode options come from the router. They did not reach the user: the dropdown still showed nine entries through two restarts and a reload. **The list was correct in memory the whole time and was written to state before it existed.**
@@ -163,6 +157,24 @@ All changes to this project will be documented in this file. This is the detaile
 - **What was ruled out first, by measurement rather than argument**: the loaded code was byte-identical to the workspace; `net_mode_list()` answered `["00", "08", "03"]` against the live router both before and after a full 26-endpoint fetch, so the documented session-degradation trap did not apply.
 - A failed read self-corrects on the next restart or reload — the fetch lives in `async_setup_entry`'s background task, and a reload builds a fresh coordinator. It does **not** self-correct on a poll.
 - Suite **816 → 818**, ruff and mypy clean.
+
+## [1.2.0-dev45] - 2026-08-17 - README Review Findings Applied
+
+`readme_review` run in Full mode against the 1445-line README. Twelve findings actioned, two rejected. Structure was sound throughout — all 20 internal anchors resolved, no two-codepoint emoji in any heading, all 19 code fences balanced and correctly tagged — so every finding was a stale factual claim rather than a formatting fault.
+
+### Fixed
+
+- **The sub-device entity table described an integration roughly 40 entities smaller than the one that ships.** Its figures summed to about 118 against a stated 159, having never been updated after the 38-entity expansion. Rebuilt from `all_sensors.md` and `about_attribute_list.md`, both reconciled against code by tests: System 48, Signal 58, Data 24, SMS 18, WiFi 7, Clients 4, with per-sub-device disabled counts and a pointer to the source document.
+- **The 3-strike description had the wrong strike and an invented retry.** Failures one through three all hold last known values; the **fourth** marks entities unavailable. There is no immediate retry either — the next attempt is the next scheduled poll, so roughly twelve minutes at the default interval, not three quick tries. A user timing an outage against the old text would have misdiagnosed it.
+- **"Offline devices may persist … for a short period."** Huawei routers keep clients listed long after they have gone, which is exactly why `cleanup_unused_entities` cannot remove them. The limitation now says so and points at the router's own web interface first, then the action.
+- **Counts and labels**: "4 Actions" → five, System "2 Buttons" → three, "150+ entities" → 159. The master WiFi switch no longer claims to toggle "the primary 2.4 GHz and 5 GHz radios" — it switches the radios, not a named pair, and not the SSIDs.
+- **Rate sensors are samples** taken at poll time, so traffic between polls is not seen; the usage totals are counters and miss nothing. One line, previously stated only in the entity `about` notes.
+
+### Notes
+
+- **Two findings were rejected by the owner, and both rejections were right.** Clear Traffic Statistics is not a limitation — zeroing counters is what the button is for. And "roughly 90 of the library's read methods are unavailable on this firmware" counts **library methods this integration never calls**; it has nothing to do with entities reading `unknown`, and presenting it as a limitation conflated the two.
+- Two further findings needed no change: the `about` section already carries a table of worked examples, and the device-tracker limitation was covered by the rewrite above.
+- `1.2.0-dev44` was never committed — the version number was skipped, not a missing entry.
 
 ## [1.2.0-dev43] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name
 
@@ -202,6 +214,12 @@ The attended hardware tier was run against the live router by the owner — ever
 - **Nine of the ten writes are now verified against real hardware.** `clear_traffic_statistics` is the exception, by the owner's choice — it is irreversible and puts a step change into long-term statistics.
 - `scripts/write_classification.py` and the script's module docstring both carried the "deliberately unscripted" reasoning for SMS; both now record why it no longer holds.
 - Suite **812 passing**, ruff and mypy clean.
+
+## [1.2.0-dev40] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12
+
+### Bumps
+
+- **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.10 to v2.0.12
 
 ## [1.2.0-dev39] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes
 
