@@ -55,7 +55,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
     - **Huawei 4G/LTE B-Series CPEs**: **B525**, **B528**, **B535**, **B618**, **B715**, **B818** (4G Router 3 Prime), **B310**, **B315**.
     - **Huawei HiLink USB Modems / Mobile Wi-Fi**: **E3372**, **E8372**, **E5573**, **E5577** (in HiLink / Ethernet mode).
   - _(Note: While protocol support for these models is built into `huawei-lte-api`, they remain unverified on live hardware for this custom integration)._
-  - _(Note: All devices, including Brovi and SoyeaLink models, are listed with the manufacturer **Huawei** in Home Assistant. The model name is read from the router.)_
+  - _(Note: Rebranded Brovi/SoyeaLink models report as manufacturer "Huawei" in Home Assistant)_
 
 - **Not Compatible (Incompatible Router Families)**:
   - ❌ **Huawei Landline & Mesh Wi-Fi Routers (WS5200, AX3, AX3 Pro, WiFi Mesh 3/7)** — These landline mesh routers do not run the cellular HiLink modem API. Use **[`vmakeev/huawei_mesh_router`](https://github.com/vmakeev/huawei_mesh_router)** instead.
@@ -114,7 +114,7 @@ This integration reports extensive cellular radio metrics. This section explains
 | **SINR** | _How fast will this actually go?_ | `5G SINR`, `LTE SINR` |
 | **RSRP** | _Do I have coverage at all?_      | `5G RSRP`, `LTE RSRP` |
 
-**SINR (Signal Quality) is the single most useful number.** It measures your signal against background noise plus interference from competing transmitters, and it tracks achievable throughput more closely than raw signal strength.
+\*\*SINR (Signal Quality) is the best predictor of actual speeds. It measures usable signal against noise and interference, tracking throughput far more accurately than raw signal bars.
 
 **RSRP (Signal Strength) is raw received power.** It tells you whether the cell tower reaches you, not how well the connection will perform.
 
@@ -203,7 +203,7 @@ There is no universal formula combining SINR, RSRP and RSRQ into a single score 
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-The forecast uses an active run-rate: usage period-to-date is divided by elapsed cycle days, and that average daily rate is carried across the days remaining in the billing period.
+The forecast projects end-of-month usage by applying your daily run-rate across the remaining cycle days. Day 1 readings clamp conservatively to prevent early swings; accuracy increases steadily from day 2 onward.
 
 | Attribute | Meaning |
 | :-- | :-- |
@@ -212,8 +212,6 @@ The forecast uses an active run-rate: usage period-to-date is divided by elapsed
 | `cycle_day` | Where you are in the cycle (e.g. `12 of 31`). |
 | `cycle_start` | The date the current billing cycle began. |
 | `cycle_source` | `router` when resolved from `Billing Cycle Day`, or `calendar_assumed` when defaulting to the 1st of the month. |
-
-**On the first day of a cycle it reads low.** With only a few hours of data, the calculation clamps slightly to prevent wild over-projections. It becomes highly accurate from day 2 onwards.
 
 **It is not recorded in long-term statistics** by design. It is an end-of-cycle estimate useful for live alerting rather than historical tracking (historical data volume is already tracked by **Month Total**).
 
@@ -245,6 +243,7 @@ This integration features **dynamic polling**, the ability to pause polling comp
 
 - **Pause Polling**: Switch to halt polling when you want to avoid extra network requests while managing the router's web UI.
 - **Configurable Update Interval**: Dynamically adjust the scan interval (30s to 1 hour, default `180` seconds) via a number entity or automation.
+- **Rate sensors are samples**, read at the moment of each poll — traffic between polls is not seen. The usage totals are counters and miss nothing.
 
 > [!TIP]
 >
@@ -260,19 +259,21 @@ This integration provides **159 entities** (some disabled by default, and a few 
 >
 > Entity Visibility: To keep your Home Assistant UI clean, some entities are disabled by default. You can enable them via the Entities tab in the device settings.
 
-| Sub-Device | Entity Types (+disabled) | Key Metrics | Disabled by Default |
-| :-- | :-- | :-- | :-- |
-| 🔧 **System** | 12 Sensors, 1 Binary Sensor, 2 Switches, 2 Buttons, 1 Select, 1 Number (+4) | Firmware, WAN/LAN IPs, DNS Servers, Uptime timestamps, Refresh Now, Mobile Data, Pause Polling, Network Mode, Polling Interval | Uptime Duration, Connection Duration, Total Connection Duration, Battery |
-| 📶 **Signal** | 44 Sensors, 6 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, Bands, Frequency | None |
-| 📈 **Data** | 11 Sensors, 1 Button (+4) | Monthly Usage, Near-real-time Speed, Connection Usage, Daily Usage | Max Download Rate, Max Upload Rate, Month Download (GB), Month Upload (GB) |
-| 💬 **SMS** | 17 Sensors, 1 Binary Sensor (+1) | Unread Count, Inbox/Outbox/Drafts Counts, Last Received Message Content & Attributes | SMS Storage Full |
-| 🛜 **WiFi** | 4 Binary Sensors, 1 Switch (+1) | User Capacity, Guest WiFi toggle & SSID attribute | User Capacity |
-| 👥 **Clients** | 3 Sensors, 1+ Device Tracker | Total Connected, Wired Connected, WiFi Connected, Dynamically tracked LAN/WLAN Clients | None |
-| 🔩 **SMS Actions** | 4 Actions | Send, Delete, and List SMS | — |
+| Sub-Device | Entities | Entity Types | Key Metrics | Disabled by Default |
+| :-- | --: | :-- | :-- | :-- |
+| 🔧 **System** | 48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
+| 📶 **Signal** | 58 | 48 Sensors, 10 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation | 4 |
+| 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, near-real-time rates, connection usage, daily usage, data plan | 6, incl. Max Download/Upload Rate and the GB duplicates |
+| 💬 **SMS** | 18 | 17 Sensors, 1 Binary Sensor | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
+| 🛜 **WiFi** | 7 | 4 Binary Sensors, 2 Switches, 1 Sensor | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles | 1 |
+| 👥 **Clients** | 4 | 3 Sensors, 1 Button | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client** | 1 |
+| 🔩 **Actions** | 5 | — | Send, delete, bulk-delete and list SMS; clean up unused tracker entities | — |
+
+_Counts are reconciled against the code by a test — see [`docs/all_sensors.md`](docs/all_sensors.md) for the full entity list._
 
 ### 🧩 Tailoring What's Monitored
 
-**Installed with its defaults, this integration needs no adjustment** — everything works out of the box. But it exposes 150+ entities, and you may not want all of them. You have options.
+**Installed with its defaults, this integration needs no adjustment** — everything works out of the box. But it exposes 159 entities, and you may not want all of them. You have options.
 
 <details>
 
@@ -307,9 +308,7 @@ Disabled entities stay in the registry (greyed out) and can be re-enabled any ti
 
 ### 📖 What Each Entity Means — the `about` Attribute
 
-Every entity this integration creates carries an **`about`** attribute: a short note saying what the reading means and, where it matters, what it does **not** mean. Open any entity's More Info dialog, or look at it in **Developer Tools → States**, and the note is there.
-
-It exists because a lot of these entities are not self-explanatory from their names, and several read as contradictions until you know why:
+Every entity includes an about attribute (visible in More Info dialogs and Developer Tools → States) clarifying what the metric represents, preventing confusion between similar or aggregated readings:
 
 | Entity | What the note tells you |
 | :-- | :-- |
@@ -388,7 +387,7 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 ### 📡 Network Settings (System Device)
 
-- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select the preferred network mode dynamically. **The options are read from your router**, so the list matches what its own web interface offers — on the reference 5G CPE Pro 6 that is `Auto`, `5G Only` and `4G Only`. A mode your router reports but this integration cannot name is shown as `Unknown (nn)` rather than hidden, and can still be selected.
+- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware.
 
 ### 🔧 Router Administration & Polling (System Device)
 
@@ -405,7 +404,7 @@ Rather than hiding settings in configuration menus, several configuration parame
 
 ### 🛜 WiFi Settings (WiFi Device)
 
-- **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi_network`): Toggle the primary 2.4 GHz and 5 GHz wireless hardware radios on or off.
+- **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi_network`): Toggle the router's WiFi on or off.
 - **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
 
 ## 💬 SMS Actions & Services
@@ -1165,13 +1164,12 @@ Setup is handled entirely via the UI. You will need the same details that you us
 
 After installation, open **Settings > Devices & Services > Huawei Router 5G Monitor > Configure** to adjust:
 
-#### Connection Settings
-
-| Option   | Description                                                 |
-| -------- | ----------------------------------------------------------- |
-| Host     | Router URL address (change if the router's LAN IP changes). |
-| Username | Router login username.                                      |
-| Password | Admin password (update if changed on the router).           |
+| Option | Description |
+| :-- | :-- |
+| Name | The prefix on every device and entity. **Changing it renames all six sub-devices and reloads the integration**, which also triggers an immediate fetch. Entity IDs already created keep their original names. |
+| Host | Router URL address (change if the router's LAN IP changes). |
+| Username | Router login username. |
+| Password | Admin password. Leave blank to keep the current one; enter a value to change it. |
 
 ## 🔩 Under the Hood - Technical Architecture
 
@@ -1188,9 +1186,9 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 - **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
 - **Triggered Refresh**: Actions like **Reboot** or **Delete SMS** trigger an immediate API refresh to provide instant feedback.
 - **3-Strike Logic**: To avoid "Unavailable" flickers during momentary router congestion or signal loss:
-  1. **First Failure**: Logs a warning; retries immediately.
-  2. **Second Failure**: Logs a warning; retries again.
-  3. **Third Failure**: Marks all entities as `Unavailable` and logs an error.
+  1. **First, second and third failures**: each logs a warning and **holds the last known values** — entities keep showing their previous readings.
+  2. **Fourth failure**: marks all entities as `Unavailable` and logs an error.
+  - There is no immediate retry — the next attempt is the **next scheduled poll**. At the default 180-second interval, that means roughly twelve minutes of held values before entities go unavailable. Lower the Polling Interval if you want an outage reflected sooner.
 - **Auto-Recovery**: Once the router is back online, the integration restores all entities automatically.
 
 ---
@@ -1287,10 +1285,8 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 | `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
 | `last_good_update` | When the last fully successful poll completed |
 
-Two things worth knowing:
-
-- **It is never `unavailable`.** Every other entity correctly goes unavailable when the router is unreachable; this one stays on to explain why.
-- **A single failed poll does not turn it on.** A problem must persist for three consecutive polls — except on a cold start, where there are no held values and it flags immediately.
+- **Always Available**: Unlike hardware entities that drop during an outage, this sensor stays active to report the cause.
+- **Persistent Faults Only**: Flags after three consecutive failed poll cycles (or immediately on an uninitialized cold start) to avoid alerting on temporary blips.
 
 ---
 
@@ -1352,7 +1348,7 @@ Two things worth knowing:
 
 **Settings > Devices & Services > Huawei Router 5G Monitor > ⋮ (three dots) > Download diagnostics.**
 
-This is by far the most useful file to attach to a GitHub issue. It allows maintainers to see the exact structure of responses your router firmware returns without exposing sensitive private details.
+Attach this file to GitHub issues so maintainers can inspect router firmware responses without exposing sensitive credentials or network details.
 
 **It is redacted before it is written**, across multiple layers:
 
@@ -1368,8 +1364,7 @@ This is by far the most useful file to attach to a GitHub issue. It allows maint
 ## ❗ Known Limitations /❔ What's Missing?
 
 - **Firmware Dependencies**: API feature availability varies by ISP and firmware builds.
-- **Device Tracker Persistence**: Client tracking features depend on the router's internal ARP table. Because of this, offline devices may persist as connected in Home Assistant for a short period after disconnecting from the router.
-- **Device tracking creates an entity per network client.** Each carries that device's MAC address, hostname and IP. That is what makes presence detection work, but it does mean the integration holds an inventory of everything on your network — including guests' phones. Two things follow: the per-client attributes are **excluded from long-term history** (they are current state only), and a **diagnostics download replaces every MAC, hostname, IP and SSID with a stable placeholder** before you see it. If you would rather not track clients at all, disable the `device_tracker` entities in Home Assistant; the rest of the integration is unaffected.
+- **Connected Client Tracking**: Device trackers reflect the router's internal ARP table, which retains disconnected clients for an extended period. To remove stale entities, clear them from the router web UI and trigger the cleanup action. Per-client attributes are excluded from long-term history.
 
 ## ❌ Removal
 
