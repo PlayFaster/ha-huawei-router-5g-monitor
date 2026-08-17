@@ -55,7 +55,7 @@ Shape to decide — a `binary_sensor`, an HA event for automations to catch, or 
 
 ### Retire long-unseen device trackers
 
-**The router, not this integration, is why a user ends up with too many `device_tracker` entities.** It retains clients that have been away for **at least four months**, and HRM faithfully reports everything the router lists. Those stale clients are removable only by hand in the router's own web GUI.
+**The router, not this integration, is why a user ends up with too many `device_tracker` entities.** It keeps clients listed **long after they have gone**, and HRM faithfully reports everything the router lists. Those stale clients are removable only by hand in the router's own web GUI.
 
 This is the boundary of `cleanup_unused_entities`: that action and its button remove entities the **router** has already dropped. They cannot remove a client the router still lists, because from HRM's side it is a live, present record. A user with a crowded Clients device is looking at a router-side condition.
 
@@ -69,6 +69,39 @@ Two things to settle first:
 - **Value**: ⭐⭐
 - **Effort**: Medium — persistence is the bulk of it; the threshold comparison is trivial.
 - **Trigger**: A user report of an unmanageable Clients device, **or** the new-device alert going ahead and paying for the stored state anyway.
+
+### Opt out of client tracking at setup
+
+A single toggle, offered at setup and in Configure, that turns off the Clients group: no `device_tracker` entities, no Total/Wired/WiFi Connected sensors, and the `lan_host_info` and `wlan_host_list` fetches skipped.
+
+**Why this group and not the others.** Every sub-device could in principle get a toggle, and most should not — Home Assistant's own per-device disable already hides entities, and the README documents it under _Tailoring What's Monitored_. A setup question is a tax on every first-time installer, so it has to buy something that disabling cannot.
+
+**The endpoint saving is not that thing, and the numbers say so plainly.** Measured against the reference H165-383 on 2026-08-17, three consecutive polls:
+
+| Measure               | Value                     |
+| :-------------------- | :------------------------ |
+| Endpoints per poll    | **26**, sequential        |
+| Wall time per poll    | **1.05 / 1.06 / 1.07 s**  |
+| Per endpoint          | **~41 ms**                |
+| Default poll interval | 180 s                     |
+| Duty cycle            | **~0.6%** of elapsed time |
+
+So dropping a two-endpoint group saves **about 80 ms every three minutes** — 0.04% of the interval. Twenty-six sounds alarming and is not: the router answers each call in the time a page takes to paint. **Any argument for a group toggle that rests on "fewer API calls" is arguing about 80 ms, and should be rejected on that basis.** For SMS and WiFi that is the whole case, and their entity counts are fixed at 18 and 7, so nothing grows.
+
+**Clients is different in two ways that matter:**
+
+- **It is the integration's privacy surface.** Each tracked client publishes a MAC address, a hostname and an IP. That is the one thing here a user might want never collected, rather than merely hidden — and disabling an entity does not stop it being created and populated.
+- **It is the only group whose entity count is unbounded.** One entity per client the router has ever seen, and the router keeps clients listed long after they are gone. A user in bridge mode, or with another router handling DHCP, has no use for any of it.
+
+Neither reason is about poll time. **If the endpoint saving were the only argument, this entry would not exist.**
+
+**Settle this against _Retire long-unseen device trackers_ before building either.** Both address the same entity sprawl from opposite ends — one prevents creation, the other retires what exists — and shipping one without deciding the other risks two overlapping mechanisms.
+
+The cleanup half is already in place: `cleanup_unused_entities` exists as both an action with `dry_run` and a button, so option-group orphans would extend the existing planner rather than needing a new module.
+
+- **Value**: ⭐⭐
+- **Effort**: Medium — a config-flow field, gating in two platforms, and a fetch skip. The interaction above is the decision, not the code.
+- **Trigger**: A user who wants client tracking off entirely rather than hidden, **or** the tracker-retirement entry being taken up.
 
 ### Separate 2.4GHz and 5GHz WiFi switches
 
@@ -124,6 +157,7 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 | New device alert                       | ⭐⭐⭐ | Medium         |
 | Per-endpoint strike budgets            | ⭐⭐   | Medium         |
 | Retire long-unseen device trackers     | ⭐⭐   | Medium         |
+| Opt out of client tracking at setup    | ⭐⭐   | Medium         |
 | Separate 2.4GHz and 5GHz WiFi switches | ⭐⭐   | Medium         |
 
 ---
@@ -132,6 +166,7 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v3.1.0 | 2026-08-17 | **Added _Opt out of client tracking at setup_** under Maybe, from the `setup_cleanup_options.md` assessment. That guide predicted Huawei was "likely most applicable" for sensor-group toggles; on inspection only one group qualifies. SMS and WiFi fail the tax-on-every-installer test — Home Assistant's own per-device disable already hides them, and the saving is two endpoints out of twenty-six on a poll measured at about one second. Clients passes on two counts a toggle can serve and disabling cannot: it is the integration's privacy surface (MAC, hostname and IP per client) and the only group whose entity count is unbounded. The entry records its dependency on _Retire long-unseen device trackers_, since both address the same sprawl from opposite ends. |
 | v3.0.0 | 2026-08-16 | **Scope corrected to features only, and the file cleared of everything else.** Two rules were wrong here and both are fixed: this is not a chore register, and there **is** a **Done** group — a roadmap item that ships moves into it, by provenance. `roadmap_format.md` was not the source of either error; it defines Done as the first of six groups and sets membership by provenance. The misreadings were local to this file. **Four entries deleted as chores, not features:** _Mutation testing_ (complete; belongs in `x_proj_chores.md`), _The `manifest.json` / changelog version convention_ (no convention needed — the manifest is pegged to the working version with no dev tracking), _The eight `FREQUENCY` entities and the unit selector_ (fixed; `state_class` removal is recorded in `changelog_local.md`, and a ZTE chore was raised for the same class of problem) and _Real-time SMS notifications via webhooks_ (the router pushes nothing, and the integration already fires an event — the entry was noise). **Done** holds only _Dynamic Polling Interval Slider_; the three chores briefly restored earlier the same day were removed again under the features-only rule. **To Be Done** is omitted, having no members. **Three feature entries added under Maybe** from `.notes/todo.md`: _New device alert_, _Retire long-unseen device trackers_ and _Separate 2.4GHz and 5GHz WiFi switches_ — the first two share a persistence requirement and are marked to be designed together, and the tracker entry records that away clients are retained by the router for four months or more, which is outside what `cleanup_unused_entities` can reach. **_Per-endpoint strike budgets_ strengthened** with ISP-lockout evidence and a widened trigger. |
 | v2.1.0 | 2026-08-14 | **Two entries removed as shipped**, per the format's direction not to keep a Done group. _Write-classification register and hardware check_ landed in `51835b6`. _Diagnostics verified against a real download_ closed in `023ace4`, after a live capture audit found four leaks the rewrite had not. |
 | v2.0.0 | 2026-08-14 | Reconciled against the code and against `roadmap_format.md`. Removed the **Done** group, per the format's direction not to backfill one from the changelog. **Two entries were stale and are removed:** "Dynamic Polling Interval Slider" had already shipped as the `polling_interval` number entity, and "Static Test Sweeps Implementation" landed in `[1.1.3-dev10]`–`[1.1.3-dev14]`. Added the write-classification register, the first mutation run, per-endpoint strike budgets, the blocked diagnostics verification, the manifest/changelog version convention, and the `FREQUENCY` unit-selector issue previously recorded only in `AGENTS.md`. Recorded the deliberate decision **not** to rename the four entities that repeat their sub-device word. Converted asterisk bullets to dashes so the file passes `markdownlint`, which it had never done. |

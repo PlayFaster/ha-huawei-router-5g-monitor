@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev49\] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks](#120-dev49---2026-08-17---client-tracking-opt-out-assessed-the-poll-is-cheaper-than-it-looks)
   - [\[1.2.0-dev47\] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested](#120-dev47---2026-08-17---coverage-back-to-100-the-new-code-was-untested)
   - [\[1.2.0-dev46\] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen](#120-dev46---2026-08-17---the-right-mode-list-published-too-late-to-be-seen)
   - [\[1.2.0-dev45\] - 2026-08-17 - README Review Findings Applied](#120-dev45---2026-08-17---readme-review-findings-applied)
@@ -136,6 +137,27 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev49] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks
+
+Documentation only — no code change. The `setup_cleanup_options.md` porting guide had never been assessed for this project; its three capabilities all read "Not assessed". Assessed against source, and the result is two `N/A` with reasons and one live candidate.
+
+### Added
+
+- **`docs/ROADMAP.md`: _Opt out of client tracking at setup_** under Maybe, ⭐⭐. A single toggle that turns off the Clients group — no `device_tracker` entities, no Total/Wired/WiFi Connected sensors, and two fetches skipped.
+- **The poll was measured rather than estimated**, because the guide's whole rationale for group toggles is that disabling one "skips the API calls that feed them". Three consecutive polls through `get_data()` on the reference H165-383: **26 endpoints, fetched sequentially, in 1.05 / 1.06 / 1.07 s — about 41 ms each, a ~0.6% duty cycle at the default 180-second interval.** Dropping a two-endpoint group therefore saves **~80 ms every three minutes**, 0.04% of the interval. **26 endpoints sounds alarming and is not**, and the entry says so explicitly so the number is never again used as an argument on its own.
+- The entry rests on the two things a toggle can serve and per-entity disabling cannot: Clients is the integration's **privacy surface** — a MAC, hostname and IP per client, created and populated whether or not the entity is enabled — and the **only group whose entity count is unbounded**. It records that neither reason is poll time, and that the entry would not exist if the endpoint saving were the case for it.
+- **Why SMS and WiFi are excluded** is stated rather than left implicit: HA's own per-device disable already hides them, `README.md` documents that under _Tailoring What's Monitored_, and their entity counts are fixed at 18 and 7. What remains is the 80 ms.
+- Dependency recorded on _Retire long-unseen device trackers_ — both address the same entity sprawl from opposite ends, and shipping one without deciding the other risks two overlapping mechanisms.
+
+### Fixed
+
+- **_Retire long-unseen device trackers_ still asserted that clients are retained "at least four months".** That figure came from the owner's observation, not from measurement here, and should not have been written as a project fact. It now reads "long after they have gone". One instance survives in the `v3.0.0` version-control row, left because rewriting a historical record to remove a claim is worse than the claim.
+
+### Notes
+
+- Three shared documents were corrected alongside this, outside this repository: `setup_cleanup_options.md` carries the Huawei assessment and the same measurements, worded to travel — an assessment that stops at the endpoint count will reach the wrong answer on any of the four projects. `device_registry_2026_08.md` still listed Huawei as **EXPOSED** with no `_compat.py` and predicted sub-devices detaching at HA 2027.8, closed by plan item 2 four days ago. `test_quality_metrics.md` still showed 11 partial branches and 4 zero-assertion tests outstanding, both closed by plan items 9 and 10.
+- **`1.2.0-dev48` has no entry here.** It was committed before `[1.2.0-dev47]` despite the higher number, and its own changelog edit did not include one.
 
 ## [1.2.0-dev47] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested
 
