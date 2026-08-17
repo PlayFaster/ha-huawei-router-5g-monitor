@@ -22,8 +22,9 @@ from .const import (
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
     ENDPOINT_NAMES,
+    FETCH_STRIKE_LIMIT,
     FETCH_TIMEOUT,
-    HEALTH_STRIKE_LIMIT,
+    HEALTH_DRIFT_STRIKE_LIMIT,
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
     REPAIR_NAMES,
@@ -105,7 +106,9 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # the select falls back to its full list rather than showing nothing.
         self.supported_net_modes: list[str] | None = None
         self.health_snapshot: dict[str, Any] = {
-            "severity": None,
+            # Cold start: nothing has been fetched, so no verdict is possible.
+            # Section 19 forbids `None` here — see `_healthy_snapshot`.
+            "severity": "unknown",
             "issues": [],
             "degraded_capabilities": [],
             "drift": [],
@@ -157,9 +160,18 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         )
 
     def _healthy_snapshot(self) -> dict[str, Any]:
-        """Return a snapshot describing a healthy integration."""
+        """Return a snapshot describing a healthy integration.
+
+        **`severity` is `"ok"`, never `None`.** The other three attributes are
+        legitimately empty when healthy and Home Assistant renders an empty list
+        as a blank cell, so `None` showed the user "Unknown" beside three blanks
+        — indistinguishable from a sensor that never populated. A literal `"ok"`
+        beside three blanks is unambiguous. Section 19 makes this normative;
+        putting placeholder text into the lists instead would break any
+        automation filtering them on `| count > 0`.
+        """
         return {
-            "severity": None,
+            "severity": "ok",
             "issues": [],
             "degraded_capabilities": [],
             "drift": [],
@@ -215,7 +227,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     exc_info=True,
                 )
             snapshot = self._healthy_snapshot()
-            snapshot["severity"] = "warning"
+            # `error`, not `warning`: Section 19 defines `error` as a total
+            # outage *or* a verdict that cannot be computed, and this sensor
+            # failing to assess itself is the second of those.
+            snapshot["severity"] = "error"
             snapshot["issues"] = ["health_verdict_unavailable"]
             self.health_snapshot = snapshot
 
@@ -236,7 +251,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "The router has never answered since this integration "
                     "started. Check the host address and credentials."
                 ]
-            elif self.consecutive_failures >= HEALTH_STRIKE_LIMIT:
+            elif self.consecutive_failures >= FETCH_STRIKE_LIMIT:
                 snapshot["severity"] = "error"
                 snapshot["issues"] = [
                     f"No successful update in {self.consecutive_failures} "
@@ -264,7 +279,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         degraded = sorted(
             ENDPOINT_NAMES[key]
             for key, strikes in self._endpoint_strikes.items()
-            if strikes >= HEALTH_STRIKE_LIMIT
+            if strikes >= HEALTH_DRIFT_STRIKE_LIMIT
         )
 
         # 2. Contract drift — a non-empty response that parses to nothing
@@ -284,7 +299,17 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         snapshot["degraded_capabilities"] = degraded
         snapshot["drift"] = drift
         snapshot["issues"] = issues
-        snapshot["severity"] = "warning" if issues else None
+        # Section 19's five-value enum, and the two middle values are not
+        # interchangeable: `degraded` means a capability was lost while the core
+        # still works, `warning` means the data that did arrive may be wrong.
+        # Drift outranks degradation — doubting a reading is worse than knowing
+        # one is missing.
+        if drift:
+            snapshot["severity"] = "warning"
+        elif degraded:
+            snapshot["severity"] = "degraded"
+        else:
+            snapshot["severity"] = "ok"
         return snapshot
 
     def clear_repairs(self) -> None:

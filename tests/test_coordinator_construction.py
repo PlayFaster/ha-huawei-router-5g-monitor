@@ -126,12 +126,17 @@ def test_last_update_success_time_starts_as_none_not_empty(mock_hass) -> None:
     assert coordinator.last_sms_timestamp is None
 
 
-def test_the_health_snapshot_starts_healthy_and_empty(mock_hass) -> None:
-    """Section 19's published attribute names are a contract.
+def test_the_health_snapshot_starts_unknown_and_empty(mock_hass) -> None:
+    """Section 19's published attribute names **and values** are a contract.
 
     Users write templates against `severity`, `issues`, `degraded_capabilities`,
     `drift` and `last_good_update`. A key renamed at construction — even in
     case — silently breaks every template written for it, and nothing errors.
+
+    **`severity` starts `"unknown"`, not `None`.** Nothing has been fetched at
+    construction, so there is no verdict to report — and `None` rendered as
+    "Unknown" beside three blank lists, which a user cannot distinguish from a
+    sensor that never populated. Section 19 forbids `None` for this attribute.
     """
     snapshot = _build(mock_hass).health_snapshot
 
@@ -142,7 +147,7 @@ def test_the_health_snapshot_starts_healthy_and_empty(mock_hass) -> None:
         "drift",
         "last_good_update",
     }
-    assert snapshot["severity"] is None
+    assert snapshot["severity"] == "unknown"
     assert snapshot["issues"] == []
     assert snapshot["degraded_capabilities"] == []
     assert snapshot["drift"] == []

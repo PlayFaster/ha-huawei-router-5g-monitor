@@ -19,7 +19,8 @@ from custom_components.huawei_router_5g.binary_sensor import (
 )
 from custom_components.huawei_router_5g.const import (
     ENDPOINT_NAMES,
-    HEALTH_STRIKE_LIMIT,
+    FETCH_STRIKE_LIMIT,
+    HEALTH_DRIFT_STRIKE_LIMIT,
 )
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
@@ -71,7 +72,7 @@ def test_a_missing_capability_is_reported_only_after_the_strike_budget(coordinat
     """
     partial = {"device_information": {"DeviceName": "B535"}}
 
-    for attempt in range(1, HEALTH_STRIKE_LIMIT):
+    for attempt in range(1, HEALTH_DRIFT_STRIKE_LIMIT):
         coordinator.update_health(partial, failed=False, cold_start=False)
         assert coordinator.health_snapshot["degraded_capabilities"] == [], (
             f"reported a degraded capability after only {attempt} miss(es)"
@@ -82,7 +83,9 @@ def test_a_missing_capability_is_reported_only_after_the_strike_budget(coordinat
 
     assert "SMS messages" in degraded
     assert "WiFi clients" in degraded
-    assert coordinator.health_snapshot["severity"] == "warning"
+    # `degraded`, not `warning`: a capability was lost while the core still
+    # works. `warning` is reserved for drift — see the drift test below.
+    assert coordinator.health_snapshot["severity"] == "degraded"
     # Friendly names, not raw endpoint keys — this is read by users.
     assert "sms_list" not in degraded
 
@@ -90,14 +93,14 @@ def test_a_missing_capability_is_reported_only_after_the_strike_budget(coordinat
 def test_recovery_clears_the_verdict_in_the_same_cycle(coordinator):
     """A success must clear the verdict immediately, not on some later poll."""
     partial = {"device_information": {"DeviceName": "B535"}}
-    for _ in range(HEALTH_STRIKE_LIMIT):
+    for _ in range(HEALTH_DRIFT_STRIKE_LIMIT):
         coordinator.update_health(partial, failed=False, cold_start=False)
     assert coordinator.health_snapshot["issues"]
 
     coordinator.update_health(_full_payload(), failed=False, cold_start=False)
 
     assert coordinator.health_snapshot["issues"] == []
-    assert coordinator.health_snapshot["severity"] is None
+    assert coordinator.health_snapshot["severity"] == "ok"
 
 
 def test_the_critical_endpoint_can_never_appear_as_degraded(coordinator):
@@ -109,7 +112,7 @@ def test_the_critical_endpoint_can_never_appear_as_degraded(coordinator):
     payload = _full_payload()
     del payload["device_information"]
 
-    for _ in range(HEALTH_STRIKE_LIMIT + 1):
+    for _ in range(HEALTH_DRIFT_STRIKE_LIMIT + 1):
         coordinator.update_health(payload, failed=False, cold_start=False)
 
     assert (
@@ -194,11 +197,11 @@ def test_at_runtime_both_edges_of_the_strike_budget_are_pinned(coordinator):
     Both edges deliberately: a test asserting only the flag-at-three case
     passes against a mutation that flags at one.
     """
-    coordinator.consecutive_failures = HEALTH_STRIKE_LIMIT - 1
+    coordinator.consecutive_failures = FETCH_STRIKE_LIMIT - 1
     coordinator.update_health(None, failed=True, cold_start=False)
     assert coordinator.health_snapshot["issues"] == []
 
-    coordinator.consecutive_failures = HEALTH_STRIKE_LIMIT
+    coordinator.consecutive_failures = FETCH_STRIKE_LIMIT
     coordinator.update_health(None, failed=True, cold_start=False)
     assert coordinator.health_snapshot["severity"] == "error"
 
@@ -244,7 +247,7 @@ def test_health_computation_can_never_crash_the_poll_it_diagnoses(coordinator, c
     assert coordinator.health_snapshot is not None
 
     # ...but it no longer claims to be healthy.
-    assert coordinator.health_snapshot["severity"] == "warning"
+    assert coordinator.health_snapshot["severity"] == "error"
     assert coordinator.health_snapshot["issues"] == ["health_verdict_unavailable"]
     assert "Health computation failed" in caplog.text
 

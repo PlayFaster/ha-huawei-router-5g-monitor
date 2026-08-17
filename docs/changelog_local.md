@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev54\] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family](#120-dev54---2026-08-17---health-severity-and-strike-constants-aligned-with-the-family)
   - [\[1.2.0-dev53\] - 2026-08-17 - Documentation Reconciliation: Four False Statements](#120-dev53---2026-08-17---documentation-reconciliation-four-false-statements)
   - [\[1.2.0-dev52\] - 2026-08-17 - Two New Tests Asserted Nothing](#120-dev52---2026-08-17---two-new-tests-asserted-nothing)
   - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
@@ -140,6 +141,24 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev54] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family
+
+From `sync_check_projects` 2026-08-17, items B.1 and B.2. Both are cross-project alignment rather than defects here — nothing was wrong, and two integrations in one family were naming the same things differently.
+
+### Changed
+
+- **`severity` now uses the family's five values**: `ok`, `degraded`, `warning`, `error`, `unknown`. This project reported `None` / `warning` / `error`, collapsing two distinct states into one. **`degraded` means a capability was lost while the core still works; `warning` means the data that did arrive may be wrong** — different user actions, and reporting both as `warning` said less than the integration knew. Drift outranks degradation, since doubting a reading is worse than knowing one is missing.
+- **`severity` is never `None`.** It is `"unknown"` at construction and `"ok"` when healthy. The other three attributes are legitimately empty when nothing is wrong and Home Assistant renders an empty list as a blank cell, so `None` showed the user **"Unknown" beside three blanks — indistinguishable from a sensor that never populated**. A literal `ok` beside three blanks is unambiguous. The tempting alternative, writing "No issues" into the lists, was rejected: they are `list[str]`, and any automation filtering on `| count > 0` would break silently.
+- **A failed health computation now reports `error`, not `warning`.** Section 19 defines `error` as a total outage **or** a verdict that cannot be computed, and this sensor failing to assess itself is the second.
+- **`HEALTH_STRIKE_LIMIT` split into `FETCH_STRIKE_LIMIT` and `HEALTH_DRIFT_STRIKE_LIMIT`**, both `3`, matching `unifi_network_monitor` and `wifi_ssid_monitor`. One constant was doing two jobs: counting consecutive failed polls, and counting how long a capability must be missing across successful ones. They share a value today and measure different things, so either could move without the other.
+
+### Notes
+
+- **`dev_standards.md` §19 was updated first, at v1.25.0**, because `severity` is a published contract that user templates compare against. Naming the attributes without naming their values had left all four projects compliant and mutually unintelligible — `zte_router_5g` `ok`/`degraded`/`warning`/`error`/`unknown`, this project `None`/`warning`/`error`, `unifi_network_monitor` `None`/`moderate`/`serious`, `wifi_ssid_monitor` `None`/`minor`/`serious`. **ZTE's vocabulary was adopted as both the earliest and the most expressive**; UniFi and WiFi still have to move.
+- `README.md`'s published attribute table now lists all five values, and tells automation authors to test `severity` rather than whether the lists are empty.
+- **B.3 from the same report is fixed too**: the public `CHANGELOG.md` `[1.2.0]` header carried no descriptive title, which `changelog_format.md` §2 requires. Done by the owner.
+- Suite **830 passing**, ruff and prettier clean, assertion audit 0 of 694. Three shared `x_project` records were settled alongside this — `about_list_generator.md` gained its mandatory status table, `device_registry_2026_08.md` left the queue with Huawei's cell normalised to `DONE`, and chore `C-008` closed. Those are outside this repository.
 
 ## [1.2.0-dev53] - 2026-08-17 - Documentation Reconciliation: Four False Statements
 

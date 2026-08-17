@@ -117,9 +117,20 @@ CRITICAL_ENDPOINT = "device_information"
 # drift, not a weak signal — a firmware rename looks exactly like this.
 SIGNAL_CONTRACT_KEYS: tuple[str, ...] = ("rsrp", "rsrq", "rssi", "sinr")
 
-# Section 19: require a condition to persist before flipping the sensor, so a
-# single blip raises no alarm. Matches the Section 8 fetch strike budget.
-HEALTH_STRIKE_LIMIT = 3
+# Section 8: consecutive whole-fetch failures tolerated before entities are
+# marked unavailable. Last known values are held until then.
+FETCH_STRIKE_LIMIT = 3
+
+# Section 19: consecutive polls a capability must be missing before Integration
+# Health reports it degraded, so a single blip raises no alarm.
+#
+# Deliberately a second constant rather than a reuse of the one above. They
+# happen to share a value and measure different things — one counts failed
+# polls, the other counts a missing block across successful polls — so either
+# could move without the other. `unifi_network_monitor` and `wifi_ssid_monitor`
+# split them the same way and use these names; this project held a single
+# `HEALTH_STRIKE_LIMIT` doing both jobs until 2026-08-17.
+HEALTH_DRIFT_STRIKE_LIMIT = 3
 
 # Seconds to wait before the follow-up refresh a disruptive button schedules.
 #

@@ -1279,12 +1279,13 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 
 | Attribute | What it tells you |
 | :-- | :-- |
-| `severity` | `null` when healthy, otherwise `warning` or `error` |
+| `severity` | `ok` · `degraded` (a capability was lost) · `warning` (the data may be wrong) · `error` (unreachable) · `unknown` (nothing fetched yet). **Never blank** — see below |
 | `issues` | Plain-language descriptions of what is wrong; empty when healthy |
 | `degraded_capabilities` | Which parts of the router stopped answering, by name |
 | `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
 | `last_good_update` | When the last fully successful poll completed |
 
+- **`severity` always has a value.** The three list attributes are legitimately empty when everything is fine.
 - **Always Available**: Unlike hardware entities that drop during an outage, this sensor stays active to report the cause.
 - **Persistent Faults Only**: Flags after three consecutive failed poll cycles (or immediately on an uninitialized cold start) to avoid alerting on temporary blips.
 
