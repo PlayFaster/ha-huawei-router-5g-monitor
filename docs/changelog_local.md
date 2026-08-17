@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev53\] - 2026-08-17 - Documentation Reconciliation: Four False Statements](#120-dev53---2026-08-17---documentation-reconciliation-four-false-statements)
   - [\[1.2.0-dev52\] - 2026-08-17 - Two New Tests Asserted Nothing](#120-dev52---2026-08-17---two-new-tests-asserted-nothing)
   - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
   - [\[1.2.0-dev50\] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks](#120-dev50---2026-08-17---client-tracking-opt-out-assessed-the-poll-is-cheaper-than-it-looks)
@@ -139,6 +140,28 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev53] - 2026-08-17 - Documentation Reconciliation: Four False Statements
+
+`doc_update` run after twelve changelog entries in one session. No new code. The valuable half was the staleness sweep — documents that were correct when written and had since become false, which purely additive checking never finds.
+
+### Fixed
+
+- **`AGENTS.md` carried a "Known Open Issue" that was fixed two days earlier.** It stated the eight `FREQUENCY` entities could not show the HA unit selector and that investigation had "ruled out … presence of `state_class` as root causes". **`state_class` was the cause** — `device_class=FREQUENCY` plus `state_class=MEASUREMENT` routes an entity through long-term statistics, and that path does not surface the selector. Removing it from all eight fixed them. The section now records the resolution and points at chore `C-012`, which carries the same finding for the siblings with the warning that ZTE needs the **opposite** fix.
+- **`AGENTS.md` pointed at that issue as a live roadmap item**, and it had been deleted from `ROADMAP.md` as a completed chore. The pointer now states the features-only rule and names where chores live instead.
+- **`docs/DEVELOPMENT.md` still said network mode has no read-back reader.** True when written; it gained one at `[1.2.0-dev43]`. The bullet now records why the original exclusion was right but drawn too widely — re-registering the radio makes answers unreliable **for a while**, not permanently — and that the router answers the write itself with `-1` while applying it.
+- **`docs/huawei_how_to_access.md` listed `net.net_mode_list` under "Readable, never reviewed"** with the note "could validate the Network Mode select". It is adopted: read once after login, and its `AccessList` is the select's option list. Moved to the polled section as the one endpoint read but **not** polled, with the observation that acting on that note is what surfaced `08`.
+
+### Added
+
+- **`docs/huawei_how_to_access.md`: `-1: Unknown` in the error-code table**, which had only `100002`, `100003` and the auth codes. `-1` is the one code that means opposite things — a genuine refusal from `net.reconnect()`, and an **applied** change from `net.set_net_mode()` — so the entry says never to treat it as a refusal on its own.
+- **`docs/huawei_how_to_access.md`: `set_net_mode` takes bands as well**, why they now come from the router rather than `LTEBandEnum.ALL`, and that `08` is 5G Only with the library enum having no 5G member at all.
+- **`docs/DEVELOPMENT.md`: three pitfalls this session produced and never recorded.** `_unrecorded_attributes` is **not** unioned across the class hierarchy, so a mixin's keys do not reach a subclass that assigns its own — six subclasses here were silently writing a static note to history on every state change. A string split mid-word ships a defect **no `grep` can find**, because the broken text never appears on one source line; four such words reached users in entity notes. And **100% coverage is compatible with tests that assert nothing** — two tests added to close a coverage gap did close it while checking nothing, so both audits are needed.
+
+### Notes
+
+- **`README.md`, `ROADMAP.md` and `proj_structure.md` needed no changes.** `proj_structure.md` was reconciled against the filesystem in both directions — nothing listed that does not exist, nothing on disk missing from it. README entity counts verified at both mentions.
+- **`DEVELOPMENT.md` was thinner than the session warranted**, which is what prompted the extra pass: fourteen entries, none covering the three pitfalls above. The success patterns had been kept current; the pitfalls had not.
 
 ## [1.2.0-dev52] - 2026-08-17 - Two New Tests Asserted Nothing
 

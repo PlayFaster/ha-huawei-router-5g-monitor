@@ -169,7 +169,7 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 
 ## Remaining Work (Future — Separate Session)
 
-**Forward work lives in [docs/ROADMAP.md](docs/ROADMAP.md)** — refer there for planned items (such as the frequency unit selector open issue below), revisit parameters, and declined design decisions. Keep it there rather than here, so there is one place to look.
+**Forward work lives in [docs/ROADMAP.md](docs/ROADMAP.md)** — refer there for planned items, revisit parameters, and declined design decisions. Keep it there rather than here, so there is one place to look. That file holds **features only**; chores go to `.shared/issues/x_project/x_proj_chores.md` or the project's `status_plan.md`.
 
 ---
 
@@ -177,6 +177,8 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 
 Standard for all integration projects — see [shared conventions §3](.shared/dev_std/agent_conventions.md). Nothing about this project's environment differs.
 
-## Known Open Issue
+## Known Open Issues
 
-The eight `FREQUENCY` entities do not show the unit selector in the HA UI (stuck on kHz or MHz). This is a known gap — investigation has ruled out `diagnostic` vs `sensor` category and presence of `state_class` as root causes. Further investigation is needed; treat as low priority.
+None currently recorded here. Forward work lives in [docs/ROADMAP.md](docs/ROADMAP.md); chores live in `.shared/issues/x_project/x_proj_chores.md`.
+
+**The `FREQUENCY` unit selector issue that stood here is fixed.** It claimed the eight frequency and bandwidth entities could not show the HA unit selector and that `state_class` had been ruled out as a cause. `state_class` **was** the cause: `device_class=FREQUENCY` plus `state_class=MEASUREMENT` routes an entity through long-term statistics, and that path does not surface the selector. Removing `state_class` from all eight fixed it — see `changelog_local.md`, and chore `C-012`, which carries the same finding for the sibling projects with the warning that ZTE needs the opposite fix.

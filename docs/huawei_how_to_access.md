@@ -57,6 +57,16 @@ Roughly **90 of the library's ~240 read methods answer `100003: No rights (needs
 | `100002: No support` | The hardware or firmware does not implement it | Nothing. Do not retry, do not add a sensor |
 | `100003: No rights (needs login)` | Requires a session this connection does not have | Not a bug to fix in this integration |
 | `108003` / `108006` | Wrong username / password | Surfaces as `HuaweiAuthError` → `ConfigEntryAuthFailed` → reauth flow |
+| `-1: Unknown` | **Ambiguous — never treat it as a refusal on its own** | Read the state back and let that decide. See below |
+
+> [!IMPORTANT]
+>
+> **`-1` is the router's answer both when it refuses a command and when it applies one it cannot answer for.** Two writes hit it, and they mean opposite things:
+>
+> - **`net.reconnect()`** — a genuine refusal. This hardware does not implement it; `dialup/dial` is used instead.
+> - **`net.set_net_mode()`** — **applied, and answered badly.** Verified 2026-08-16: from `03`, a write of `00` raised `-1`, and the router's own web interface showed Auto immediately afterwards. The radio is re-registering, so the response to the POST is as unreliable as an immediate read-back would be.
+>
+> `api.set_net_mode` therefore waits `NET_MODE_SETTLE` and re-reads `net_mode`; that read is the only thing that separates the two cases. A refused mode change answers `-1` as well and is caught by the same read-back disagreeing.
 
 ### Logout — the failure that hid for a whole release line
 
@@ -105,6 +115,8 @@ So: **probe endpoints in small batches, and re-verify any negative result on a f
 | `voice.volte` | `voice_volte` | VoLTE status |
 | `monitoring.onekey_diag` | `onekey_diag` | Router self-diagnosis — see the decode below |
 
+**One further endpoint is read but not polled.** `net.net_mode_list()` is fetched **once, after login**, and its `AccessList.Access` — `["00", "08", "03"]` on this hardware, exactly the three modes the web interface offers — becomes the Network Mode select's option list. It is static configuration that changes only with a firmware update, so polling it would be waste. It sat under _Readable, never reviewed_ in this document for weeks with the note "could validate the Network Mode select"; adopting it is what surfaced `08`.
+
 `lan_host_info` and `wlan_host_list` carry the MAC, hostname and IP of every device on the user's network. That is a privacy surface no sibling project has, and it is why `diagnostics.py` recurses and pseudonymises rather than redacting by key name.
 
 ---
@@ -127,6 +139,12 @@ So: **probe endpoints in small batches, and re-verify any negative result on a f
 | `sms.delete_sms`                | Delete a message       | ATTENDED      |
 
 Every one is classified in `scripts/write_classification.py`; `tests/test_write_classification.py` fails on an unclassified write.
+
+### `set_net_mode` takes bands as well, and they come from the router
+
+`net/net-mode` sets mode, LTE band mask and network band mask **together** — a mode change cannot omit the bands. This used to send `LTEBandEnum.ALL` and `NetworkBandEnum.ALL`, library constants never checked against the device. On this hardware that is harmless because the router clamps: after writing `ALL` it reports `LTEBand=7A0880800D5`, its own supported mask, and a `NetworkBand` matching neither the value sent nor anything in its published `BandList`. A model that took the value literally would have had its band selection reset on every mode change, so the current bands are now read and handed straight back.
+
+**`08` is 5G Only.** The library's `NetworkModeEnum` ends at `MODE_4G_3G_AUTO` and has **no 5G member at all** — it predates 5G — so a table copied from it cannot name the mode this hardware sits in. The library does not constrain the write: `networkmode` is a plain `str`, passed through unvalidated.
 
 ### Three spellings that matter
 
@@ -203,7 +221,6 @@ Found by the endpoint sweep and **not** assessed. Recorded so the next person st
 | `diagnosis.time_reboot` | 4 | **Scheduled reboot, and it is ENABLED on the reference unit.** `enable='1'`, `dayinterval='7'`, `begintime='60'`, `endtime='300'` — a reboot every 7 days in a window that reads as 01:00–05:00 if the times are minutes past midnight, which is **inference from the values fitting, not measurement**. Worth knowing even if never exposed: it explains a weekly uptime reset, and it interacts with reboot detection. `zte_router_5g` exposes an equivalent |
 | `online_update.status`, `.configuration`, `.autoupdate_config` | 8, 4, 2 | Firmware update state — may decode `monitoring_status.OnlineUpdateStatus`, which was rejected as an unknown code |
 | `sms.config` | 16 | SMS behavior settings |
-| `net.net_mode_list` | 3 | The modes this device will accept — could validate the Network Mode select |
 | `led.appctrlled` | 3 | LED control |
 | `redirection.homepage`, `staticroute.wanpath`, `dhcp.static_addr_info` | 1–2 | Minor configuration |
 
