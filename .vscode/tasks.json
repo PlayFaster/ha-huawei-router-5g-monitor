@@ -245,16 +245,6 @@
       "type": "shell"
     },
     {
-      "command": "[ \"${config:project.category}\" = \"theme\" ] && echo \"[Skipped: integration only]\" || python-typing-update --py311-plus --force --keep-updates custom_components/${config:project.componentName}/ || true",
-      "label": "Python: Update Typing Syntax (Maintenance)",
-      "presentation": {
-        "panel": "dedicated",
-        "reveal": "always"
-      },
-      "problemMatcher": [],
-      "type": "shell"
-    },
-    {
       "command": "[ \"${config:project.category}\" = \"theme\" ] && echo \"[Skipped: integration only]\" || { mkdir -p .reports && uv run --with awesomeversion python3 -c \"import json; from awesomeversion import AwesomeVersion; v = json.load(open('custom_components/${config:project.componentName}/manifest.json'))['version']; av = AwesomeVersion(v); print(f'Version {v} detected strategy: {av.strategy}'); exit(1 if av.strategy == 'unknown' else 0)\" | tee .reports/version_validation.txt; echo \"\"; if [ -s \".reports/version_validation.txt\" ] && ! grep -q \"unknown\" .reports/version_validation.txt 2>/dev/null; then echo -e \"\\033[1;32m✔  HA Version: PASSED\\033[0m\"; else echo -e \"\\033[1;31m✖  HA Version: FAILED\\033[0m\"; fi; }",
       "label": "HA: Verify Version (AwesomeVersion)",
       "presentation": {

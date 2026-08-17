@@ -5,7 +5,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.0-dev49\] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks](#120-dev49---2026-08-17---client-tracking-opt-out-assessed-the-poll-is-cheaper-than-it-looks)
+  - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
+  - [\[1.2.0-dev50\] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks](#120-dev50---2026-08-17---client-tracking-opt-out-assessed-the-poll-is-cheaper-than-it-looks)
   - [\[1.2.0-dev47\] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested](#120-dev47---2026-08-17---coverage-back-to-100-the-new-code-was-untested)
   - [\[1.2.0-dev46\] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen](#120-dev46---2026-08-17---the-right-mode-list-published-too-late-to-be-seen)
   - [\[1.2.0-dev45\] - 2026-08-17 - README Review Findings Applied](#120-dev45---2026-08-17---readme-review-findings-applied)
@@ -43,11 +44,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -138,7 +139,22 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
-## [1.2.0-dev49] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks
+## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor
+
+### Removed
+
+- **`python-typing-update`**: Completely dropped across the toolchain (`version_matrix.json`, `version_matrix.md`, `Dockerfile`, `.pre-commit-config.yaml`, `tasks.json`, `check_tool_drift.py`, documentation, and tests). All typing modernisations (`list[]`, `dict[]`, `X | Y`, `from __future__ import annotations`, type-checking imports) are natively enforced by Ruff (`UP`, `PYI`, `TC`, `FURB` rules in `pyproject_common.toml`).
+
+### Added
+
+- **`check_tool_drift.py` Upstream Footnotes**: Added compact source tags to the `HA Core dev` column (`[pc]` for pre-commit, `[req]` for requirements_test.txt, `[cmp]` for target HA version compatibility resolver, `[pypi]` for PyPI latest) and appended a clear legend below the table for full upstream reference transparency.
+- **Unit Tests**: Added `test_main_upstream_source_tags_and_legend` to `tests/test_check_tool_drift.py`.
+
+### Changed
+
+- **`sync_projects.ps1`**: Deployed updated matrices, tasks, and pre-commit configurations across all workspace integration projects.
+
+## [1.2.0-dev50] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks
 
 Documentation only — no code change. The `setup_cleanup_options.md` porting guide had never been assessed for this project; its three capabilities all read "Not assessed". Assessed against source, and the result is two `N/A` with reasons and one live candidate.
 

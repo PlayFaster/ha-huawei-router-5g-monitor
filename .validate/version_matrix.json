@@ -28,10 +28,6 @@
       "pins": ["dockerfile", "requirements_test"],
       "version": "0.13.355"
     },
-    "python-typing-update": {
-      "pins": ["pre-commit", "dockerfile"],
-      "version": "0.8.1"
-    },
     "ruff": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
       "version": "0.16.2"

@@ -55,14 +55,6 @@ repos:
           - prettier-plugin-sort-json@4.2.0
         args: [--config, .validate/.prettierrc.json]
 
-  - repo: https://github.com/cdce8p/python-typing-update
-    rev: v0.8.1
-    hooks:
-      - id: python-typing-update
-        stages: [manual]
-        args: [--py311-plus, --force, --keep-updates]
-        files: ^custom_components/.+\.py$
-
   - repo: local
     hooks:
       - id: mypy
