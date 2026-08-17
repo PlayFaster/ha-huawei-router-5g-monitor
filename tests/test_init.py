@@ -419,6 +419,123 @@ async def test_async_setup_entry_and_unload(mock_hass):
         await bg_task_coro2
 
 
+@pytest.mark.asyncio
+async def test_supported_net_modes_is_read_before_the_first_refresh(mock_hass):
+    """The accepted-mode list must be set **before** `async_refresh`.
+
+    `async_refresh` is what makes every entity write its state. The network-mode
+    select reads its options from `coordinator.supported_net_modes`, so setting
+    that list after the refresh publishes the fallback options and then leaves
+    them there — nothing writes state again until the next scheduled poll, three
+    minutes later by default.
+
+    **This shipped, briefly, and looked like nothing was wrong**: the log said
+    initialization completed, the router answered correctly when queried by
+    hand, and the dropdown still showed the wrong list through two restarts.
+    Ordering between two adjacent lines was the entire defect, and no assertion
+    covered it — the outcome tests all passed.
+
+    Asserted on call order rather than on the value, because the value is right
+    either way; only the timing is wrong.
+    """
+    from custom_components.huawei_router_5g import async_setup_entry
+
+    calls: list[str] = []
+
+    mock_entry = MagicMock()
+    mock_entry.options = {
+        "host": "192.168.8.1",
+        "username": "admin",
+        "password": "pw",
+    }
+    mock_entry.data = {"mac": "00:11:22:33:44:55"}
+    mock_entry.entry_id = "test_id"
+    mock_entry.title = "Router"
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g._async_migrate_tracker_unique_ids",
+            new=AsyncMock(),
+        ),
+        patch(
+            "custom_components.huawei_router_5g.dr.async_get",
+            return_value=MagicMock(),
+        ),
+        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_class,
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
+        ) as mock_coord_class,
+    ):
+        await async_setup_entry(mock_hass, mock_entry)
+        bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
+
+        api = mock_api_class.return_value
+        coordinator = mock_coord_class.return_value
+        api.login = AsyncMock(side_effect=lambda: calls.append("login"))
+        api.get_supported_net_modes = AsyncMock(
+            side_effect=lambda: calls.append("modes") or ["00", "08", "03"]
+        )
+        coordinator.async_refresh = AsyncMock(
+            side_effect=lambda: calls.append("refresh")
+        )
+
+        await bg_task_coro
+
+    assert calls == ["login", "modes", "refresh"], (
+        f"the mode list must be read after login and before the first refresh, got {calls}"
+    )
+    assert coordinator.supported_net_modes == ["00", "08", "03"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_mode_list_read_cannot_block_the_first_refresh(mock_hass):
+    """The list is cosmetic; the data fetch is not.
+
+    An earlier revision read the list before the refresh with no guard of its
+    own, so a failure there fell to the outer handler and the entry came up with
+    no data at all. Both requirements hold at once: read it first, and never let
+    it stop what follows.
+    """
+    from custom_components.huawei_router_5g import async_setup_entry
+
+    mock_entry = MagicMock()
+    mock_entry.options = {
+        "host": "192.168.8.1",
+        "username": "admin",
+        "password": "pw",
+    }
+    mock_entry.data = {"mac": "00:11:22:33:44:55"}
+    mock_entry.entry_id = "test_id"
+    mock_entry.title = "Router"
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g._async_migrate_tracker_unique_ids",
+            new=AsyncMock(),
+        ),
+        patch(
+            "custom_components.huawei_router_5g.dr.async_get",
+            return_value=MagicMock(),
+        ),
+        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_class,
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
+        ) as mock_coord_class,
+    ):
+        await async_setup_entry(mock_hass, mock_entry)
+        bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
+
+        api = mock_api_class.return_value
+        coordinator = mock_coord_class.return_value
+        api.login = AsyncMock()
+        api.get_supported_net_modes = AsyncMock(side_effect=RuntimeError("busy"))
+        coordinator.async_refresh = AsyncMock()
+
+        await bg_task_coro
+
+        coordinator.async_refresh.assert_called_once()
+
+
 @pytest.mark.parametrize("box_type", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 @pytest.mark.asyncio
 async def test_async_get_sms_list_box_types(

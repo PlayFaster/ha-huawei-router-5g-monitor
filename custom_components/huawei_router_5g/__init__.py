@@ -407,6 +407,27 @@ async def async_setup_entry(
     async def _async_background_setup() -> None:
         try:
             await api.login()
+
+            # **Before the refresh, and inside its own guard.** Both halves of
+            # that matter and they pull in opposite directions.
+            #
+            # Before: platforms are forwarded above, before this task runs
+            # (Section 1), so the select cannot read its options at setup —
+            # there is no client yet. It reads them from the coordinator as a
+            # property instead, and `async_refresh` below is what makes every
+            # entity write its state. Setting this *after* that call leaves the
+            # first state write carrying the fallback list, and nothing writes
+            # again until the next scheduled poll — three minutes of wrong
+            # options by default.
+            #
+            # Guarded: this is a cosmetic label next to the data fetch, and must
+            # never be able to prevent one. An earlier revision let a failure
+            # here abort the whole initialization.
+            try:
+                coordinator.supported_net_modes = await api.get_supported_net_modes()
+            except Exception:
+                _LOGGER.debug("Could not read the accepted mode list", exc_info=True)
+
             await coordinator.async_refresh()
             _LOGGER.info("%s: Background initialization complete.", entry.title)
         except Exception:

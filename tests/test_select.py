@@ -83,8 +83,7 @@ async def test_select_setup_entry():
     async_add_entities.assert_called_once()
 
 
-@pytest.mark.asyncio
-async def test_setup_offers_only_the_modes_the_router_accepts():
+def test_options_come_from_the_router(mock_coordinator, mock_config_entry):
     """The option list comes from the router, not from a table.
 
     The reference H165-383 publishes `["00", "08", "03"]` — exactly the three
@@ -92,35 +91,30 @@ async def test_setup_offers_only_the_modes_the_router_accepts():
     from `huawei-lte-api`'s `NetworkModeEnum`, **five of which this router
     rejects**, while omitting `08`, the mode it was actually in.
     """
-    entry = MagicMock()
-    entry.entry_id = "test"
-    coordinator = MagicMock()
-    coordinator.api.get_supported_net_modes = AsyncMock(return_value=["00", "08", "03"])
-    entry.runtime_data = coordinator
-
-    added = []
-    await async_setup_entry(MagicMock(), entry, lambda items: added.extend(items))
-
-    options = added[0].entity_description.options
-    assert options == ["Auto", "5G Only", "4G Only"]
+    mock_coordinator.supported_net_modes = ["00", "08", "03"]
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+    assert select.options == ["Auto", "5G Only", "4G Only"]
 
 
-@pytest.mark.asyncio
-async def test_setup_falls_back_when_the_router_will_not_list_modes():
-    """A router that will not publish a list keeps the full fallback set."""
-    entry = MagicMock()
-    entry.entry_id = "test"
-    coordinator = MagicMock()
-    coordinator.api.get_supported_net_modes = AsyncMock(return_value=None)
-    entry.runtime_data = coordinator
+def test_options_fall_back_until_the_router_has_answered(
+    mock_coordinator, mock_config_entry
+):
+    """The full set stands while the list is unknown, and is replaced when it lands.
 
-    added = []
-    await async_setup_entry(MagicMock(), entry, lambda items: added.extend(items))
+    **This is why `options` is a property rather than fixed at setup.** Platforms
+    are forwarded before the router is logged in, so the list cannot exist yet
+    when the entity is built; reading it there fell back on every startup. `None`
+    means *not yet known*, which is not the same as "none accepted" — showing
+    nothing would be worse than showing too much.
+    """
+    mock_coordinator.supported_net_modes = None
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+    assert "Auto" in select.options
+    assert "5G Only" in select.options
+    assert len(select.options) == 9
 
-    options = added[0].entity_description.options
-    assert "Auto" in options
-    assert "5G Only" in options
-    assert len(options) == 9
+    mock_coordinator.supported_net_modes = ["00", "03"]
+    assert select.options == ["Auto", "4G Only"]
 
 
 def test_an_unmapped_mode_is_named_not_hidden():

@@ -6,6 +6,7 @@ All changes to this project will be documented in this file. This is the detaile
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
   - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
+  - [\[1.2.0-dev46\] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen](#120-dev46---2026-08-17---the-right-mode-list-published-too-late-to-be-seen)
   - [\[1.2.0-dev43\] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name](#120-dev43---2026-08-17---the-router-was-in-a-5g-mode-the-integration-could-not-name)
   - [\[1.2.0-dev42\] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked](#120-dev42---2026-08-16---network-mode-reported-failure-for-a-write-that-worked)
   - [\[1.2.0-dev39\] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes](#120-dev39---2026-08-16---four-broken-hyphens-shipped-in-entity-notes)
@@ -139,6 +140,28 @@ All changes to this project will be documented in this file. This is the detaile
 ### Bumps
 
 - **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.10 to v2.0.12
+
+## [1.2.0-dev46] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen
+
+`[1.2.0-dev43]` made the network-mode options come from the router. They did not reach the user: the dropdown still showed nine entries through two restarts and a reload. **The list was correct in memory the whole time and was written to state before it existed.**
+
+### Fixed
+
+- **The accepted-mode list was read after `coordinator.async_refresh()`, which is the call that makes every entity write its state.** So the first state write carried the fallback options, the correct list arrived a moment later, and nothing wrote again until the next scheduled poll — three minutes at the default interval. The read now happens **before** the refresh. It keeps its own `try`, because it must never be able to prevent a data fetch; an intermediate revision read it first with no guard and a failure took the whole initialization down.
+- **`README.md` listed Scan Interval and Pause Polling as Configure options.** `_edit_schema` in `config_flow.py` holds four fields — Name, Host, Username, Password. The two polling controls persist _into_ `entry.options` because their number and switch entities write there, which is what made them look like dialog fields. The table now matches the dialog, in the order it renders them, and the password row states that blank keeps the current value rather than clearing it.
+
+### Added
+
+- **`tests/test_init.py::test_supported_net_modes_is_read_before_the_first_refresh`** — asserts on **call order** (`login`, `modes`, `refresh`), not on the resulting value. The value is correct either way; only the timing was wrong, which is exactly why every existing outcome test passed. **Verified by swapping the two lines and confirming that this test, and only this test, failed.**
+- **`tests/test_init.py::test_a_failed_mode_list_read_cannot_block_the_first_refresh`** — the second half of the constraint. Read it first, and never let it stop what follows; only one of those two was previously covered.
+- **`docs/DEVELOPMENT.md`**: a Success Patterns entry covering the whole chain — why the list comes from the router, why it is a property rather than fixed at setup, why the ordering matters and why the guard is still needed. Two Technical Debt entries record the risks rather than burying them: the band arguments on a mode change rest on one device's evidence, and the mode list is read once per run with no retry.
+
+### Notes
+
+- **Three attempts to get this right, each fixing a real defect introduced by the previous one**: read at setup (no client yet — platforms are forwarded before login), read before the refresh with no guard (a failure aborted initialization), read after the refresh (published too late). The common cause was reasoning about Home Assistant's entity lifecycle instead of reading it. The answer came from `SelectEntity`'s source: `options` is a `cached_property` but a plain property on the subclass overrides it, and `capability_attributes` is uncached — so the mechanism was always sound and the question was only ever _when state gets written_.
+- **What was ruled out first, by measurement rather than argument**: the loaded code was byte-identical to the workspace; `net_mode_list()` answered `["00", "08", "03"]` against the live router both before and after a full 26-endpoint fetch, so the documented session-degradation trap did not apply.
+- A failed read self-corrects on the next restart or reload — the fetch lives in `async_setup_entry`'s background task, and a reload builds a fresh coordinator. It does **not** self-correct on a poll.
+- Suite **816 → 818**, ruff and mypy clean.
 
 ## [1.2.0-dev43] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name
 

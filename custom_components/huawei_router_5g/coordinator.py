@@ -100,6 +100,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # during an outage — a verdict held there could never describe the
         # failure that stopped it being updated.
         self._endpoint_strikes: dict[str, int] = {}
+        # Mode codes the router says it accepts, populated once after login.
+        # `None` means not yet known, which is not the same as "none accepted" —
+        # the select falls back to its full list rather than showing nothing.
+        self.supported_net_modes: list[str] | None = None
         self.health_snapshot: dict[str, Any] = {
             "severity": None,
             "issues": [],

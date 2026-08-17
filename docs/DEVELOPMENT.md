@@ -92,6 +92,17 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Why an allow-list rather than reloading always**: the two polling controls are read fresh every cycle, and reloading on them would tear down the session and rebuild every entity each time the interval slider moved.
 - **Ported from `zte_router_5g`**, including its `reload_signature` — comparing signatures is what tells a connection change from a tuning change.
 
+### The Network Mode List Comes From the Router, and the Order It Is Read In Matters (v1.2.0)
+
+- **Decision**: the select's options are read from `net.net_mode_list()` once after login, stored on the coordinator, and exposed through an `options` **property** on the entity. The entity description's list is only a fallback.
+- **Why not a hardcoded list**: the original was copied from `huawei-lte-api`'s `NetworkModeEnum`, which ends at `MODE_4G_3G_AUTO` and **has no 5G member at all** — it predates 5G. The result on a 5G router was an eight-option list containing five modes the hardware rejects and missing `08`, the mode it was actually in. The library never forced this: `set_net_mode` takes `networkmode` as a plain `str` and passes it through unvalidated.
+- **Why a property and not a value fixed at setup**: platforms are forwarded **before** the router is logged in (Section 1, non-blocking startup). Reading the list during `async_setup_entry` finds no client, fails, and falls back — on every startup, silently.
+- **Why it is read before `coordinator.async_refresh()`**: `async_refresh` is what makes every entity write its state. Setting the list after it leaves the first state write carrying the fallback options, and nothing writes again until the next scheduled poll — **three minutes of wrong options by default**. This shipped briefly and was invisible: the log said initialization completed, the router answered correctly when queried by hand, and two restarts reproduced it exactly.
+- **Why it is nonetheless guarded**: the list is a cosmetic label; the data fetch is not. An intermediate revision read it first with no guard of its own, and a failure took the whole initialization down. Both constraints hold at once — read it first, and never let it stop what follows.
+- **The ordering is now asserted**, in `tests/test_init.py::test_supported_net_modes_is_read_before_the_first_refresh`, on **call order** rather than on the resulting value — the value is correct either way, only the timing is wrong. Verified by swapping the two lines and watching that test, and only that test, fail.
+- **An unmapped code renders `Unknown (nn)` rather than disappearing**, matching `network_type`, and round-trips back to the code so the mode stays selectable. Had the select done this from the start, `08` would have surfaced immediately instead of reading as `unknown` — indistinguishable from a dead endpoint.
+- **Hardware scope**: a router that cannot or will not publish an `AccessList` keeps the full fallback list, so no device is worse off than before. A code nobody has seen is still offered and still selectable.
+
 ### Concurrency Locking Pattern (v1.1.0)
 
 - **Change**: Implemented an `asyncio.Lock` in `HuaweiRouter5GAPI` to serialize all router communication.
@@ -270,6 +281,8 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Signal Guard Band Refinement**: Continue to tune min/max limits as more users provide data from different signal environments (e.g., extreme fringe areas).
 - **Client Metadata**: Expand the "Clients" sub-device to include more detailed information like hostnames if supported by the router firmware.
 - **Multi-SIM Support**: Investigate support for routers with dual SIM slots.
+- **Band arguments on a mode change rest on one device's evidence (v1.2.0)**: `net/net-mode` takes mode and both band masks together, so `set_net_mode` must send bands. It used to send `LTEBandEnum.ALL` / `NetworkBandEnum.ALL`; it now reads the router's current `LTEBand` / `NetworkBand` and hands them straight back, so a mode change no longer widens or resets a band selection made elsewhere. **The reference H165-383 is the only hardware this has been seen on.** Its values are hex strings without `0x`, and the library passes strings through untouched. A model that reports bands in a form it will not accept on write would now fail a mode change that previously worked, because the old constant sidestepped the question. Low likelihood, small benefit, non-zero risk — revisit if a mode change is ever reported failing on other hardware, where reverting to `ALL` is the immediate mitigation.
+- **The accepted-mode list is read once per run, with no retry**: one failed `net.net_mode_list()` call leaves the select on its fallback list until Home Assistant restarts. Deliberate — the alternative was a retry in the poll path for a value that changes only with firmware — but a router briefly busy at startup gives the user the long list for the session.
 
 ---
 

@@ -2,7 +2,7 @@
 
 import logging
 from collections.abc import Callable, Coroutine
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
@@ -89,9 +89,9 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
             "back what the router says is in force."
         ),
         translation_key="network_mode",
-        # Replaced at setup by the router's own `AccessList`. This value is the
-        # fallback for a device that will not publish one — see
-        # `NETWORK_MODE_FALLBACK`.
+        # The fallback only. The live list comes from the router via the
+        # `options` property below; this is what a device that will not publish
+        # an `AccessList` keeps — see `NETWORK_MODE_FALLBACK`.
         options=[network_mode_label(c) or c for c in NETWORK_MODE_FALLBACK],
         entity_category=EntityCategory.CONFIG,
         group="system",
@@ -119,25 +119,16 @@ async def async_setup_entry(
 ) -> None:
     """Set up the select platform.
 
-    The mode list is read from the router once, here, rather than polled: it is
-    static configuration that changes only with a firmware update. A router that
-    will not publish one keeps the fallback list.
+    **The mode list is not read here.** Platforms are forwarded before the
+    router is logged in — Section 1's non-blocking startup — so a fetch at this
+    point would find no client, fail, and fall back on every single startup. The
+    list is read once after login and exposed through the `options` property
+    below, which picks it up as soon as it lands.
     """
     coordinator = entry.runtime_data
-
-    codes = await coordinator.api.get_supported_net_modes()
-    if codes:
-        _LOGGER.debug("Router accepts network modes %s", codes)
-
-    entities = []
-    for description in SELECTS:
-        if description.key == "network_mode" and codes:
-            description = replace(
-                description,
-                options=[network_mode_label(code) or code for code in codes],
-            )
-        entities.append(HuaweiRouterSelect(coordinator, description))
-    async_add_entities(entities)
+    async_add_entities(
+        [HuaweiRouterSelect(coordinator, description) for description in SELECTS]
+    )
 
 
 class HuaweiRouterSelect(
@@ -164,6 +155,24 @@ class HuaweiRouterSelect(
     def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self.entity_description.group)
+
+    @property
+    def options(self) -> list[str]:
+        """Return the modes this router accepts, falling back to the full set.
+
+        Read from `net.net_mode_list()` after login rather than fixed at setup:
+        the reference H165-383 publishes `["00", "08", "03"]`, exactly the three
+        its web interface offers, while the description's list carries every
+        mode the integration knows. Offering the full set on a router that
+        accepts three invites writes it will refuse.
+
+        A router that will not publish a list keeps the full set, which is the
+        pre-2026-08 behaviour and no worse than it was.
+        """
+        codes = self.coordinator.supported_net_modes
+        if self.entity_description.key != "network_mode" or not codes:
+            return list(self.entity_description.options or [])
+        return [network_mode_label(code) or code for code in codes]
 
     @property
     def current_option(self) -> str | None:
