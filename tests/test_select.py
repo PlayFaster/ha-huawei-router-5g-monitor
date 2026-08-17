@@ -153,3 +153,15 @@ async def test_network_mode_write_failure_raises(mock_coordinator, mock_config_e
         await entity.async_select_option("4G Only")
 
     mock_coordinator.async_force_refresh.assert_not_called()
+
+
+def test_an_unrecognized_label_falls_back_to_auto():
+    """A label matching no known mode resolves to Auto rather than raising.
+
+    Unreachable through the UI, which only ever submits an option the entity
+    published. It exists so a malformed service call cannot send an arbitrary
+    string to the radio.
+    """
+    from custom_components.huawei_router_5g.select import _label_to_code
+
+    assert _label_to_code("Not A Mode") == "00"

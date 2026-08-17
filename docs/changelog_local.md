@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev47\] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested](#120-dev47---2026-08-17---coverage-back-to-100-the-new-code-was-untested)
   - [\[1.2.0-dev46\] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen](#120-dev46---2026-08-17---the-right-mode-list-published-too-late-to-be-seen)
   - [\[1.2.0-dev45\] - 2026-08-17 - README Review Findings Applied](#120-dev45---2026-08-17---readme-review-findings-applied)
   - [\[1.2.0-dev43\] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name](#120-dev43---2026-08-17---the-router-was-in-a-5g-mode-the-integration-could-not-name)
@@ -41,11 +42,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -135,6 +136,24 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev47] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested
+
+**Found while checking something else.** Verifying the `x_proj_checks` branch-coverage row meant running coverage, which reported **99%** — a standard this project had held all week. Both gaps were introduced by `[1.2.0-dev43]` and `[1.2.0-dev46]`, and neither of those entries mentions coverage, because it was never run before claiming them clean.
+
+### Fixed
+
+- **`api.py` 91% → 100%.** Twenty-two uncovered lines across the two new methods. `get_supported_net_modes` had no test at all: not the `AccessList` read, not the bare-string form a single-mode router may return, not the four unusable-answer shapes that must yield `None` rather than an empty list, not the swallowed failure. `set_net_mode`'s `-1` branch — the whole point of `[1.2.0-dev42]` — was equally untested: applied-and-confirmed, genuinely refused, unverified, and a non-`-1` error re-raised. **Nine tests added.** The band-argument tests written at the time covered the easy half and left the logic that carries the behaviour uncovered.
+- **`select.py` 97% → 100%.** `_label_to_code`'s final `return "00"`, reached only by a label matching no known mode — unreachable through the UI, which submits only options the entity published, and there so a malformed service call cannot send an arbitrary string to the radio.
+
+### Changed
+
+- **`status_plan.md` item 29 closed.** It read "`readme_review` mechanical half **Done; accuracy half NOT run**" and had been true since `[1.2.0-dev9]`. The Full run at `[1.2.0-dev45]` closes it, and the row now records what the accuracy half actually found.
+
+### Notes
+
+- **Suite 818 → 830. Coverage 100% line and branch, 0 partial branches**, measured rather than assumed.
+- The lesson is narrow and worth keeping: two changelog entries this week asserted "ruff and mypy clean" as though that were the standard. It is not — this project's bar is 100% line and branch, and neither entry had checked it.
 
 ## [1.2.0-dev46] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen
 

@@ -1844,3 +1844,104 @@ async def test_get_supported_net_modes_swallows_a_failed_read():
         "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
     ):
         assert await api.get_supported_net_modes() is None
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_treats_minus_one_as_applied_when_the_readback_agrees():
+    """`-1: Unknown` is not a refusal — the router applies and then answers badly.
+
+    Confirmed live on 2026-08-16: from `03`, a write of `00` raised, and the
+    router's own web interface showed Auto immediately afterwards. So `-1` means
+    *applied, response unverifiable*, and the read-back after the radio settles
+    is what decides.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {
+        "NetworkMode": "00",
+        "LTEBand": "7A0880800D5",
+        "NetworkBand": "2000004680380",
+    }
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "custom_components.huawei_router_5g.api.confirm_write",
+            new=AsyncMock(return_value=True),
+        ),
+    ):
+        await api.set_net_mode("00")
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_raises_when_the_readback_disagrees():
+    """A genuine refusal answers `-1` too. Only the read-back separates them."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {"NetworkMode": "00"}
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "custom_components.huawei_router_5g.api.confirm_write",
+            new=AsyncMock(return_value=False),
+        ),
+        pytest.raises(ResponseErrorException),
+    ):
+        await api.set_net_mode("08")
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_unverified_readback_does_not_raise():
+    """`None` is unverified, not failed — the change may well have applied.
+
+    Raising here would invite the user to repeat a command that already took
+    effect, which on a radio re-registration is the worse outcome.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {"NetworkMode": "00"}
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "custom_components.huawei_router_5g.api.confirm_write",
+            new=AsyncMock(return_value=None),
+        ),
+    ):
+        await api.set_net_mode("08")
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_reraises_a_response_error_that_is_not_minus_one():
+    """Any other code is a real error and must surface untouched."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {"NetworkMode": "00"}
+    api._client.net.set_net_mode.side_effect = ResponseErrorException(
+        "No support", "100002"
+    )
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        pytest.raises(ResponseErrorException),
+    ):
+        await api.set_net_mode("08")
