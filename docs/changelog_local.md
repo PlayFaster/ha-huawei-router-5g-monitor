@@ -7,6 +7,7 @@ All changes to this project will be documented in this file. This is the detaile
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
   - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
   - [\[1.2.0-dev46\] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen](#120-dev46---2026-08-17---the-right-mode-list-published-too-late-to-be-seen)
+  - [\[1.2.0-dev45\] - 2026-08-17 - README Review Findings Applied](#120-dev45---2026-08-17---readme-review-findings-applied)
   - [\[1.2.0-dev43\] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name](#120-dev43---2026-08-17---the-router-was-in-a-5g-mode-the-integration-could-not-name)
   - [\[1.2.0-dev42\] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked](#120-dev42---2026-08-16---network-mode-reported-failure-for-a-write-that-worked)
   - [\[1.2.0-dev39\] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes](#120-dev39---2026-08-16---four-broken-hyphens-shipped-in-entity-notes)

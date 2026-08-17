@@ -6,6 +6,7 @@
 
 - **38 New Entities & End-of-Cycle Forecast**: Adds broad diagnostic, system, and signal sensors across eight new router endpoints, including a Projected Usage forecast sensor.
 - **Controls & Actions**: Adds a Master Wi-Fi switch, a Reconnect button, and a device tracker cleanup action.
+- **Dynamic Network Mode Selection**: Dynamically discovers supported cellular network modes from the router (including 5G Only) while preventing accidental band resets.
 - **Resilience & Health**: Introduces an Integration Health diagnostic sensor with contract drift detection, automated follow-up refreshes after reboots, and per-request transport timeouts.
 - **Entity Identity & Guidance**: Migrates device tracker unique IDs to entry-scoped identifiers, standardizes `about` attribute guidance notes across all entities, and upgrades the underlying client library to `huawei-lte-api` 2.0.1.
 
@@ -21,6 +22,7 @@
 
 ### Changed
 
+- **Dynamic Network Mode Discovery**: The Preferred Network Mode select entity now queries the router for its exact supported modes (e.g. `Auto`, `5G Only`, `4G Only`) rather than offering static, unsupported presets.
 - **Entity Details Guidance**: Reviewed and polished all 160 entity `about` attribute descriptions across Home Assistant entity dialogs to provide clear, standardized operational guidance and threshold interpretations.
 - **Underlying Client Library**: Updated the underlying `huawei-lte-api` library to 2.0.1, ensuring compatibility with modern SCRAM authentication and future firmware releases.
 - **Follow-Up Refresh Automation**: Pressing Reboot or Reconnect now automatically schedules an asynchronous follow-up poll when the router reconnects, including while background polling is paused.
@@ -29,7 +31,7 @@
 
 ### Fixed
 
-- **Network Mode Change Confirmation**: Handled transient `-1` responses during cellular radio re-registration so changing Preferred Network Mode in Home Assistant settles cleanly without raising false UI errors.
+- **5G Network Mode Mapping & Band Safety**: Added full mapping for 5G-Only mode (`08`), resolved transient `-1` confirmation errors during radio re-registration, and ensured mode changes preserve existing cellular band selections.
 - **Device Tracker Multi-Router Conflicts**: Migrated device tracker unique IDs to be scoped per configuration entry, preventing entity collisions and missing client devices on setups with multiple Huawei routers.
 - **Session Logout & Traffic Reset Calls**: Corrected library method bindings for session logout and traffic counter clearing, ensuring active sessions are properly closed on reload.
 - **SMS Parsing Resilience**: Hardened inbox parsing to handle empty message indices without dropping remaining inbox items.
