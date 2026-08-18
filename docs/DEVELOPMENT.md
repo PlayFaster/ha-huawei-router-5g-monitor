@@ -111,6 +111,13 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Reason**: Huawei routers often crash or return empty XML if hit with overlapping requests (e.g., a background poll occurring while a user sends an SMS).
 - **Result**: Guaranteed session stability and eliminated "Busy" or "System Error" (110001) responses during heavy activity.
 
+### The Lock Is Not Reentrant, and Nothing Above It Could Clear a Wedged One (v1.2.0-dev56)
+
+- **A non-reentrant lock plus a helper that re-acquires it is a hang, not an error.** `set_net_mode` held `self._lock` and, on the router's `-1` answer, called `confirm_write` → `read_back`, which opens with the same lock. The task waited on itself for ever: no exception, no log, no recovery, and the whole integration offline until Home Assistant restarted. `switch.py` had the correct shape all along — confirm from the entity, after the API call has returned and released.
+- **Stubbing that helper in tests hides it completely.** All four `-1` tests patched `confirm_write` with an `AsyncMock`, so `read_back` was never entered. 830 tests passed against code that deadlocked on every use of the control. A mock placed exactly where two components meet tests each half and never the join.
+- **The layer that imposes a timeout owns the cleanup.** `asyncio.timeout(FETCH_TIMEOUT)` lives in `coordinator.py` and cancels the await from outside `api.py`, so none of that module's `except` blocks run and none of its `_reset_client()` calls fire. The API object kept its wedged client for ever. `coordinator` now calls `api.invalidate()` on `TimeoutError`, which is what turns any hang inside `get_data` — not just this one — into a single failed poll.
+- **Guards now in place**: `_locked()` raises `RuntimeError` on re-entry by the same task (naming the operation), and bounds acquisition at `LOCK_TIMEOUT`, so a jam is a loud repeating error instead of a silent permanent one.
+
 ### Timestamp-Based SMS Tracking (v1.1.0)
 
 - **Change**: Pivoted the `_check_new_sms` logic from comparing slot indices to comparing message dates.

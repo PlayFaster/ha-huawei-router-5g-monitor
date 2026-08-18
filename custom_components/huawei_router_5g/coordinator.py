@@ -3,6 +3,7 @@
 import asyncio
 import contextlib
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Any
 
@@ -28,6 +29,7 @@ from .const import (
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
     REPAIR_NAMES,
+    REPAIR_SELF_RECOVERED,
     SIGNAL_CONTRACT_KEYS,
 )
 from .helpers import get_router_model, parse_sms_list
@@ -101,6 +103,15 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # during an outage — a verdict held there could never describe the
         # failure that stopped it being updated.
         self._endpoint_strikes: dict[str, int] = {}
+
+        # Liveness-probe state. `_fault_is_local` is None until a probe has
+        # run, True when a fresh connection succeeded while the pooled one kept
+        # failing (our fault), False when both failed (the router's). The latch
+        # keeps the probe to once per exhausted strike budget — this router
+        # permits one login, so a probe per poll would cause outages rather
+        # than diagnose them.
+        self._fault_is_local: bool | None = None
+        self._probe_done = False
         # Mode codes the router says it accepts, populated once after login.
         # `None` means not yet known, which is not the same as "none accepted" —
         # the select falls back to its full list rather than showing nothing.
@@ -182,6 +193,57 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             ),
         }
 
+    async def _async_diagnose_fault(self) -> None:
+        """Ask which end is at fault, once per exhausted strike budget.
+
+        Every path to the router was reachable during the 2026-08-17 lockup —
+        web GUI, host, container — while the integration reported everything
+        unavailable and blamed the router. One cheap call on a **brand-new**
+        connection separates the two cases, which is exactly how the fault was
+        diagnosed by hand.
+
+        The timing is logged beside the failing path on purpose: "a fresh
+        connection answered in 0.04s while the pooled one timed out at 30s" is
+        the whole diagnosis in one line, and it was the absence of that line
+        that made the original fault take an hour to find.
+        """
+        if self._probe_done:
+            return
+        self._probe_done = True
+
+        started = time.monotonic()
+        alive = await self.api.probe_liveness()
+        elapsed = time.monotonic() - started
+        self._fault_is_local = alive
+
+        if not alive:
+            _LOGGER.warning(
+                "%s: a fresh connection to the router also failed after %.2fs; "
+                "the router is genuinely unreachable.",
+                self.entry.title,
+                elapsed,
+            )
+            return
+
+        _LOGGER.warning(
+            "%s: a fresh connection answered in %.2fs while the established "
+            "session kept failing. The fault is on this side; rebuilding the "
+            "connection.",
+            self.entry.title,
+            elapsed,
+        )
+        await self.api.invalidate()
+        ir.async_create_issue(
+            self.hass,
+            DOMAIN,
+            f"{REPAIR_SELF_RECOVERED}_{self.entry.entry_id}",
+            is_fixable=False,
+            is_persistent=False,
+            severity=ir.IssueSeverity.WARNING,
+            translation_key="self_recovered",
+            translation_placeholders={"entry_title": self.entry.title},
+        )
+
     def update_health(
         self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
     ) -> None:
@@ -258,6 +320,22 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "consecutive attempts; the values shown are the last known "
                     "good ones."
                 ]
+
+            # Name which end is at fault when the probe has an answer. Without
+            # this the sensor says "no successful update" for both a wedged
+            # session and a router that is switched off, which is the one
+            # distinction a user needs to act on.
+            if self._fault_is_local is True:
+                snapshot["issues"].append(
+                    "The router answered a fresh connection while this "
+                    "integration's own session did not; the connection has "
+                    "been rebuilt."
+                )
+            elif self._fault_is_local is False:
+                snapshot["issues"].append(
+                    "A fresh connection to the router also failed; the router "
+                    "is not reachable from Home Assistant."
+                )
             return snapshot
 
         if not data:
@@ -433,6 +511,14 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     data = await self.api.get_data()
         except (TimeoutError, HuaweiAuthError) as err:
             self.consecutive_failures += 1
+
+            if isinstance(err, TimeoutError):
+                # `asyncio.timeout` cancels the await from out here, so none of
+                # `api.py`'s own `except` blocks run and its client is never
+                # reset. Without this the next poll reuses the same wedged
+                # connection, for ever — the reason a single deadlock survived
+                # until Home Assistant was restarted.
+                await self.api.invalidate()
             if self.data is not None and self.consecutive_failures <= 3:
                 _LOGGER.warning(
                     "%s: Fetch failed due to %s (failure %d/3), "
@@ -460,6 +546,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 )
                 self.update_health(None, failed=True, cold_start=self.data is None)
                 raise ConfigEntryAuthFailed("Authentication failed") from err
+
+            await self._async_diagnose_fault()
 
             error_msg = "API request timed out"
             _LOGGER.exception("%s: %s", self.entry.title, error_msg)
@@ -549,6 +637,14 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 DOMAIN,
                 f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
             )
+            ir.async_delete_issue(
+                self.hass,
+                DOMAIN,
+                f"{REPAIR_SELF_RECOVERED}_{self.entry.entry_id}",
+            )
+            # Re-arm the probe. A fault that returns must be diagnosed again.
+            self._probe_done = False
+            self._fault_is_local = None
 
         self.last_update_success_time = dt_util.now()
         self.consecutive_failures = 0

@@ -21,6 +21,25 @@ FETCH_TIMEOUT = 30
 # it as a degraded capability once it persists.
 REQUEST_TIMEOUT = 10
 
+# Longest a caller will wait for the API lock before giving up.
+#
+# Unbounded acquisition is what turned a single wedged task into a permanent
+# outage: every later poll and every button press queued behind a lock nobody
+# would ever release, and the only symptom was a timeout thirty seconds later
+# with nothing naming the cause.
+#
+# Sized above the longest legitimate hold, so a slow-but-working router is
+# never failed by it. That hold is a full poll — twenty-six endpoints inside
+# `FETCH_TIMEOUT` (30 s) — and a write may arrive the moment one starts, so the
+# floor is 30 s and this carries 30 s of headroom on top. The network-mode
+# settle (15 s) and its read-back are deliberately *not* in that arithmetic:
+# since 2026-08-18 they run with the lock released.
+LOCK_TIMEOUT = 60
+
+# Seconds a liveness probe may take. One endpoint on a brand-new connection,
+# so `REQUEST_TIMEOUT` plus the login round trip is the whole budget.
+PROBE_TIMEOUT = 20
+
 # Repair issues this integration can raise. The registry keys on
 # `(domain, issue_id)`, so each id is suffixed with the entry id — otherwise
 # two routers share one slot and the healthy one's next successful poll deletes
@@ -31,7 +50,12 @@ REQUEST_TIMEOUT = 10
 # live orphans it permanently with no UI path to clear it.
 REPAIR_AUTH_FAILED = "auth_failed"
 REPAIR_CONN_ERROR = "conn_error"
-REPAIR_NAMES: tuple[str, ...] = (REPAIR_AUTH_FAILED, REPAIR_CONN_ERROR)
+REPAIR_SELF_RECOVERED = "self_recovered"
+REPAIR_NAMES: tuple[str, ...] = (
+    REPAIR_AUTH_FAILED,
+    REPAIR_CONN_ERROR,
+    REPAIR_SELF_RECOVERED,
+)
 
 # --- Section 19: Integration Health ------------------------------------------
 #

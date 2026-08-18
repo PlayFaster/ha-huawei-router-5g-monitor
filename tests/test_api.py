@@ -1,5 +1,6 @@
 """Tests for the Huawei Router 5G API client."""
 
+import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -1969,3 +1970,205 @@ async def test_set_net_mode_reraises_a_response_error_that_is_not_minus_one():
         pytest.raises(ResponseErrorException),
     ):
         await api.set_net_mode("08")
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_minus_one_confirms_without_deadlocking():
+    """The `-1` read-back must run with the lock released.
+
+    Every other `-1` test patches `confirm_write`, so the real `read_back` is
+    never entered — and `read_back` re-acquires `self._lock`, which
+    `set_net_mode` was already holding. `asyncio.Lock` is not reentrant, so the
+    task waited on itself forever and the integration never polled again. This
+    test drives the genuine read-back and is the one that fails against the
+    pre-fix code.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {
+        "NetworkMode": "00",
+        "LTEBand": "7A0880800D5",
+        "NetworkBand": "2000004680380",
+    }
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+    ):
+        await asyncio.wait_for(api.set_net_mode("00"), timeout=5)
+
+    # The write went out, the router's own bands went with it, and the
+    # read-back that confirmed it saw the requested mode.
+    api._client.net.set_net_mode.assert_called_once()
+    assert api._client.net.net_mode.call_count >= 2
+
+    # And the lock is free afterwards, so the next poll can run.
+    assert not api._lock.locked()
+
+
+# ---------------------------------------------------------------------------
+# The lock: re-entrancy, bounded waiting, and closing what it opened
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_read_back_refuses_to_re_enter_a_lock_this_task_holds():
+    """Re-entry must raise where it used to hang.
+
+    `asyncio.Lock` is not reentrant, so a write path that took the lock and
+    then called `read_back` waited on itself with no exception, no log and no
+    recovery until Home Assistant restarted. An error names the caller on the
+    first press instead.
+    """
+    api = _make_api()
+
+    async with api._locked("set_net_mode"):
+        with pytest.raises(RuntimeError, match="already held by this task"):
+            await api.read_back("net_mode")
+
+    # The guard did not leave the lock in a broken state.
+    assert not api._lock.locked()
+    assert api._lock_owner is None
+
+
+@pytest.mark.asyncio
+async def test_lock_acquisition_is_bounded_and_names_the_operation():
+    """A lock held by someone else fails loudly rather than waiting for ever."""
+    api = _make_api()
+    await api._lock.acquire()
+    try:
+        with (
+            patch("custom_components.huawei_router_5g.api.LOCK_TIMEOUT", 0.01),
+            pytest.raises(HuaweiConnectionError, match="get_data"),
+        ):
+            await api.get_data()
+    finally:
+        api._lock.release()
+
+
+@pytest.mark.asyncio
+async def test_contention_from_another_task_still_waits():
+    """Only re-entry raises. Ordinary contention must queue, as it always did."""
+    api = _make_api()
+    order: list[str] = []
+
+    async def _hold() -> None:
+        async with api._locked("first"):
+            order.append("first-in")
+            await asyncio.sleep(0)
+            order.append("first-out")
+
+    async def _follow() -> None:
+        await asyncio.sleep(0)
+        async with api._locked("second"):
+            order.append("second-in")
+
+    await asyncio.gather(_hold(), _follow())
+
+    assert order == ["first-in", "first-out", "second-in"]
+
+
+def test_reset_client_closes_the_http_session():
+    """Dropping the reference is not closing it.
+
+    `huawei_lte_api` holds a pooled `requests.Session`; leaving it to the
+    garbage collector is why two sockets to the router sat in `CLOSE_WAIT`
+    while the integration was wedged.
+    """
+    api = _make_api()
+    connection = MagicMock()
+    api._connection = connection
+    api._client = MagicMock()
+
+    api._reset_client()
+
+    connection.requests_session.close.assert_called_once_with()
+    assert api._connection is None
+    assert api._client is None
+
+
+def test_reset_client_survives_a_failing_close():
+    """A close that raises must not stop the client being cleared."""
+    api = _make_api()
+    connection = MagicMock()
+    connection.requests_session.close.side_effect = OSError("already gone")
+    api._connection = connection
+    api._client = MagicMock()
+
+    api._reset_client()
+
+    assert api._connection is None
+    assert api._client is None
+
+
+@pytest.mark.asyncio
+async def test_invalidate_clears_the_connection_without_the_lock():
+    """The coordinator calls this after a timeout, possibly while wedged.
+
+    Taking the lock here would mean waiting for the very fault being cleared.
+    """
+    api = _make_api()
+    connection = MagicMock()
+    api._connection = connection
+    api._client = MagicMock()
+    await api._lock.acquire()
+    try:
+        await api.invalidate()
+    finally:
+        api._lock.release()
+
+    assert api._client is None
+    connection.requests_session.close.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# probe_liveness()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_probe_liveness_reports_a_reachable_router_and_cleans_up():
+    """A fresh connection that answers means the fault is on our side.
+
+    It must also log out and close: this router permits one login, so a probe
+    that leaked sessions would cause the outage it exists to diagnose.
+    """
+    api = _make_api()
+    conn = MagicMock()
+    client = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch.object(api, "_create_connection_sync", return_value=(conn, client)),
+    ):
+        assert await api.probe_liveness() is True
+
+    client.device.information.assert_called_once_with()
+    client.user.logout.assert_called_once_with()
+    conn.requests_session.close.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_probe_liveness_reports_an_unreachable_router():
+    """Both paths failing means the router really is down; say so, and tidy up."""
+    api = _make_api()
+    conn = MagicMock()
+    client = MagicMock()
+    client.device.information.side_effect = OSError("no route to host")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch.object(api, "_create_connection_sync", return_value=(conn, client)),
+    ):
+        assert await api.probe_liveness() is False
+
+    # Even on failure the session it opened is released.
+    conn.requests_session.close.assert_called_once_with()

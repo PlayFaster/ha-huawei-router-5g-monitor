@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import logging
-from collections.abc import Callable
+from collections.abc import AsyncIterator, Callable
+from contextlib import asynccontextmanager
 from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
@@ -20,7 +22,7 @@ from huawei_lte_api.exceptions import (
     ResponseErrorLoginRequiredException,
 )
 
-from .const import NET_MODE_SETTLE, REQUEST_TIMEOUT
+from .const import LOCK_TIMEOUT, NET_MODE_SETTLE, PROBE_TIMEOUT, REQUEST_TIMEOUT
 from .helpers import _safe_int, confirm_write
 
 _LOGGER = logging.getLogger(__name__)
@@ -87,7 +89,54 @@ class HuaweiRouter5GAPI:
         self._connection: Connection | None = None
         self._client: Client | None = None
         self._lock = asyncio.Lock()
+        # The task currently holding `_lock`, or None. Tracked so re-entry can
+        # be told from ordinary contention: "held by anyone" is the normal
+        # case and must keep waiting, "held by me" is a deadlock.
+        self._lock_owner: asyncio.Task[Any] | None = None
         self._last_activity = datetime.now(UTC)
+
+    @asynccontextmanager
+    async def _locked(self, operation: str) -> AsyncIterator[None]:
+        """Acquire the API lock, refusing to wait for ever or on ourselves.
+
+        Two failure modes this replaces, both observed on 2026-08-17 when a
+        single network-mode change took the integration offline until Home
+        Assistant was restarted:
+
+        **Re-entry.** `asyncio.Lock` is not reentrant, so a path that takes the
+        lock and then calls a helper that takes it again waits on itself for
+        ever. That is invisible from outside — no exception, no log, no
+        recovery — and it survives every reload. Raising `RuntimeError` names
+        the file and line the first time the control is used instead. It is
+        deliberately an error and not a silent pass-through: this is a
+        programming mistake, not a runtime condition.
+
+        **Unbounded waiting.** Once one task was wedged, every later poll and
+        button press queued behind it and died at the coordinator's timeout,
+        each one reporting a router problem that did not exist. A bounded wait
+        turns a permanent silent hang into a loud repeating error naming the
+        operation that could not get the lock. See `LOCK_TIMEOUT` for the
+        arithmetic behind the bound.
+        """
+        if self._lock_owner is not None and self._lock_owner is asyncio.current_task():
+            raise RuntimeError(
+                f"{operation}: the API lock is already held by this task. "
+                "A write path must not call a helper that re-acquires the lock."
+            )
+        try:
+            async with asyncio.timeout(LOCK_TIMEOUT):
+                await self._lock.acquire()
+        except TimeoutError as err:
+            raise HuaweiConnectionError(
+                f"{operation}: timed out after {LOCK_TIMEOUT}s waiting for the "
+                "router API lock"
+            ) from err
+        self._lock_owner = asyncio.current_task()
+        try:
+            yield
+        finally:
+            self._lock_owner = None
+            self._lock.release()
 
     def _create_connection_sync(self) -> tuple[Connection, Client]:
         """Create a new Connection and Client (blocking, runs in thread).
@@ -107,7 +156,7 @@ class HuaweiRouter5GAPI:
 
     async def login(self) -> None:
         """Establish a fresh connection to the router."""
-        async with self._lock:
+        async with self._locked("login"):
             self._reset_client()
             try:
                 conn, client = await asyncio.to_thread(self._create_connection_sync)
@@ -145,7 +194,7 @@ class HuaweiRouter5GAPI:
         What stops that swallow hiding a wrong method name again is the library
         contract test, not a narrower catch here.
         """
-        async with self._lock:
+        async with self._locked("logout"):
             client = self._client
             if client is None:
                 self._reset_client()
@@ -158,9 +207,83 @@ class HuaweiRouter5GAPI:
                 self._reset_client()
 
     def _reset_client(self) -> None:
-        """Clear the stored connection and client."""
+        """Close the underlying HTTP session, then clear connection and client.
+
+        **Dropping the references is not enough, and that gap was measurable.**
+        `huawei_lte_api` holds a `requests.Session` with a connection pool; a
+        session that is only dereferenced leaves its sockets to the garbage
+        collector. During a network-mode change the router closes its end while
+        re-registering the radio, so those sockets sat in `CLOSE_WAIT` — three
+        connections to the router were open while the integration was wedged,
+        two of them already half-closed and still eligible to be handed back
+        out of the pool.
+
+        Kept synchronous: it is called from `except` blocks and from teardown,
+        and `Session.close()` does not block on the network. The broad suppress
+        is deliberate — a failed close must never stop the client being
+        cleared, which is the part that matters.
+        """
+        connection = self._connection
         self._connection = None
         self._client = None
+        if connection is not None:
+            with contextlib.suppress(Exception):
+                connection.requests_session.close()
+
+    async def invalidate(self) -> None:
+        """Discard the current connection so the next call builds a fresh one.
+
+        For the layer that imposed a timeout to call after it fires.
+        `asyncio.timeout` in the coordinator cancels the await from *outside*
+        this module, so none of the `_reset_client()` calls in the `except`
+        blocks below ever run — the API object keeps its wedged client for ever
+        and every later poll reuses it. That is why the lockup survived until a
+        Home Assistant restart, and it is not specific to any one bug: any hang
+        inside `get_data` produced the same state.
+
+        **Deliberately does not take the lock.** A jammed lock is precisely the
+        condition this exists to clear, so waiting for it would be waiting for
+        the fault to fix itself.
+        """
+        self._reset_client()
+
+    async def probe_liveness(self) -> bool:
+        """Say whether the router answers on a brand-new connection.
+
+        The complaint this answers: the router was reachable from its web GUI,
+        from the host and from inside the container, and the integration
+        reported everything unavailable with nothing to say which end was at
+        fault.
+
+        A success here while the pooled path keeps failing means the fault is
+        ours — a stale or half-closed session — and rebuilding fixes it. A
+        failure here means the router really is unreachable and the existing
+        messaging is right.
+
+        **Does not take the lock**, for the same reason as `invalidate`: the
+        lock is one of the things being diagnosed. It logs out and closes the
+        session it opens, because this router permits one login and a probe
+        that leaked sessions would cause the outage it is investigating. Called
+        once per exhausted strike budget, never per poll.
+        """
+
+        def _probe() -> None:
+            conn, client = self._create_connection_sync()
+            try:
+                client.device.information()
+            finally:
+                with contextlib.suppress(Exception):
+                    client.user.logout()
+                with contextlib.suppress(Exception):
+                    conn.requests_session.close()
+
+        try:
+            async with asyncio.timeout(PROBE_TIMEOUT):
+                await asyncio.to_thread(_probe)
+        except Exception:
+            _LOGGER.debug("Liveness probe failed", exc_info=True)
+            return False
+        return True
 
     async def _ensure_client(self) -> Client:
         """Create a client if one does not exist."""
@@ -224,7 +347,7 @@ class HuaweiRouter5GAPI:
 
     async def get_data(self) -> dict[str, Any]:
         """Fetch all available data from the router."""
-        async with self._lock:
+        async with self._locked("get_data"):
             await self._ensure_client()
 
             def _fetch() -> dict[str, Any]:
@@ -378,7 +501,7 @@ class HuaweiRouter5GAPI:
         this spelling is correct on both versions and the library bump needs no
         code change here.
         """
-        async with self._lock:
+        async with self._locked("reboot"):
             try:
                 await self._execute_with_retry(
                     lambda client: client.device.set_control(ControlModeEnum.REBOOT)
@@ -411,7 +534,7 @@ class HuaweiRouter5GAPI:
         under a reasoned `# noqa: SLF001`. The connect half uses the public
         method.
         """
-        async with self._lock:
+        async with self._locked("reconnect"):
             try:
                 await self._execute_with_retry(
                     lambda client: client.dial_up._session.post_set(  # noqa: SLF001
@@ -434,7 +557,7 @@ class HuaweiRouter5GAPI:
         `# type: ignore[attr-defined]`, and the test asserting it passed only
         because it ran against a bare `MagicMock`.
         """
-        async with self._lock:
+        async with self._locked("clear_traffic_statistics"):
             try:
                 await self._execute_with_retry(
                     lambda client: client.monitoring.set_clear_traffic()
@@ -465,7 +588,7 @@ class HuaweiRouter5GAPI:
         if reader is None:
             raise ValueError(f"no read-back reader for endpoint {endpoint!r}")
 
-        async with self._lock:
+        async with self._locked("read_back"):
             try:
                 result = await self._execute_with_retry(reader)
             except Exception:
@@ -478,7 +601,7 @@ class HuaweiRouter5GAPI:
 
     async def set_mobile_data(self, enable: bool) -> None:
         """Enable or disable the mobile data connection."""
-        async with self._lock:
+        async with self._locked("set_mobile_data"):
             try:
                 await self._execute_with_retry(
                     lambda client: client.dial_up.set_mobile_dataswitch(
@@ -572,7 +695,9 @@ class HuaweiRouter5GAPI:
         and that read decides the outcome. A genuine refusal also returns `-1`,
         and the read-back is what separates the two.
         """
-        async with self._lock:
+        unverified: ResponseErrorException | None = None
+
+        async with self._locked("set_net_mode"):
             lteband, networkband = await self._band_arguments()
 
             try:
@@ -587,30 +712,38 @@ class HuaweiRouter5GAPI:
                 if str(err.code) != "-1":
                     _LOGGER.exception("Set net mode failed")
                     raise
-
-                _LOGGER.debug(
-                    "Set net mode answered -1 while re-registering; "
-                    "confirming by read-back"
-                )
-                await asyncio.sleep(NET_MODE_SETTLE)
-                confirmed = await confirm_write(
-                    self,
-                    "net_mode",
-                    lambda block: block.get("NetworkMode"),
-                    mode,
-                    label="set_net_mode",
-                )
-                if confirmed is False:
-                    _LOGGER.error("Set net mode was refused by the router")
-                    raise
-                if confirmed is None:
-                    _LOGGER.warning(
-                        "Set net mode could not be confirmed; the router did "
-                        "not answer the read-back. The change may have applied."
-                    )
+                unverified = err
             except Exception:
                 _LOGGER.exception("Set net mode failed")
                 raise
+
+        if unverified is None:
+            return
+
+        # Outside the lock, and that is the whole point. `confirm_write` calls
+        # `read_back`, which acquires the same non-reentrant lock — doing this
+        # inside the block above meant the task waited on itself for ever and
+        # the integration never polled again. `switch.py` had it right all
+        # along: confirm after the API call has returned and released.
+        _LOGGER.debug(
+            "Set net mode answered -1 while re-registering; confirming by read-back"
+        )
+        await asyncio.sleep(NET_MODE_SETTLE)
+        confirmed = await confirm_write(
+            self,
+            "net_mode",
+            lambda block: block.get("NetworkMode"),
+            mode,
+            label="set_net_mode",
+        )
+        if confirmed is False:
+            _LOGGER.error("Set net mode was refused by the router")
+            raise unverified
+        if confirmed is None:
+            _LOGGER.warning(
+                "Set net mode could not be confirmed; the router did "
+                "not answer the read-back. The change may have applied."
+            )
 
     async def set_wifi(self, enable: bool) -> None:
         """Turn the WiFi radios on or off.
@@ -657,7 +790,7 @@ class HuaweiRouter5GAPI:
                 "wlan/status-switch-settings", settings
             )
 
-        async with self._lock:
+        async with self._locked("set_wifi"):
             try:
                 await self._execute_with_retry(_write)
             except Exception:
@@ -666,7 +799,7 @@ class HuaweiRouter5GAPI:
 
     async def set_guest_wifi(self, enable: bool) -> None:
         """Enable or disable the guest WiFi network."""
-        async with self._lock:
+        async with self._locked("set_guest_wifi"):
 
             def _set(client: Client) -> None:
                 multi_settings = client.wlan.multi_basic_settings()
@@ -732,7 +865,7 @@ class HuaweiRouter5GAPI:
 
     async def send_sms(self, phone_numbers: list[str], message: str) -> None:
         """Send an SMS message to one or more numbers."""
-        async with self._lock:
+        async with self._locked("send_sms"):
             try:
                 await self._execute_with_retry(
                     lambda client: client.sms.send_sms(
@@ -746,7 +879,7 @@ class HuaweiRouter5GAPI:
 
     async def delete_sms(self, index: int) -> None:
         """Delete an SMS message by index."""
-        async with self._lock:
+        async with self._locked("delete_sms"):
             try:
                 await self._execute_with_retry(
                     lambda client: client.sms.delete_sms(sms_id=index)
@@ -762,7 +895,7 @@ class HuaweiRouter5GAPI:
         read_count: int = 20,
     ) -> dict[str, Any]:
         """Fetch a list of SMS messages."""
-        async with self._lock:
+        async with self._locked("get_sms_list"):
             try:
                 return cast(
                     dict[str, Any],

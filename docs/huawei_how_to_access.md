@@ -146,6 +146,12 @@ Every one is classified in `scripts/write_classification.py`; `tests/test_write_
 
 **`08` is 5G Only.** The library's `NetworkModeEnum` ends at `MODE_4G_3G_AUTO` and has **no 5G member at all** — it predates 5G — so a table copied from it cannot name the mode this hardware sits in. The library does not constrain the write: `networkmode` is a plain `str`, passed through unvalidated.
 
+### A mode change holds the session, and leaves half-closed sockets behind
+
+**A network-mode write occupies the router for `NET_MODE_SETTLE` (15 s) plus a read-back**, because the router answers the write itself with `-1` and only a re-read after the radio settles can say whether the mode took. On a device that permits one login, that is the longest any single command holds the session, and nothing else can talk to the router while it does.
+
+**The router closes its end during radio re-registration.** Sockets left over from before the change sit in `CLOSE_WAIT` until something closes them — three connections to the router were open during the 2026-08-17 lockup, two already half-closed. A `requests.Session` that is only dereferenced does not close them, and its pool will hand a dead one back out. Anything that discards a connection here must call `session.close()`, which is what `_reset_client()` now does.
+
 ### Three spellings that matter
 
 **`device.set_control(ControlModeEnum.REBOOT)`, not `device.reboot()`.** Both exist in 1.11.0, but **2.0.0 removes `reboot()` and `control()`** and keeps only `set_control`. The current spelling is correct on both, so the library bump needs no change here.

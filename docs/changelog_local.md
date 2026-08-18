@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev56\] - 2026-08-18 - Every Network-Mode Change Deadlocked the Integration](#120-dev56---2026-08-18---every-network-mode-change-deadlocked-the-integration)
   - [\[1.2.0-dev54\] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family](#120-dev54---2026-08-17---health-severity-and-strike-constants-aligned-with-the-family)
   - [\[1.2.0-dev53\] - 2026-08-17 - Documentation Reconciliation: Four False Statements](#120-dev53---2026-08-17---documentation-reconciliation-four-false-statements)
   - [\[1.2.0-dev52\] - 2026-08-17 - Two New Tests Asserted Nothing](#120-dev52---2026-08-17---two-new-tests-asserted-nothing)
@@ -141,6 +142,40 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev56] - 2026-08-18 - Every Network-Mode Change Deadlocked the Integration
+
+**Changing Preferred Network Mode took the integration fully offline until Home Assistant was restarted, every time.** The router remained reachable throughout — from its own web GUI, from the host, and from inside the container. Measured while wedged: TCP connect 20 ms, a fresh login 0.04 s, a fresh full poll 1.09 s across 26 blocks, container up 24 hours with no restarts. Nothing was wrong with the router, the network or the container.
+
+`api.set_net_mode` held `self._lock`, and on the router's `-1: Unknown` answer called `confirm_write` → `read_back`, which opens with **the same lock**. `asyncio.Lock` is not reentrant, so the task waited on a lock it already held and never returned — and never released it, so every later poll, Refresh press and write queued behind it and died at the coordinator's 30-second timeout, permanently. **This fired on every mode change on this hardware**, because the router always answers that write with `-1`. Introduced in `[1.2.0-dev43]` / `[1.2.0-dev46]`.
+
+**830 passing tests missed it because all four `-1` tests patched `confirm_write` with an `AsyncMock`** — the stub sat exactly where the bug lived, so `read_back` was never entered. The regression test added here drives the genuine read-back, and **was confirmed to fail against the pre-fix code** before the fix was written.
+
+### Fixed
+
+- **The read-back now runs with the lock released.** `set_net_mode` records that the write answered `-1`, exits the locked block, then settles and confirms. `switch.py` had the correct shape all along: confirm from the entity, after the API call has returned. The `-1`-means-applied semantics, the `NET_MODE_SETTLE` wait, the three distinct outcomes and the re-raise of the original exception on a refusal are all unchanged.
+- **`_reset_client` closes the HTTP session** instead of only dropping two references. `huawei_lte_api` holds a pooled `requests.Session`; leaving it to the garbage collector is why two of the three sockets to the router sat in `CLOSE_WAIT` — the router closes its end while re-registering the radio, and a dead connection stayed eligible to be handed back out of the pool.
+
+### Added
+
+- **Re-entry raises instead of hanging.** All fourteen lock sites now go through `_locked(operation)`, which tracks the holding task and raises `RuntimeError` naming the operation when the same task re-enters. A hang is undiagnosable from outside and survives until a restart; an exception names the file and line on the first press. Ordinary contention from another task still queues, as it always did.
+- **Lock acquisition is bounded** by the new `LOCK_TIMEOUT` (60 s), raising `HuaweiConnectionError` naming the operation. Sized above the longest legitimate hold — a full poll inside `FETCH_TIMEOUT` — with 30 s of headroom, so a slow-but-working router is never failed by it.
+- **The coordinator invalidates the connection on `TimeoutError`.** This is the change that fixes the class rather than the instance: `asyncio.timeout` lives in `coordinator.py` and cancels the await from **outside** `api.py`, so none of that module's `except` blocks run and none of its `_reset_client()` calls fire. Any hang inside `get_data` previously left the API object holding a wedged client for ever.
+- **A liveness probe that says which end is at fault.** Once the strike budget is spent, one cheap call on a brand-new connection, not holding the lock and rate-limited to once per exhaustion — this router permits one login, so a probe per poll would cause outages rather than diagnose them. A fresh connection that answers while the pooled one fails means the fault is ours: the connection is rebuilt, the timings are logged side by side, and a new `self_recovered` repair is raised and auto-cleared on recovery. Both failing is the ordinary outage, and that messaging is unchanged.
+- **Integration Health now names the side at fault**, so a wedged session and a switched-off router no longer read identically.
+
+### Is this plan enough — the audit
+
+1. **Other re-entrancy paths: none.** All fourteen locking methods were walked mechanically for self-calls that re-enter; every one reaches only `_execute_with_retry`, `_ensure_client`, `_reset_client` or `_band_arguments`, none of which take the lock. `confirm_write` has exactly two call sites — `api.set_net_mode` (now outside the lock) and `switch.py:191` (an entity, never holding it). The runtime guard covers anything added later.
+2. **Thread orphaning is not bounded, and the two constants are not coherent.** `asyncio.timeout` cancels the await but cannot cancel `asyncio.to_thread`, so a timed-out fetch leaves its 26 synchronous calls running. With `REQUEST_TIMEOUT = 10` per request and `FETCH_TIMEOUT = 30` for the batch, a router slow enough to take 2 s per endpoint blows the batch budget while every individual request behaves — one orphaned thread per poll, indefinitely. **Not changed here, as instructed.** The correction is to raise `FETCH_TIMEOUT` above the realistic worst case rather than lower `REQUEST_TIMEOUT`, since the measured poll is 1.06 s and a bound that a healthy router can cross is the wrong bound. **Parked for a decision.**
+3. **State surviving a rebuilt client.** `_last_activity` is reset on the next successful call and is harmless. `_endpoint_strikes`, `fired_sms_hashes` and `projection_cache` survive **deliberately** — they describe the router and the data, not the connection, and clearing them would re-fire old SMS events and re-warm a memo for no reason. `supported_net_modes` also survives deliberately: it is static configuration read once at setup. No accidental survivors were found.
+4. **The health sensor would now have said something useful.** During the lockup it reported only "no successful update", which is what a switched-off router reports. It now carries the probe's verdict — that the router answered a fresh connection while this integration's own session did not.
+5. **Still only recoverable by restart: nothing found, and it was checked.** Re-entry raises, contention is bounded, a timed-out poll rebuilds its connection, and a wedged-but-reachable state is detected and recovered. The one unbounded resource left is the orphaned worker thread in item 2, which leaks rather than wedges — it cannot block a later poll, because that poll now runs on a fresh connection.
+
+### Notes
+
+- Suite **844 passing**, coverage back to **100% line and branch** (measured, not assumed), ruff lint and format clean, mypy standard and strict clean, assertion audit 0 of 708.
+- Plan and evidence: `.notes/issues/fix_lockup_improve_robustness_20260818.md`.
 
 ## [1.2.0-dev54] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family
 

@@ -61,6 +61,11 @@ def _coordinator(hass, *, options=None, data=None):
     entry.options = options if options is not None else {}
     coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry, MagicMock())
     coordinator.api.get_data = AsyncMock()
+    # The recovery hooks the coordinator calls after a timeout. `MagicMock`
+    # hands back a non-awaitable for these, so a stub that omits them fails on
+    # the recovery path rather than on the behaviour under test.
+    coordinator.api.invalidate = AsyncMock()
+    coordinator.api.probe_liveness = AsyncMock(return_value=False)
     return coordinator
 
 
@@ -384,3 +389,111 @@ async def test_repeated_health_failures_warn_only_once(hass_stub, caplog) -> Non
 
     warnings = [r for r in caplog.records if r.levelname == "WARNING"]
     assert len(warnings) == 1, f"expected one warning, got {len(warnings)}"
+
+
+# ---------------------------------------------------------------------------
+# Recovery: the layer that imposes the timeout owns the cleanup
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_timeout_invalidates_the_api_connection(hass_stub) -> None:
+    """`asyncio.timeout` fires out here, so `api.py`'s own handlers never run.
+
+    Without this call the API object keeps the wedged client and every later
+    poll reuses it — which is why one deadlock survived until a restart.
+    """
+    coordinator = _coordinator(hass_stub)
+    coordinator.data = GOOD
+    coordinator.api.get_data.side_effect = TimeoutError
+
+    assert await coordinator._async_update_data() is GOOD
+
+    coordinator.api.invalidate.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_a_reachable_router_names_the_fault_as_ours(hass_stub) -> None:
+    """Fresh connection answers, pooled one does not: the fault is on our side."""
+    coordinator = _coordinator(hass_stub)
+    coordinator.data = None
+    coordinator.api.get_data.side_effect = TimeoutError
+    coordinator.api.probe_liveness = AsyncMock(return_value=True)
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g.coordinator.ir.async_create_issue"
+        ) as issue,
+        pytest.raises(UpdateFailed),
+    ):
+        await coordinator._async_update_data()
+
+    assert coordinator._fault_is_local is True
+
+    # A named, actionable repair was raised for the recovered state.
+    raised = [call.args[2] for call in issue.call_args_list]
+    assert any("self_recovered" in issue_id for issue_id in raised)
+
+    # And the health verdict says which end was at fault, rather than blaming
+    # a router that was answering the whole time.
+    assert any(
+        "fresh connection" in text for text in coordinator.health_snapshot["issues"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_an_unreachable_router_is_still_reported_as_theirs(hass_stub) -> None:
+    """Both paths failing is the ordinary outage; the messaging must not change."""
+    coordinator = _coordinator(hass_stub)
+    coordinator.data = None
+    coordinator.api.get_data.side_effect = TimeoutError
+    coordinator.api.probe_liveness = AsyncMock(return_value=False)
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g.coordinator.ir.async_create_issue"
+        ) as issue,
+        pytest.raises(UpdateFailed),
+    ):
+        await coordinator._async_update_data()
+
+    assert coordinator._fault_is_local is False
+
+    raised = [call.args[2] for call in issue.call_args_list]
+    assert not any("self_recovered" in issue_id for issue_id in raised)
+    assert any(
+        "not reachable" in text for text in coordinator.health_snapshot["issues"]
+    )
+
+
+@pytest.mark.asyncio
+async def test_the_probe_runs_once_per_exhausted_budget(hass_stub) -> None:
+    """One login only — a probe per poll would cause outages, not diagnose them."""
+    coordinator = _coordinator(hass_stub)
+    coordinator.api.probe_liveness = AsyncMock(return_value=False)
+
+    await coordinator._async_diagnose_fault()
+    await coordinator._async_diagnose_fault()
+
+    coordinator.api.probe_liveness.assert_awaited_once_with()
+
+
+@pytest.mark.asyncio
+async def test_recovery_re_arms_the_probe_and_clears_the_repair(hass_stub) -> None:
+    """A fault that returns must be diagnosed again, not remembered as handled."""
+    coordinator = _coordinator(hass_stub)
+    coordinator.data = GOOD
+    coordinator.consecutive_failures = 2
+    coordinator._probe_done = True
+    coordinator._fault_is_local = True
+    coordinator.api.get_data.return_value = GOOD
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.ir.async_delete_issue"
+    ) as deleted:
+        await coordinator._async_update_data()
+
+    assert coordinator._probe_done is False
+    assert coordinator._fault_is_local is None
+    cleared = [call.args[2] for call in deleted.call_args_list]
+    assert any("self_recovered" in issue_id for issue_id in cleared)

@@ -459,6 +459,10 @@ async def test_coordinator_timeout_after_max_failures(
     """Test that a timeout after maximum failures raises UpdateFailed."""
     mock_api = MagicMock()
     mock_api.get_data = AsyncMock(side_effect=TimeoutError("Request timed out"))
+    # A timeout now invalidates the connection and probes the router, so both
+    # hooks must be awaitable on the stub.
+    mock_api.invalidate = AsyncMock()
+    mock_api.probe_liveness = AsyncMock(return_value=False)
 
     coordinator = HuaweiRouter5GDataUpdateCoordinator(
         mock_hass, mock_config_entry, mock_api
