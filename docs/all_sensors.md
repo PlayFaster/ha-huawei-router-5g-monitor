@@ -4,15 +4,15 @@
 
 ## Summary
 
-| Sub-Device | Entity Count | Description |
-| :-- | :-- | :-- |
-| **Clients** | 4 | Clients entities. |
-| **Data** | 24 | Data entities. |
-| **SMS** | 18 | SMS entities. |
-| **Signal** | 58 | Signal entities. |
-| **System** | 49 | System entities. |
-| **WiFi** | 7 | WiFi entities. |
-| **Total** | **160** | Total static entities. |
+| Sub-Device  | Entity Count | Description            |
+| :---------- | :----------- | :--------------------- |
+| **Clients** | 4            | Clients entities.      |
+| **Data**    | 24           | Data entities.         |
+| **SMS**     | 18           | SMS entities.          |
+| **Signal**  | 58           | Signal entities.       |
+| **System**  | 49           | System entities.       |
+| **WiFi**    | 7            | WiFi entities.         |
+| **Total**   | **160**      | Total static entities. |
 
 ## Clients Sub-Device (4 Entities)
 
