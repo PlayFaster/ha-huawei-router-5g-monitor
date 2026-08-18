@@ -12,60 +12,68 @@ The note is an `about` field on the entity description. `HuaweiAboutEntity` in `
 
 An entity that defines its own `extra_state_attributes` must route the result through `_with_about`. That is the one failure mode here no type checker sees, so a sweep asserts it rather than a convention.
 
-The device tracker has no entity description — one entity is created per discovered client — so it carries its note as a class-level `_attr_about` instead, and is listed at the end of this document.
+<!-- GENERATED:start -->
 
-## System (48)
+## Clients (4)
 
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
-| Integration Health | Binary sensor | `integration_health` | This **integration's** verdict on itself, not the router's: it reports the failure Home Assistant cannot see, a poll that succeeds while a whole capability is quietly missing. Its `severity`, `issues`, `degraded_capabilities`, `drift` and `last_good_update` attributes are a published contract, and it never goes unavailable. |
-| Roaming Auto-Connect | Binary sensor | `roaming_auto_connect` | Whether the router will bring up data automatically while roaming. A setting on the router, and the one that decides whether roaming charges can be incurred without anyone acting. |
-| Router Diagnostics | Binary sensor | `router_diagnostics` | The **router's** own verdict on its connection, from its one-key diagnostic. It can disagree with Integration Health, and that is not a fault: a perfectly healthy integration can faithfully report a router that cannot reach the network. The `reasons` attribute names the causes and `raw` carries the block they were read from. |
-| SIM Locked | Binary sensor | `sim_locked` | Whether SIM lock is enabled on the router. A configuration state, not an alarm: it says the router will demand a PIN, not that it is currently blocked. |
-| SIM Card Status | Binary sensor | `sim_status` | On when the SIM is **not** usable - missing, locked out, or failing to initialize. It is a `problem` sensor, so on means something is wrong; that is deliberately the opposite polarity to reading it as 'SIM present'. |
-| SIP ALG | Binary sensor | `sip_alg` | Whether the router's SIP application-layer gateway is enabled. It rewrites VoIP signaling in transit, which helps some phone systems and breaks others; there is no universally right setting. |
-| UPnP | Binary sensor | `upnp` | Whether UPnP port forwarding is enabled, letting devices on the LAN open inbound ports without being asked. Convenient for games and consoles, and a real attack surface. |
-| VoLTE | Binary sensor | `volte` | Whether VoLTE - voice carried over the LTE data channel - is available. It depends on the operator provisioning it as well as on the router supporting it, so off can be entirely correct. |
-| Reboot | Button | `reboot` | Restarts the router. Everything on the network loses its connection for a minute or two. A follow-up refresh is scheduled about sixty seconds later so the entities recover without waiting for the next poll. |
-| Reconnect | Button | `reconnect` | Drops the mobile data session and dials it again, which often re-homes the router to a different cell. The LAN and WiFi stay up. The router refuses the library's dedicated reconnect call, so this issues a disconnect followed by a connect, and schedules a follow-up refresh about twenty seconds later. |
-| Refresh Now | Button | `refresh` | Fetches from the router immediately instead of waiting for the next poll. It works **even while Pause Polling is on** - an explicit action by a person overrides the pause, while the next scheduled poll still respects it. |
-| Polling Interval | Number | `polling_interval` | How often this integration asks the router for data, in seconds. It is saved to the config entry, so it survives a restart. Changes are debounced for two seconds so dragging the slider does not fire a poll per step; a pending change is flushed if the entity is removed mid-debounce rather than silently discarded. |
-| Preferred Network Mode | Select | `network_mode` | Restricts which radio technologies the router may use. `Auto` lets it choose. Pinning to a single mode can stabilize a marginal connection or can strand it entirely if that mode is unavailable where the router sits. Preferred Network Mode, the sensor, reads back what the router says is in force. |
-| APN | Sensor | `apn` | The access point name the active data profile is dialing. Different APNs on the same SIM can mean different addressing and different traffic treatment. |
-| APN Profile | Sensor | `apn_profile` | The name of the dial-up profile the APN comes from. The router returns its profiles out of order, so the active one is resolved by matching its index rather than by list position. |
-| Battery | Sensor | `battery` | Battery charge, on the models that have one. This router family is mains-powered in most variants, so the entity is disabled by default and stays unavailable where there is no battery. |
-| Carrier Build | Sensor | `carrier_build` | The operator-specific build identifier baked into the firmware. It identifies which carrier customization is loaded, which is what decides whether a given feature or endpoint exists at all. |
-| Country Code | Sensor | `country_code` | The country the router believes it is operating in, which governs which radio and WiFi channels it will use. |
-| Connection Duration | Sensor | `current_connection_duration` | How long the current mobile data session has been up, in seconds. Disabled by default in favor of Connection Uptime, which says the same thing as a fixed point in time. |
-| Connection Uptime | Sensor | `current_connection_timestamp` | The moment the current mobile data session was established. A reset here without a router restart means the data connection dropped and came back - the router itself stayed up. |
-| ICCID | Sensor | `iccid` | The SIM card's own serial number, which stays with the card when it moves between routers. Disabled by default and redacted from diagnostics. |
-| IMEI | Sensor | `imei` | The modem's IMEI - the identifier of the radio hardware, not of the SIM. Deliberately declared as text: given a unit or a device class, fifteen digits become scientific notation. |
-| IMSI | Sensor | `imsi` | The subscriber identity stored on the SIM. It identifies the **subscription**, unlike IMEI which identifies the hardware. Disabled by default and redacted from diagnostics downloads. |
-| Last Updated | Sensor | `last_updated` | When this integration last completed a successful poll. It reports the **integration's** health rather than the router's: a value going stale means polling has stopped, whatever the individual sensors still show. |
-| Line State | Sensor | `line_state` | The voice subsystem's own status string, read from the router's `voicebusy` block. `Idle` means no call is in progress. This is the one block in the payload that returns a bare string rather than a record. |
-| MCC MNC | Sensor | `mcc_mnc` | The mobile country and network codes of the SIM's home operator. This is the SIM's home network, which is not necessarily the network the router is registered to right now - compare with Operator Code to see roaming. |
-| Model Name | Sensor | `model_name` | The router's model as it reports it. Read once at setup and stored on the config entry, so it stays correct even when the router is unreachable. |
-| MTU | Sensor | `mtu` | Maximum transmission unit of the mobile data connection. Relevant when tunneling or when large packets stall; the operator usually sets it. |
-| Primary DNS Server | Sensor | `primary_dns` | First IPv4 DNS server the operator handed the router. Devices on the LAN are usually pointed at the router itself, which forwards here, so this is what resolves names in practice unless something overrides it. |
-| Primary IPv6 DNS Server | Sensor | `primary_ipv6_dns` | First IPv6 DNS server the operator handed the router. Blank wherever the operator provides no IPv6 service, which is the usual case on a mobile data plan. |
-| Product Name | Sensor | `product_name` | The marketing product name the firmware carries, which is often longer and friendlier than Model Name and occasionally disagrees with it. |
-| Secondary DNS Server | Sensor | `secondary_dns` | Second IPv4 DNS server the operator handed the router, used when the first does not answer. A blank value is common and is not a fault. |
-| Secondary IPv6 DNS Server | Sensor | `secondary_ipv6_dns` | Second IPv6 DNS server the operator handed the router, used when the first does not answer. Blank wherever there is no IPv6 service. |
-| Serial Number | Sensor | `serial_number` | The router's hardware serial number. An identifier: it carries no unit, no device class and no display precision, deliberately, because any one of those makes Home Assistant treat the digits as a quantity and reformat them. |
-| SIM Number | Sensor | `sim_number` | The phone number the SIM reports, where the operator has written one to the card. Many data SIMs leave this blank, which is not a fault. |
-| Supported Modes | Sensor | `supported_modes` | The radio modes this hardware and firmware combination can offer. It is the ceiling on what Preferred Network Mode can be set to, not a statement of what is in use. |
-| Software Version | Sensor | `sw_version` | Firmware version running on the router. Huawei ships the firmware and the web interface separately, so this and Web UI Version move independently and disagreeing versions are not a fault. |
-| Total Duration | Sensor | `total_connection_time` | Lifetime total of all connected time, in seconds, as the router counts it. **Connected time, not elapsed time**: it does not advance while the link is down. Disabled by default. |
-| Total Uptime | Sensor | `total_connection_timestamp` | Total Duration expressed as a point in time. It is not the date the router was first used - it is now minus the accumulated connected time, so any offline period shifts it forward. |
-| Uptime Duration | Sensor | `uptime` | How long the router has been powered on, in seconds. Disabled by default because Uptime, which expresses the same fact as a timestamp, is the better one to display. |
-| Uptime | Sensor | `uptime_timestamp` | The moment the router last started, derived by subtracting its uptime from the current time. A timestamp rather than a counter, so it stays still while the router runs instead of ticking - which is what makes it readable in history. |
-| WAN DNS | Sensor | `wan_dns` | The full IPv4 DNS server list as the WAN block reports it. Primary and Secondary DNS Server split the same information into two readable entities; this one is the unsplit source. |
-| WAN DNS IPv6 | Sensor | `wan_dns_ipv6` | The full IPv6 DNS server list as the WAN block reports it - the unsplit source behind the two IPv6 DNS entities. |
-| WAN IP Address | Sensor | `wan_ip` | The IPv4 address the operator has assigned to the router's WAN. Usually a carrier-grade NAT address rather than a publicly reachable one. |
-| WAN IPv6 Address | Sensor | `wan_ipv6` | The IPv6 address assigned to the router's WAN, where the operator provides IPv6 at all. |
-| Web UI Version | Sensor | `web_ui_version` | Version of the router's own web interface, which Huawei ships and updates separately from the firmware - the two versions moving independently is normal. |
-| Mobile Data | Switch | `mobile_data` | Turns the mobile data connection on or off. The LAN and WiFi are unaffected, so this does not disconnect local devices from each other - only from the internet. A refusal by the router raises an error rather than reporting an unearned success. |
-| Pause Polling | Switch | `pause_polling` | Stops the scheduled polling without removing the integration. Entities hold their last values rather than going unavailable. Explicit actions - Refresh Now, and the refresh after a control change - still reach the router while this is on. |
+| Clean up unused entities | Button | `cleanup_unused_entities` | Removes tracker entities for clients **the router no longer reports** - it cannot remove a client the router still lists, and Huawei routers keep away devices for months. **Commits immediately with no preview**; run the Clean up unused entities action first for a dry run. Nothing is removed while the router has not answered. |
+| Total Connected | Sensor | `total_connected` | Every client the router currently reports as connected, wired and wireless together. WiFi Connected and Wired Connected are its two halves. |
+| WiFi Connected | Sensor | `wifi_users` | Clients currently associated over WiFi, across all radios and SSIDs including the guest network. |
+| Wired Connected | Sensor | `wired_connected` | Clients currently connected over the wired LAN ports. Together with WiFi Connected it accounts for Total Connected, so a difference between the three is a client the router classifies as neither. |
+
+## Data (24)
+
+| Entity | Platform | Key | Note |
+| :-- | :-- | :-- | :-- |
+| Data Plan Enabled | Binary sensor | `data_plan_enabled` | Whether the router's monthly data plan is switched on. With it off the monthly counters never roll over, so Projected Usage reports nothing rather than projecting against a cycle the router is not keeping. |
+| Clear Traffic Statistics | Button | `clear_traffic` | Resets the router's traffic statistics to zero. **Irreversible** - the lifetime and monthly counters are held on the router, not here, so nothing in Home Assistant can restore them. It sets Counters Last Reset; it does not change Billing Cycle Day. |
+| Alert Threshold | Sensor | `alert_threshold` | The percentage of the allowance at which the router raises its own usage warning. A router-side setting; it does not affect this integration's entities. |
+| Billing Cycle Day | Sensor | `billing_cycle_day` | Day of the month the router rolls its monthly counters over. This is the **billing boundary**; Counters Last Reset is the separate, manual clear and the two are routinely months apart. |
+| Counters Last Reset | Sensor | `counters_last_reset` | When the traffic counters were last cleared **manually**. This is not the billing boundary - Billing Cycle Day is - and a date here months old alongside a monthly counter days old is the normal state, not a contradiction. |
+| Connection Download | Sensor | `current_connection_download` | Bytes downloaded during the current data session. It resets whenever the connection drops and reconnects, which is more often than the monthly counters reset. |
+| Connection Upload | Sensor | `current_connection_upload` | Bytes uploaded during the current data session, resetting with each reconnection. |
+| Day Used | Sensor | `current_day_used` | Total bytes used today, as the router counts a day. Recorded as a `total_increasing` counter so its daily reset is understood as a rollover rather than as a large negative step. |
+| Download Rate | Sensor | `current_download_rate` | Instantaneous download rate as the router reports it at the moment of the poll. It is a sample, not an average, so between polls it sees nothing - short bursts of traffic can pass entirely unrecorded. |
+| Upload Rate | Sensor | `current_upload_rate` | Instantaneous upload rate sampled at the moment of the poll. As with the download rate, traffic between polls is not seen. |
+| Data Allowance | Sensor | `data_allowance` | The monthly data allowance configured **on the router**, in bytes. It is whatever was typed into the router's own data-plan page, not anything the operator confirms, so it is only as accurate as that entry. |
+| Day Connected Time | Sensor | `day_connected_time` | Connected time so far today. Like Month Connected Time it counts link-up seconds, not elapsed seconds. |
+| Max Download Rate | Sensor | `max_download_rate` | The highest download rate the router has recorded. Not populated by the H165-383 firmware, which is why the entity is disabled by default rather than removed. |
+| Max Upload Rate | Sensor | `max_upload_rate` | The highest upload rate the router has recorded. Like Max Download Rate it is unpopulated on current firmware and disabled by default. |
+| Month Connected Time | Sensor | `month_connected_time` | **Connected** time this billing cycle, not elapsed time. It stops advancing while the link is down, so it is not the denominator behind Projected Usage - that uses wall-clock time from the cycle start. The two agree only on a connection that never drops. |
+| Month Download | Sensor | `month_download` | Bytes downloaded in the current billing cycle, counted by the router against the cycle start day it has been configured with - not against the calendar month. |
+| Month Download (GB) | Sensor | `month_download_gb` | Month Download expressed in GB for convenience. The same underlying counter as Month Download, rounded - not a second measurement, so the two can never disagree by more than the rounding. |
+| Month Total | Sensor | `month_total` | Download plus upload for the current billing cycle. This is the figure a data allowance is usually measured against, and it is the input to Projected Usage. |
+| Month Upload | Sensor | `month_upload` | Bytes uploaded in the current billing cycle, counted by the router against its configured cycle start day rather than the calendar month. |
+| Month Upload (GB) | Sensor | `month_upload_gb` | Month Upload expressed in GB. The same counter as Month Upload, rounded. |
+| Projected Usage | Sensor | `projected_usage` | An estimate of where this cycle's usage will finish, not a measurement. Early in a cycle it rests mostly on the previous cycle's rate and later mostly on this one's - the `confidence` attribute is how to judge which. It deliberately carries **no state class**, so nothing about a forecast enters long-term statistics; the usage behind it is already there via Month Total. |
+| Total Data | Sensor | `total_data` | Lifetime download plus upload since the traffic statistics were last cleared. The Clear Traffic Statistics button is what resets it. |
+| Total Download | Sensor | `total_download` | Lifetime bytes downloaded, as counted since the router's traffic statistics were last cleared - not since manufacture. |
+| Total Upload | Sensor | `total_upload` | Lifetime bytes uploaded since the traffic statistics were last cleared. |
+
+## SMS (18)
+
+| Entity | Platform | Key | Note |
+| :-- | :-- | :-- | :-- |
+| SMS Storage Full | Binary sensor | `sms_storage_full` | On when message storage has no room left. A full store makes the network stop delivering new messages, and nothing else in the integration reports that - which is the whole reason this entity exists. |
+| Last Msg | Sensor | `last_sms` | The text of the most recent message. Its sender, timestamp and index are attributes, all excluded from the recorder: republishing a phone number on every poll is both a storage cost and a privacy one. |
+| Capacity (Device) | Sensor | `sms_capacity_device` | How many messages the router's own memory can hold. Compare with Total (Device): reaching it is what makes SMS Storage Full turn on, and a full store silently drops incoming messages. |
+| Capacity (SIM) | Sensor | `sms_capacity_sim` | How many messages the SIM card can hold. SIM storage is typically an order of magnitude smaller than the router's own, so it fills first and is usually what triggers SMS Storage Full. |
+| Deleted (Device) | Sensor | `sms_deleted_device` | Messages marked deleted but not yet purged from the router's memory. They can still occupy storage until the router reclaims it. |
+| Drafts (Device) | Sensor | `sms_drafts_device` | Unsent drafts held in the router's memory. They occupy the same storage as received messages, so drafts left behind reduce the room available for incoming ones. |
+| Drafts (SIM) | Sensor | `sms_drafts_sim` | Unsent drafts held on the SIM card. As with the device store, drafts consume the same space that incoming messages need. |
+| Inbox (Device) | Sensor | `sms_inbox_device` | Received messages held in the router's own memory, read and unread together. Unread (Device) is the subset still waiting to be looked at. |
+| Inbox (SIM) | Sensor | `sms_inbox_sim` | Received messages held on the SIM card, read and unread together. Where a message lands depends on the router's storage preference, not on the sender. |
+| Total (SIM) | Sensor | `sms_messages_sim` | Messages stored on the SIM card across every folder - inbox, outbox and drafts. The SIM-side counterpart to Total (Device). |
+| In Process | Sensor | `sms_new` | Messages the router reports as newly arrived and not yet filed. A transient count that normally settles to zero within a poll or two - it is not the same as Unread Msg, which persists until the message is read. |
+| Outbox (Device) | Sensor | `sms_outbox_device` | Sent messages retained in the router's memory. These occupy the same storage as received ones, so a full outbox blocks incoming messages just as effectively. |
+| Outbox (SIM) | Sensor | `sms_outbox_sim` | Sent messages retained on the SIM card. Retained copies occupy the same limited storage as received messages, so an unpruned outbox can block delivery. |
+| Total (Device) | Sensor | `sms_total` | Messages stored in the router's own memory. Its attributes break the same storage down by read, unread, sent, outbox and draft, which is what makes a filling mailbox diagnosable before it is full. |
+| Total Msg | Sensor | `sms_total_msg` | Every message in every storage location - inbox, outbox and drafts, on both the device and the SIM. The widest of the SMS counts. |
+| Unread Msg | Sensor | `sms_unread` | Unread messages across both the device and the SIM. The two per-location entities add up to this one. |
+| Unread (Device) | Sensor | `sms_unread_device` | Unread messages stored in the router's own memory. Part of the Unread Msg total, which adds this to the SIM-side count. |
+| Unread (SIM) | Sensor | `sms_unread_sim` | Unread messages stored on the SIM card. Part of the Unread Msg total, which adds this to the device-side count. |
 
 ## Signal (58)
 
@@ -130,57 +138,59 @@ The device tracker has no entity description — one entity is created per disco
 | LTE Transmit Power | Sensor | `transmit_power` | The router's own LTE transmit power. High values mean the router is shouting to be heard, so this reflects distance and obstruction on the **uplink** and says nothing about downlink quality. Multi-carrier firmware reports a compound string (`PPusch:12dBm PPucch:5dBm`), which is passed through unparsed rather than half-parsed - the guard band therefore applies only to the single-number case. |
 | LTE Uplink MCS | Sensor | `uplink_mcs` | Modulation and Coding Scheme index chosen for the LTE uplink. As with the downlink figure it is a scheduler decision, not a measurement. |
 
-## Data (24)
+## System (49)
 
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
-| Data Plan Enabled | Binary sensor | `data_plan_enabled` | Whether the router's monthly data plan is switched on. With it off the monthly counters never roll over, so Projected Usage reports nothing rather than projecting against a cycle the router is not keeping. |
-| Clear Traffic Statistics | Button | `clear_traffic` | Resets the router's traffic statistics to zero. **Irreversible** - the lifetime and monthly counters are held on the router, not here, so nothing in Home Assistant can restore them. It sets Counters Last Reset; it does not change Billing Cycle Day. |
-| Alert Threshold | Sensor | `alert_threshold` | The percentage of the allowance at which the router raises its own usage warning. A router-side setting; it does not affect this integration's entities. |
-| Billing Cycle Day | Sensor | `billing_cycle_day` | Day of the month the router rolls its monthly counters over. This is the **billing boundary**; Counters Last Reset is the separate, manual clear and the two are routinely months apart. |
-| Counters Last Reset | Sensor | `counters_last_reset` | When the traffic counters were last cleared **manually**. This is not the billing boundary - Billing Cycle Day is - and a date here months old alongside a monthly counter days old is the normal state, not a contradiction. |
-| Connection Download | Sensor | `current_connection_download` | Bytes downloaded during the current data session. It resets whenever the connection drops and reconnects, which is more often than the monthly counters reset. |
-| Connection Upload | Sensor | `current_connection_upload` | Bytes uploaded during the current data session, resetting with each reconnection. |
-| Day Used | Sensor | `current_day_used` | Total bytes used today, as the router counts a day. Recorded as a `total_increasing` counter so its daily reset is understood as a rollover rather than as a large negative step. |
-| Download Rate | Sensor | `current_download_rate` | Instantaneous download rate as the router reports it at the moment of the poll. It is a sample, not an average, so between polls it sees nothing - short bursts of traffic can pass entirely unrecorded. |
-| Upload Rate | Sensor | `current_upload_rate` | Instantaneous upload rate sampled at the moment of the poll. As with the download rate, traffic between polls is not seen. |
-| Data Allowance | Sensor | `data_allowance` | The monthly data allowance configured **on the router**, in bytes. It is whatever was typed into the router's own data-plan page, not anything the operator confirms, so it is only as accurate as that entry. |
-| Day Connected Time | Sensor | `day_connected_time` | Connected time so far today. Like Month Connected Time it counts link-up seconds, not elapsed seconds. |
-| Max Download Rate | Sensor | `max_download_rate` | The highest download rate the router has recorded. Not populated by the H165-383 firmware, which is why the entity is disabled by default rather than removed. |
-| Max Upload Rate | Sensor | `max_upload_rate` | The highest upload rate the router has recorded. Like Max Download Rate it is unpopulated on current firmware and disabled by default. |
-| Month Connected Time | Sensor | `month_connected_time` | **Connected** time this billing cycle, not elapsed time. It stops advancing while the link is down, so it is not the denominator behind Projected Usage - that uses wall-clock time from the cycle start. The two agree only on a connection that never drops. |
-| Month Download | Sensor | `month_download` | Bytes downloaded in the current billing cycle, counted by the router against the cycle start day it has been configured with - not against the calendar month. |
-| Month Download (GB) | Sensor | `month_download_gb` | Month Download expressed in GB for convenience. The same underlying counter as Month Download, rounded - not a second measurement, so the two can never disagree by more than the rounding. |
-| Month Total | Sensor | `month_total` | Download plus upload for the current billing cycle. This is the figure a data allowance is usually measured against, and it is the input to Projected Usage. |
-| Month Upload | Sensor | `month_upload` | Bytes uploaded in the current billing cycle, counted by the router against its configured cycle start day rather than the calendar month. |
-| Month Upload (GB) | Sensor | `month_upload_gb` | Month Upload expressed in GB. The same counter as Month Upload, rounded. |
-| Projected Usage | Sensor | `projected_usage` | An estimate of where this cycle's usage will finish, not a measurement. Early in a cycle it rests mostly on the previous cycle's rate and later mostly on this one's - the `confidence` attribute is how to judge which. It deliberately carries **no state class**, so nothing about a forecast enters long-term statistics; the usage behind it is already there via Month Total. |
-| Total Data | Sensor | `total_data` | Lifetime download plus upload since the traffic statistics were last cleared. The Clear Traffic Statistics button is what resets it. |
-| Total Download | Sensor | `total_download` | Lifetime bytes downloaded, as counted since the router's traffic statistics were last cleared - not since manufacture. |
-| Total Upload | Sensor | `total_upload` | Lifetime bytes uploaded since the traffic statistics were last cleared. |
-
-## SMS (18)
-
-| Entity | Platform | Key | Note |
-| :-- | :-- | :-- | :-- |
-| SMS Storage Full | Binary sensor | `sms_storage_full` | On when message storage has no room left. A full store makes the network stop delivering new messages, and nothing else in the integration reports that - which is the whole reason this entity exists. |
-| Last Msg | Sensor | `last_sms` | The text of the most recent message. Its sender, timestamp and index are attributes, all excluded from the recorder: republishing a phone number on every poll is both a storage cost and a privacy one. |
-| Capacity (Device) | Sensor | `sms_capacity_device` | How many messages the router's own memory can hold. Compare with Total (Device): reaching it is what makes SMS Storage Full turn on, and a full store silently drops incoming messages. |
-| Capacity (SIM) | Sensor | `sms_capacity_sim` | How many messages the SIM card can hold. SIM storage is typically an order of magnitude smaller than the router's own, so it fills first and is usually what triggers SMS Storage Full. |
-| Deleted (Device) | Sensor | `sms_deleted_device` | Messages marked deleted but not yet purged from the router's memory. They can still occupy storage until the router reclaims it. |
-| Drafts (Device) | Sensor | `sms_drafts_device` | Unsent drafts held in the router's memory. They occupy the same storage as received messages, so drafts left behind reduce the room available for incoming ones. |
-| Drafts (SIM) | Sensor | `sms_drafts_sim` | Unsent drafts held on the SIM card. As with the device store, drafts consume the same space that incoming messages need. |
-| Inbox (Device) | Sensor | `sms_inbox_device` | Received messages held in the router's own memory, read and unread together. Unread (Device) is the subset still waiting to be looked at. |
-| Inbox (SIM) | Sensor | `sms_inbox_sim` | Received messages held on the SIM card, read and unread together. Where a message lands depends on the router's storage preference, not on the sender. |
-| Total (SIM) | Sensor | `sms_messages_sim` | Messages stored on the SIM card across every folder - inbox, outbox and drafts. The SIM-side counterpart to Total (Device). |
-| In Process | Sensor | `sms_new` | Messages the router reports as newly arrived and not yet filed. A transient count that normally settles to zero within a poll or two - it is not the same as Unread Msg, which persists until the message is read. |
-| Outbox (Device) | Sensor | `sms_outbox_device` | Sent messages retained in the router's memory. These occupy the same storage as received ones, so a full outbox blocks incoming messages just as effectively. |
-| Outbox (SIM) | Sensor | `sms_outbox_sim` | Sent messages retained on the SIM card. Retained copies occupy the same limited storage as received messages, so an unpruned outbox can block delivery. |
-| Total (Device) | Sensor | `sms_total` | Messages stored in the router's own memory. Its attributes break the same storage down by read, unread, sent, outbox and draft, which is what makes a filling mailbox diagnosable before it is full. |
-| Total Msg | Sensor | `sms_total_msg` | Every message in every storage location - inbox, outbox and drafts, on both the device and the SIM. The widest of the SMS counts. |
-| Unread Msg | Sensor | `sms_unread` | Unread messages across both the device and the SIM. The two per-location entities add up to this one. |
-| Unread (Device) | Sensor | `sms_unread_device` | Unread messages stored in the router's own memory. Part of the Unread Msg total, which adds this to the SIM-side count. |
-| Unread (SIM) | Sensor | `sms_unread_sim` | Unread messages stored on the SIM card. Part of the Unread Msg total, which adds this to the device-side count. |
+| Integration Health | Binary sensor | `integration_health` | This **integration's** verdict on itself, not the router's: it reports the failure Home Assistant cannot see, a poll that succeeds while a whole capability is quietly missing. Its `severity`, `issues`, `degraded_capabilities`, `drift` and `last_good_update` attributes are a published contract, and it never goes unavailable. |
+| Roaming Auto-Connect | Binary sensor | `roaming_auto_connect` | Whether the router will bring up data automatically while roaming. A setting on the router, and the one that decides whether roaming charges can be incurred without anyone acting. |
+| Router Diagnostics | Binary sensor | `router_diagnostics` | The **router's** own verdict on its connection, from its one-key diagnostic. It can disagree with Integration Health, and that is not a fault: a perfectly healthy integration can faithfully report a router that cannot reach the network. The `reasons` attribute names the causes and `raw` carries the block they were read from. |
+| SIM Locked | Binary sensor | `sim_locked` | Whether SIM lock is enabled on the router. A configuration state, not an alarm: it says the router will demand a PIN, not that it is currently blocked. |
+| SIM Card Status | Binary sensor | `sim_status` | On when the SIM is **not** usable - missing, locked out, or failing to initialize. It is a `problem` sensor, so on means something is wrong; that is deliberately the opposite polarity to reading it as 'SIM present'. |
+| SIP ALG | Binary sensor | `sip_alg` | Whether the router's SIP application-layer gateway is enabled. It rewrites VoIP signaling in transit, which helps some phone systems and breaks others; there is no universally right setting. |
+| UPnP | Binary sensor | `upnp` | Whether UPnP port forwarding is enabled, letting devices on the LAN open inbound ports without being asked. Convenient for games and consoles, and a real attack surface. |
+| VoLTE | Binary sensor | `volte` | Whether VoLTE - voice carried over the LTE data channel - is available. It depends on the operator provisioning it as well as on the router supporting it, so off can be entirely correct. |
+| Reboot | Button | `reboot` | Restarts the router. Everything on the network loses its connection for a minute or two. A follow-up refresh is scheduled about sixty seconds later so the entities recover without waiting for the next poll. |
+| Reconnect | Button | `reconnect` | Drops the mobile data session and dials it again, which often re-homes the router to a different cell. The LAN and WiFi stay up. The router refuses the library's dedicated reconnect call, so this issues a disconnect followed by a connect, and schedules a follow-up refresh about twenty seconds later. |
+| Refresh Now | Button | `refresh` | Fetches from the router immediately instead of waiting for the next poll. It works **even while Pause Polling is on** - an explicit action by a person overrides the pause, while the next scheduled poll still respects it. |
+| Client Device Tracker | Device tracker | `_attr_about` | One entity per client the router has seen on the LAN or WiFi, keyed by MAC address. `home` means the router currently lists it as connected. Entities are created on first sighting and are not removed automatically, so a one-off guest device leaves a permanent entity — use the Clean up unused entities action to clear them. |
+| Polling Interval | Number | `polling_interval` | How often this integration asks the router for data, in seconds. It is saved to the config entry, so it survives a restart. Changes are debounced for two seconds so dragging the slider does not fire a poll per step; a pending change is flushed if the entity is removed mid-debounce rather than silently discarded. |
+| Preferred Network Mode | Select | `network_mode` | Restricts which radio technologies the router may use. `Auto` lets it choose. Pinning to a single mode can stabilize a marginal connection or can strand it entirely if that mode is unavailable where the router sits. Preferred Network Mode, the sensor, reads back what the router says is in force. |
+| APN | Sensor | `apn` | The access point name the active data profile is dialing. Different APNs on the same SIM can mean different addressing and different traffic treatment. |
+| APN Profile | Sensor | `apn_profile` | The name of the dial-up profile the APN comes from. The router returns its profiles out of order, so the active one is resolved by matching its index rather than by list position. |
+| Battery | Sensor | `battery` | Battery charge, on the models that have one. This router family is mains-powered in most variants, so the entity is disabled by default and stays unavailable where there is no battery. |
+| Carrier Build | Sensor | `carrier_build` | The operator-specific build identifier baked into the firmware. It identifies which carrier customization is loaded, which is what decides whether a given feature or endpoint exists at all. |
+| Country Code | Sensor | `country_code` | The country the router believes it is operating in, which governs which radio and WiFi channels it will use. |
+| Connection Duration | Sensor | `current_connection_duration` | How long the current mobile data session has been up, in seconds. Disabled by default in favor of Connection Uptime, which says the same thing as a fixed point in time. |
+| Connection Uptime | Sensor | `current_connection_timestamp` | The moment the current mobile data session was established. A reset here without a router restart means the data connection dropped and came back - the router itself stayed up. |
+| ICCID | Sensor | `iccid` | The SIM card's own serial number, which stays with the card when it moves between routers. Disabled by default and redacted from diagnostics. |
+| IMEI | Sensor | `imei` | The modem's IMEI - the identifier of the radio hardware, not of the SIM. Deliberately declared as text: given a unit or a device class, fifteen digits become scientific notation. |
+| IMSI | Sensor | `imsi` | The subscriber identity stored on the SIM. It identifies the **subscription**, unlike IMEI which identifies the hardware. Disabled by default and redacted from diagnostics downloads. |
+| Last Updated | Sensor | `last_updated` | When this integration last completed a successful poll. It reports the **integration's** health rather than the router's: a value going stale means polling has stopped, whatever the individual sensors still show. |
+| Line State | Sensor | `line_state` | The voice subsystem's own status string, read from the router's `voicebusy` block. `Idle` means no call is in progress. This is the one block in the payload that returns a bare string rather than a record. |
+| MCC MNC | Sensor | `mcc_mnc` | The mobile country and network codes of the SIM's home operator. This is the SIM's home network, which is not necessarily the network the router is registered to right now - compare with Operator Code to see roaming. |
+| Model Name | Sensor | `model_name` | The router's model as it reports it. Read once at setup and stored on the config entry, so it stays correct even when the router is unreachable. |
+| MTU | Sensor | `mtu` | Maximum transmission unit of the mobile data connection. Relevant when tunneling or when large packets stall; the operator usually sets it. |
+| Primary DNS Server | Sensor | `primary_dns` | First IPv4 DNS server the operator handed the router. Devices on the LAN are usually pointed at the router itself, which forwards here, so this is what resolves names in practice unless something overrides it. |
+| Primary IPv6 DNS Server | Sensor | `primary_ipv6_dns` | First IPv6 DNS server the operator handed the router. Blank wherever the operator provides no IPv6 service, which is the usual case on a mobile data plan. |
+| Product Name | Sensor | `product_name` | The marketing product name the firmware carries, which is often longer and friendlier than Model Name and occasionally disagrees with it. |
+| Secondary DNS Server | Sensor | `secondary_dns` | Second IPv4 DNS server the operator handed the router, used when the first does not answer. A blank value is common and is not a fault. |
+| Secondary IPv6 DNS Server | Sensor | `secondary_ipv6_dns` | Second IPv6 DNS server the operator handed the router, used when the first does not answer. Blank wherever there is no IPv6 service. |
+| Serial Number | Sensor | `serial_number` | The router's hardware serial number. An identifier: it carries no unit, no device class and no display precision, deliberately, because any one of those makes Home Assistant treat the digits as a quantity and reformat them. |
+| SIM Number | Sensor | `sim_number` | The phone number the SIM reports, where the operator has written one to the card. Many data SIMs leave this blank, which is not a fault. |
+| Supported Modes | Sensor | `supported_modes` | The radio modes this hardware and firmware combination can offer. It is the ceiling on what Preferred Network Mode can be set to, not a statement of what is in use. |
+| Software Version | Sensor | `sw_version` | Firmware version running on the router. Huawei ships the firmware and the web interface separately, so this and Web UI Version move independently and disagreeing versions are not a fault. |
+| Total Duration | Sensor | `total_connection_time` | Lifetime total of all connected time, in seconds, as the router counts it. **Connected time, not elapsed time**: it does not advance while the link is down. Disabled by default. |
+| Total Uptime | Sensor | `total_connection_timestamp` | Total Duration expressed as a point in time. It is not the date the router was first used - it is now minus the accumulated connected time, so any offline period shifts it forward. |
+| Uptime Duration | Sensor | `uptime` | How long the router has been powered on, in seconds. Disabled by default because Uptime, which expresses the same fact as a timestamp, is the better one to display. |
+| Uptime | Sensor | `uptime_timestamp` | The moment the router last started, derived by subtracting its uptime from the current time. A timestamp rather than a counter, so it stays still while the router runs instead of ticking - which is what makes it readable in history. |
+| WAN DNS | Sensor | `wan_dns` | The full IPv4 DNS server list as the WAN block reports it. Primary and Secondary DNS Server split the same information into two readable entities; this one is the unsplit source. |
+| WAN DNS IPv6 | Sensor | `wan_dns_ipv6` | The full IPv6 DNS server list as the WAN block reports it - the unsplit source behind the two IPv6 DNS entities. |
+| WAN IP Address | Sensor | `wan_ip` | The IPv4 address the operator has assigned to the router's WAN. Usually a carrier-grade NAT address rather than a publicly reachable one. |
+| WAN IPv6 Address | Sensor | `wan_ipv6` | The IPv6 address assigned to the router's WAN, where the operator provides IPv6 at all. |
+| Web UI Version | Sensor | `web_ui_version` | Version of the router's own web interface, which Huawei ships and updates separately from the firmware - the two versions moving independently is normal. |
+| Mobile Data | Switch | `mobile_data` | Turns the mobile data connection on or off. The LAN and WiFi are unaffected, so this does not disconnect local devices from each other - only from the internet. A refusal by the router raises an error rather than reporting an unearned success. |
+| Pause Polling | Switch | `pause_polling` | Stops the scheduled polling without removing the integration. Entities hold their last values rather than going unavailable. Explicit actions - Refresh Now, and the refresh after a control change - still reach the router while this is on. |
 
 ## WiFi (7)
 
@@ -194,22 +204,7 @@ The device tracker has no entity description — one entity is created per disco
 | WiFi | Switch | `wifi` | Turns the router's WiFi radios on or off. It switches the **radios** themselves, not the individual SSIDs - with the radio off, the per-SSID settings still read as enabled and mean nothing. |
 | Guest Network | Switch | `wifi_guest_network` | Turns the guest network on or off. The `ssid` attribute names the network being controlled. Worth knowing before leaving it on: on this hardware the guest SSID is configured open, so an unattended `on` is an unauthenticated network on air. |
 
-## Clients (4)
-
-| Entity | Platform | Key | Note |
-| :-- | :-- | :-- | :-- |
-| Clean up unused entities | Button | `cleanup_unused_entities` | Removes tracker entities for clients **the router no longer reports** - it cannot remove a client the router still lists, and Huawei routers keep away devices for months. **Commits immediately with no preview**; run the Clean up unused entities action first for a dry run. Nothing is removed while the router has not answered. |
-| Total Connected | Sensor | `total_connected` | Every client the router currently reports as connected, wired and wireless together. WiFi Connected and Wired Connected are its two halves. |
-| WiFi Connected | Sensor | `wifi_users` | Clients currently associated over WiFi, across all radios and SSIDs including the guest network. |
-| Wired Connected | Sensor | `wired_connected` | Clients currently connected over the wired LAN ports. Together with WiFi Connected it accounts for Total Connected, so a difference between the three is a client the router classifies as neither. |
-
-## Device tracker
-
-One entity per discovered client, so the note is set on the class rather than on a description:
-
-| Entity | Platform | Key | Note |
-| :-- | :-- | :-- | :-- |
-| Tracked Device | Device tracker | `_attr_about` | One entity per client the router has seen on the LAN or WiFi, keyed by MAC address. `home` means the router currently lists it as connected. Entities are created on first sighting and are not removed automatically, so a one-off guest device leaves a permanent entity — use the Clean up unused entities action to clear them. |
+<!-- GENERATED:end -->
 
 ## Version Control
 

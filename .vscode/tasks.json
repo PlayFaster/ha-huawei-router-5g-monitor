@@ -53,6 +53,17 @@
       "type": "shell"
     },
     {
+      "command": "[ \"${config:project.category}\" = \"theme\" ] && echo \"[Skipped: integration only]\" || { python3 .workbench/check_sensor_manifest.py; }",
+      "label": "Sensor: Check Manifest",
+      "presentation": {
+        "clear": true,
+        "panel": "dedicated",
+        "reveal": "always"
+      },
+      "problemMatcher": [],
+      "type": "shell"
+    },
+    {
       "command": "mkdir -p .reports && check-jsonschema --schemafile .validate/hacs_schema.json hacs.json | tee .reports/hacs_validation.txt; echo \"\"; if grep -q \"ok -- validation done\" .reports/hacs_validation.txt 2>/dev/null; then echo -e \"\\033[1;32m✔  HACS: PASSED\\033[0m\"; else echo -e \"\\033[1;31m✖  HACS: FAILED\\033[0m\"; fi",
       "label": "HACS: Verify Manifest",
       "presentation": {

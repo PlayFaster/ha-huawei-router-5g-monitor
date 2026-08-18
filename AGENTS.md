@@ -18,7 +18,7 @@ A Home Assistant custom component (HACS integration) for monitoring Huawei LTE/5
 
 Entities are grouped into six logical sub-devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients**. It also exposes SMS service actions.
 
-> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and kept current against live HA by `sensor_review.md`. This file deliberately carries no entity counts or service descriptions.
+> **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and synchronized from code descriptions via `python .workbench/check_sensor_manifest.py --sync-docs` (and validated against live HA via `--verify-ha`). This file deliberately carries no entity counts or service descriptions.
 
 ## Commands
 
