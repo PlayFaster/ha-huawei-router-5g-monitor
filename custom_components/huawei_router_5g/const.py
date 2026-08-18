@@ -36,6 +36,43 @@ REQUEST_TIMEOUT = 10
 # since 2026-08-18 they run with the lock released.
 LOCK_TIMEOUT = 60
 
+# The fetch's own deadline, checked between endpoints inside `_fetch`.
+#
+# `FETCH_TIMEOUT` is imposed from **outside** the work by `asyncio.timeout`, so
+# it can only ever abandon a poll — never stop it, never salvage it — and
+# abandoning orphans the worker thread, because `asyncio.to_thread` cannot be
+# cancelled. Three endpoints each hitting their own `REQUEST_TIMEOUT` reach the
+# batch budget on a router that is otherwise healthy.
+#
+# So the fetch enforces its own budget from the inside and returns what it has.
+# `device_information` is fetched first, so the critical block is always
+# present, and the endpoints skipped flow into the existing
+# degraded-capabilities machinery instead of being thrown away with the rest.
+#
+# **Derived, not chosen.** The deadline is checked *between* endpoints, so a
+# check passing at the last moment can still be followed by one request taking
+# its full timeout. Hence `deadline + longest single request = the backstop`,
+# which makes the two constants coherent by construction rather than by luck.
+# `asyncio.timeout(FETCH_TIMEOUT)` stays exactly where it is, and should now
+# never fire.
+FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT
+
+# Longest a write may run before the caller stops waiting for it.
+#
+# No write path had an outer timeout, and a write's `asyncio.to_thread` cannot
+# be cancelled — so a hung write held the API lock with nothing able to release
+# it. Every other caller would then fail loudly at `LOCK_TIMEOUT` while the
+# integration stayed unusable until a reload. Cancelling the *await* unwinds
+# through `_locked`, whose `finally` releases the lock, so one write fails
+# instead of the session.
+#
+# **This does not stop the write.** The command has already gone to the router
+# and may well apply; only the waiting stops. That is why expiry is reported as
+# unverified rather than failed — Section 22's third outcome — and why the
+# bound is generous: `set_net_mode` legitimately runs the settle plus a
+# read-back, around 25 s, and nothing healthy should approach this.
+WRITE_TIMEOUT = 120
+
 # Seconds a liveness probe may take. One endpoint on a brand-new connection,
 # so `REQUEST_TIMEOUT` plus the login round trip is the whole budget.
 PROBE_TIMEOUT = 20
@@ -50,12 +87,7 @@ PROBE_TIMEOUT = 20
 # live orphans it permanently with no UI path to clear it.
 REPAIR_AUTH_FAILED = "auth_failed"
 REPAIR_CONN_ERROR = "conn_error"
-REPAIR_SELF_RECOVERED = "self_recovered"
-REPAIR_NAMES: tuple[str, ...] = (
-    REPAIR_AUTH_FAILED,
-    REPAIR_CONN_ERROR,
-    REPAIR_SELF_RECOVERED,
-)
+REPAIR_NAMES: tuple[str, ...] = (REPAIR_AUTH_FAILED, REPAIR_CONN_ERROR)
 
 # --- Section 19: Integration Health ------------------------------------------
 #

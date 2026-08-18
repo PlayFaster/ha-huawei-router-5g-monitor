@@ -29,7 +29,6 @@ from .const import (
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
     REPAIR_NAMES,
-    REPAIR_SELF_RECOVERED,
     SIGNAL_CONTRACT_KEYS,
 )
 from .helpers import get_router_model, parse_sms_list
@@ -110,6 +109,9 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # keeps the probe to once per exhausted strike budget — this router
         # permits one login, so a probe per poll would cause outages rather
         # than diagnose them.
+        # `True` the fault is ours, `False` the router is unreachable, and
+        # `None` either not yet probed or the router refused a second session —
+        # alive, but with nothing to say about which end is at fault.
         self._fault_is_local: bool | None = None
         self._probe_done = False
         # Mode codes the router says it accepts, populated once after login.
@@ -216,6 +218,20 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         elapsed = time.monotonic() - started
         self._fault_is_local = alive
 
+        if alive is None:
+            # The router refused a second session. It is answering — it has to
+            # be, to refuse — but nothing here can say whether the established
+            # path is at fault. Rebuild anyway: a connection we cannot vouch
+            # for is worth replacing, and the next poll re-establishes it.
+            _LOGGER.warning(
+                "%s: the router refused a second session after %.2fs, so which "
+                "end is at fault is undetermined. Rebuilding the connection.",
+                self.entry.title,
+                elapsed,
+            )
+            await self.api.invalidate()
+            return
+
         if not alive:
             _LOGGER.warning(
                 "%s: a fresh connection to the router also failed after %.2fs; "
@@ -233,16 +249,6 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             elapsed,
         )
         await self.api.invalidate()
-        ir.async_create_issue(
-            self.hass,
-            DOMAIN,
-            f"{REPAIR_SELF_RECOVERED}_{self.entry.entry_id}",
-            is_fixable=False,
-            is_persistent=False,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key="self_recovered",
-            translation_placeholders={"entry_title": self.entry.title},
-        )
 
     def update_health(
         self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
@@ -335,6 +341,14 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 snapshot["issues"].append(
                     "A fresh connection to the router also failed; the router "
                     "is not reachable from Home Assistant."
+                )
+            elif self._probe_done:
+                # Probed, and the router refused a second session. Reported
+                # rather than dropped: "it refused us" is a different fact from
+                # "we never asked", and only the latch tells them apart.
+                snapshot["issues"].append(
+                    "The router refused a second connection, so which end is "
+                    "at fault could not be determined."
                 )
             return snapshot
 
@@ -519,7 +533,13 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 # connection, for ever — the reason a single deadlock survived
                 # until Home Assistant was restarted.
                 await self.api.invalidate()
-            if self.data is not None and self.consecutive_failures <= 3:
+            # `<=` against the same constant `_compute_health` uses `>=` on,
+            # so the two sit one poll apart on purpose: health reports `error`
+            # on the third failure, entities go unavailable on the fourth.
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 _LOGGER.warning(
                     "%s: Fetch failed due to %s (failure %d/3), "
                     "holding last known values.",
@@ -566,7 +586,13 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         except Exception as err:
             self.consecutive_failures += 1
-            if self.data is not None and self.consecutive_failures <= 3:
+            # `<=` against the same constant `_compute_health` uses `>=` on,
+            # so the two sit one poll apart on purpose: health reports `error`
+            # on the third failure, entities go unavailable on the fourth.
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 _LOGGER.warning(
                     "%s: Fetch failed (failure %d/3), holding last known values: %s",
                     self.entry.title,
@@ -636,11 +662,6 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 self.hass,
                 DOMAIN,
                 f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
-            )
-            ir.async_delete_issue(
-                self.hass,
-                DOMAIN,
-                f"{REPAIR_SELF_RECOVERED}_{self.entry.entry_id}",
             )
             # Re-arm the probe. A fault that returns must be diagnosed again.
             self._probe_done = False

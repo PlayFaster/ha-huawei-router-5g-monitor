@@ -430,9 +430,13 @@ async def test_a_reachable_router_names_the_fault_as_ours(hass_stub) -> None:
 
     assert coordinator._fault_is_local is True
 
-    # A named, actionable repair was raised for the recovered state.
+    # No repair is raised for a state the user cannot act on (Section 19).
+    # The recovery is reported in the log and the health verdict instead.
     raised = [call.args[2] for call in issue.call_args_list]
-    assert any("self_recovered" in issue_id for issue_id in raised)
+    assert not any("self_recovered" in issue_id for issue_id in raised)
+
+    # The connection was rebuilt rather than left wedged.
+    coordinator.api.invalidate.assert_awaited()
 
     # And the health verdict says which end was at fault, rather than blaming
     # a router that was answering the whole time.
@@ -479,7 +483,7 @@ async def test_the_probe_runs_once_per_exhausted_budget(hass_stub) -> None:
 
 
 @pytest.mark.asyncio
-async def test_recovery_re_arms_the_probe_and_clears_the_repair(hass_stub) -> None:
+async def test_recovery_re_arms_the_probe(hass_stub) -> None:
     """A fault that returns must be diagnosed again, not remembered as handled."""
     coordinator = _coordinator(hass_stub)
     coordinator.data = GOOD
@@ -495,5 +499,36 @@ async def test_recovery_re_arms_the_probe_and_clears_the_repair(hass_stub) -> No
 
     assert coordinator._probe_done is False
     assert coordinator._fault_is_local is None
+
+    # The transient connection repair is still cleared on recovery.
     cleared = [call.args[2] for call in deleted.call_args_list]
-    assert any("self_recovered" in issue_id for issue_id in cleared)
+    assert any("conn_error" in issue_id for issue_id in cleared)
+
+
+@pytest.mark.asyncio
+async def test_a_refused_second_session_is_inconclusive_not_a_dead_router(
+    hass_stub,
+) -> None:
+    """A router that refuses a second login is answering, so it is not down.
+
+    Reading that refusal as "unreachable" would invert the verdict the probe
+    exists to give, on a router that permits exactly one session.
+    """
+    coordinator = _coordinator(hass_stub)
+    coordinator.data = None
+    coordinator.api.get_data.side_effect = TimeoutError
+    coordinator.api.probe_liveness = AsyncMock(return_value=None)
+
+    with pytest.raises(UpdateFailed):
+        await coordinator._async_update_data()
+
+    assert coordinator._fault_is_local is None
+
+    # The connection is rebuilt anyway - one we cannot vouch for is worth
+    # replacing - and the health verdict says the question is open rather
+    # than blaming either end.
+    coordinator.api.invalidate.assert_awaited()
+    assert any(
+        "could not be determined" in text
+        for text in coordinator.health_snapshot["issues"]
+    )

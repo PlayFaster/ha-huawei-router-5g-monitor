@@ -64,6 +64,7 @@ from __future__ import annotations
 import argparse
 import asyncio
 import json
+import logging
 import os
 import pathlib
 import sys
@@ -91,6 +92,19 @@ SMS_DELIVERY_ATTEMPTS = 6
 # A reboot on the reference B535 takes well under three minutes; the budget is
 # generous because a slow return is a wait, not a failure.
 REBOOT_TIMEOUT = 300.0
+
+# Longest any single check may run before it is recorded as stalled.
+#
+# The script had no per-check timeout, so a deadlocked write hung the whole run
+# with no report written — which is exactly what the 2026-08-17 network-mode
+# deadlock would have done had the script been re-run. An operator watching it
+# would have seen the run stop and learned nothing. A timeout turns that into a
+# named failure in the report.
+#
+# Generous on purpose: `set_net_mode` settles for `NET_MODE_SETTLE` and reads
+# back, and a toggle-and-restore does two writes plus two reads. Reboot is the
+# one check that legitimately exceeds this and passes its own budget.
+CHECK_TIMEOUT = 180.0
 REBOOT_POLL = 15.0
 
 # Colour is emitted unconditionally, the way `pytest --color=yes` is used by the
@@ -320,8 +334,14 @@ async def _offer(
     name: str,
     cost: str,
     run: Any,
+    timeout: float = CHECK_TIMEOUT,
 ) -> None:
-    """Offer one attended write, stating its cost before the prompt."""
+    """Offer one attended write, stating its cost before the prompt.
+
+    The timeout is the point of this wrapper as much as the prompt is. A check
+    that hangs — a deadlocked write is the case that prompted it — would
+    otherwise stall the run with no report written at all.
+    """
     print()
     print(f"  {_cyan(name)}")
     for line in cost.splitlines():
@@ -330,7 +350,23 @@ async def _offer(
         report.skip(name, "declined")
         return
     try:
-        await run()
+        async with asyncio.timeout(timeout):
+            await run()
+    except TimeoutError:
+        # Before the broad handler: TimeoutError is an OSError, so the order
+        # here is what keeps a stall distinguishable from a device error.
+        report.record(False, name, f"stalled - no result within {timeout:.0f}s")
+    except Exception as err:  # noqa: BLE001 - the report is the error channel
+        report.record(False, name, f"{type(err).__name__}: {err}")
+
+
+async def _timed(report: Report, name: str, run: Any) -> None:
+    """Run one unattended check under the same stall guard as `_offer`."""
+    try:
+        async with asyncio.timeout(CHECK_TIMEOUT):
+            await run()
+    except TimeoutError:
+        report.record(False, name, f"stalled - no result within {CHECK_TIMEOUT:.0f}s")
     except Exception as err:  # noqa: BLE001 - the report is the error channel
         report.record(False, name, f"{type(err).__name__}: {err}")
 
@@ -515,6 +551,7 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
         f"Minutes of downtime. Waits up to {REBOOT_TIMEOUT:.0f}s for the router\n"
         "to answer again. Nothing is left in a changed state.",
         lambda: _check_reboot(api, report),
+        timeout=REBOOT_TIMEOUT + 60,
     )
 
 
@@ -701,19 +738,49 @@ async def main() -> int:
         action="store_true",
         help="also offer the writes that need a human confirming each step",
     )
+    parser.add_argument(
+        "--debug",
+        action="store_true",
+        help=(
+            "log the integration's own DEBUG output, so the write-confirmation "
+            "path is visible rather than inferred"
+        ),
+    )
     args = parser.parse_args()
+
+    if args.debug:
+        # The script verifies from the device, so it passes whether
+        # `confirm_write` returned True or None -- correct for testing the
+        # router, but it leaves the confirmation logic with no hardware
+        # verification at all. This is the only way to see which of the three
+        # outcomes actually fired.
+        logging.basicConfig(
+            level=logging.DEBUG,
+            format="%(asctime)s %(levelname)-7s %(name)s: %(message)s",
+        )
+        logging.getLogger("custom_components.huawei_router_5g").setLevel(logging.DEBUG)
 
     print()
     print(_cyan("  Huawei Router 5G - hardware check"))
     print(_dim("  Safe tier only unless --attended is given."))
+    if args.debug:
+        print(_dim("  Debug logging on - the confirmation path is visible."))
     print()
 
     api = _api()
     report = Report()
 
-    await check_login_and_read(api, report)
-    await check_read_back_endpoints(api, report)
-    await check_logout_ends_the_session(api, report)
+    await _timed(
+        report, "login and first read", lambda: check_login_and_read(api, report)
+    )
+    await _timed(
+        report, "read-back endpoints", lambda: check_read_back_endpoints(api, report)
+    )
+    await _timed(
+        report,
+        "logout ends the session",
+        lambda: check_logout_ends_the_session(api, report),
+    )
 
     if args.attended:
         await check_attended_writes(api, report)

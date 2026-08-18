@@ -584,11 +584,7 @@ async def test_unload_clears_every_repair_this_entry_raised(mock_config_entry):
 
     coordinator.clear_repairs.assert_called_once()
     # Guard the guard: the helper must actually name every repair.
-    assert set(REPAIR_NAMES) == {
-        "auth_failed",
-        "conn_error",
-        "self_recovered",
-    }
+    assert set(REPAIR_NAMES) == {"auth_failed", "conn_error"}
     assert DOMAIN == "huawei_router_5g"
 
 

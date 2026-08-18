@@ -536,10 +536,6 @@
     "conn_error": {
       "title": "Huawei router is not responding",
       "description": "Home Assistant stopped receiving data from {entry_title}. Check that the router is powered on and reachable at its configured address. This clears itself once communication is restored."
-    },
-    "self_recovered": {
-      "title": "Huawei router connection was rebuilt",
-      "description": "Home Assistant stopped receiving data from {entry_title}, but the router answered a fresh connection straight away — so the fault was in the integration's own session, not the router. The connection has been rebuilt and polling should resume on its own. If this keeps happening, reload the integration and report it."
     }
   },
   "options": {

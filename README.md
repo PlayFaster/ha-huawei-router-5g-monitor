@@ -1191,7 +1191,8 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
   - There is no immediate retry — the next attempt is the **next scheduled poll**. At the default 180-second interval, that means roughly twelve minutes of held values before entities go unavailable. Lower the Polling Interval if you want an outage reflected sooner.
 - **Auto-Recovery**: Once the router is back online, the integration restores all entities automatically.
 - **Connection Rebuild**: A poll that times out discards its connection, so the next attempt starts a fresh one rather than reusing a stale session.
-- **Which end is at fault**: After the strike budget is spent, the integration tries one call on a brand-new connection. If that answers while the established session keeps failing, the fault is its own — it says so in the log, in the Integration Health sensor and as a repair, instead of reporting a working router as unreachable.
+- **Which end is at fault**: After the strike budget is spent, the integration tries one call on a brand-new connection. If that answers while the established session keeps failing, the fault is its own — it says so in the log and in the Integration Health sensor, instead of reporting a working router as unreachable. If the router refuses a second session, that is reported as undetermined rather than blamed on either end.
+- **Partial polls**: A round of endpoint reads that overruns its budget returns what it collected rather than being discarded, so one slow capability costs that capability and not the whole update.
 
 ---
 

@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev57\] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap](#120-dev57---2026-08-18---lockup-sweep-bounded-writes-salvaged-polls-and-the-standards-that-set-the-trap)
   - [\[1.2.0-dev56\] - 2026-08-18 - Every Network-Mode Change Deadlocked the Integration](#120-dev56---2026-08-18---every-network-mode-change-deadlocked-the-integration)
   - [\[1.2.0-dev54\] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family](#120-dev54---2026-08-17---health-severity-and-strike-constants-aligned-with-the-family)
   - [\[1.2.0-dev53\] - 2026-08-17 - Documentation Reconciliation: Four False Statements](#120-dev53---2026-08-17---documentation-reconciliation-four-false-statements)
@@ -142,6 +143,31 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev57] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap
+
+The follow-on sweep from the `[1.2.0-dev56]` network-mode deadlock. `dev56` fixed the defect and the recovery gap it exposed; this closes the residual hole, corrects one thing `dev56` got wrong, and writes the findings into the shared standards — where two of them turned out to originate.
+
+Plan and evidence: `.notes/issues/login_lockup_202608/`, §13.
+
+### Added
+
+- **Write paths are bounded by `WRITE_TIMEOUT` (120 s).** The residual hole `dev56` left: no write had an outer timeout, and `asyncio.to_thread` cannot be cancelled, so a write whose worker never returned held the API lock with **nothing able to release it** — every other caller then failed at `LOCK_TIMEOUT` in turn while the integration stayed unusable until a reload. Cancelling the await unwinds through `_locked`, whose `finally` frees the lock, so the cost is one write rather than the session. **Expiry is reported as unverified, not failed**: the command reached the router and may well have applied, so `_write_deadline` logs and returns rather than raising — Section 22's third outcome, and the same reasoning `confirm_write` uses for `None`.
+- **The fetch enforces its own `FETCH_DEADLINE`, checked between endpoints.** `FETCH_TIMEOUT` is imposed from **outside** the work, so it can only abandon a poll — never stop it, never salvage it — and abandoning orphans the worker _and_ discards all 26 endpoints already collected. The fetch now returns what it has; `device_information` is fetched first, so the critical block is always present, and skipped endpoints flow into the existing degraded-capabilities machinery instead of being thrown away. **Neither timeout constant changed.** `FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT` makes the two coherent by construction — the deadline is checked between endpoints, so one request may still take its full timeout afterwards — and turns `asyncio.timeout(FETCH_TIMEOUT)` into a backstop that should never fire.
+- **`probe_liveness` has a third outcome.** A router that refuses a second session is answering — it has to be, to refuse — so returning `False` reported a live router as unreachable, inverting the verdict the probe exists to give. `None` now means undetermined; the connection is rebuilt anyway, because one we cannot vouch for is worth replacing, and Integration Health says the question is open rather than blaming either end. This hardware permits one login, so the case is real; a fresh login was nonetheless measured succeeding in 0.04 s during the lockup, so it remains the narrow path.
+- **`hardware_check.py` gained a per-check timeout and a `--debug` flag.** Against the `dev56` deadlock the script would have hung the run with **no report written at all** — the operator sees it stop and learns nothing, which is the worst outcome for the one tool that exists to catch exactly that. A stall is now a named failure; reboot keeps its own larger budget. `--debug` surfaces the integration's own logging, because the script verifies from the device and therefore passes whether the write confirmation returned `True` or `None` — correct for testing the router, but it left the confirmation path with no hardware verification at all.
+
+### Changed
+
+- **The `self_recovered` repair is removed — a partial back-out of `dev56`.** Section 19 says to keep repairs to the few conditions a user can act on, and a card announcing that the integration already fixed itself is not one. The `WARNING` log with its probe timings and the Integration Health issue text carry the same information without a dismissal chore.
+- **The two hardcoded `3`s in `coordinator.py` are now `FETCH_STRIKE_LIMIT`.** `_compute_health` already used the constant; the hold-last-values paths did not, so changing it would have moved one and not the other. The one-poll offset is deliberate and now says so at the site: health reports `error` on the third failure, entities go unavailable on the fourth.
+
+### Notes
+
+- **`dev_standards.md` 1.26.0 and `code_review.md` v1.2.0 were updated, and both were contributors to the original defect rather than bystanders.** §22 required writes to be serialised **and** confirmed by a read-back without saying the two must not nest — following both literally deadlocks a non-reentrant lock. §8 mandated the coordinator timeout and was silent on the cleanup that cancellation skips. §8 also gained the internal-deadline rule, §11 the rule that a mock must not sit on the seam under test, and §22 two hardware-script rules: re-run after any change the script's own findings caused, and give each check a timeout. `code_review.md` §6 was named for re-entrancy and covered no lock re-entrancy at all.
+- **Cross-project chores `C-016` and `C-017` are recorded only.** No work was carried out on ZTE, UniFi or WiFi, and none is authorised.
+- Suite **848 passing**, coverage **100% line and branch** (measured), ruff lint and format clean, mypy standard and strict clean, assertion audit 0 of 712, prettier and markdownlint clean.
+- **Still unverified on hardware**: the restructured `set_net_mode` read-back has not been exercised against the router since `dev56`. It is the top item for the next attended run, with `--debug`.
 
 ## [1.2.0-dev56] - 2026-08-18 - Every Network-Mode Change Deadlocked the Integration
 

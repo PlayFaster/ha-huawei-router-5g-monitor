@@ -7,6 +7,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
+    LoginErrorAlreadyLoginException,
     LoginErrorPasswordWrongException,
     LoginErrorUsernameWrongException,
     ResponseErrorException,
@@ -2171,4 +2172,101 @@ async def test_probe_liveness_reports_an_unreachable_router():
         assert await api.probe_liveness() is False
 
     # Even on failure the session it opened is released.
+    conn.requests_session.close.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# The write deadline and the fetch deadline
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_hung_write_gives_up_and_frees_the_lock():
+    """A write whose worker never returns must not hold the lock for ever.
+
+    `asyncio.to_thread` cannot be cancelled, so before this the task waited
+    indefinitely while holding `_lock`, and every later caller failed at
+    `LOCK_TIMEOUT` one after another with the integration unusable until a
+    reload.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    async def _never(*_args, **_kwargs):
+        await asyncio.sleep(3600)
+
+    with (
+        patch("asyncio.to_thread", new=_never),
+        patch("custom_components.huawei_router_5g.api.WRITE_TIMEOUT", 0.05),
+        patch("custom_components.huawei_router_5g.api._LOGGER") as mock_logger,
+    ):
+        await asyncio.wait_for(api.set_mobile_data(enable=True), timeout=5)
+
+    # The lock is free, so the next poll can run.
+    assert not api._lock.locked()
+    assert api._lock_owner is None
+
+    # And it is reported as unverified, not failed: the command reached the
+    # router and may well have applied.
+    mock_logger.warning.assert_called_once()
+    assert "may have applied" in mock_logger.warning.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_the_fetch_returns_what_it_has_when_its_deadline_expires():
+    """An overrunning poll must salvage its work, not be abandoned wholesale.
+
+    The outer `asyncio.timeout` can only cancel from outside, which throws away
+    everything collected and orphans the worker. The internal deadline stops
+    between endpoints and hands back what it has.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        # Negative, so the very first between-endpoint check trips.
+        patch("custom_components.huawei_router_5g.api.FETCH_DEADLINE", -1),
+        patch("custom_components.huawei_router_5g.api._LOGGER") as mock_logger,
+    ):
+        data = await api.get_data()
+
+    # The critical block is always present: it is fetched before any deadline
+    # check can run, which is what lets the caller survive a partial poll.
+    assert "device_information" in data
+
+    # Everything after it was skipped, not silently dropped.
+    assert "device_signal" not in data
+    mock_logger.warning.assert_called_once()
+    assert "deadline" in mock_logger.warning.call_args[0][0]
+    assert "Skipped" in mock_logger.warning.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_probe_liveness_calls_a_refused_second_session_inconclusive():
+    """A refusal is not an unreachable router - this hardware permits one login.
+
+    Returning False here would report a router that is plainly alive - alive
+    enough to refuse - as down, inverting the probe's whole purpose.
+    """
+    api = _make_api()
+    conn = MagicMock()
+    client = MagicMock()
+    client.device.information.side_effect = LoginErrorAlreadyLoginException(
+        "Already login", "108003"
+    )
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch.object(api, "_create_connection_sync", return_value=(conn, client)),
+    ):
+        assert await api.probe_liveness() is None
+
+    # The session it opened is still released.
     conn.requests_session.close.assert_called_once_with()
