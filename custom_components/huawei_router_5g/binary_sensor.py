@@ -373,10 +373,7 @@ SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 ROUTER_DIAGNOSTICS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="router_diagnostics",
     about=(
-        "The router's built-in connection diagnostic. Reports whether the router can "
-        "reach the mobile network, with specific failure causes listed in the "
-        "`reasons` attribute. Compare with Integration Health to distinguish "
-        "router-level outages from integration polling issues."
+        "The router's built-in connection diagnostic. Reports whether the router can reach the mobile network, with specific failure causes listed in the `reasons` attribute. Compare with Integration Health to distinguish router-level outages from integration polling issues."
     ),
     translation_key="router_diagnostics",
     device_class=BinarySensorDeviceClass.PROBLEM,
