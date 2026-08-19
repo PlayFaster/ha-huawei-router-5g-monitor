@@ -96,12 +96,17 @@ SELECTS: tuple[HuaweiSelectEntityDescription, ...] = (
         entity_category=EntityCategory.CONFIG,
         group="system",
         # Confirmed, but inside `api.set_net_mode` rather than here, because the
-        # router answers the write itself with `-1: Unknown` while it
-        # re-registers the radio. This description previously carried a
+        # router *sometimes* answers the write itself with `-1: Unknown` while
+        # it re-registers the radio. This description previously carried a
         # `no_confirmation` reason saying a read-back would report a refused
         # write — true only of an *immediate* read-back. After the settle delay
         # the read is reliable, and it is the only thing that can tell an
         # applied change from a refused one, since both answer `-1`.
+        #
+        # **Sometimes, not always** — this comment claimed otherwise until
+        # 2026-08-19, when the hardware check wrote `03` from `00` and the
+        # router accepted it outright. What decides it is not isolated, so the
+        # `-1` handling stays and is simply not the only path.
         value_fn=lambda data: (
             network_mode_label(data.get("net_mode", {}).get("NetworkMode"))
             if data

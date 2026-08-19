@@ -5,6 +5,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev59\] - 2026-08-19 - The Hardware Check Filed No Report](#120-dev59---2026-08-19---the-hardware-check-filed-no-report)
+  - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Is Now a Gate, Not a Readout](#120-dev58---2026-08-18---coverage-is-now-a-gate-not-a-readout)
   - [\[1.2.0-dev57\] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap](#120-dev57---2026-08-18---lockup-sweep-bounded-writes-salvaged-polls-and-the-standards-that-set-the-trap)
   - [\[1.2.0-dev56\] - 2026-08-18 - Every Network-Mode Change Deadlocked the Integration](#120-dev56---2026-08-18---every-network-mode-change-deadlocked-the-integration)
   - [\[1.2.0-dev54\] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family](#120-dev54---2026-08-17---health-severity-and-strike-constants-aligned-with-the-family)
@@ -143,6 +145,54 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev59] - 2026-08-19 - The Hardware Check Filed No Report
+
+The owner said plainly that he had no confidence in `scripts/hardware_check.py`, in either tier, **because it did not report out**. That was correct: it printed results to stdout and kept them in a list, and wrote nothing anywhere. No run could be examined afterwards, so every result it produced was a claim rather than evidence.
+
+Two checks also turned out not to be running, and one long-standing statement about the router turned out to be wrong.
+
+### Added
+
+- **Every run files a report, in both tiers, from a `finally`** — so a run that aborts half way still leaves what it had, which is when it matters most. `.reports/hardware_check_<ts>.md` carries verdicts and non-identifying evidence. `.notes/local_only/hardware_check_detail_<ts>.md` carries the identifying values — the SIM's own number, message text — and is written **only** when a check captured one, so a clean run leaves no empty file nobody knows is empty. Both directories are already gitignored.
+- **Skips are recorded as rows.** `Report.skip()` printed and returned; a skipped check therefore left no trace, and afterwards was indistinguishable from a check nobody had written.
+- **A write-coverage table in the report**, built from `scripts/write_classification.py`, so "what was not checked" is answerable from the report rather than by reading the script.
+- **`ha_contention` — the reported failure, reproduced.** Every other check calls the API object directly: one caller, no coordinator, no contention. The `[1.2.0-dev56]` deadlock needed a write competing with a live poll, which exists only inside a running Home Assistant. The check changes Preferred Network Mode over the REST API, presses Refresh **immediately**, then asserts the entity is neither `unavailable` nor stale, and restores the mode. Against the pre-fix code it would have failed. The token is read from `.notes/ha_restart/token.txt`, never from `.storage/auth`, and never reaches either report.
+- **Home Assistant's error log is diffed across that check**, and the integration's own warnings and errors reported. Verifying against the device cannot see what the host logged. No debug level is required: the outcomes that matter are `WARNING` and `ERROR`.
+- **`net_mode` added to the read-back check.** Nothing had ever confirmed the router returns `NetworkMode` in the shape `confirm_write` compares — a renamed or missing key would have made every network-mode write report _unverified_ for ever, with nothing erroring. Confirmed present on 2026-08-19.
+- **Every check records its evidence**, including restores. Only _failed_ restores left a row before, so a report showing nothing meant either a clean restore or a check that never got that far.
+
+### Changed
+
+- **The guest-WiFi check no longer skips itself.** It was gated on the WiFi radio being on, and the radio is normally off on the reference unit — so the one write touching an **open, unauthenticated** network was the least exercised in the set. It now turns the radio on, runs the toggle, and puts both back, each step its own row. Verified working the same day.
+- **The network mode is restored, and the restore is verified.** The check used to print "set it back yourself". The reasoning was that a mode the serving cell handles poorly might not come back on its own; that does not survive inspection, because the router is reached over the LAN and the LAN is not carried by the cellular mode. This was a breach of `dev_standards` §22's existing "restore in a `finally`" rule, not a gap in it.
+- **`--debug` is console noise only.** The write-confirmation outcome is now captured from the integration's own log records and reported as a check whether or not the flag is set. An opt-in flag that changed what got _verified_ made the default run the weaker one.
+
+### Fixed
+
+- **"The router always answers `-1` on a network-mode write" was false.** Recorded as unconditional since `[1.2.0-dev42]` and repeated in four places. On 2026-08-19 the check wrote `03` from `00` and the router accepted it outright, with no `-1`. The 2026-08-16 observation was the other direction. Direction, starting mode and radio state are all candidates for what decides it and **none has been isolated**. Corrected in `api.set_net_mode`, `select.py`, `docs/DEVELOPMENT.md` and `docs/huawei_how_to_access.md`; the changelog entries that recorded it are left as written, being true records of what was known at the time.
+
+### Notes
+
+- **The `-1` path is monitored, not chased.** It is covered by a unit test that was observed failing against the pre-fix code, and the hardware check reports which of the three outcomes fired on every run. There is no known way to provoke `-1` on demand, so no run should be assumed to have exercised it.
+- Six rules went into `dev_standards` §22 (**1.27.0**) and cross-project chore **C-018** was raised for `zte_router_5g` and `unifi_network_monitor`, both of which have the same script. `wifi_ssid_monitor` has none. **Recorded only — no work was done on any other project.**
+- Suite **848 passing**, coverage 100% line and branch, ruff and mypy strict clean.
+
+## [1.2.0-dev58] - 2026-08-18 - Coverage Is Now a Gate, Not a Readout
+
+Closes cross-project chore **C-007**, which had sat outstanding in every column.
+
+### Changed
+
+- **`fail_under = 100` added to the coverage configuration.** Until now the coverage task printed a percentage and **exited zero whatever that percentage was**, so the figure was trustworthy only while somebody read it every time. This project has already paid for that: `[1.2.0-dev47]` is titled _"Coverage Back to 100%; the New Code Was Untested"_ — two dev versions shipped largely untested code, coverage fell to 99%, and it was found later by a pass that went looking rather than at the moment of the drop. The threshold records the standing state rather than raising the bar.
+- **Edited in `dev-workbench/workbench/python/pyproject.toml` and re-synced**, never in this repository: `pyproject.toml` and `setup.cfg` are synced files and carry a header saying so. `sync_shared_files.sh` was run for **this project only**.
+
+### Notes
+
+- **Verified in both directions**, per `dev_standards` §11's "prove it fails" bar rather than assumed from the setting's presence. Full suite: `Required test coverage of 100.0% reached`, exit `0`. A deliberately partial run: `FAIL Required test coverage of 100.0% not reached. Total coverage: 16.35%`, exit `1`.
+- **The template change is family-wide, and the other three projects adopt it when they next sync** — without being asked, and with a red coverage task on the first run if any of them is not actually at 100%. Recorded in the `C-007` detail block so it is read before, not discovered after. **No other project was touched.**
+- `setup.cfg` is rewritten by the sync with the same content and LF endings; there is no content change in it.
+- Suite **848 passing**, coverage **100% line and branch** — now enforced.
 
 ## [1.2.0-dev57] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap
 

@@ -10,3 +10,4 @@ codespell==2.4.3
 mutmut==3.7.0
 
 huawei-lte-api==2.0.1
+

@@ -66,7 +66,11 @@ Roughly **90 of the library's ~240 read methods answer `100003: No rights (needs
 > - **`net.reconnect()`** — a genuine refusal. This hardware does not implement it; `dialup/dial` is used instead.
 > - **`net.set_net_mode()`** — **applied, and answered badly.** Verified 2026-08-16: from `03`, a write of `00` raised `-1`, and the router's own web interface showed Auto immediately afterwards. The radio is re-registering, so the response to the POST is as unreliable as an immediate read-back would be.
 >
-> `api.set_net_mode` therefore waits `NET_MODE_SETTLE` and re-reads `net_mode`; that read is the only thing that separates the two cases. A refused mode change answers `-1` as well and is caught by the same read-back disagreeing.
+> `api.set_net_mode` therefore waits `NET_MODE_SETTLE` and re-reads `net_mode`; that read is the only thing that separates the two cases.
+>
+> **`net_mode.NetworkMode` is confirmed present.** The hardware check reads it back on every run (`read-back net_mode.NetworkMode`), so a firmware rename of the key that `confirm_write` compares would surface immediately instead of turning every network-mode write into a permanent _unverified_.
+>
+> **`-1` is occasional, not guaranteed.** On 2026-08-19 the hardware check wrote `03` from `00` and the router accepted it outright. The 2026-08-16 observation was the other direction. What decides it has not been isolated, so code must handle both and no run should be assumed to have exercised the `-1` path. A refused mode change answers `-1` as well and is caught by the same read-back disagreeing.
 
 ### Logout — the failure that hid for a whole release line
 

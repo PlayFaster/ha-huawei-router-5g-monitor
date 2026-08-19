@@ -124,6 +124,19 @@ Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`,
 - `EntityCategory.DIAGNOSTIC`: granular infrastructure metrics (secondary bands, per-bank SMS capacity, raw durations)
 - No category (primary list): actionable or highly readable metrics (signal bars, SMS unread count, data rates)
 
+### The hardware check, and what it now guarantees
+
+`scripts/hardware_check.py` is not a test and never runs in CI — it needs the router and it writes to it. Two tiers: the default safe tier reads only; `--attended` offers each write with its cost stated and a typed confirmation.
+
+Four things to know before editing it:
+
+- **Every run files a report**, from a `finally`, in both tiers. `.reports/hardware_check_<ts>.md` carries verdicts and non-identifying evidence; `.notes/local_only/hardware_check_detail_<ts>.md` carries the identifying values and is written only when a check captured one. `Report.record()` takes the redacted form as `detail` and the identifying form as `sensitive` — it files what it is given and does not sanitise.
+- **Skips are rows, not console lines.** A skip that leaves no row is indistinguishable later from a check nobody wrote.
+- **`ha_contention` drives Home Assistant over REST**, not the API object, because a write contending with a live poll exists only inside a running instance. The token comes from `.notes/ha_restart/token.txt`; never read one from `.storage/auth`, and never let one reach either report.
+- **`--debug` is console noise only.** The write-confirmation outcome is captured from the integration's own log records and reported as a check either way — a flag that changed what got _verified_ would make the default run the weaker one.
+
+New checks must record evidence, not just a verdict, and must restore what they changed with the restore itself recorded as a row.
+
 ## Tests that will stop you
 
 These are **coverage sweeps**, not mechanism tests. Each asserts that every member of a set satisfies a property, so **it fails when the set grows** — which means the failure usually looks unrelated to whatever you just changed, and the reflex is to suppress it.

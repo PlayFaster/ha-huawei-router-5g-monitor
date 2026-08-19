@@ -757,11 +757,19 @@ class HuaweiRouter5GAPI:
     async def set_net_mode(self, mode: str) -> None:
         """Set the preferred network mode.
 
-        **The router applies the change and then answers the POST with
-        `-1: Unknown`.** Verified on a live B535 / H165-383 on 2026-08-16:
+        **The router sometimes applies the change and then answers the POST
+        with `-1: Unknown`.** Verified on a live B535 / H165-383 on 2026-08-16:
         starting from `03` (4G Only), a write of `00` (Auto) raised, and the
         router's own web interface showed Auto immediately afterwards. The same
         error surfaces in Home Assistant when the Network Mode select is used.
+
+        **It does not do this every time, and an earlier version of this
+        docstring said it did.** On 2026-08-19 the hardware check wrote `03`
+        from `00` and the router accepted it outright, with no `-1` at all.
+        What decides it is not established — direction, starting mode and radio
+        state are all candidates and none has been isolated. So the `-1` branch
+        below is an occasional path, not the normal one, and a run that never
+        enters it has not exercised it.
 
         The cause is the one already documented on that select: setting the mode
         drops and re-registers the radio, and the router answers abnormally
