@@ -8,6 +8,4 @@ codespell==2.4.3
 # workbench/docker/Dockerfile.
 # mutmut: local mutation testing only (not in CI or version_matrix.json).
 mutmut==3.7.0
-
 huawei-lte-api==2.0.1
-
