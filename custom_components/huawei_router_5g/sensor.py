@@ -924,22 +924,15 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         about=(
             "The router's own LTE transmit power. High values mean the router is "
             "shouting to be heard, so this reflects distance and obstruction on "
-            "the **uplink** and says nothing about downlink quality. "
-            "Multi-carrier firmware reports a compound string (`PPusch:12dBm "
-            "PPucch:5dBm`), which is passed through unparsed rather than "
-            "half-parsed - the guard band therefore applies only to the "
-            "single-number case."
+            "the **uplink** and says nothing about downlink quality. This "
+            "hardware reports a compound string naming each channel "
+            "(`PPusch:10dBm PPucch:11dBm ...`), passed through unparsed rather "
+            "than half-parsed."
         ),
         translation_key="transmit_power",
         group="signal",
-        # Documented in docs/value_min_max.md since the band was first written,
-        # but never actually implemented. `_parse_complex_float` returns the raw
-        # string for multi-carrier values ("PPusch:12dBm PPucch:5dBm"), and the
-        # guard's float() raises and passes those through untouched — so the
-        # band applies only to the simple-number case, which is the one an
-        # implausible reading appears in.
-        min_limit=-30,
-        max_limit=40,
+        # This is a compound text sensor not a power number sensor
+        # It deliberatley has No guard band
         value_fn=lambda data: _parse_complex_float(_get_signal_value(data, "txpower")),
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
@@ -1286,13 +1279,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="5g_transmit_power",
         about=(
             "The router's own 5G transmit power, with the same reading as LTE "
-            "Transmit Power: it describes the uplink effort, not the downlink."
+            "Transmit Power: it describes the uplink effort, not the downlink, "
+            "and is reported as a compound per-channel string."
         ),
         translation_key="5g_transmit_power",
         group="signal",
-        # See transmit_power — documented, never implemented.
-        min_limit=-30,
-        max_limit=40,
+        # No guard band, for the same reason as `transmit_power` above.
         value_fn=lambda data: _parse_complex_float(
             _get_signal_value(data, "nrtxpower")
         ),

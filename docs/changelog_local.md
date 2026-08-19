@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev61\] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document](#120-dev61---2026-08-19---guard-bands-on-a-text-sensor-added-to-match-a-document)
   - [\[1.2.0-dev59\] - 2026-08-19 - The Hardware Check Filed No Report](#120-dev59---2026-08-19---the-hardware-check-filed-no-report)
   - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Is Now a Gate, Not a Readout](#120-dev58---2026-08-18---coverage-is-now-a-gate-not-a-readout)
   - [\[1.2.0-dev57\] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap](#120-dev57---2026-08-18---lockup-sweep-bounded-writes-salvaged-polls-and-the-standards-that-set-the-trap)
@@ -145,6 +146,24 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev61] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document
+
+The sensor manifest check flagged `sensor.huawei_5g_signal_lte_transmit_power` and `sensor.huawei_5g_signal_5g_transmit_power` as declaring limits (`min=-30`, `max=40`) against a non-numeric live state — `PPusch:10dBm PPucch:11dBm PSrs:18dBm PPrach:21dBm`. The flag was correct, and the limits should never have existed.
+
+### Fixed
+
+- **`min_limit` and `max_limit` removed from both transmit-power sensors.** They are **text sensors** — no `native_unit_of_measurement`, no `device_class`, no `state_class` — and on this hardware the router reports a compound string naming each channel rather than a single figure. A numeric plausibility band was never appropriate for either.
+- **The band could never fire, so it described the sensors wrongly while doing nothing.** The generic guard in `native_value` casts with `float()` and passes non-numeric values through untouched. That behaviour is shared by every sensor and is not the problem; the two `about` notes and code comments explaining that the band "applies only to the single-number case" were rationalisation written after the fact for these two entries, and they are gone with it.
+- **`docs/value_min_max.md`** — both table rows removed, with a `v2.1.0` entry recording why.
+
+### Notes
+
+- **The provenance matters, because the reconciliation ran backwards.** `docs/value_min_max.md` had documented a `-30`/`40` band on both sensors since before either existed in code. `[1.1.3-dev14]` found the discrepancy and resolved it by **adding the band to the code**; the correct resolution was to delete the false claim. That document's own v2.0.0 entry records the discrepancy plainly — "it documented guard bands on Transmit Power and 5G Transmit Power that did not exist in the code" — and then implemented them anyway.
+- **`zte_router_5g` was not the source.** It has no transmit power sensor at all, so this was not an artefact of porting.
+- **What the `about` notes keep** is the half a user needs: this hardware reports a compound per-channel string, passed through unparsed rather than half-parsed. The 5G note now says so directly instead of only referring to the LTE one.
+- `sinr` and `nr_sinr` also carry `min_limit=-30` and are untouched — both are genuinely numeric.
+- **No tests, linting or coverage run for this change**, by instruction. The sensor manifest check should stop flagging both entities, since the declaration it objected to no longer exists.
 
 ## [1.2.0-dev59] - 2026-08-19 - The Hardware Check Filed No Report
 
