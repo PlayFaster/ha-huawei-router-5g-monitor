@@ -7,7 +7,8 @@
 - **38 New Entities & End-of-Cycle Forecast**: Adds broad diagnostic, system, and signal sensors across eight new router endpoints, including a Projected Usage forecast sensor.
 - **Controls & Actions**: Adds a Master Wi-Fi switch, a Reconnect button, and a device tracker cleanup action.
 - **Dynamic Network Mode Selection**: Dynamically discovers supported cellular network modes from the router (including 5G Only) while preventing accidental band resets.
-- **Resilience & Health**: Introduces an Integration Health diagnostic sensor with contract drift detection, automated follow-up refreshes after reboots, and per-request transport timeouts.
+- **Resilience & Health**: Introduces an Integration Health diagnostic sensor with 5-state severity and contract drift detection, automated follow-up refreshes after reboots, and bounded write execution.
+- **Connection Recovery & Timeouts**: Recovers gracefully from transport timeouts by invalidating wedged sessions, clearing stale sockets, and enforcing internal fetch deadlines to salvage partial polling data.
 - **Entity Identity & Guidance**: Migrates device tracker unique IDs to entry-scoped identifiers, standardizes `about` attribute guidance notes across all entities, and upgrades the underlying client library to `huawei-lte-api` 2.0.1.
 
 ### Added
@@ -17,7 +18,7 @@
 - **Master Wi-Fi Switch**: Added a master Wi-Fi radio control switch that safely toggles the 2.4 GHz and 5 GHz hardware radios.
 - **Reconnect Button**: Added a button to re-establish cellular data sessions on demand.
 - **Entity Cleanup Action**: Added a `cleanup_unused_entities` action (with dry-run preview by default) to remove stale device tracker entities left behind by transient guest devices.
-- **Integration Health Diagnostic Sensor**: Added a system health sensor that monitors endpoint availability, catches total connection outages, and alerts on firmware contract drift.
+- **Integration Health Diagnostic Sensor**: Added a system health sensor that monitors endpoint availability, catches total connection outages, provides standardized 5-state severity reporting (`ok`, `degraded`, `warning`, `error`, `unknown`), and alerts on firmware contract drift.
 - **Action Icons & Context**: Added full icon translations for all registered actions across automation and script editors.
 
 ### Changed
@@ -26,12 +27,13 @@
 - **Entity Details Guidance**: Reviewed and polished all 160 entity `about` attribute descriptions across Home Assistant entity dialogs to provide clear, standardized operational guidance and threshold interpretations.
 - **Underlying Client Library**: Updated the underlying `huawei-lte-api` library to 2.0.1, ensuring compatibility with modern SCRAM authentication and future firmware releases.
 - **Follow-Up Refresh Automation**: Pressing Reboot or Reconnect now automatically schedules an asynchronous follow-up poll when the router reconnects, including while background polling is paused.
-- **Per-Request Timeouts**: Isolated slow or unresponsive router endpoints so a single stalled query does not fail the entire coordinator update cycle.
+- **Bounded Writes & Fetch Deadlines**: Write actions and concurrency locks are strictly bounded to prevent background stalls, and polling loops enforce internal deadlines to preserve collected endpoint data during slow responses.
 - **HACS Minimum Version Requirement**: Enforced the minimum Home Assistant version requirement (2025.1.0) in HACS package metadata.
 
 ### Fixed
 
-- **5G Network Mode Mapping & Band Safety**: Added full mapping for 5G-Only mode (`08`), resolved transient `-1` confirmation errors during radio re-registration, and ensured mode changes preserve existing cellular band selections.
+- **5G Network Mode Mapping & Band Safety**: Added full mapping for 5G-Only mode (`08`), resolved transient `-1` confirmation errors during radio re-registration, executed confirmation read-backs outside concurrency locks, and ensured mode changes preserve existing cellular band selections.
+- **Connection Recovery on Timeout**: Automatically resets and closes underlying HTTP sessions on coordinator timeouts, clearing stale sockets and rebuilding fresh client sessions without requiring a Home Assistant restart.
 - **Device Tracker Multi-Router Conflicts**: Migrated device tracker unique IDs to be scoped per configuration entry, preventing entity collisions and missing client devices on setups with multiple Huawei routers.
 - **Session Logout & Traffic Reset Calls**: Corrected library method bindings for session logout and traffic counter clearing, ensuring active sessions are properly closed on reload.
 - **SMS Parsing Resilience**: Hardened inbox parsing to handle empty message indices without dropping remaining inbox items.
