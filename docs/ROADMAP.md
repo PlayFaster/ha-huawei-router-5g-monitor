@@ -117,6 +117,27 @@ Band-combine is the unknown: which block owns it has not been established, and `
 
 ---
 
+### 5G Mode select, and a sensor to read it back
+
+The router GUI offers a **5G Mode** dropdown with three values — **SA+NSA**, **NSA**, **SA** — and it is available whether Preferred Network Mode is Auto or 5G Only, as long as the router is working in 5G. Setting **SA** can cause signal loss; the owner's expectation is that the router eventually falls back to 4G, which is an observation to confirm rather than a documented behaviour.
+
+**The write path does not exist yet, and neither does the read path.** Both were checked before this entry was written:
+
+- **`huawei-lte-api` 2.0.1 has nothing for it.** A search of the whole installed package for `nrmode`, `nr5g`, `nsa` and `sa` returns no match, and `api/Net.py`'s thirteen methods cover `net-mode`, `network`, `register`, `plmn`, `cell_info`, `csps_state` and `reconnect` — none of them this.
+- **The polled `net/net-mode` block does not carry it.** On the reference H165-383 it returns exactly `NetworkMode`, `NetworkBand`, `LTEBand`, `networkOption` and `LTEBandOption`. There is no SA/NSA field and no `NRBand`, so nothing in the current twenty-six-endpoint poll can populate a sensor either.
+
+So the first task is **discovery, not implementation**: watch the router's own web interface make the change and record the endpoint and payload it posts. That is how `dialup/dial` with `Action: 0` and the `wlan/status-switch-settings` round-trip were both established, in each case after the library proved insufficient — and both now reach the router through `_session.post_set` under a reasoned `# noqa: SLF001`.
+
+**Two sensors are named in this item and only one is new.** A `preferred_network_mode` sensor already exists — a diagnostic reading `net_mode.NetworkMode` back, whose `about` note already says a disagreement with the control means the router refused or altered the request. A **5G Mode** sensor would be new, and is blocked on the same discovery as the select.
+
+**Treat the write as ATTENDED when it is built.** It re-registers the radio, so it belongs in the same tier as Preferred Network Mode: `NET_MODE_SETTLE` before any read-back, confirmation from the entity rather than inside the API lock, and no assumption that the POST answers cleanly — the router sometimes replies `-1: Unknown` to a mode write it has applied, and sometimes does not.
+
+- **Value**: ⭐⭐
+- **Effort**: Medium — small once the endpoint is known; the whole cost is the probe.
+- **Trigger**: A capture of the endpoint and payload the router's own GUI posts for this dropdown.
+
+---
+
 ## Blocked
 
 ### WLAN band locking write capability
@@ -159,6 +180,7 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 | Retire long-unseen device trackers     | ⭐⭐   | Medium         |
 | Opt out of client tracking at setup    | ⭐⭐   | Medium         |
 | Separate 2.4GHz and 5GHz WiFi switches | ⭐⭐   | Medium         |
+| 5G Mode select and read-back sensor    | ⭐⭐   | Medium         |
 
 ---
 
@@ -166,6 +188,7 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v3.2.0 | 2026-08-19 | **Added _5G Mode select, and a sensor to read it back_** under Maybe, at the owner's request. The router GUI offers SA+NSA / NSA / SA and exposes it whether Preferred Network Mode is Auto or 5G Only. **The write path was validated before the entry was written and does not exist**: `huawei-lte-api` 2.0.1 has no method for it anywhere in the package, and the polled `net/net-mode` block returns only `NetworkMode`, `NetworkBand`, `LTEBand`, `networkOption` and `LTEBandOption` — so there is no read path either, and no sensor could be populated from the current poll. The entry therefore leads with discovery: capture what the router's own web interface posts, the method that established `dialup/dial` and `wlan/status-switch-settings` once the library proved insufficient. **One correction to the request as made**: it asked for read-back sensors for both Preferred Network Mode and 5G Mode, and the first already exists — a diagnostic reading `net_mode.NetworkMode` whose `about` note already covers the control-versus-state disagreement. Only the 5G Mode sensor is new. |
 | v3.1.0 | 2026-08-17 | **Added _Opt out of client tracking at setup_** under Maybe, from the `setup_cleanup_options.md` assessment. That guide predicted Huawei was "likely most applicable" for sensor-group toggles; on inspection only one group qualifies. SMS and WiFi fail the tax-on-every-installer test — Home Assistant's own per-device disable already hides them, and the saving is two endpoints out of twenty-six on a poll measured at about one second. Clients passes on two counts a toggle can serve and disabling cannot: it is the integration's privacy surface (MAC, hostname and IP per client) and the only group whose entity count is unbounded. The entry records its dependency on _Retire long-unseen device trackers_, since both address the same sprawl from opposite ends. |
 | v3.0.0 | 2026-08-16 | **Scope corrected to features only, and the file cleared of everything else.** Two rules were wrong here and both are fixed: this is not a chore register, and there **is** a **Done** group — a roadmap item that ships moves into it, by provenance. `roadmap_format.md` was not the source of either error; it defines Done as the first of six groups and sets membership by provenance. The misreadings were local to this file. **Four entries deleted as chores, not features:** _Mutation testing_ (complete; belongs in `x_proj_chores.md`), _The `manifest.json` / changelog version convention_ (no convention needed — the manifest is pegged to the working version with no dev tracking), _The eight `FREQUENCY` entities and the unit selector_ (fixed; `state_class` removal is recorded in `changelog_local.md`, and a ZTE chore was raised for the same class of problem) and _Real-time SMS notifications via webhooks_ (the router pushes nothing, and the integration already fires an event — the entry was noise). **Done** holds only _Dynamic Polling Interval Slider_; the three chores briefly restored earlier the same day were removed again under the features-only rule. **To Be Done** is omitted, having no members. **Three feature entries added under Maybe** from `.notes/todo.md`: _New device alert_, _Retire long-unseen device trackers_ and _Separate 2.4GHz and 5GHz WiFi switches_ — the first two share a persistence requirement and are marked to be designed together, and the tracker entry records that away clients are retained by the router for four months or more, which is outside what `cleanup_unused_entities` can reach. **_Per-endpoint strike budgets_ strengthened** with ISP-lockout evidence and a widened trigger. |
 | v2.1.0 | 2026-08-14 | **Two entries removed as shipped**, per the format's direction not to keep a Done group. _Write-classification register and hardware check_ landed in `51835b6`. _Diagnostics verified against a real download_ closed in `023ace4`, after a live capture audit found four leaks the rewrite had not. |
