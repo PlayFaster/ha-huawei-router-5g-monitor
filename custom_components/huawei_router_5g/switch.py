@@ -92,9 +92,9 @@ MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
 WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="wifi",
     about=(
-        "Turns the router's WiFi radios on or off. It switches the **radios** "
-        "themselves, not the individual SSIDs - with the radio off, the "
-        "per-SSID settings still read as enabled and mean nothing."
+        "Turns the router's WiFi radios on or off. It switches the radios themselves, "
+        "not the individual SSIDs - with the radio off, the per-SSID settings still "
+        "read as enabled and mean nothing."
     ),
     translation_key="wifi",
     entity_category=EntityCategory.CONFIG,

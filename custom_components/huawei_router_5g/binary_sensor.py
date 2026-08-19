@@ -76,9 +76,9 @@ SMS_STORAGE_FULL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 WIFI_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="wifi_status",
     about=(
-        "Whether the router's WiFi is on overall. It follows the **radio**, "
-        "not the individual SSID flags: with the radio off, the per-SSID "
-        "settings still read as enabled and mean nothing."
+        "Whether the router's WiFi is on overall. It follows the radio, not the "
+        "individual SSID flags: with the radio off, the per-SSID settings still read "
+        "as enabled and mean nothing."
     ),
     translation_key="wifi_status",
     device_class=BinarySensorDeviceClass.CONNECTIVITY,
@@ -150,9 +150,9 @@ ENDC_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 ENDC_RESTRICTED_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="endc_restricted",
     about=(
-        "On when the network is **withholding** 5G from this router. It is a "
-        "network-side restriction rather than a fault at this end, and it is "
-        "the usual explanation for good signal with no 5G leg."
+        "On when the network is withholding 5G from this router. It is a network-side "
+        "restriction rather than a fault at this end, and it is the usual explanation "
+        "for good signal with no 5G leg."
     ),
     translation_key="endc_restricted",
     device_class=BinarySensorDeviceClass.PROBLEM,
@@ -189,11 +189,10 @@ ROAMING_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="integration_health",
     about=(
-        "This **integration's** verdict on itself, not the router's: it "
-        "reports the failure Home Assistant cannot see, a poll that succeeds "
-        "while a whole capability is quietly missing. Its `severity`, "
-        "`issues`, `degraded_capabilities`, `drift` and `last_good_update` "
-        "attributes are a published contract, and it never goes unavailable."
+        "Reports the health of the integration itself, flagging when polling succeeds "
+        "but specific capabilities or endpoints are missing or degraded. Provides "
+        "`severity`, `issues`, `degraded_capabilities`, `drift`, and "
+        "`last_good_update` attributes, and never goes unavailable."
     ),
     translation_key="integration_health",
     device_class=BinarySensorDeviceClass.PROBLEM,
@@ -204,10 +203,9 @@ INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 SIM_STATUS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="sim_status",
     about=(
-        "On when the SIM is **not** usable - missing, locked out, or failing "
-        "to initialize. It is a `problem` sensor, so on means something is "
-        "wrong; that is deliberately the opposite polarity to reading it as "
-        "'SIM present'."
+        "On when the SIM is not usable - missing, locked out, or failing to "
+        "initialize. It is a problem sensor, so on means something is wrong; that is "
+        "deliberately the opposite polarity to reading it as 'SIM present'."
     ),
     translation_key="sim_status",
     device_class=BinarySensorDeviceClass.PROBLEM,
@@ -375,11 +373,10 @@ SIP_ALG_DESCRIPTION = HuaweiBinarySensorEntityDescription(
 ROUTER_DIAGNOSTICS_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     key="router_diagnostics",
     about=(
-        "The **router's** own verdict on its connection, from its one-key "
-        "diagnostic. It can disagree with Integration Health, and that is not "
-        "a fault: a perfectly healthy integration can faithfully report a "
-        "router that cannot reach the network. The `reasons` attribute names "
-        "the causes and `raw` carries the block they were read from."
+        "The router's built-in connection diagnostic. Reports whether the router can "
+        "reach the mobile network, with specific failure causes listed in the "
+        "`reasons` attribute. Compare with Integration Health to distinguish "
+        "router-level outages from integration polling issues."
     ),
     translation_key="router_diagnostics",
     device_class=BinarySensorDeviceClass.PROBLEM,

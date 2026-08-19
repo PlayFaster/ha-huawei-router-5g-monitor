@@ -355,10 +355,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="last_updated",
         about=(
-            "When this integration last completed a successful poll. It reports "
-            "the **integration's** health rather than the router's: a value going "
-            "stale means polling has stopped, whatever the individual sensors "
-            "still show."
+            "When this integration last completed a successful poll. It reports the "
+            "integration's health rather than the router's: a value going stale means "
+            "polling has stopped, whatever the individual sensors still show."
         ),
         translation_key="last_updated",
         device_class=SensorDeviceClass.TIMESTAMP,
@@ -466,9 +465,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="total_connection_time",
         about=(
-            "Lifetime total of all connected time, in seconds, as the router "
-            "counts it. **Connected time, not elapsed time**: it does not advance "
-            "while the link is down. Disabled by default."
+            "Lifetime total of all connected time, in seconds, as the router counts "
+            "it. Connected time, not elapsed time: it does not advance while the link "
+            "is down. Disabled by default."
         ),
         translation_key="total_connection_time",
         native_unit_of_measurement=UnitOfTime.SECONDS,
@@ -922,12 +921,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="transmit_power",
         about=(
-            "The router's own LTE transmit power. High values mean the router is "
-            "shouting to be heard, so this reflects distance and obstruction on "
-            "the **uplink** and says nothing about downlink quality. This "
-            "hardware reports a compound string naming each channel "
-            "(`PPusch:10dBm PPucch:11dBm ...`), passed through unparsed rather "
-            "than half-parsed."
+            "The router's LTE transmit power. High values indicate higher transmission "
+            "power due to distance or obstruction on the uplink, and say nothing about "
+            "downlink quality. Reports per-channel power readings (e.g. `PPusch:10dBm "
+            "PPucch:11dBm`)."
         ),
         translation_key="transmit_power",
         group="signal",
@@ -2005,8 +2002,8 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="imsi",
         about=(
             "The subscriber identity stored on the SIM. It identifies the "
-            "**subscription**, unlike IMEI which identifies the hardware. "
-            "Disabled by default and redacted from diagnostics downloads."
+            "subscription, unlike IMEI which identifies the hardware. Disabled by "
+            "default and redacted from diagnostics downloads."
         ),
         translation_key="imsi",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -2214,11 +2211,11 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="secondary_cell_pci",
         about=(
-            "Physical Cell Identity of the aggregated secondary cell. **An "
-            "identifier, not a measurement**, despite reading as a small integer: "
-            "a rise or fall means a different cell, not a better or worse one. It "
-            "deliberately carries no unit and no state class so Home Assistant "
-            "keeps it out of long-term statistics."
+            "Physical Cell Identity of the aggregated secondary cell. An identifier, "
+            "not a measurement, despite reading as a small integer: a rise or fall "
+            "means a different cell, not a better or worse one. It deliberately "
+            "carries no unit and no state class so Home Assistant keeps it out of "
+            "long-term statistics."
         ),
         translation_key="secondary_cell_pci",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -2261,10 +2258,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="counters_last_reset",
         about=(
-            "When the traffic counters were last cleared **manually**. This is "
-            "not the billing boundary - Billing Cycle Day is - and a date here "
-            "months old alongside a monthly counter days old is the normal state, "
-            "not a contradiction."
+            "When the traffic counters were last cleared manually. This is not the "
+            "billing boundary - Billing Cycle Day is - and a date here months old "
+            "alongside a monthly counter days old is the normal state, not a "
+            "contradiction."
         ),
         translation_key="counters_last_reset",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -2277,10 +2274,10 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="month_connected_time",
         about=(
-            "**Connected** time this billing cycle, not elapsed time. It stops "
-            "advancing while the link is down, so it is not the denominator "
-            "behind Projected Usage - that uses wall-clock time from the cycle "
-            "start. The two agree only on a connection that never drops."
+            "Connected time this billing cycle, not elapsed time. It stops advancing "
+            "while the link is down, so it is not the denominator behind Projected "
+            "Usage - that uses wall-clock time from the cycle start. The two agree "
+            "only on a connection that never drops."
         ),
         translation_key="month_connected_time",
         device_class=SensorDeviceClass.DURATION,
@@ -2319,10 +2316,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="data_allowance",
         about=(
-            "The monthly data allowance configured **on the router**, in bytes. "
-            "It is whatever was typed into the router's own data-plan page, not "
-            "anything the operator confirms, so it is only as accurate as that "
-            "entry."
+            "The monthly data allowance configured on the router, in bytes. It is "
+            "whatever was typed into the router's own data-plan page, not anything the "
+            "operator confirms, so it is only as accurate as that entry."
         ),
         translation_key="data_allowance",
         device_class=SensorDeviceClass.DATA_SIZE,
@@ -2339,9 +2335,9 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="billing_cycle_day",
         about=(
-            "Day of the month the router rolls its monthly counters over. This is "
-            "the **billing boundary**; Counters Last Reset is the separate, "
-            "manual clear and the two are routinely months apart."
+            "Day of the month the router rolls its monthly counters over. This is the "
+            "billing boundary; Counters Last Reset is the separate, manual clear and "
+            "the two are routinely months apart."
         ),
         translation_key="billing_cycle_day",
         entity_category=EntityCategory.DIAGNOSTIC,
@@ -2386,12 +2382,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
     HuaweiSensorEntityDescription(
         key="projected_usage",
         about=(
-            "An estimate of where this cycle's usage will finish, not a "
-            "measurement. Early in a cycle it rests mostly on the previous "
-            "cycle's rate and later mostly on this one's - the `confidence` "
-            "attribute is how to judge which. It deliberately carries **no state "
-            "class**, so nothing about a forecast enters long-term statistics; "
-            "the usage behind it is already there via Month Total."
+            "An estimate of where this cycle's usage will finish, not a measurement. "
+            "Early in a cycle it rests mostly on the previous cycle's rate and later "
+            "mostly on this one's - the `confidence` attribute is how to judge which. "
+            "It deliberately carries no state class, so nothing about a forecast "
+            "enters long-term statistics; the usage behind it is already there via "
+            "Month Total."
         ),
         translation_key="projected_usage",
         device_class=SensorDeviceClass.DATA_SIZE,

@@ -1,6 +1,14 @@
+<!-- markdownlint-disable MD033 -->
+
 # Huawei Router 5G Monitor for Home Assistant
 
 [![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-huawei-router-5g-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/b5cb47f2b37e140da07eefd17ac19721/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-huawei-router-5g-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/commits/main)
+
+---
+
+![HRM Logo](custom_components/huawei_router_5g/brand/dark_logo.png)
+
+---
 
 A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stats, Data Usage, Client Tracking & SMS Management.
 
@@ -64,7 +72,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 **🌐 Network:**
 
-- Local network access to the router is required.
+- Local network access to the router is required. No cloud account or internet access is needed.
 
 **🏠 Home Assistant Version:**
 
@@ -73,13 +81,13 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 ## 🎯 Use Cases
 
-- **Signal Monitoring**: Near-real-time and historical 5G/LTE signal data enable the monitoring of router performance.
+- **Signal Monitoring**: Live and historical 5G/LTE signal data enable the monitoring of router performance. See [Reading Your Signal Data](#-reading-your-signal-data)
   - **Best Signal**: Use signal diagnostics (RSRP, SINR) to optimize the physical placement or orientation of your router.
   - **Performance Tracking**: Use signal history to check whether the performance from your 5G/LTE ISP is stable or changing.
-  - **Connection Quality**: Know if your router has dropped to a lower capability 4G/LTE only connection.
+  - **Connection Quality**: Know if your router has dropped to a lower-capability 4G/LTE only connection.
 - **Data Cap Management**: Create automations to get notified when your usage crosses a threshold you set (for example, as you approach your monthly data limit) to avoid unexpected overage charges on limited 5G plans.
-- **Smart SMS Gateway**: Use your router as a notification bridge; for example, forward home security alerts to your phone via SMS if your primary internet connection goes down.
-  - **Obligatory Warning**: It is _**YOUR**_ responsibility to understand whether having your Router send SMS messages is going to incur an extra charge from your ISP.
+- **Smart SMS Gateway**: Use your router as a notification bridge; for example, forward home security alerts to your mobile phone.
+  - ❗**Obligatory Warning**: It is _**YOUR**_ responsibility to understand whether having your Router send SMS messages is going to incur an extra charge from your ISP.
 
 ## ✅ Features
 
@@ -93,13 +101,27 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 ### 📡 Advanced 5G/LTE Diagnostics
 
-- **Detailed Signal Metrics**: RSRP, RSRQ, RSSI, and SINR for both the 5G NR and the LTE anchor cell.
+Track signal strength metrics (SINR, RSRP, RSRQ, RSSI), serving cell tower details, and active carrier bands — as often as every 30 seconds.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- **Detailed Signal Metrics**: SINR, RSRP, RSRQ and RSSI for both the 5G NR and the LTE anchor cell tower.
 - **RF Engineering Data**: Monitor CQI, MCS, Transmit Power, and Carrier Aggregation status.
 - **Frequency Tracking**: Active 5G/LTE bands, EARFCN, and uplink/downlink frequencies.
 
+---
+
+</details>
+
+<br>
+
 #### 📶 Reading Your Signal Data
 
-This integration reports extensive cellular radio metrics. This section explains which ones matter, what to expect, and how to optimize router placement or external antennas.
+This integration reports a lot of signal numbers. This section explains which ones matter, what to expect, and how to compare one setup (location, config) against another.
 
 <details>
 
@@ -114,14 +136,16 @@ This integration reports extensive cellular radio metrics. This section explains
 | **SINR** | _How fast will this actually go?_ | `5G SINR`, `LTE SINR` |
 | **RSRP** | _Do I have coverage at all?_      | `5G RSRP`, `LTE RSRP` |
 
-\*\*SINR (Signal Quality) is the best predictor of actual speeds. It measures usable signal against noise and interference, tracking throughput far more accurately than raw signal bars.
+**SINR (Signal Quality) is the best predictor of actual speeds.** It measures usable signal against noise and interference, tracking throughput far more accurately than raw signal bars.
 
-**RSRP (Signal Strength) is raw received power.** It tells you whether the cell tower reaches you, not how well the connection will perform.
+> **SNR and SINR** are related but separate metrics. **SNR** (Signal-to-Noise Ratio) measures the signal against background noise; **SINR** (Signal-to-Interference-plus-Noise Ratio) measures it against noise _plus_ interference from other transmitters. **This integration reports SNR**, as `LTE SNR` and `5G SNR`.
+
+**RSRP (Signal Strength) is raw received power.** It tells you whether the tower is reaching you, not how well the connection will perform.
 
 They move independently, and that is the point:
 
-- **Strong RSRP, poor SINR** — you are close to a busy or overlapping tower sector. Plenty of raw signal, but high interference. Speeds disappoint despite "full bars".
-- **Weak RSRP, good SINR** — you are far out from the tower but the sector is quiet. Often perfectly usable, and sometimes faster than the first case.
+- **Strong RSRP, poor SINR** — you are close to a busy tower. Plenty of signal, but lots of interference. Speeds disappoint despite "full bars".
+- **Weak RSRP, good SINR** — you are far out from the tower but the sector is quiet. Often perfectly usable, and sometimes faster than the first case. ![SNR vs RSRP](.github/images/huawei_5g_snr_rsrp.png)
 
 #### What the numbers mean
 
@@ -147,16 +171,18 @@ RSRP, RSRQ and RSSI are negative — **closer to zero is stronger**.
 
 > [!TIP]
 >
-> Every entity created by this integration carries an **`about`** note explaining what it measures and where to find standard threshold bands. Click the entity → **⋮ menu → Details**.
+> Every signal entity carries an **`about`** note explaining what it measures, and most also give these threshold bands. Click the entity → **⋮ menu → Details**.
 
 #### Treat these as a starting point, not a verdict
 
 What counts as "good enough" is specific to your location. A reading that would be poor for someone 500m from a mast can be entirely fine at 4km on a quiet sector, because the two are limited by different things — interference in the first case, noise in the second.
 
-The most useful questions are comparative:
+So the more useful question is almost never _"is −95 dBm good?"_. It is:
 
-- **Is this router position better than that position?**
+- **Is this position better than that position?**
 - **Is today worse than last week?**
+
+Both are comparisons, and both need readings over time rather than the number on screen right now.
 
 #### Establish your own baseline
 
@@ -171,31 +197,28 @@ Individual readings fluctuate with radio traffic. Home Assistant can average rea
 3. Select **`5G SINR`** (or **`LTE SINR`** if operating in LTE-only mode).
 4. Set characteristic to **Arithmetic mean** and max age to **15 minutes**.
 
-Use this smoothed sensor to compare different antenna orientations or monitor historical degradation over time in a History card.
+Use this smoothed sensor to compare different orientations or monitor historical degradation over time in a History card. Create a second one for RSRP if you are aligning an antenna.
 
 #### Is there one number for overall quality?
 
-Simple answer — **No**.
+Simple Answer - **No**
 
-There is no universal formula combining SINR, RSRP and RSRQ into a single score because the bottleneck depends on whether your site is noise-limited or interference-limited. The two closest indicators are:
+There is no standard formula combining SINR, RSRP and RSRQ into a single score, because the bottleneck limiting _your_ connection depends on whether your site is noise-limited or interference-limited. The two closest indicators are:
 
-- **SINR** — the best single measure of usable throughput.
-- **`Signal Bars`** (and **`5G Signal Bars`**, 0–5) — the modem's internal composite summary.
+- **SINR** — the best single indicator of usable throughput.
+- **`Signal Bars`** (0–5) — the router's own composite. Coarse and vendor-defined, but it is the manufacturer's own summary.
+
+If you want one number on a dashboard, use SINR.
 
 ---
 
 </details>
 
+<br>
+
 ### 📉 Data Usage Tracking
 
-- **Monthly Data Usage**: Track your monthly download, upload and total data usage.
-- **Session Usage**: Track your download and upload for this session/connection (i.e. since last router restart).
-- **Daily Usage**: Track your total usage (upload + download) for today.
-- **Download & Upload Speed**: Track your upload and download speeds. Note: This is valid, but only at the instant data was fetched from the router.
-
-#### Understanding the Usage Projection
-
-**Projected Usage** (`sensor.huawei_5g_data_projected_usage`) answers the question standard usage counters cannot: _am I on course to stay within or exceed my monthly data cap?_
+Monitor daily and monthly data consumption, active session totals, and upload/download speeds.
 
 <details>
 
@@ -203,14 +226,23 @@ There is no universal formula combining SINR, RSRP and RSRQ into a single score 
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
+- **Monthly Data Usage**: Track your monthly download, upload and total data usage. See the [Data Usage Alert](#-data-usage-alert) example.
+- **Session Usage**: Track your download and upload for this session/connection (i.e. since last router restart).
+- **Daily Usage**: Track your total usage (upload + download) for today.
+- **Download & Upload Speed**: Track your upload and download speeds. Note: This is valid, but only at the instant data was fetched from the router.
+
+#### Understanding the Usage Projection
+
+**Projected Usage** (`sensor.huawei_5g_data_projected_usage`) answers the question standard usage counters do not: _am I on course to stay within or exceed my allowance?_
+
 The forecast projects end-of-month usage by applying your daily run-rate across the remaining cycle days. Day 1 readings clamp conservatively to prevent early swings; accuracy increases steadily from day 2 onward.
 
 | Attribute | Meaning |
 | :-- | :-- |
 | `confidence` | `low`, `medium`, or `high` — how much of the figure rests on observed usage rather than extrapolation. Reaches `high` around a quarter of the way through a cycle. |
 | `basis` | How the estimate was calculated (e.g. `run_rate_only`). |
-| `cycle_day` | Where you are in the cycle (e.g. `12 of 31`). |
-| `cycle_start` | The date the current billing cycle began. |
+| `cycle_day` | Where you are in the cycle, e.g. `12 of 31`. |
+| `cycle_start` | The date the current cycle began. |
 | `cycle_source` | `router` when resolved from `Billing Cycle Day`, or `calendar_assumed` when defaulting to the 1st of the month. |
 
 **It is not recorded in long-term statistics** by design. It is an end-of-cycle estimate useful for live alerting rather than historical tracking (historical data volume is already tracked by **Month Total**).
@@ -224,81 +256,7 @@ condition:
       {{ state_attr('sensor.huawei_5g_data_projected_usage', 'confidence') != 'low' }}
 ```
 
-**Billing Cycle Alignment**: The calculation synchronizes with the router's **Billing Cycle Day** (`sensor.huawei_5g_data_billing_cycle_day`) if configured, automatically adjusting for varying month lengths.
-
----
-
-</details>
-
-### 📋 Essential Router Management
-
-- **Router Management**: Reboot button, Mobile Data toggle, and Guest WiFi controls.
-- **Connected Clients**: Dynamic device tracking for every discovered LAN/WLAN client.
-- **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
-- **100% Local**: No cloud account or internet access required.
-
-### 🔄 Dynamic Polling
-
-This integration features **dynamic polling**, the ability to pause polling completely or to change the polling interval.
-
-- **Pause Polling**: Switch to halt polling when you want to avoid extra network requests while managing the router's web UI.
-- **Configurable Update Interval**: Dynamically adjust the scan interval (30s to 1 hour, default `180` seconds) via a number entity or automation.
-- **Rate sensors are samples**, read at the moment of each poll — traffic between polls is not seen. The usage totals are counters and miss nothing.
-
-> [!TIP]
->
-> **Polling Interval can be controlled dynamically, via automation**
->
-> - Set it to 30 seconds during periods of heavy use, to examine connection quality or when you need to receive new SMS messages quickly, and set it higher afterwards, to avoid taxing the router and your Home Assistant database.
-
-## 🔍 What You Get
-
-This integration provides **159 entities** (some disabled by default, and a few unpopulated depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client, so the live total is higher.
-
-> [!NOTE]
->
-> Entity Visibility: To keep your Home Assistant UI clean, some entities are disabled by default. You can enable them via the Entities tab in the device settings.
-
-| Sub-Device | Entities | Entity Types | Key Metrics | Disabled by Default |
-| :-- | --: | :-- | :-- | :-- |
-| 🔧 **System** | 48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
-| 📶 **Signal** | 58 | 48 Sensors, 10 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation | 4 |
-| 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, near-real-time rates, connection usage, daily usage, data plan | 6, incl. Max Download/Upload Rate and the GB duplicates |
-| 💬 **SMS** | 18 | 17 Sensors, 1 Binary Sensor | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
-| 🛜 **WiFi** | 7 | 4 Binary Sensors, 2 Switches, 1 Sensor | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles | 1 |
-| 👥 **Clients** | 4 | 3 Sensors, 1 Button | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client** | 1 |
-| 🔩 **Actions** | 5 | — | Send, delete, bulk-delete and list SMS; clean up unused tracker entities | — |
-
-_Counts are reconciled against the code by a test — see [`docs/all_sensors.md`](docs/all_sensors.md) for the full entity list._
-
-### 🧩 Tailoring What's Monitored
-
-**Installed with its defaults, this integration needs no adjustment** — everything works out of the box. But it exposes 159 entities, and you may not want all of them. You have options.
-
-<details>
-
-<summary>
-&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
-</summary><br>
-
-#### 1. Do nothing (the easy option)
-
-If you're simply not interested in some sensors, **you don't need to do anything — just ignore them.** The overhead is minimal (a disabled entity costs nothing; even an enabled one is just a row on a card). If in doubt, leave everything as-is.
-
-#### 2. Disable sensors or sub-devices (standard Home Assistant)
-
-Use Home Assistant's built-in visibility controls — nothing specific to this integration:
-
-- **One sensor:** click the entity → **⚙️ (settings)** → turn **Enabled** off.
-- **A whole sub-device:** open its device page (e.g. _Huawei 5G Clients_) → **⋮ menu → Disable device** — this disables every entity on that card at once.
-
-Typical cases:
-
-- If you run in **Bridge Mode** or use another router for DHCP/DNS, you may have no use for the **Clients** sub-device.
-- If you never use cellular SMS, you can disable the **SMS** sub-device.
-- If you do not monitor WiFi status from HA, you can disable the **WiFi** sub-device.
-
-Disabled entities stay in the registry (greyed out) and can be re-enabled any time. This hides them from your UI; the integration still polls as normal.
+**Billing Cycle Alignment**: The calculation synchronizes with the router's **Billing Cycle Day** (`sensor.huawei_5g_data_billing_cycle_day`) if configured (and calendar month, if not set), automatically adjusting for varying month lengths.
 
 ---
 
@@ -306,22 +264,140 @@ Disabled entities stay in the registry (greyed out) and can be re-enabled any ti
 
 <br>
 
-### 📖 What Each Entity Means — the `about` Attribute
+### 📋 Essential Router Management
 
-Every entity includes an about attribute (visible in More Info dialogs and Developer Tools → States) clarifying what the metric represents, preventing confusion between similar or aggregated readings:
+Reboot router hardware directly from Home Assistant and monitor data integrity with automated self-diagnostics.
 
-| Entity | What the note tells you |
-| :-- | :-- |
-| **Primary Band** vs **LTE Band** | One is the anchor carrier, the other the full aggregation. They disagree by design. |
-| **Secondary Cell PCI** | An identifier, not a measurement, despite reading as a small integer. |
-| **Counters Last Reset** vs **Billing Cycle Day** | The manual clear, and the billing boundary. They are routinely months apart. |
-| **Month Connected Time** | Connected time, not elapsed time — and not the denominator behind Projected Usage. |
-| **Projected Usage** | An estimate. Its `confidence` attribute is how to judge it, and it deliberately carries no `state_class`. |
-| **Router Diagnostics** vs **Integration Health** | The router's verdict, and this integration's. They can disagree, and that is not a fault. |
+<details>
 
-The full list is in [`docs/about_attribute_list.md`](docs/about_attribute_list.md), which a test reconciles against the code in both directions.
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
-The note is excluded from the recorder, so it costs nothing in database size however often the entity changes.
+- **Router Management**: Reboot button, Mobile Data toggle, and Guest WiFi controls.
+- **Connected Clients**: Dynamic device tracking for every discovered LAN/WLAN client.
+- **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
+- **Self-Diagnosis**: An **Integration Health** binary sensor reports if the integration is experiencing issues, including data fetches that _succeeded_ but return nothing usable. See [Self-Diagnosis](#-self-diagnosis) and the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
+
+---
+
+</details>
+
+<br>
+
+### 🔄 Dynamic Polling
+
+This integration features **dynamic polling**, the ability to pause polling completely or to change the polling interval.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- **Pause Polling**: Switch to halt polling when you want to avoid extra network requests while managing the router's web UI.
+- **Configurable Update Interval**: Dynamically adjust the scan interval (30s to 1 hour, `180` seconds) via a number entity or automation. See the [Dynamic Polling Interval](#-dynamic-polling-interval) example.
+- **Actions Always Fetch**: Pressing **Refresh Now**, making a settings change (switch/select) or an SMS action fetches immediately **even while paused** — only scheduled polls are suppressed. See the [Morning Signal Report](#-morning-signal-report) example.
+- **Standard System Option**: Also honours Home Assistant's **System options > Enable polling for changes** toggle.
+
+![System Configuration Controls](.github/images/huawei_5g_sensor_control_info.png)
+
+---
+
+</details>
+
+<br>
+
+### 💬 SMS Management Actions
+
+With SMS count and text sensors, plus monitoring and control via events and actions, you can **send, read and delete** Router SMS messages.
+
+- See [SMS Actions](#-sms-actions) and [SMS Examples](#-sms-examples)
+
+## 🔍 What You Get
+
+This integration provides **159 entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+| Sub-Device | Entities | Entity Types | Key Metrics | Disabled by Default |
+| :-- | --: | :-- | :-- | :-- |
+| ⚙️ **System** | 48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
+| 📶 **Signal** | 58 | 48 Sensors, 10 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation | 4 |
+| 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, near-real-time rates, connection usage, daily usage, data plan | 6, incl. Max Download/Upload Rate and the GB duplicates |
+| 💬 **SMS** | 18 | 17 Sensors, 1 Binary Sensor | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
+| 🛜 **WiFi** | 7 | 4 Binary Sensors, 2 Switches, 1 Sensor | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles | 1 |
+| 👥 **Clients** | 4 | 3 Sensors, 1 Button | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client** | 1 |
+| 🔩 **Actions** | 5 | — | Send, delete, bulk-delete and list SMS; clean up unused tracker entities | — |
+
+---
+
+![Integration](.github/images/huawei_5g_integration_screen.png)
+
+---
+
+> [!TIP]
+>
+> **Not sure what a sensor does?** Most entities carry a short built-in **About** note. Click the sensor to open it, use the **⋮ (three-dots) menu → Details**, and look for the **`about`** attribute - a one-line explanation of that sensor.
+>
+> ![About Attribute Example](.github/images/huawei_5g_data_info_mini.png)
+>
+> That is where the acronyms are decoded: **RSRP**, **RSRQ**, **SINR**, **PCI**, **eNodeB**, **ENDC**, **APN** and the rest each explain themselves in place, so you do not have to look them up to read your own dashboard.
+>
+> These **About** notes - and all other attributes this integration publishes are set **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps bulky or purely-informational values from bloating your database, while maintaining visibility to the current information.
+
+---
+
+> [!NOTE]
+>
+> Entity Visibility: To keep your Home Assistant UI clean, some entities are disabled by default. You can enable them via the Entities tab in the device settings.
+
+---
+
+</details>
+
+<br>
+
+### 🧩 Tailoring What's Monitored
+
+**Installed with its defaults, this integration needs no adjustment** - everything works out of the box. But it exposes a lot, and you may not want all of it. You have options.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+### 1. Do nothing (the easy option)
+
+If you're simply not interested in some sensors, **you don't need to do anything - just ignore them.** The overhead is minimal (a disabled entity costs nothing; even an enabled one is just a row on a card). If in doubt, leave everything as-is.
+
+### 2. Disable sensors or sub-devices (standard Home Assistant)
+
+Use Home Assistant's built-in visibility controls - nothing specific to this integration:
+
+- **One sensor:** click the entity → **⚙️ (settings)** → turn **Enabled** off.
+- **A whole sub-device:** open its device page (e.g. _Huawei 5G Clients_) → **⋮ menu → Disable device** - this disables every entity on that card at once.
+
+Typical cases:
+
+- If you run in **Bridge Mode** or use another router for DHCP/DNS, you may have no use for the **Clients** sub-device.
+- If you do not monitor WiFi status from HA, you can disable the **WiFi** sub-device.
+- If you never use the Router's SMS, you may not care about the **SMS** sensors.
+- Not interested in data usage? You may not need the **Data** sub-device.
+- Not monitoring **signal metrics**? You may have no use for the **Signal** sub-device. …and so on.
+
+Disabled entities stay in the registry (greyed out) and can be re-enabled any time. This hides them from your UI; the integration still polls as normal.
+
+![Signal Sensors](.github/images/huawei_5g_signal_info.png)
+
+---
+
+</details>
 
 <br>
 
@@ -376,14 +452,28 @@ The following sensors have **no LTS** to avoid unnecessary database growth:
 > ```
 >
 > Restart Home Assistant after saving. The sensor will begin accumulating LTS from that point forward.
+>
+> The inverse is also true, setting `state_class: none` will remove a sensor from LTS. This is a legitimate tactic, if you want to see a sensors value for this week (default retention), but not for this year.
+>
+> If you want to see the current value, but have no interest in short or long term history, you can [exclude a value from the Recorder](https://www.home-assistant.io/integrations/recorder/#configure-filter).
+>
+> And of course, if a particular sensor, or group of sensors is of no interest to you, you can very easily disable it. See [What You Get](#-what-you-get) above.
+
+---
+
+> [!NOTE]
+>
+> Remember you don't **need** to do **any** of this. These are _extra_ options for the Home Assistant user who wants _extra_ control.
 
 ---
 
 </details>
 
+<br>
+
 ## 🔘 Controls & Settings
 
-Rather than hiding settings in configuration menus, several configuration parameters are exposed directly as Home Assistant control entities, allowing you to monitor and control them from dashboards or automations:
+Several settings are exposed as control entities so you can drive them from dashboards or automations, rather than reopening Configure:
 
 ### 📡 Network Settings (System Device)
 
@@ -549,20 +639,60 @@ Fires automatically when a new incoming SMS is detected. Use as an automation tr
 
 ## 💡 Example Automations
 
-Entity IDs below use the default prefix `huawei_5g`. If you set a custom name during setup, or have renamed since, replace `huawei_5g` with your configured prefix.
+> [!NOTE]
+>
+> Entity IDs are derived from your gateway/sub-device names (e.g. `sensor.huawei_5g_...`) and **may differ between installs**, or if you have renamed entities or devices. Use the entity picker in the Automation editor rather than copying the IDs below verbatim. The examples are illustrative.
 
-### 💬 SMS Examples
+---
 
-#### 📨 Forward Incoming SMS to Mobile
+> [!NOTE]
+>
+> The Automation examples below use the `note:` functionality introduced in Home Assistant 2026.6 as a way to document/comment Automations that is permanent and **not** stripped out by the editor. If using an older version of Home Assistant you may need to remove the `note:` sections.
+
+---
+
+> [!NOTE]
+>
+> Use your own preferred Automation notifier
 
 <details>
 
-<summary> &nbsp; &nbsp; This automation fires when a new SMS is detected and forwards the content to your mobile phone.<br>
+<summary>&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Notification Options:
+</summary><br>
+
+Replace
+
+```yaml
+action: persistent_notification.create
+```
+
+with
+
+```yaml
+action: notify.send_message
+target:
+  entity_id: notify.your_specific_phone
+```
+
+---
+
+</details>
+
+### 💬 SMS Examples
+
+#### 📨 Alert on Incoming SMS
+
+<details>
+
+<summary> &nbsp; &nbsp; This automation fires when a new SMS is detected and generates a notification.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
 </summary><br>
 
 ```yaml
-alias: "Huawei SMS: Forward to Mobile"
+alias: "Huawei SMS: Alert on New SMS"
+description: "Forwards the content of any newly received SMS to a notification"
+mode: queued
+max: 10
 triggers:
   - trigger: event
     event_type: huawei_router_5g_sms_received
@@ -574,11 +704,13 @@ actions:
       message: "{{ trigger.event.data.content }}"
 ```
 
+> [!NOTE]
+>
+> `mode: queued` — several messages can arrive in one poll cycle, and the default `single` mode could silently drop all but the first.
+
 ---
 
 </details>
-
-<br>
 
 #### 🧹 Automated Inbox Maintenance
 
@@ -590,6 +722,8 @@ actions:
 
 ```yaml
 alias: "Huawei SMS: Weekly Inbox Cleanup"
+description: "Deletes stored SMS weekly, keeping the five most recent"
+mode: single
 triggers:
   - trigger: time
     at: "03:00:00"
@@ -609,8 +743,6 @@ actions:
 
 </details>
 
-<br>
-
 #### 📜 Fetch and Process Inbox via Automation
 
 <details>
@@ -621,7 +753,9 @@ actions:
 
 ```yaml
 alias: "Huawei SMS: Count OTP Messages"
-triggers:
+description: "Queries the inbox on demand and counts messages from one sender"
+mode: single
+triggers::
   - trigger: time
     at: "09:00:00"
     weekday:
@@ -654,7 +788,7 @@ actions:
 
 <details>
 
-<summary> &nbsp; &nbsp; Monitor your data consumption and get notified when you approach your daily or monthly threshold.<br>
+<summary> &nbsp; &nbsp; Monitor your data consumption and get notified when you approach your daily or monthly limit.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
 </summary><br>
 
@@ -731,13 +865,11 @@ actions:
 
 </details>
 
-<br>
-
 #### 📶 Signal Quality Alert
 
 <details>
 
-<summary> &nbsp; &nbsp; Monitor for poor connection quality based on 5G NSA status, signal bars, and link quality (CQI).<br>
+<summary> &nbsp; &nbsp; Monitor for poor connection quality based on 5G status and signal metrics.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
 </summary><br>
 
@@ -1003,7 +1135,7 @@ actions:
 
 <br>
 
-#### 🔄 Dynamic Polling Interval Schedule
+#### 🔄 Dynamic Polling Interval
 
 <details>
 
@@ -1054,7 +1186,7 @@ actions:
 
 <br>
 
-#### 🔍 Morning Signal & Status Report
+#### 🔍 Morning Signal Report
 
 <details>
 
@@ -1142,34 +1274,72 @@ Standard HACS custom-repository integration update behavior:
 
 - New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
 - For Manual installs: replace the `custom_components/huawei_router_5g` folder and restart.
-- Your settings and entity customizations carry over — Configure options, connection details, renamed entities, enabled/disabled choices, and dashboards.
-- New sensors in a release (if any) appear on the first restart after updating.
+- Your settings and entity customizations carry over - Configure options, connection details, renamed entities, enabled/disabled choices, dashboards.
+- New sensors in a release (if any), appear on the first restart after updating.
 
 ---
 
 </details>
 
+<br>
+
 ## 🔧 Configuration
 
 ### 🔧 Initial Setup
 
-Setup is handled entirely via the UI. You will need the same details that you use for the router's web UI:
+Setup is handled entirely via the UI under **Settings > Devices & Services > Add Integration**.
 
-- **Host** — Router IP Address/URL (e.g., `http://192.168.8.1` — the Huawei default)
-- **Username** — Router login username (often blank for Huawei, otherwise whatever you use in the Router WebUI)
+You will need the same details that you use for the router's web UI:
+
+- **Host** — Router IP Address (e.g., 192.168.0.1)
+- **Username** — Optional. Leave blank unless your router's web page asks for one.
 - **Password** — Admin password for the router web interface, required.
 - **Name** — Custom prefix for all devices and entities (default: `Huawei 5G`). This determines entity IDs — e.g. the default produces `sensor.huawei_5g_data_month_total`. Change this if you have multiple routers or prefer a different naming scheme.
 
-### 🔩 Runtime Options
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Screenshot:
+</summary><br>
+
+![Setup](.github/images/huawei_5g_setup_info.png)
+
+---
+
+</details>
+
+<br>
+
+### 🔨 Runtime Options (Configure / Reconfigure)
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 After installation, open **Settings > Devices & Services > Huawei Router 5G Monitor > Configure** to adjust:
 
-| Option | Description |
-| :-- | :-- |
-| Name | The prefix on every device and entity. **Changing it renames all six sub-devices and reloads the integration**, which also triggers an immediate fetch. Entity IDs already created keep their original names. |
-| Host | Router URL address (change if the router's LAN IP changes). |
-| Username | Router login username. |
-| Password | Admin password. Leave blank to keep the current one; enter a value to change it. |
+#### Connection Settings
+
+| Option   | Description                                                |
+| -------- | ---------------------------------------------------------- |
+| Host     | Router IP address (change if the router's LAN IP changes). |
+| Username | Router login username.                                     |
+| Password | Admin password (update if changed on the router).          |
+| Name     | Custom prefix for all devices (default: `Huawei 5G`).      |
+
+> [!TIP]
+>
+> Changing Name on the Reconfigure screen will change the name of the Huawei devices the integration provides, but will not change the individual sensor entity names. This only happens at set-up, not reconfigure.
+
+![Reconfigure Screen](.github/images/huawei_5g_setup_info.png)
+
+---
+
+</details>
+
+<br>
 
 ## 🔩 Under the Hood - Technical Architecture
 
@@ -1296,8 +1466,6 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 
 </details>
 
-<br>
-
 ### 📊 Diagnostics & Entity Values
 
 #### ❔ **Some sensors showing "Unknown"**
@@ -1309,8 +1477,8 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 </summary><br>
 
 - Most sensors showing okay with some unknown **is expected behavior**.
-  - The integration fetches everything it can from the router API.
-  - Not every metric is provided by every ISP or network configuration.
+  - The integration fetches everything it can from the router.
+  - Not every metric is provided by every ISP, firmware or network configuration.
   - 5G NR sensors will show "Unknown" when the router is operating in LTE-only mode.
   - These sensors can be disabled to avoid clutter.
 
@@ -1361,31 +1529,133 @@ Attach this file to GitHub issues so maintainers can inspect router firmware res
 - **SMS Sanitized** — Message bodies and phone numbers are completely stripped.
 - **What stays** — firmware version, signal metrics, frequency bands, byte counters, uptime, and integration health metrics.
 
+> [!TIP]
+>
+> If you are reporting a problem on a model other than the Pro6/H165, say so in the issue. Most of this integration's cross-model support is inferred from other open-source projects rather than tested on hardware, so a diagnostics file from another router unit is genuinely valuable even when nothing is wrong.
+
+---
+
+**If setup itself is failing**, there is no config entry yet, so there is nothing to download. Capture a log instead — add this to `configuration.yaml` and restart:
+
+```yaml
+logger:
+  default: warning
+  logs:
+    custom_components.huawei_router_5g: debug
+```
+
+Logs are then visible under **Settings > System > Logs** (click **Load Full Logs**).
+
+> [!IMPORTANT]
+>
+> **Log files have NO redaction of any kind.** Nothing is stripped or pseudonymized, unlike the diagnostics file above. Review a log before pasting it anywhere.
+>
+> At `debug` this integration logs status messages, error text and the names of failing endpoints — not response payloads — so your password, session token and the **text** of your SMS messages are not written to it. Two things **can** appear: your **router's host or IP**, because HTTP error messages quote the request URL, and the **sender's number of an incoming SMS**, which is recorded at `info` level and so is present even if you never enable debug logging. The diagnostics file above removes both. Other integrations logging alongside it are another matter entirely.
+
 ---
 
 </details>
 
+#### 🔄 **I deleted and re-added the integration for a fresh start - why did my settings and history come back?**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+Because Home Assistant keeps most of it on purpose. This is **Home Assistant behavior, not something this integration controls**, and for most people it's the desirable outcome: re-add the same router and things carry on where they left off, rather than starting from nothing.
+
+| What | How long Home Assistant keeps it | On re-add |
+| :-- | :-- | :-- |
+| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely - these are never deleted | Continue unbroken |
+| **Recent detailed history** | Your recorder retention (10 days by default) | Continues |
+| **Entity IDs** (`sensor.…`) | Reused as long as nothing else has taken the name | Dashboards and automations keep working |
+| Renames, icons, areas, labels, enabled/disabled state | **30 days**, in Home Assistant's entity registry | Restored |
+
+The **30 days** applies only to that fourth row - the entity-registry customizations. Statistics aren't on a timer at all, and your entity IDs come back either way. So re-adding after a year still reconnects your graphs; you would just need to redo any renames. Restarting Home Assistant in between makes no difference to any of this.
+
+**If you actually wanted a clean slate**, Home Assistant doesn't really offer one - and in practice you rarely need it. Two supported options exist:
+
+- **Tools > Statistics** lists statistics whose entity no longer exists as _"There is no state available for this entity"_, and lets you delete them individually. Supported, immediate, no restart required.
+- The **`recorder.purge_entities`** action drops recent history for entities you name. (It does not touch long-term statistics - use the screen above for those.)
+
+Clearing the retained _entity-registry_ customizations is a different matter: it means hand-editing `.storage/core.entity_registry` with Home Assistant stopped. **Don't.** That single file holds the settings for every entity from every integration you run, and the risk of unintended damage far outweighs re-doing a few renames. Nothing about this integration needs it.
+
+> [!TIP]
+>
+> If you're re-adding to fix a problem rather than to reset data, try **⋮ > Reload** on the integration first. It re-reads everything and re-applies your settings without removing anything.
+
+Also note: an entity ID is reused unless a **different, still-existing** entity has since taken that name, in which case the new one is created as `…_2` and the old statistics stay attached to the original ID. That's uncommon and generally the result of manual renaming elsewhere - it isn't something a normal remove-and-re-add causes.
+
+---
+
+</details>
+
+<br>
+
 ## ❗ Known Limitations /❔ What's Missing?
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 - **Firmware Dependencies**: API feature availability varies by ISP and firmware builds.
 - **Connected Client Tracking**: Device trackers reflect the router's internal ARP table, which retains disconnected clients for an extended period. To remove stale entities, clear them from the router web UI and trigger the cleanup action. Per-client attributes are excluded from long-term history.
 
+---
+
+</details>
+
+<br>
+
 ## ❌ Removal
 
 To remove the integration from Home Assistant:
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 1. Go to **Settings > Devices & Services**.
 2. Find the **Huawei Router 5G Monitor** card and click into it.
 3. Click the **three dots** (⋮) next to the gear icon and select **Delete**.
 4. Confirm deletion.
 
+> [!NOTE]
+>
+> This integration's entities and devices are removed when the entry is deleted.
+>
+> Home Assistant keeps your recorded history and entity customizations independently, so re-adding later picks up much where it left off. If that matters to you, see [why settings and history come back](#-i-deleted-and-re-added-the-integration-for-a-fresh-start---why-did-my-settings-and-history-come-back).
+
+---
+
+</details>
+
+<br>
+
 To fully uninstall (HACS):
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 1. Go to **HACS**.
 2. Find **Huawei Router 5G Monitor** and click into it.
 3. Click the **three dots** (⋮) at the top right and select **Remove**.
-4. Restart Home Assistant.
-5. Home Assistant automatically removes all associated entities and device entries from the registry when the integration is deleted.
+4. **Restart** Home Assistant.
+
+---
+
+</details>
+
+<br>
 
 ## 📝 Maintenance Status
 
@@ -1406,10 +1676,14 @@ Support and updates are provided on a **"best-effort"** basis only. While I use 
 This integration stands on the shoulders of several excellent open-source projects:
 
 - 🙏 **Home Assistant Core — Huawei LTE Integration** (@scop, @fphammerle, @joostlek, and contributors): The architectural foundation this component builds upon. The core integration is the right choice for most users — this component extends it for a specific niche. A huge thanks for the years of work that went into it.
+
 - 🙏 **[huawei-lte-api](https://github.com/Salamek/huawei-lte-api)** (@Salamek and contributors): The underlying API library that does the heavy lifting of communicating with Huawei hardware. None of this would be possible without it.
+
 - 🙏 **[huawei_lte_extended](https://github.com/william-aqn/huawei_lte_extended)** (@william-aqn): The expanded SMS functionality in this integration is based on this work. If SMS features are what you need, this component paired with the core integration is an excellent option.
+
 - **Personal prior work**: The structure and integration architecture draw on my own custom components for [TP-Link 5G](https://github.com/PlayFaster/ha-tplink-router-5g-monitor) and [ZTE 5G](https://github.com/PlayFaster/ha-zte-router-5g-monitor) routers.
-- This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
+
+- 🤖 This project was developed with the assistance of AI to ensure code quality and adherence to best practices.
 
 ---
 

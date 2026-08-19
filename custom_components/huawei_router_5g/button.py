@@ -68,10 +68,9 @@ class HuaweiButtonEntityDescription(ButtonEntityDescription):
 REFRESH_DESCRIPTION = HuaweiButtonEntityDescription(
     key="refresh",
     about=(
-        "Fetches from the router immediately instead of waiting for the next "
-        "poll. It works **even while Pause Polling is on** - an explicit "
-        "action by a person overrides the pause, while the next scheduled "
-        "poll still respects it."
+        "Fetches from the router immediately instead of waiting for the next poll. It "
+        "works even while Pause Polling is on - an explicit action by a person "
+        "overrides the pause, while the next scheduled poll still respects it."
     ),
     translation_key="refresh",
     entity_category=EntityCategory.CONFIG,
@@ -115,10 +114,10 @@ RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
 CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
     key="clear_traffic",
     about=(
-        "Resets the router's traffic statistics to zero. **Irreversible** - "
-        "the lifetime and monthly counters are held on the router, not here, "
-        "so nothing in Home Assistant can restore them. It sets Counters Last "
-        "Reset; it does not change Billing Cycle Day."
+        "Resets the router's traffic statistics to zero. Irreversible - the lifetime "
+        "and monthly counters are held on the router, not here, so nothing in Home "
+        "Assistant can restore them. It sets Counters Last Reset; it does not change "
+        "Billing Cycle Day."
     ),
     translation_key="clear_traffic",
     group="data",
@@ -128,11 +127,11 @@ CLEAR_TRAFFIC_DESCRIPTION = HuaweiButtonEntityDescription(
 CLEANUP_DESCRIPTION = HuaweiButtonEntityDescription(
     key="cleanup_unused_entities",
     about=(
-        "Removes tracker entities for clients **the router no longer "
-        "reports** - it cannot remove a client the router still lists, and "
-        "Huawei routers keep away devices for months. **Commits immediately "
-        "with no preview**; run the Clean up unused entities action first for "
-        "a dry run. Nothing is removed while the router has not answered."
+        "Removes tracker entities for clients the router no longer reports - it cannot "
+        "remove a client the router still lists, and Huawei routers keep away devices "
+        "for months. Commits immediately with no preview; run the Clean up unused "
+        "entities action first for a dry run. Nothing is removed while the router has "
+        "not answered."
     ),
     translation_key="cleanup_unused_entities",
     entity_category=EntityCategory.CONFIG,

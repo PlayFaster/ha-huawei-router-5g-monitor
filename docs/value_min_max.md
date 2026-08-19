@@ -48,78 +48,76 @@ Two consequences worth knowing:
 
 <!-- GENERATED:start -->
 
-| Sub-device | Sensor key | Min | Max | Unit |
-| :-- | :-- | --: | --: | :-- |
-| Clients | `total_connected` | `0.0` | `512.0` | — |
-| Clients | `wifi_users` | `0.0` | `255.0` | — |
-| Clients | `wired_connected` | `0.0` | `512.0` | — |
-| Data | `alert_threshold` | `0.0` | `100.0` | PERCENTAGE |
-| Data | `billing_cycle_day` | `1.0` | `31.0` | — |
-| Data | `current_connection_download` | `0.0` | `109951162777600.0` | bytes |
-| Data | `current_connection_upload` | `0.0` | `109951162777600.0` | bytes |
-| Data | `current_day_used` | `0.0` | `109951162777600.0` | bytes |
-| Data | `current_download_rate` | `0.0` | `1250000000.0` | bytes_per_second |
-| Data | `current_upload_rate` | `0.0` | `1250000000.0` | bytes_per_second |
-| Data | `data_allowance` | `0.0` | — | bytes |
-| Data | `day_connected_time` | `0.0` | `86400.0` | seconds |
-| Data | `max_download_rate` | `0.0` | `1250000000.0` | bytes_per_second |
-| Data | `max_upload_rate` | `0.0` | `1250000000.0` | bytes_per_second |
-| Data | `month_connected_time` | `0.0` | `3000000.0` | seconds |
-| Data | `month_download` | `0.0` | `109951162777600.0` | bytes |
-| Data | `month_download_gb` | `0.0` | `100000.0` | gigabytes |
-| Data | `month_total` | `0.0` | `109951162777600.0` | bytes |
-| Data | `month_upload` | `0.0` | `109951162777600.0` | bytes |
-| Data | `month_upload_gb` | `0.0` | `100000.0` | gigabytes |
-| Data | `projected_usage` | `0.0` | — | bytes |
-| Data | `total_data` | `0.0` | `109951162777600.0` | bytes |
-| Data | `total_download` | `0.0` | `109951162777600.0` | bytes |
-| Data | `total_upload` | `0.0` | `109951162777600.0` | bytes |
-| SMS | `sms_capacity_device` | `0.0` | `10000.0` | — |
-| SMS | `sms_capacity_sim` | `0.0` | `10000.0` | — |
-| SMS | `sms_deleted_device` | `0.0` | `10000.0` | — |
-| SMS | `sms_drafts_device` | `0.0` | `10000.0` | — |
-| SMS | `sms_drafts_sim` | `0.0` | `10000.0` | — |
-| SMS | `sms_inbox_device` | `0.0` | `10000.0` | — |
-| SMS | `sms_inbox_sim` | `0.0` | `10000.0` | — |
-| SMS | `sms_messages_sim` | `0.0` | `10000.0` | — |
-| SMS | `sms_new` | `0.0` | `10000.0` | — |
-| SMS | `sms_outbox_device` | `0.0` | `10000.0` | — |
-| SMS | `sms_outbox_sim` | `0.0` | `10000.0` | — |
-| SMS | `sms_total` | `0.0` | `10000.0` | — |
-| SMS | `sms_total_msg` | `0.0` | `10000.0` | — |
-| SMS | `sms_unread` | `0.0` | `10000.0` | — |
-| SMS | `sms_unread_device` | `0.0` | `10000.0` | — |
-| SMS | `sms_unread_sim` | `0.0` | `10000.0` | — |
-| Signal | `5g_block_error_rate` | `0.0` | — | — |
-| Signal | `5g_cqi_0` | `0.0` | `16.0` | — |
-| Signal | `5g_downlink_bandwidth` | `0.0` | `100.0` | megahertz |
-| Signal | `5g_downlink_frequency` | `0.0` | `7125.0` | megahertz |
-| Signal | `5g_rank` | `1.0` | `4.0` | — |
-| Signal | `5g_transmit_power` | `-30.0` | `40.0` | — |
-| Signal | `5g_uplink_bandwidth` | `0.0` | `100.0` | megahertz |
-| Signal | `5g_uplink_frequency` | `0.0` | `7125.0` | megahertz |
-| Signal | `cqi_0` | `0.0` | `16.0` | — |
-| Signal | `enodeb_id` | `0.0` | — | — |
-| Signal | `lte_downlink_bandwidth` | `0.0` | `20.0` | megahertz |
-| Signal | `lte_downlink_frequency` | `0.0` | `3800.0` | megahertz |
-| Signal | `lte_uplink_bandwidth` | `0.0` | `20.0` | megahertz |
-| Signal | `lte_uplink_frequency` | `0.0` | `3800.0` | megahertz |
-| Signal | `nr_rsrp` | `-150.0` | `-30.0` | SIGNAL_STRENGTH_DECIBELS_MILLIWATT |
-| Signal | `nr_rsrq` | `-50.0` | `0.0` | dB |
-| Signal | `nr_sinr` | `-30.0` | `50.0` | dB |
-| Signal | `rsrp` | `-150.0` | `-30.0` | SIGNAL_STRENGTH_DECIBELS_MILLIWATT |
-| Signal | `rsrq` | `-50.0` | `0.0` | dB |
-| Signal | `rssi` | `-120.0` | `-20.0` | SIGNAL_STRENGTH_DECIBELS_MILLIWATT |
-| Signal | `signal_bars` | `0.0` | `5.0` | — |
-| Signal | `signal_bars_nr` | `0.0` | `5.0` | — |
-| Signal | `sinr` | `-30.0` | `50.0` | dB |
-| Signal | `transmit_power` | `-30.0` | `40.0` | — |
-| System | `battery` | `0.0` | `100.0` | PERCENTAGE |
-| System | `current_connection_duration` | `0.0` | — | seconds |
-| System | `mtu` | `68.0` | `9000.0` | — |
-| System | `total_connection_time` | `0.0` | — | seconds |
-| System | `uptime` | `0.0` | — | seconds |
-| WiFi | `wifi_capacity` | `0.0` | `512.0` | — |
+| Sub-device | Sensor key                    |    Min |               Max | Unit |
+| :--------- | :---------------------------- | -----: | ----------------: | :--- |
+| Clients    | `total_connected`             |    `0` |             `512` | —    |
+| Clients    | `wifi_users`                  |    `0` |             `255` | —    |
+| Clients    | `wired_connected`             |    `0` |             `512` | —    |
+| Data       | `alert_threshold`             |    `0` |             `100` | %    |
+| Data       | `billing_cycle_day`           |    `1` |              `31` | —    |
+| Data       | `current_connection_download` |    `0` | `109951162777600` | B    |
+| Data       | `current_connection_upload`   |    `0` | `109951162777600` | B    |
+| Data       | `current_day_used`            |    `0` | `109951162777600` | B    |
+| Data       | `current_download_rate`       |    `0` |      `1250000000` | B/s  |
+| Data       | `current_upload_rate`         |    `0` |      `1250000000` | B/s  |
+| Data       | `data_allowance`              |    `0` |                 — | B    |
+| Data       | `day_connected_time`          |    `0` |           `86400` | s    |
+| Data       | `max_download_rate`           |    `0` |      `1250000000` | B/s  |
+| Data       | `max_upload_rate`             |    `0` |      `1250000000` | B/s  |
+| Data       | `month_connected_time`        |    `0` |         `3000000` | s    |
+| Data       | `month_download`              |    `0` | `109951162777600` | B    |
+| Data       | `month_download_gb`           |    `0` |          `100000` | GB   |
+| Data       | `month_total`                 |    `0` | `109951162777600` | B    |
+| Data       | `month_upload`                |    `0` | `109951162777600` | B    |
+| Data       | `month_upload_gb`             |    `0` |          `100000` | GB   |
+| Data       | `projected_usage`             |    `0` |                 — | B    |
+| Data       | `total_data`                  |    `0` | `109951162777600` | B    |
+| Data       | `total_download`              |    `0` | `109951162777600` | B    |
+| Data       | `total_upload`                |    `0` | `109951162777600` | B    |
+| SMS        | `sms_capacity_device`         |    `0` |           `10000` | —    |
+| SMS        | `sms_capacity_sim`            |    `0` |           `10000` | —    |
+| SMS        | `sms_deleted_device`          |    `0` |           `10000` | —    |
+| SMS        | `sms_drafts_device`           |    `0` |           `10000` | —    |
+| SMS        | `sms_drafts_sim`              |    `0` |           `10000` | —    |
+| SMS        | `sms_inbox_device`            |    `0` |           `10000` | —    |
+| SMS        | `sms_inbox_sim`               |    `0` |           `10000` | —    |
+| SMS        | `sms_messages_sim`            |    `0` |           `10000` | —    |
+| SMS        | `sms_new`                     |    `0` |           `10000` | —    |
+| SMS        | `sms_outbox_device`           |    `0` |           `10000` | —    |
+| SMS        | `sms_outbox_sim`              |    `0` |           `10000` | —    |
+| SMS        | `sms_total`                   |    `0` |           `10000` | —    |
+| SMS        | `sms_total_msg`               |    `0` |           `10000` | —    |
+| SMS        | `sms_unread`                  |    `0` |           `10000` | —    |
+| SMS        | `sms_unread_device`           |    `0` |           `10000` | —    |
+| SMS        | `sms_unread_sim`              |    `0` |           `10000` | —    |
+| Signal     | `5g_block_error_rate`         |    `0` |                 — | —    |
+| Signal     | `5g_cqi_0`                    |    `0` |              `16` | —    |
+| Signal     | `5g_downlink_bandwidth`       |    `0` |             `100` | MHz  |
+| Signal     | `5g_downlink_frequency`       |    `0` |            `7125` | MHz  |
+| Signal     | `5g_rank`                     |    `1` |               `4` | —    |
+| Signal     | `5g_uplink_bandwidth`         |    `0` |             `100` | MHz  |
+| Signal     | `5g_uplink_frequency`         |    `0` |            `7125` | MHz  |
+| Signal     | `cqi_0`                       |    `0` |              `16` | —    |
+| Signal     | `enodeb_id`                   |    `0` |                 — | —    |
+| Signal     | `lte_downlink_bandwidth`      |    `0` |              `20` | MHz  |
+| Signal     | `lte_downlink_frequency`      |    `0` |            `3800` | MHz  |
+| Signal     | `lte_uplink_bandwidth`        |    `0` |              `20` | MHz  |
+| Signal     | `lte_uplink_frequency`        |    `0` |            `3800` | MHz  |
+| Signal     | `nr_rsrp`                     | `-150` |             `-30` | dBm  |
+| Signal     | `nr_rsrq`                     |  `-50` |               `0` | dB   |
+| Signal     | `nr_sinr`                     |  `-30` |              `50` | dB   |
+| Signal     | `rsrp`                        | `-150` |             `-30` | dBm  |
+| Signal     | `rsrq`                        |  `-50` |               `0` | dB   |
+| Signal     | `rssi`                        | `-120` |             `-20` | dBm  |
+| Signal     | `signal_bars`                 |    `0` |               `5` | —    |
+| Signal     | `signal_bars_nr`              |    `0` |               `5` | —    |
+| Signal     | `sinr`                        |  `-30` |              `50` | dB   |
+| System     | `battery`                     |    `0` |             `100` | %    |
+| System     | `current_connection_duration` |    `0` |                 — | s    |
+| System     | `mtu`                         |   `68` |            `9000` | —    |
+| System     | `total_connection_time`       |    `0` |                 — | s    |
+| System     | `uptime`                      |    `0` |                 — | s    |
+| WiFi       | `wifi_capacity`               |    `0` |             `512` | —    |
 
 <!-- GENERATED:end -->
 
@@ -140,5 +138,6 @@ The wider rule was tried on a sibling project and was wrong: it demanded an uppe
 | Version | Date | Change |
 | :-- | :-- | :-- |
 | v2.1.0 | 2026-08-15 | Seven bands added with the §T-4 entity set: `alert_threshold`, `billing_cycle_day`, `data_allowance`, `day_connected_time`, `month_connected_time`, `projected_usage` and `mtu`. Four guard a configured _setting_ rather than a reading, which is new for this document — the router reports its own data plan, and a truncated response would otherwise publish nonsense as fact. Neither byte figure takes a ceiling: any cap on a data allowance would be invented. |
+| v2.2.0 | 2026-08-19 | **`transmit_power` and `5g_transmit_power` bands removed — v2.0.0 implemented them the wrong way round.** This document had claimed a `-30`/`40` band on both since before either existed; v2.0.0 found the discrepancy and resolved it by **adding the band to the code**, when the correct resolution was to delete the claim. Both are **text sensors** — no unit, no `device_class`, no `state_class` — and on this hardware the value is a compound per-channel string (`PPusch:10dBm PPucch:11dBm PSrs:18dBm PPrach:21dBm`). The generic guard casts with `float()` and passes non-numeric values through, so the band never fired; it described the sensors wrongly while doing nothing. Found by the sensor manifest check, which flagged both entities as declaring limits against a non-numeric live state. **`zte_router_5g` was not the source** — it has no transmit power sensor at all. |
 | v2.0.0 | 2026-08-14 | **First reconciliation against the code, in both directions** — the document had never been checked since it was written. Two documented bands did not exist (`transmit_power`, `5g_transmit_power`, both -30 to 40); they are now implemented. Around twenty implemented bands were undocumented; all are now listed. `cqi_0` carried a minimum but no maximum while its 5G twin `5g_cqi_0` carried `[0, 16]` — the same quantity on different radios, disagreeing only because nobody had compared them; aligned to `[0, 16]`. Replaced the grouped prose table with a per-key table generated from source and pinned by a test, so the document cannot drift again. Recorded which sensors deliberately have no band, and why inventing a ceiling is a worse failure than omitting one. |
 | v1.0.0 | 2026-05-03 | Initial. Grouped summary of the signal guard bands introduced with the eight frequency sensors. |

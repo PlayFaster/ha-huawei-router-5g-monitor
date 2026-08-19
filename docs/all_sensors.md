@@ -1,5 +1,7 @@
 # Huawei Router 5G Integration - Entity Manifest
 
+A complete list of the static entities and service actions provided by the integration, grouped by sub-device.
+
 <!-- GENERATED:start -->
 
 ## Summary
@@ -29,28 +31,28 @@
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | Data Plan Enabled | `data_plan_enabled` | Binary Sensor | - | Diagnostic | - |
 | Clear Traffic Statistics | `clear_traffic` | Button | - | - | - |
-| Alert Threshold | `alert_threshold` | Sensor | PERCENTAGE | Diagnostic | - |
+| Alert Threshold | `alert_threshold` | Sensor | % | Diagnostic | - |
 | Billing Cycle Day | `billing_cycle_day` | Sensor | - | Diagnostic | - |
 | Counters Last Reset | `counters_last_reset` | Sensor | - | Diagnostic | - |
-| Connection Download | `current_connection_download` | Sensor | bytes | - | - |
-| Connection Upload | `current_connection_upload` | Sensor | bytes | - | - |
-| Day Used | `current_day_used` | Sensor | bytes | - | LTS: `total_increasing` |
-| Download Rate | `current_download_rate` | Sensor | bytes_per_second | - | - |
-| Upload Rate | `current_upload_rate` | Sensor | bytes_per_second | - | - |
-| Data Allowance | `data_allowance` | Sensor | bytes | Diagnostic | - |
-| Day Connected Time | `day_connected_time` | Sensor | seconds | Diagnostic | **Disabled by default.** |
-| Max Download Rate | `max_download_rate` | Sensor | bytes_per_second | - | **Disabled by default.** |
-| Max Upload Rate | `max_upload_rate` | Sensor | bytes_per_second | - | **Disabled by default.** |
-| Month Connected Time | `month_connected_time` | Sensor | seconds | Diagnostic | **Disabled by default.** |
-| Month Download | `month_download` | Sensor | bytes | - | LTS: `total_increasing` |
-| Month Download (GB) | `month_download_gb` | Sensor | gigabytes | - | **Disabled by default.** |
-| Month Total | `month_total` | Sensor | bytes | - | LTS: `total_increasing` |
-| Month Upload | `month_upload` | Sensor | bytes | - | LTS: `total_increasing` |
-| Month Upload (GB) | `month_upload_gb` | Sensor | gigabytes | - | **Disabled by default.** |
-| Projected Usage | `projected_usage` | Sensor | bytes | - | - |
-| Total Data | `total_data` | Sensor | bytes | - | LTS: `total_increasing` |
-| Total Download | `total_download` | Sensor | bytes | - | LTS: `total_increasing` |
-| Total Upload | `total_upload` | Sensor | bytes | - | LTS: `total_increasing` |
+| Connection Download | `current_connection_download` | Sensor | B | - | - |
+| Connection Upload | `current_connection_upload` | Sensor | B | - | - |
+| Day Used | `current_day_used` | Sensor | B | - | LTS: `total_increasing` |
+| Download Rate | `current_download_rate` | Sensor | B/s | - | - |
+| Upload Rate | `current_upload_rate` | Sensor | B/s | - | - |
+| Data Allowance | `data_allowance` | Sensor | B | Diagnostic | - |
+| Day Connected Time | `day_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
+| Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** |
+| Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** |
+| Month Connected Time | `month_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
+| Month Download | `month_download` | Sensor | B | - | LTS: `total_increasing` |
+| Month Download (GB) | `month_download_gb` | Sensor | GB | - | **Disabled by default.** |
+| Month Total | `month_total` | Sensor | B | - | LTS: `total_increasing` |
+| Month Upload | `month_upload` | Sensor | B | - | LTS: `total_increasing` |
+| Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | **Disabled by default.** |
+| Projected Usage | `projected_usage` | Sensor | B | - | - |
+| Total Data | `total_data` | Sensor | B | - | LTS: `total_increasing` |
+| Total Download | `total_download` | Sensor | B | - | LTS: `total_increasing` |
+| Total Upload | `total_upload` | Sensor | B | - | LTS: `total_increasing` |
 
 ## SMS Sub-Device (18 Entities)
 
@@ -91,14 +93,14 @@
 | Voice Service | `voice_service` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
 | 5G Block Error Rate | `5g_block_error_rate` | Sensor | - | Diagnostic | - |
 | 5G CQI | `5g_cqi_0` | Sensor | - | - | LTS: `measurement` |
-| 5G Downlink Bandwidth | `5g_downlink_bandwidth` | Sensor | megahertz | Diagnostic | - |
-| 5G Downlink Frequency | `5g_downlink_frequency` | Sensor | megahertz | Diagnostic | - |
+| 5G Downlink Bandwidth | `5g_downlink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| 5G Downlink Frequency | `5g_downlink_frequency` | Sensor | MHz | Diagnostic | - |
 | 5G Downlink MCS | `5g_downlink_mcs` | Sensor | - | Diagnostic | - |
 | 5G EARFCN | `5g_earfcn` | Sensor | - | Diagnostic | - |
 | 5G Rank | `5g_rank` | Sensor | - | - | LTS: `measurement` |
 | 5G Transmit Power | `5g_transmit_power` | Sensor | - | Diagnostic | - |
-| 5G Uplink Bandwidth | `5g_uplink_bandwidth` | Sensor | megahertz | Diagnostic | - |
-| 5G Uplink Frequency | `5g_uplink_frequency` | Sensor | megahertz | Diagnostic | - |
+| 5G Uplink Bandwidth | `5g_uplink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| 5G Uplink Frequency | `5g_uplink_frequency` | Sensor | MHz | Diagnostic | - |
 | 5G Uplink MCS | `5g_uplink_mcs` | Sensor | - | Diagnostic | - |
 | Antenna 1 | `antenna_1` | Sensor | - | Diagnostic | - |
 | Antenna 2 | `antenna_2` | Sensor | - | Diagnostic | - |
@@ -109,14 +111,14 @@
 | LTE EARFCN | `earfcn` | Sensor | - | Diagnostic | - |
 | eNodeB ID | `enodeb_id` | Sensor | - | Diagnostic | - |
 | IMS Status | `ims` | Sensor | - | Diagnostic | - |
-| LTE Downlink Bandwidth | `lte_downlink_bandwidth` | Sensor | megahertz | Diagnostic | - |
-| LTE Downlink Frequency | `lte_downlink_frequency` | Sensor | megahertz | Diagnostic | - |
-| LTE Uplink Bandwidth | `lte_uplink_bandwidth` | Sensor | megahertz | Diagnostic | - |
-| LTE Uplink Frequency | `lte_uplink_frequency` | Sensor | megahertz | Diagnostic | - |
+| LTE Downlink Bandwidth | `lte_downlink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| LTE Downlink Frequency | `lte_downlink_frequency` | Sensor | MHz | Diagnostic | - |
+| LTE Uplink Bandwidth | `lte_uplink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| LTE Uplink Frequency | `lte_uplink_frequency` | Sensor | MHz | Diagnostic | - |
 | LTE Mode | `mode` | Sensor | - | Diagnostic | - |
 | Network Type | `network_type` | Sensor | - | Diagnostic | - |
 | 5G NR Band | `nr5g_band` | Sensor | - | Diagnostic | - |
-| 5G RSRP | `nr_rsrp` | Sensor | SIGNAL_STRENGTH_DECIBELS_MILLIWATT | - | LTS: `measurement` |
+| 5G RSRP | `nr_rsrp` | Sensor | dBm | - | LTS: `measurement` |
 | 5G RSRQ | `nr_rsrq` | Sensor | dB | - | LTS: `measurement` |
 | 5G SINR | `nr_sinr` | Sensor | dB | - | LTS: `measurement` |
 | Operator | `operator` | Sensor | - | Diagnostic | - |
@@ -126,9 +128,9 @@
 | Preferred Network Mode | `preferred_network_mode` | Sensor | - | Diagnostic | - |
 | Primary Band | `primary_band` | Sensor | - | Diagnostic | **Disabled by default.** |
 | LTE RRC Status | `rrc_status` | Sensor | - | Diagnostic | - |
-| LTE RSRP | `rsrp` | Sensor | SIGNAL_STRENGTH_DECIBELS_MILLIWATT | - | LTS: `measurement` |
+| LTE RSRP | `rsrp` | Sensor | dBm | - | LTS: `measurement` |
 | LTE RSRQ | `rsrq` | Sensor | dB | - | LTS: `measurement` |
-| LTE RSSI | `rssi` | Sensor | SIGNAL_STRENGTH_DECIBELS_MILLIWATT | - | LTS: `measurement` |
+| LTE RSSI | `rssi` | Sensor | dBm | - | LTS: `measurement` |
 | Secondary Cell PCI | `secondary_cell_pci` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Signal Bars | `signal_bars` | Sensor | - | - | LTS: `measurement` |
 | 5G Signal Bars | `signal_bars_nr` | Sensor | - | - | LTS: `measurement` |
@@ -154,14 +156,14 @@
 | Reconnect | `reconnect` | Button | - | - | - |
 | Refresh Now | `refresh` | Button | - | Config | - |
 | Client Device Tracker | `_attr_about` | Device Tracker | - | - | - |
-| Polling Interval | `polling_interval` | Number | seconds | Config | - |
+| Polling Interval | `polling_interval` | Number | s | Config | - |
 | Preferred Network Mode | `network_mode` | Select | - | Config | - |
 | APN | `apn` | Sensor | - | Diagnostic | - |
 | APN Profile | `apn_profile` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Battery | `battery` | Sensor | PERCENTAGE | Diagnostic | **Disabled by default.** |
+| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
 | Carrier Build | `carrier_build` | Sensor | - | Diagnostic | - |
 | Country Code | `country_code` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Connection Duration | `current_connection_duration` | Sensor | seconds | Diagnostic | **Disabled by default.** |
+| Connection Duration | `current_connection_duration` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Connection Uptime | `current_connection_timestamp` | Sensor | - | - | - |
 | ICCID | `iccid` | Sensor | - | Diagnostic | **Disabled by default.** |
 | IMEI | `imei` | Sensor | - | Diagnostic | **Disabled by default.** |
@@ -180,9 +182,9 @@
 | SIM Number | `sim_number` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Supported Modes | `supported_modes` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Software Version | `sw_version` | Sensor | - | Diagnostic | - |
-| Total Duration | `total_connection_time` | Sensor | seconds | Diagnostic | **Disabled by default.** |
+| Total Duration | `total_connection_time` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Total Uptime | `total_connection_timestamp` | Sensor | - | Diagnostic | - |
-| Uptime Duration | `uptime` | Sensor | seconds | Diagnostic | **Disabled by default.** |
+| Uptime Duration | `uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Uptime | `uptime_timestamp` | Sensor | - | - | - |
 | WAN DNS | `wan_dns` | Sensor | - | Diagnostic | **Disabled by default.** |
 | WAN DNS IPv6 | `wan_dns_ipv6` | Sensor | - | Diagnostic | **Disabled by default.** |

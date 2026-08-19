@@ -1,6 +1,11 @@
 # SYNCED FILE — DO NOT EDIT IN A PROJECT.
 # Edit dev-workbench/workbench/python/pyproject.toml and re-sync.
 
+[project]
+name = "custom-component"
+version = "0.1.0"
+requires-python = ">=3.13"
+
 [tool.ruff]
 extend = ".validate/pyproject_common.toml"
 
