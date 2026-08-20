@@ -18,6 +18,7 @@ from custom_components.huawei_router_5g.switch import (
     GUEST_WIFI_DESCRIPTION,
     HuaweiSwitch,
 )
+from tests.conftest import assert_links_to_parent
 
 
 def test_wifi_grouping_binary_sensors(mock_coordinator, mock_config_entry):
@@ -34,7 +35,7 @@ def test_wifi_grouping_binary_sensors(mock_coordinator, mock_config_entry):
         info = sensor.device_info
         assert info["identifiers"] == {(DOMAIN, f"{mac}_wifi")}
         assert info["name"] == "My Huawei Router WiFi"
-        assert info["via_device"] == (DOMAIN, f"{mac}_system")
+        assert_links_to_parent(info, f"{mac}_system")
 
 
 def test_wifi_grouping_sensors(mock_coordinator, mock_config_entry):
@@ -46,7 +47,7 @@ def test_wifi_grouping_sensors(mock_coordinator, mock_config_entry):
     info = sensor.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_wifi")}
     assert info["name"] == "My Huawei Router WiFi"
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
     assert sensor.entity_description.state_class is None
 
 
@@ -58,7 +59,7 @@ def test_wifi_grouping_switch(mock_coordinator, mock_config_entry):
     info = switch.device_info
     assert info["identifiers"] == {(DOMAIN, f"{mac}_wifi")}
     assert info["name"] == "My Huawei Router WiFi"
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 def test_wifi_users_sensor_category(mock_coordinator, mock_config_entry):

@@ -13,8 +13,11 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import ABOUT_UNRECORDED, HuaweiAboutEntity, build_device_info
 
+# Section 22. `0` (unlimited) — this platform is read-only. Entities are
+# coordinator-driven with no per-entity polling, so there is nothing to
+# serialize.
 PARALLEL_UPDATES = 0
 
 _LOGGER = logging.getLogger(__name__)
@@ -62,9 +65,29 @@ async def async_setup_entry(
 
 
 class HuaweiRouterDeviceTracker(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], ScannerEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    ScannerEntity,
 ):
     """Representation of a Huawei Router tracked device."""
+
+    # This platform has no entity description — one entity is created per
+    # discovered client — so the note is set at class level instead.
+    _attr_about = (
+        "One entity per client the router has seen on the LAN or WiFi, keyed"
+        " by MAC address. `home` means the router currently lists it as"
+        " connected. Entities are created on first sighting and are not"
+        " removed automatically, so a one-off guest device leaves a permanent"
+        " entity — use the Clean up unused entities action to clear them."
+    )
+
+    # dev_standards Section 14. A device tracker publishes one entity per
+    # client on the network, so these attributes are written to the recorder
+    # once per client per poll. `associated_ssid` in particular is network
+    # topology that does not belong in long-term history.
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset(
+        {"interface_type", "associated_ssid", "address_source"}
+    )
 
     def __init__(
         self, coordinator: HuaweiRouter5GDataUpdateCoordinator, mac: str
@@ -72,7 +95,28 @@ class HuaweiRouterDeviceTracker(
         """Initialize the device tracker."""
         super().__init__(coordinator)
         self._mac = mac
-        self._attr_unique_id = f"{coordinator.entry.unique_id}_{mac}"
+
+    @property
+    def unique_id(self) -> str | None:
+        """Scope the unique ID to this config entry.
+
+        `ScannerEntity.unique_id` is a property returning the bare MAC address,
+        which is **not** unique across config entries. Two Huawei routers
+        seeing the same client produce the same id, and Home Assistant's
+        response is to refuse the second entity outright — `entity_platform`
+        logs "does not generate unique IDs ... ignoring" and the client simply
+        never appears under the second router. That is not the `_2` suffix
+        behavior, which applies to entity **ids**, not unique ids.
+
+        This must be a property override. `_attr_unique_id` was set in
+        `__init__` for a long time and did nothing at all, because the base
+        class defines `unique_id` as a property and a property wins over the
+        attribute it would otherwise read.
+
+        Existing installations are migrated in `async_setup_entry`, so entity
+        ids, names, areas and enabled state are preserved.
+        """
+        return f"{self.coordinator.entry.unique_id}_{self._mac}"
 
     @property
     def _host_data(self) -> dict[str, Any] | None:
@@ -132,12 +176,17 @@ class HuaweiRouterDeviceTracker(
         """Return device specific attributes."""
         host = self._host_data
         if not host:
-            return {}
-        return {
-            "interface_type": host.get("InterfaceType"),
-            "associated_ssid": host.get("AssociatedSsid"),
-            "address_source": host.get("AddressSource"),
-        }
+            return self._with_about(None) or {}
+        return (
+            self._with_about(
+                {
+                    "interface_type": host.get("InterfaceType"),
+                    "associated_ssid": host.get("AssociatedSsid"),
+                    "address_source": host.get("AddressSource"),
+                }
+            )
+            or {}
+        )
 
     @property  # type: ignore[misc]
     def device_info(self) -> DeviceInfo:

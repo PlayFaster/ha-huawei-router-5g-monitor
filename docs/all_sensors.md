@@ -1,195 +1,212 @@
 # Huawei Router 5G Integration - Entity Manifest
 
-This document provides a comprehensive list of all 121 entities currently implemented in the Huawei Router 5G integration. It serves as a master reference for debugging, maintenance, and future development.
+A complete list of the static entities and service actions provided by the integration, grouped by sub-device.
+
+<!-- GENERATED:start -->
 
 ## Summary
 
-| Sub-Device | Entity Count | Description |
-| :-- | :-- | :-- |
-| **System** | 23 | Core router info, WAN configuration, and global integration settings. |
-| **Signal** | 52 | Extensive cellular connectivity, LTE/5G signal strength, and network info. |
-| **Data** | 16 | Traffic statistics, download/upload rates, and monthly usage. |
-| **SMS** | 18 | Detailed message counts per storage bank and recent message content. |
-| **WiFi** | 6 | Wireless radio status, capacity, and guest network controls. |
-| **Clients** | 6 | Connected LAN/WLAN devices and aggregate connectivity counters. |
-| **Total** | **121** |  |
+| Sub-Device  | Entity Count | Description            |
+| :---------- | :----------- | :--------------------- |
+| **Clients** | 4            | Clients entities.      |
+| **Data**    | 24           | Data entities.         |
+| **SMS**     | 18           | SMS entities.          |
+| **Signal**  | 58           | Signal entities.       |
+| **System**  | 49           | System entities.       |
+| **WiFi**    | 7            | WiFi entities.         |
+| **Total**   | **160**      | Total static entities. |
 
----
-
-## 1. System Sub-Device (23 Entities)
-
-_Group: `system`_
+## Clients Sub-Device (4 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| Model Name | `model_name` | Sensor | - | Diagnostic |  |
-| Software Version | `sw_version` | Sensor | - | Diagnostic |  |
-| Last Updated | `last_updated` | Sensor | Timestamp | - | Promoted from Diagnostic. Internal tracking of last successful poll. |
-| WAN IP Address | `wan_ip` | Sensor | - | Diagnostic |  |
-| WAN IPv6 Address | `wan_ipv6` | Sensor | - | Diagnostic |  |
-| Uptime Duration | `uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
-| Uptime | `uptime_timestamp` | Sensor | Timestamp | - | Calculated as `now() - uptime_seconds`. |
+| Clean up unused entities | `cleanup_unused_entities` | Button | - | Config | - |
+| Total Connected | `total_connected` | Sensor | - | - | LTS: `measurement` |
+| WiFi Connected | `wifi_users` | Sensor | - | - | LTS: `measurement` |
+| Wired Connected | `wired_connected` | Sensor | - | - | LTS: `measurement` |
+
+## Data Sub-Device (24 Entities)
+
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Data Plan Enabled | `data_plan_enabled` | Binary Sensor | - | Diagnostic | - |
+| Clear Traffic Statistics | `clear_traffic` | Button | - | - | - |
+| Alert Threshold | `alert_threshold` | Sensor | % | Diagnostic | - |
+| Billing Cycle Day | `billing_cycle_day` | Sensor | - | Diagnostic | - |
+| Counters Last Reset | `counters_last_reset` | Sensor | - | Diagnostic | - |
+| Connection Download | `current_connection_download` | Sensor | B | - | - |
+| Connection Upload | `current_connection_upload` | Sensor | B | - | - |
+| Day Used | `current_day_used` | Sensor | B | - | LTS: `total_increasing` |
+| Download Rate | `current_download_rate` | Sensor | B/s | - | - |
+| Upload Rate | `current_upload_rate` | Sensor | B/s | - | - |
+| Data Allowance | `data_allowance` | Sensor | B | Diagnostic | - |
+| Day Connected Time | `day_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
+| Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** |
+| Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** |
+| Month Connected Time | `month_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
+| Month Download | `month_download` | Sensor | B | - | LTS: `total_increasing` |
+| Month Download (GB) | `month_download_gb` | Sensor | GB | - | **Disabled by default.** |
+| Month Total | `month_total` | Sensor | B | - | LTS: `total_increasing` |
+| Month Upload | `month_upload` | Sensor | B | - | LTS: `total_increasing` |
+| Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | **Disabled by default.** |
+| Projected Usage | `projected_usage` | Sensor | B | - | - |
+| Total Data | `total_data` | Sensor | B | - | LTS: `total_increasing` |
+| Total Download | `total_download` | Sensor | B | - | LTS: `total_increasing` |
+| Total Upload | `total_upload` | Sensor | B | - | LTS: `total_increasing` |
+
+## SMS Sub-Device (18 Entities)
+
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| SMS Storage Full | `sms_storage_full` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| Last Msg | `last_sms` | Sensor | - | - | - |
+| Capacity (Device) | `sms_capacity_device` | Sensor | - | Diagnostic | - |
+| Capacity (SIM) | `sms_capacity_sim` | Sensor | - | Diagnostic | - |
+| Deleted (Device) | `sms_deleted_device` | Sensor | - | Diagnostic | - |
+| Drafts (Device) | `sms_drafts_device` | Sensor | - | Diagnostic | - |
+| Drafts (SIM) | `sms_drafts_sim` | Sensor | - | Diagnostic | - |
+| Inbox (Device) | `sms_inbox_device` | Sensor | - | Diagnostic | - |
+| Inbox (SIM) | `sms_inbox_sim` | Sensor | - | Diagnostic | - |
+| Total (SIM) | `sms_messages_sim` | Sensor | - | Diagnostic | - |
+| In Process | `sms_new` | Sensor | - | Diagnostic | - |
+| Outbox (Device) | `sms_outbox_device` | Sensor | - | Diagnostic | - |
+| Outbox (SIM) | `sms_outbox_sim` | Sensor | - | Diagnostic | - |
+| Total (Device) | `sms_total` | Sensor | - | Diagnostic | LTS: `measurement` |
+| Total Msg | `sms_total_msg` | Sensor | - | - | LTS: `measurement` |
+| Unread Msg | `sms_unread` | Sensor | - | - | LTS: `measurement` |
+| Unread (Device) | `sms_unread_device` | Sensor | - | Diagnostic | LTS: `measurement` |
+| Unread (SIM) | `sms_unread_sim` | Sensor | - | Diagnostic | - |
+
+## Signal Sub-Device (58 Entities)
+
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Best Connection | `best_connection` | Binary Sensor | - | - | - |
+| Data Service | `data_service` | Binary Sensor | - | Diagnostic | - |
+| 5G Restricted | `endc_restricted` | Binary Sensor | - | Diagnostic | - |
+| 5G ENDC Active | `endc_status` | Binary Sensor | - | - | - |
+| LTE Carrier Aggregation | `lte_ca` | Binary Sensor | - | Diagnostic | - |
+| Mobile Connection | `mobile_connection` | Binary Sensor | - | Diagnostic | - |
+| Poor Signal | `poor_signal` | Binary Sensor | - | Diagnostic | - |
+| Roaming Status | `roaming` | Binary Sensor | - | Diagnostic | - |
+| Speed Limited | `speed_limited` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| Voice Service | `voice_service` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| 5G Block Error Rate | `5g_block_error_rate` | Sensor | - | Diagnostic | - |
+| 5G CQI | `5g_cqi_0` | Sensor | - | - | LTS: `measurement` |
+| 5G Downlink Bandwidth | `5g_downlink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| 5G Downlink Frequency | `5g_downlink_frequency` | Sensor | MHz | Diagnostic | - |
+| 5G Downlink MCS | `5g_downlink_mcs` | Sensor | - | Diagnostic | - |
+| 5G EARFCN | `5g_earfcn` | Sensor | - | Diagnostic | - |
+| 5G Rank | `5g_rank` | Sensor | - | - | LTS: `measurement` |
+| 5G Transmit Power | `5g_transmit_power` | Sensor | - | Diagnostic | - |
+| 5G Uplink Bandwidth | `5g_uplink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| 5G Uplink Frequency | `5g_uplink_frequency` | Sensor | MHz | Diagnostic | - |
+| 5G Uplink MCS | `5g_uplink_mcs` | Sensor | - | Diagnostic | - |
+| Antenna 1 | `antenna_1` | Sensor | - | Diagnostic | - |
+| Antenna 2 | `antenna_2` | Sensor | - | Diagnostic | - |
+| LTE Band | `band` | Sensor | - | Diagnostic | - |
+| LTE Cell ID | `cell_id` | Sensor | - | Diagnostic | - |
+| LTE CQI | `cqi_0` | Sensor | - | - | LTS: `measurement` |
+| LTE Downlink MCS | `downlink_mcs` | Sensor | - | Diagnostic | - |
+| LTE EARFCN | `earfcn` | Sensor | - | Diagnostic | - |
+| eNodeB ID | `enodeb_id` | Sensor | - | Diagnostic | - |
+| IMS Status | `ims` | Sensor | - | Diagnostic | - |
+| LTE Downlink Bandwidth | `lte_downlink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| LTE Downlink Frequency | `lte_downlink_frequency` | Sensor | MHz | Diagnostic | - |
+| LTE Uplink Bandwidth | `lte_uplink_bandwidth` | Sensor | MHz | Diagnostic | - |
+| LTE Uplink Frequency | `lte_uplink_frequency` | Sensor | MHz | Diagnostic | - |
+| LTE Mode | `mode` | Sensor | - | Diagnostic | - |
+| Network Type | `network_type` | Sensor | - | Diagnostic | - |
+| 5G NR Band | `nr5g_band` | Sensor | - | Diagnostic | - |
+| 5G RSRP | `nr_rsrp` | Sensor | dBm | - | LTS: `measurement` |
+| 5G RSRQ | `nr_rsrq` | Sensor | dB | - | LTS: `measurement` |
+| 5G SINR | `nr_sinr` | Sensor | dB | - | LTS: `measurement` |
+| Operator | `operator` | Sensor | - | Diagnostic | - |
+| Operator Search Mode | `operator_search_mode` | Sensor | - | Diagnostic | - |
+| LTE PCI | `pci` | Sensor | - | Diagnostic | - |
+| Operator Code | `plmn` | Sensor | - | Diagnostic | - |
+| Preferred Network Mode | `preferred_network_mode` | Sensor | - | Diagnostic | - |
+| Primary Band | `primary_band` | Sensor | - | Diagnostic | **Disabled by default.** |
+| LTE RRC Status | `rrc_status` | Sensor | - | Diagnostic | - |
+| LTE RSRP | `rsrp` | Sensor | dBm | - | LTS: `measurement` |
+| LTE RSRQ | `rsrq` | Sensor | dB | - | LTS: `measurement` |
+| LTE RSSI | `rssi` | Sensor | dBm | - | LTS: `measurement` |
+| Secondary Cell PCI | `secondary_cell_pci` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Signal Bars | `signal_bars` | Sensor | - | - | LTS: `measurement` |
+| 5G Signal Bars | `signal_bars_nr` | Sensor | - | - | LTS: `measurement` |
+| LTE SINR | `sinr` | Sensor | dB | - | LTS: `measurement` |
+| LTE TAC | `tac` | Sensor | - | Diagnostic | - |
+| LTE Transmission Mode | `transmission_mode` | Sensor | - | Diagnostic | - |
+| LTE Transmit Power | `transmit_power` | Sensor | - | Diagnostic | - |
+| LTE Uplink MCS | `uplink_mcs` | Sensor | - | Diagnostic | - |
+
+## System Sub-Device (49 Entities)
+
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Integration Health | `integration_health` | Binary Sensor | - | Diagnostic | - |
+| Roaming Auto-Connect | `roaming_auto_connect` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| Router Diagnostics | `router_diagnostics` | Binary Sensor | - | Diagnostic | - |
+| SIM Locked | `sim_locked` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| SIM Card Status | `sim_status` | Binary Sensor | - | Diagnostic | - |
+| SIP ALG | `sip_alg` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| UPnP | `upnp` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| VoLTE | `volte` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| Reboot | `reboot` | Button | - | - | - |
+| Reconnect | `reconnect` | Button | - | - | - |
+| Refresh Now | `refresh` | Button | - | Config | - |
+| Client Device Tracker | `_attr_about` | Device Tracker | - | - | - |
+| Polling Interval | `polling_interval` | Number | s | Config | - |
+| Preferred Network Mode | `network_mode` | Select | - | Config | - |
+| APN | `apn` | Sensor | - | Diagnostic | - |
+| APN Profile | `apn_profile` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
+| Carrier Build | `carrier_build` | Sensor | - | Diagnostic | - |
+| Country Code | `country_code` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Connection Duration | `current_connection_duration` | Sensor | s | Diagnostic | **Disabled by default.** |
-| Connection Uptime | `current_connection_timestamp` | Sensor | Timestamp | - | Calculated as `now() - current_connection_time`. |
+| Connection Uptime | `current_connection_timestamp` | Sensor | - | - | - |
+| ICCID | `iccid` | Sensor | - | Diagnostic | **Disabled by default.** |
+| IMEI | `imei` | Sensor | - | Diagnostic | **Disabled by default.** |
+| IMSI | `imsi` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Last Updated | `last_updated` | Sensor | - | - | - |
+| Line State | `line_state` | Sensor | - | Diagnostic | **Disabled by default.** |
+| MCC MNC | `mcc_mnc` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Model Name | `model_name` | Sensor | - | Diagnostic | - |
+| MTU | `mtu` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Primary DNS Server | `primary_dns` | Sensor | - | Diagnostic | - |
+| Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic | - |
+| Product Name | `product_name` | Sensor | - | Diagnostic | - |
+| Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic | - |
+| Secondary IPv6 DNS Server | `secondary_ipv6_dns` | Sensor | - | Diagnostic | - |
+| Serial Number | `serial_number` | Sensor | - | Diagnostic | **Disabled by default.** |
+| SIM Number | `sim_number` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Supported Modes | `supported_modes` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Software Version | `sw_version` | Sensor | - | Diagnostic | - |
 | Total Duration | `total_connection_time` | Sensor | s | Diagnostic | **Disabled by default.** |
-| Total Uptime | `total_connection_timestamp` | Sensor | Timestamp | Diagnostic | Moved to Diagnostic. Calculated as `now() - total_connection_time`. |
-| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** Data may not be available in all configurations. |
-| Primary DNS Server | `primary_dns` | Sensor | - | Diagnostic |  |
-| Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic |  |
-| Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic |  |
-| Secondary IPv6 DNS Server | `secondary_ipv6_dns` | Sensor | - | Diagnostic |  |
-| Refresh Now | `refresh` | Button | - | Config | Forces an immediate poll cycle. Complements Pause Polling and the polling interval. |
-| Reboot | `reboot` | Button | - | - |  |
-| Polling Interval | `polling_interval` | Number | s | Config | Range: 30s - 3600s. Persists in options. |
-| Pause Polling | `pause_polling` | Switch | - | Config | State persists in `ConfigEntry.options`. |
-| Mobile Data | `mobile_data` | Switch | — | Config | Toggle mobile data connection on/off. |
-| Preferred Network Mode | `preferred_network_mode` | Select | — | Config | Control network mode selection. |
-| SIM Card Status | `sim_card_status` | Binary Sensor | — | Diagnostic | ON if SIM card is detected and active. |
+| Total Uptime | `total_connection_timestamp` | Sensor | - | Diagnostic | - |
+| Uptime Duration | `uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
+| Uptime | `uptime_timestamp` | Sensor | - | - | - |
+| WAN DNS | `wan_dns` | Sensor | - | Diagnostic | **Disabled by default.** |
+| WAN DNS IPv6 | `wan_dns_ipv6` | Sensor | - | Diagnostic | **Disabled by default.** |
+| WAN IP Address | `wan_ip` | Sensor | - | Diagnostic | - |
+| WAN IPv6 Address | `wan_ipv6` | Sensor | - | Diagnostic | - |
+| Web UI Version | `web_ui_version` | Sensor | - | Diagnostic | - |
+| Mobile Data | `mobile_data` | Switch | - | Config | - |
+| Pause Polling | `pause_polling` | Switch | - | Config | - |
 
----
-
-## 2. Signal Sub-Device (52 Entities)
-
-_Group: `signal`_
+## WiFi Sub-Device (7 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| Network Type | `network_type` | Sensor | - | Diagnostic | Human-readable (e.g., LTE, 5G). |
-| Preferred Network Mode | `preferred_network_mode` | Sensor | - | Diagnostic | Read-only state of the network mode. |
-| Operator | `operator` | Sensor | - | Diagnostic | Network provider name. |
-| Operator Code | `plmn` | Sensor | - | Diagnostic | Numeric PLMN code. |
-| Operator Search Mode | `operator_search_mode` | Sensor | - | Diagnostic |  |
-| LTE RSRP | `rsrp` | Sensor | dBm | - | Range: -140 to -44. |
-| LTE RSRQ | `rsrq` | Sensor | dB | - | Range: -50 to 0. |
-| LTE RSSI | `rssi` | Sensor | dBm | - | Range: -120 to -25. |
-| LTE SINR | `sinr` | Sensor | dB | - | Range: -30 to 40. |
-| Signal Bars | `signal_bars` | Sensor | - | - | 0-5 scale. |
-| 5G Signal Bars | `signal_bars_nr` | Sensor | - | - | 0-5 scale. New in v1.0.2-dev4. |
-| LTE Cell ID | `cell_id` | Sensor | - | Diagnostic |  |
-| LTE PCI | `pci` | Sensor | - | Diagnostic |  |
-| LTE TAC | `tac` | Sensor | - | Diagnostic |  |
-| LTE Band | `band` | Sensor | - | Diagnostic |  |
-| LTE Carrier Aggregation | `lte_ca` | Binary | - | Diagnostic | ON when multiple carriers aggregated. Derived from `band` string. |
-| LTE Mode | `mode` | Sensor | - | Diagnostic | (2G, 3G, 4G). |
-| LTE Transmit Power | `transmit_power` | Sensor | dBm | Diagnostic |  |
-| LTE Uplink MCS | `uplink_mcs` | Sensor | - | Diagnostic |  |
-| LTE Downlink MCS | `downlink_mcs` | Sensor | - | Diagnostic |  |
-| LTE EARFCN | `earfcn` | Sensor | - | Diagnostic |  |
-| LTE RRC Status | `rrc_status` | Sensor | - | Diagnostic |  |
-| IMS Status | `ims` | Sensor | - | Diagnostic |  |
-| LTE Uplink Frequency | `lte_uplink_frequency` | Sensor | MHz | Diagnostic | `lteulfreq` field, scaled /10. |
-| LTE Downlink Frequency | `lte_downlink_frequency` | Sensor | MHz | Diagnostic | `ltedlfreq` field, scaled /10. |
-| LTE Uplink Bandwidth | `lte_uplink_bandwidth` | Sensor | MHz | Diagnostic | `ulbandwidth` field, no scaling. |
-| LTE Downlink Bandwidth | `lte_downlink_bandwidth` | Sensor | MHz | Diagnostic | `dlbandwidth` field, no scaling. |
-| LTE Transmission Mode | `transmission_mode` | Sensor | - | Diagnostic |  |
-| eNodeB ID | `enodeb_id` | Sensor | - | Diagnostic |  |
-| LTE CQI | `lte_cqi` | Sensor | - | - | Promoted from Diagnostic. |
-| LTE Uplink Frequency (Secondary) | `uplink_frequency` | Sensor | MHz | Diagnostic | `ulfrequency` field in kHz, scaled /1000. |
-| LTE Downlink Frequency (Secondary) | `downlink_frequency` | Sensor | MHz | Diagnostic | `dlfrequency` field in kHz, scaled /1000. |
-| 5G NR Band | `5g_nr_band` | Sensor | - | Diagnostic | Parsed from `band` string (e.g. `N28`). |
-| 5G RSRP | `5g_rsrp` | Sensor | dBm | - | Range: -150 to -30. |
-| 5G RSRQ | `5g_rsrq` | Sensor | dB | - | Range: -50 to 0. |
-| 5G SINR | `5g_sinr` | Sensor | dB | - | Range: -30 to 40. |
-| 5G Uplink Bandwidth | `5g_uplink_bandwidth` | Sensor | MHz | Diagnostic |  |
-| 5G Downlink Bandwidth | `5g_downlink_bandwidth` | Sensor | MHz | Diagnostic |  |
-| 5G Uplink MCS | `5g_uplink_mcs` | Sensor | - | Diagnostic | Supports complex multi-carrier strings. |
-| 5G Downlink MCS | `5g_downlink_mcs` | Sensor | - | Diagnostic | Supports complex multi-carrier strings. |
-| 5G Transmit Power | `5g_transmit_power` | Sensor | dBm | Diagnostic | Supports complex multi-carrier strings. |
-| 5G EARFCN | `5g_earfcn` | Sensor | - | Diagnostic | Supports complex multi-carrier strings. |
-| 5G Block Error Rate | `5g_block_error_rate` | Sensor | - | Diagnostic |  |
-| 5G Rank | `5g_rank` | Sensor | - | - | 1-4. |
-| 5G CQI | `5g_cqi` | Sensor | - | - |  |
-| Best Connection | `best_connection` | Binary | - | - | ON when NSA 5G NR band assigned AND LTE anchor healthy AND 5G leg healthy. |
-| 5G ENDC Active | `endc_status` | Binary | - | - | Renamed from 5G Active. ON if EN-DC is active. |
-| 5G Restricted | `endc_restricted` | Binary | - | Diagnostic | ON if 5G is restricted by the carrier. |
-| Mobile Connection | `mobile_connection` | Binary | - | Diagnostic | ON if mobile data is connected. |
-| Roaming Status | `roaming_status` | Binary Sensor | — | Diagnostic | ON if roaming is active. |
-| 5G Uplink Frequency | `5g_uplink_frequency` | Sensor | MHz | Diagnostic | `nruplinkfrequency` field, scaled. |
-| 5G Downlink Frequency | `5g_downlink_frequency` | Sensor | MHz | Diagnostic | `nrdownlinkfrequency` field, scaled. |
+| Single SSID Mode | `single_ssid_mode` | Binary Sensor | - | Diagnostic | - |
+| 2.4GHz Status | `wifi24g_status` | Binary Sensor | - | Diagnostic | - |
+| 5GHz Status | `wifi5g_status` | Binary Sensor | - | Diagnostic | - |
+| Status | `wifi_status` | Binary Sensor | - | Diagnostic | - |
+| User Capacity | `wifi_capacity` | Sensor | - | Diagnostic | **Disabled by default.** |
+| WiFi | `wifi` | Switch | - | Config | - |
+| Guest Network | `wifi_guest_network` | Switch | - | Config | - |
 
----
-
-## 3. Data Sub-Device (16 Entities)
-
-_Group: `data`_
-
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Total Download | `total_download` | Sensor | Bytes | - | Lifetime total download. Other display units may be used (e.g. GB). |
-| Total Upload | `total_upload` | Sensor | Bytes | - | Lifetime total upload. Other display units may be used (e.g. GB). |
-| Total Data | `total_data` | Sensor | Bytes | - | Lifetime total traffic. Other display units may be used (e.g. GB). |
-| Download Rate | `current_download_rate` | Sensor | B/s | - | Current download speed. Other display units may be used (e.g. Mbit/s). |
-| Upload Rate | `current_upload_rate` | Sensor | B/s | - | Current upload speed. Other display units may be used (e.g. Mbit/s). |
-| Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
-| Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** Not populated by H165-383 firmware. |
-| Connection Upload | `current_connection_upload` | Sensor | Bytes | - | Upload in current session. Resets on reconnect. No LTS. Other display units may be used (e.g. GB). |
-| Connection Download | `current_connection_download` | Sensor | Bytes | - | Download in current session. Resets on reconnect. No LTS. Other display units may be used (e.g. GB). |
-| Day Used | `current_day_used` | Sensor | Bytes | - | Traffic used today. Other display units may be used (e.g. GB). |
-| Month Download | `month_download` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
-| Month Download (GB) | `month_download_gb` | Sensor | GB | - | **Disabled by default.** Rounded to 2 decimals. No LTS (use `month_download` bytes sensor for LTS). |
-| Month Upload | `month_upload` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
-| Month Upload (GB) | `month_upload_gb` | Sensor | GB | - | **Disabled by default.** Rounded to 2 decimals. No LTS (use `month_upload` bytes sensor for LTS). |
-| Month Total | `month_total` | Sensor | Bytes | - | Other display units may be used (e.g. GB). |
-| Clear Traffic Statistics | `clear_traffic` | Button | - | - | Resets traffic counters. |
-
----
-
-## 4. SMS Sub-Device (18 Entities)
-
-_Group: `sms`_
-
-| Name | Key | Type | Unit | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- | :-- |
-| Unread Msg | `sms_unread` | Sensor | - | - | Total unread (Device + SIM). |
-| Total Msg | `sms_total_msg` | Sensor | - | - | Aggregate of all storage locations. |
-| Last Msg | `last_sms` | Sensor | - | - | Content of the most recent message. |
-| Total (Device) | `sms_total` | Sensor | - | Diagnostic | Total stored on device. |
-| Unread (Device) | `sms_unread_device` | Sensor | - | Diagnostic |  |
-| Inbox (Device) | `sms_inbox_device` | Sensor | - | Diagnostic |  |
-| Outbox (Device) | `sms_outbox_device` | Sensor | - | Diagnostic |  |
-| Drafts (Device) | `sms_drafts_device` | Sensor | - | Diagnostic |  |
-| Deleted (Device) | `sms_deleted_device` | Sensor | - | Diagnostic |  |
-| Capacity (Device) | `sms_capacity_device` | Sensor | - | Diagnostic |  |
-| Unread (SIM) | `sms_unread_sim` | Sensor | - | Diagnostic |  |
-| Inbox (SIM) | `sms_inbox_sim` | Sensor | - | Diagnostic |  |
-| Outbox (SIM) | `sms_outbox_sim` | Sensor | - | Diagnostic |  |
-| Drafts (SIM) | `sms_drafts_sim` | Sensor | - | Diagnostic |  |
-| Capacity (SIM) | `sms_capacity_sim` | Sensor | - | Diagnostic |  |
-| Total (SIM) | `total_sim` | Sensor | - | Diagnostic |  |
-| In Process | `in_process` | Sensor | - | Diagnostic | Transient notification counter. |
-| SMS Storage Full | `sms_storage_full` | Binary | - | Diagnostic | **Disabled by default.** |
-| Send Sms | `send_sms` | Service | — | — | Send an SMS message via the router. |
-| Delete Sms | `delete_sms` | Service | — | — | Delete an SMS message by its index. |
-| Delete All Sms | `delete_all_sms` | Service | — | — | Delete all SMS messages from the router inbox. |
-| Get Sms List | `get_sms_list` | Service | — | — | Fetch a list of SMS messages from the router. |
-
----
-
-## 5. WiFi Sub-Device (6 Entities)
-
-_Group: `wifi`_
-
-| Name | Key | Type | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- |
-| Status | `wifi_status` | Binary | Diagnostic | ON if global WiFi is enabled. |
-| 2.4GHz Status | `wifi24g_status` | Binary | Diagnostic |  |
-| 5GHz Status | `wifi5g_status` | Binary | Diagnostic |  |
-| Single SSID Mode | `single_ssid_mode` | Binary | Diagnostic | ON if 2.4GHz/5GHz merged. |
-| User Capacity | `wifi_capacity` | Sensor | Diagnostic | **Disabled by default.** Max supported users. |
-| Guest Network | `wifi_guest_network` | Switch | Config | Toggle for guest SSID. |
-
----
-
-## 6. Clients Sub-Device (6 Entities)
-
-_Group: `clients`_
-
-| Name | Key | Type | Category | Notes |
-| :-- | :-- | :-- | :-- | :-- |
-| WiFi Connected | `wifi_users` | Sensor | - | Current active WLAN users. Promoted from Diagnostic. |
-| Total Connected | `total_connected` | Sensor | - | Sum of all active clients (LAN+WLAN). New in v1.0.2-dev4. |
-| Wired Connected | `wired_connected` | Sensor | - | Active LAN clients. New in v1.0.2-dev4. |
-| Tracked Device | `(mac_address)` | Device Tracker | - | Dynamically created for each discovered MAC. |
+<!-- GENERATED:end -->
 
 ---
 
@@ -240,6 +257,10 @@ Sensors are stored in their canonical **native** unit (so long-term statistics a
 ---
 
 ## Version Control
+
+- **v1.2.0** (2026-08-15) - **38 entities added** by `status_plan.md` §T-4: six identity sensors, nine further System sensors and four System binary sensors, the Reconnect button, eight Signal entities, and the data-plan block with the Projected Usage forecast. Counts corrected in three places that must move together - the opening line, the summary table and each sub-device header - because `unifi_network_monitor` shipped `[1.0.1-dev12]` with three stale section headers after adding rows only. Thirteen of the 38 are enabled by default; the identifiers and settings are all disabled. **Long-term statistics exclusions are noted per row** and enforced by a sweep in `tests/test_entity_hygiene.py` rather than by these notes.
+
+  **Two pre-existing count errors were found while reconciling and are corrected here.** SMS carried 22 rows under a header of 18, and Clients carried 4 rows under a header of 6. Neither was introduced by this change — both are visible in the document as committed before it — and the header/row check that surfaced them is the same one this entry cites UniFi for failing. The Clients count is now stated as **3 + trackers**, because `Tracked Device` is one row standing for a dynamically created entity per discovered MAC, and folding a variable number into a fixed count is what made that header wrong in the first place. Whole-document total: 122 → **161** static entities, of which 37 are the addition and 2 the correction.
 
 - **v1.0.0** (2026-05-25) - Initial version. Added 6 undocumented entities, fixed SMS key formatting, updated unit/unknown-state notes, entity counts synced with HA output.
 - **v1.1.1-dev20** (2026-05-25) - Updated Connection Upload/Download, Month Download/Upload GB notes to reflect removal of state_class (No LTS).

@@ -12,6 +12,7 @@ from custom_components.huawei_router_5g.switch import (
     HuaweiMobileDataSwitch,
     HuaweiPausePollingSwitch,
 )
+from tests.conftest import without_about
 
 # ---------------------------------------------------------------------------
 # HuaweiPausePollingSwitch
@@ -55,6 +56,11 @@ async def test_mobile_data_switch(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
     )
     mock_coordinator.api.set_mobile_data = AsyncMock()
+    # Section 22 read-back. `None` is the "unverified" outcome, which is the
+    # right default for a test not about confirmation: it exercises the write
+    # without asserting anything about the confirmation path.
+    mock_coordinator.api.read_back = AsyncMock(return_value=None)
+    switch.hass = MagicMock()
 
     # Turn On
     await switch.async_turn_on()
@@ -83,6 +89,8 @@ async def test_guest_wifi_switch(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
     mock_coordinator.api.set_guest_wifi = AsyncMock()
+    mock_coordinator.api.read_back = AsyncMock(return_value=None)
+    switch.hass = MagicMock()
 
     # Turn On
     await switch.async_turn_on()
@@ -141,7 +149,7 @@ def test_guest_wifi_extra_state_attributes_single_ssid_dict(
             }
         }
     }
-    assert switch.extra_state_attributes == {"ssid": "GuestDict"}
+    assert without_about(switch.extra_state_attributes) == {"ssid": "GuestDict"}
 
 
 def test_guest_wifi_extra_state_attributes_no_guest_ssid(
@@ -158,4 +166,159 @@ def test_guest_wifi_extra_state_attributes_no_guest_ssid(
             }
         }
     }
-    assert switch.extra_state_attributes == {}
+    assert without_about(switch.extra_state_attributes) == {}
+
+
+def test_guest_wifi_skips_non_guest_ssids_before_finding_the_guest_one(
+    mock_coordinator, mock_config_entry
+):
+    """The guest-SSID search must walk past the primary SSIDs to reach the guest.
+
+    `is_on` loops the SSID list looking for `wifiisguestnetwork == "1"`. Every
+    existing test put the guest network first, so the *continue* was never
+    taken — "found it at position 0" and "searched the list" were
+    indistinguishable, and a mutation stopping the loop after one item would
+    have passed.
+
+    A real router lists the 2.4 GHz and 5 GHz primaries before the guest
+    network, which is the ordering asserted here.
+    """
+    from custom_components.huawei_router_5g.switch import (
+        GUEST_WIFI_DESCRIPTION,
+        HuaweiGuestWifiSwitch,
+    )
+
+    mock_coordinator.data = {
+        "wlan_multi_basic_settings": {
+            "Ssids": {
+                "Ssid": [
+                    {
+                        "wifiisguestnetwork": "0",
+                        "WifiSsid": "Home-2.4G",
+                        "WifiEnable": "0",
+                    },
+                    {
+                        "wifiisguestnetwork": "0",
+                        "WifiSsid": "Home-5G",
+                        "WifiEnable": "0",
+                    },
+                    {
+                        "wifiisguestnetwork": "1",
+                        "WifiSsid": "Home-Guest",
+                        "WifiEnable": "1",
+                    },
+                ]
+            }
+        }
+    }
+
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+
+    # The two primaries are disabled and the guest is enabled, so a loop that
+    # stopped early would report False rather than True.
+    assert switch.is_on is True
+    assert without_about(switch.extra_state_attributes) == {"ssid": "Home-Guest"}
+
+
+# ---------------------------------------------------------------------------
+# Write refusal — a write may never report success having done nothing
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("turn_on", [True, False])
+async def test_mobile_data_write_failure_raises(
+    mock_coordinator, mock_config_entry, turn_on
+):
+    """A refused mobile-data write must surface, not log and return.
+
+    Previously the exception was caught and logged, so the service call
+    succeeded and the switch simply sprang back on the next poll. The
+    distinction being asserted is *the caller is told* — and that no refresh
+    was issued, because there is nothing new to read.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock(side_effect=Exception("Router refused"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    call = switch.async_turn_on if turn_on else switch.async_turn_off
+    with pytest.raises(HomeAssistantError, match="mobile data failed"):
+        await call()
+
+    mock_coordinator.async_force_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("turn_on", [True, False])
+async def test_guest_wifi_write_failure_raises(
+    mock_coordinator, mock_config_entry, turn_on
+):
+    """A refused guest-WiFi write must surface.
+
+    This one was masked twice: the exception was swallowed, and a `finally`
+    refresh then made the switch look as though it had merely been re-read.
+    """
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_api = MagicMock()
+    mock_api.set_guest_wifi = AsyncMock(side_effect=Exception("Router refused"))
+    mock_coordinator.api = mock_api
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+
+    call = switch.async_turn_on if turn_on else switch.async_turn_off
+    with pytest.raises(HomeAssistantError, match="guest WiFi failed"):
+        await call()
+
+    mock_coordinator.async_force_refresh.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_a_successful_write_is_not_reported_as_failed_by_a_read_blip(
+    mock_coordinator, mock_config_entry
+):
+    """A blip while confirming must not fail a write that already succeeded.
+
+    **This is Section 22's third outcome, and the reason it exists.** The
+    write reached the router and took effect; the read that would have proved
+    it did not come back. That is *unverified*, not failed. Collapsing it into
+    failure would report a working command as broken on every transient blip
+    and invite the user to repeat a command with a real-world effect.
+
+    So: no exception, nothing published as confirmed, and the state left for
+    the next poll to settle. The behavior changed here — before Section 22
+    this path raised, because the confirmation was a full coordinator refresh
+    whose exception propagated.
+    """
+    mock_api = MagicMock()
+    mock_api.set_mobile_data = AsyncMock()
+    # `read_back` answers None for a failed read; it never raises. That
+    # contract is what keeps the three outcomes distinct.
+    mock_api.read_back = AsyncMock(return_value=None)
+    mock_coordinator.api = mock_api
+    mock_coordinator.async_force_refresh = AsyncMock()
+    switch = HuaweiMobileDataSwitch(
+        mock_coordinator, mock_config_entry, MOBILE_DATA_DESCRIPTION
+    )
+    switch.hass = MagicMock()
+    switch.async_write_ha_state = MagicMock()
+
+    await switch.async_turn_on()
+
+    mock_api.set_mobile_data.assert_awaited_once_with(True)
+    # Not confirmed, so nothing is published as fact...
+    switch.async_write_ha_state.assert_not_called()
+    # ...and no refresh is forced either. Re-asking all 26 endpoints when the
+    # router has just failed to answer one costs more than the debounced
+    # refresh this replaced. The next scheduled poll settles it.
+    mock_coordinator.async_force_refresh.assert_not_awaited()

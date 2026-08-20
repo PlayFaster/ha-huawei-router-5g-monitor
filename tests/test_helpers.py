@@ -2,6 +2,8 @@
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.helpers import (
     _parse_complex_float,
@@ -14,6 +16,7 @@ from custom_components.huawei_router_5g.helpers import (
     parse_signal_value,
     parse_sms_list,
 )
+from tests.conftest import assert_is_root, assert_links_to_parent
 
 # ---------------------------------------------------------------------------
 # get_router_model
@@ -217,13 +220,13 @@ def test_build_device_info():
     info = build_device_info(coordinator, "system")
     assert info["identifiers"] == {(DOMAIN, "001122334455_system")}
     assert info["name"] == "My Router System"
-    assert "via_device" not in info
+    assert_is_root(info)
 
     # Test Signal Group (non-system)
     info = build_device_info(coordinator, "signal")
     assert info["identifiers"] == {(DOMAIN, "001122334455_signal")}
     assert info["name"] == "My Router Signal"
-    assert info["via_device"] == (DOMAIN, "001122334455_system")
+    assert_links_to_parent(info, "001122334455_system")
 
     # Test Fallback ID (no MAC)
     coordinator.mac = None
@@ -337,3 +340,313 @@ def test_parse_sms_list_empty_messages():
     assert parse_sms_list(data) == []
     data = {"Messages": {"Message": None}}
     assert parse_sms_list(data) == []
+
+
+# ---------------------------------------------------------------------------
+# HuaweiAboutEntity — the `about` note mechanism
+# ---------------------------------------------------------------------------
+
+
+def test_an_entity_with_no_note_is_left_exactly_as_it_was():
+    """No note means no key, not an empty one.
+
+    An `about: None` that still emitted the key would put a null attribute on
+    every entity that has not been given a note yet, which reads as a broken
+    note rather than an absent one.
+    """
+    from custom_components.huawei_router_5g.helpers import HuaweiAboutEntity
+
+    entity = HuaweiAboutEntity()
+
+    assert entity._with_about({"ssid": "Home"}) == {"ssid": "Home"}
+    assert entity._with_about(None) is None
+    assert entity.extra_state_attributes is None
+
+
+def test_the_note_is_read_from_the_description_when_there_is_no_class_override():
+    """Both sources resolve, and `_attr_about` wins.
+
+    Description-driven entities take the note from the description; the device
+    tracker has no description at all and sets `_attr_about` instead. Both
+    paths have to work, and the class-level value has to take precedence or
+    the tracker would silently publish nothing.
+    """
+    from unittest.mock import MagicMock
+
+    from custom_components.huawei_router_5g.helpers import HuaweiAboutEntity
+
+    entity = HuaweiAboutEntity()
+    entity.entity_description = MagicMock(about="From the description")
+    assert entity.extra_state_attributes == {"about": "From the description"}
+
+    entity._attr_about = "From the class"
+    assert entity.extra_state_attributes == {"about": "From the class"}
+
+
+def test_a_binary_sensor_with_no_attributes_of_its_own_still_carries_the_note():
+    """The mixin's default property is the path most entities take.
+
+    Most entities in this component publish nothing but the note, so this is
+    the common case rather than an edge one — and it is the case that breaks
+    if the mixin is listed after `CoordinatorEntity` in the bases, because the
+    platform's own `extra_state_attributes` then wins.
+    """
+    from unittest.mock import MagicMock
+
+    from custom_components.huawei_router_5g.binary_sensor import (
+        LTE_CA_DESCRIPTION,
+        HuaweiBinarySensor,
+    )
+
+    coordinator = MagicMock()
+    coordinator.data = {}
+    sensor = HuaweiBinarySensor(coordinator, MagicMock(), LTE_CA_DESCRIPTION)
+
+    assert sensor.extra_state_attributes == {"about": LTE_CA_DESCRIPTION.about}
+
+
+# ---------------------------------------------------------------------------
+# Mutation findings, recommendations_20260815.md
+# ---------------------------------------------------------------------------
+
+
+def _device_info_coordinator():
+    """Build the coordinator stub `build_device_info` reads from."""
+    coordinator = MagicMock()
+    coordinator.entry.title = "My Router"
+    coordinator.entry.options = {}
+    coordinator.entry.entry_id = "entry-abc"
+    coordinator.mac = "001122334455"
+    coordinator.model = "H165-383"
+    coordinator.sw_version = "1.0.1"
+    coordinator.hw_version = "v1"
+    coordinator.api.url = "http://192.168.8.1"
+    return coordinator
+
+
+def test_build_device_info_links_to_the_named_parent():
+    """The parent link names a specific device, and nothing checked which.
+
+    Covers finding ASSERT.1 from recommendations_20260815.md.
+
+    `assert_links_to_parent()` asserts on HA 2026.8+ only that `via_device_id`
+    is **truthy** — it never inspects the identifier it is passed. With a
+    mocked device registry that id is truthy whatever arguments produced it,
+    so `via_device_link(hass, None, None, None)` passed a dozen tests.
+
+    Asserting at the call boundary is the proportionate fix: it is the one
+    place a mocked registry cannot hide the arguments. The helper is
+    deliberately left alone — resolving the id through the registry would need
+    a real `hass` in every test that uses it.
+    """
+    from unittest.mock import patch
+
+    coordinator = _device_info_coordinator()
+
+    with patch(
+        "custom_components.huawei_router_5g.helpers.via_device_link",
+        return_value={"via_device_id": "resolved"},
+    ) as link:
+        build_device_info(coordinator, "signal")
+
+    link.assert_called_once()
+    args = link.call_args.args
+    assert args[0] is coordinator.hass
+    assert args[1] == DOMAIN
+    assert args[2] == "001122334455_system"
+    assert args[3] == "entry-abc"
+
+
+def test_build_device_info_carries_the_hardware_identity():
+    """Section 2: the registry must be right while the hardware is offline.
+
+    Covers finding RETVAL.1 from recommendations_20260815.md. All three fields
+    could be set to None, or dropped from the call entirely, with the suite
+    green. Distinct sentinels, so a swap cannot pass either.
+    """
+    coordinator = _device_info_coordinator()
+    coordinator.model = "MODEL-SENTINEL"
+    coordinator.sw_version = "SW-SENTINEL"
+    coordinator.hw_version = "HW-SENTINEL"
+
+    info = build_device_info(coordinator, "data")
+
+    assert info["model"] == "MODEL-SENTINEL"
+    assert info["sw_version"] == "SW-SENTINEL"
+    assert info["hw_version"] == "HW-SENTINEL"
+
+
+def test_build_device_info_names_a_group_it_has_never_heard_of():
+    """The group map is a display-name override, not a registration.
+
+    Covers finding BVA.5 from recommendations_20260815.md. The
+    `group.capitalize()` fallback is what makes a seventh sub-device degrade
+    gracefully instead of being named "My Router None".
+    """
+    info = build_device_info(_device_info_coordinator(), "storage")
+
+    assert info["name"] == "My Router Storage"
+
+
+@pytest.mark.parametrize("sentinel", ["", "N/A", "--", None])
+def test_the_routers_no_value_sentinels_parse_to_none(sentinel):
+    """`"--"` must reach a sensor as unknown, not as the string `"--"`.
+
+    Covers finding ERR.3 from recommendations_20260815.md.
+
+    The guard is decorative in `parse_signal_value`, whose fall-through hits
+    `float()` and returns None anyway — but load-bearing in these two, where
+    the fall-through returns the raw string. Without it a numeric sensor
+    publishes the literal `"--"` as its state.
+    """
+    assert _parse_complex_int(sentinel) is None
+    assert _parse_complex_float(sentinel) is None
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1970000khz", 1970000.0),
+        ("1970000KHz", 1970000.0),
+        ("3.5ghz", 3.5),
+        ("3.5GHz", 3.5),
+    ],
+)
+def test_khz_and_ghz_suffixes_are_stripped(raw, expected):
+    """Two of the nine unit suffixes were never exercised.
+
+    Covers finding ERR.4 from recommendations_20260815.md. The other seven had
+    their mutants killed, so this was a precise gap rather than a thin area.
+    `khz` is the one that matters: the router reports `ulfrequency` and
+    `dlfrequency` in kHz, and an unparsed value takes four sensors to unknown.
+
+    The mixed-case forms are included because the comparison runs on a
+    lower-cased copy and nothing proved that.
+    """
+    assert parse_signal_value(raw) == expected
+
+
+def test_a_message_missing_every_optional_field_takes_the_defaults():
+    """A firmware that omits a field must not take the SMS sensors down.
+
+    Covers finding ERR.2 from recommendations_20260815.md. Every message dict
+    in the suite carried every field, so no default was ever taken — and one
+    of them raises when absent: `int(msg.get("Index", None))` is `int(None)`,
+    a TypeError that propagates out of the parser.
+    """
+    parsed = parse_sms_list({"Messages": {"Message": [{"Index": "7"}]}})
+
+    assert len(parsed) == 1
+    assert parsed[0]["index"] == 7
+    assert parsed[0]["phone"] == ""
+    assert parsed[0]["content"] == ""
+    assert parsed[0]["date"] == ""
+    assert parsed[0]["read"] is False
+
+
+def test_entries_that_are_not_messages_are_dropped_rather_than_parsed():
+    """The filter is `isinstance` **and** `"Index" in msg`, not either.
+
+    Covers finding ERR.2 from recommendations_20260815.md. Under `or`, a bare
+    string reaches `msg.get` and raises; a dict with no `Index` is parsed as
+    though it were a message.
+    """
+    parsed = parse_sms_list(
+        {
+            "Messages": {
+                "Message": [
+                    {"Index": "1", "Content": "real"},
+                    {"Content": "no index — metadata, not a message"},
+                    "not a dict at all",
+                ]
+            }
+        }
+    )
+
+    assert len(parsed) == 1
+    assert parsed[0]["index"] == 1
+
+
+@pytest.mark.parametrize(
+    ("messages", "expected_indexes"),
+    [
+        # One real message must be kept — this is what `> 1` decides.
+        ([{"Index": "5", "Content": "only"}], [5]),
+        # A leading metadata element carries neither key, and is dropped.
+        ([{"Count": "2"}, {"Index": "9", "Content": "real"}], [9]),
+        # Two real messages: neither is metadata, so neither is dropped.
+        (
+            [{"Index": "1", "Content": "a"}, {"Index": "2", "Content": "b"}],
+            [1, 2],
+        ),
+    ],
+)
+def test_the_metadata_offset_heuristic_at_its_edges(messages, expected_indexes):
+    """Some firmware prefixes the list with a count element.
+
+    Covers finding BVA.4 from recommendations_20260815.md. The suite only ever
+    supplied well-formed multi-message lists whose first element was a real
+    message, so neither edge of the length test nor either side of the
+    metadata test was exercised — including a straight inversion of the
+    condition.
+
+    The indexes are asserted, not just the count: on count alone the
+    single-message and metadata cases are indistinguishable.
+    """
+    parsed = parse_sms_list({"Messages": {"Message": messages}})
+
+    assert [m["index"] for m in parsed] == expected_indexes
+
+
+# ---------------------------------------------------------------------------
+# Section 6 — rounding at parse time
+# ---------------------------------------------------------------------------
+
+
+def test_parse_rounds_at_parse_time() -> None:
+    """Router noise must not reach the recorder verbatim.
+
+    `parse_signal_value` is the single point every numeric value in the
+    component passes through — `_safe_int` and `_safe_float` both delegate to
+    it — so this is the only place rounding has to happen.
+    """
+    from custom_components.huawei_router_5g.helpers import parse_signal_value
+
+    assert parse_signal_value("99.930600002408") == 99.931
+    assert parse_signal_value(-85.7777777) == -85.778
+    assert parse_signal_value("-95.1234567dBm") == -95.123
+
+
+def test_rounding_reaches_the_safe_wrappers() -> None:
+    """The wrappers must inherit the rounding, not bypass it.
+
+    Asserted separately because these are what the entity descriptions
+    actually call. A future refactor that gave `_safe_float` its own
+    conversion would leave `parse_signal_value` rounding and the entities
+    unrounded, and the test above would still pass.
+    """
+    from custom_components.huawei_router_5g.helpers import _safe_float
+
+    assert _safe_float("12.98765") == 12.988
+
+
+def test_rounding_does_not_weaken_the_input_guards() -> None:
+    """Rounding must not change how bad input is handled."""
+    from custom_components.huawei_router_5g.helpers import _safe_float
+
+    assert _safe_float(None) is None
+    assert _safe_float("") is None
+    assert _safe_float("N/A") is None
+    assert _safe_float("not a number") is None
+
+
+def test_rounding_leaves_integers_alone() -> None:
+    """The common case is an integer and must be untouched.
+
+    Most values this router reports are whole numbers. Rounding exists for
+    float artefacts of the `0.30000000000000004` kind, not to alter readings.
+    """
+    from custom_components.huawei_router_5g.helpers import _safe_float, _safe_int
+
+    assert _safe_float("-95") == -95.0
+    assert _safe_int("4") == 4

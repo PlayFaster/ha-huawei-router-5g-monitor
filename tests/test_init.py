@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from custom_components.huawei_router_5g import (
@@ -15,6 +15,11 @@ from custom_components.huawei_router_5g import (
     async_send_sms,
     async_setup,
 )
+from custom_components.huawei_router_5g.const import (
+    SMS_MAX_CHARS_GSM7,
+    SMS_MAX_CHARS_UNICODE,
+)
+from custom_components.huawei_router_5g.helpers import is_gsm7
 
 
 @pytest.fixture
@@ -34,6 +39,7 @@ def mock_coordinator():
     coordinator = MagicMock()
     coordinator.api = MagicMock()
     coordinator.async_request_refresh = AsyncMock()
+    coordinator.async_force_refresh = AsyncMock()
     return coordinator
 
 
@@ -56,7 +62,7 @@ async def test_async_setup_registers_services(mock_hass):
     result = await async_setup(mock_hass, {})
 
     assert result is True
-    assert mock_hass.services.async_register.call_count == 4
+    assert mock_hass.services.async_register.call_count == 5
 
     # Check registration of specific services
     calls = mock_hass.services.async_register.call_args_list
@@ -64,6 +70,7 @@ async def test_async_setup_registers_services(mock_hass):
     assert "send_sms" in registered_services
     assert "delete_sms" in registered_services
     assert "delete_all_sms" in registered_services
+    assert "cleanup_unused_entities" in registered_services
     assert "get_sms_list" in registered_services
 
 
@@ -109,6 +116,21 @@ async def test_get_coordinator_not_found(mock_hass):
 
 
 @pytest.mark.asyncio
+async def test_get_coordinator_multiple_entries(mock_hass):
+    """Test _get_coordinator requires entry_id when more than one router is loaded."""
+    from custom_components.huawei_router_5g import _get_coordinator
+
+    entry_a = MagicMock()
+    entry_a.runtime_data = MagicMock()
+    entry_b = MagicMock()
+    entry_b.runtime_data = MagicMock()
+    mock_hass.config_entries.async_entries.return_value = [entry_a, entry_b]
+
+    with pytest.raises(HomeAssistantError, match="specify entry_id"):
+        _get_coordinator(mock_hass, {})
+
+
+@pytest.mark.asyncio
 async def test_async_send_sms_service(mock_hass, mock_coordinator, mock_config_entry):
     """Test the send_sms service handler."""
     mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
@@ -120,6 +142,60 @@ async def test_async_send_sms_service(mock_hass, mock_coordinator, mock_config_e
     await async_send_sms(mock_hass, call)
 
     mock_coordinator.api.send_sms.assert_awaited_once_with(["+123"], "hello")
+
+
+@pytest.mark.parametrize(
+    ("message", "sendable"),
+    [
+        # Plain text, right on the GSM-7 ceiling and one past it.
+        ("a" * SMS_MAX_CHARS_GSM7, True),
+        ("a" * (SMS_MAX_CHARS_GSM7 + 1), False),
+        # One emoji forces UCS-2 for the whole message, so the ceiling more
+        # than halves. This is the case a flat limit cannot express: the same
+        # length that passes above is refused here.
+        ("\U0001f600" + "a" * (SMS_MAX_CHARS_UNICODE - 1), True),
+        ("\U0001f600" + "a" * SMS_MAX_CHARS_UNICODE, False),
+        # A curly quote is enough on its own - it is not in GSM 03.38.
+        ("\u2019" + "a" * SMS_MAX_CHARS_UNICODE, False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_the_sms_length_limit_follows_the_encoding(
+    message, sendable, mock_hass, mock_coordinator, mock_config_entry
+):
+    """Which ceiling applies depends on the characters, not on the length.
+
+    The service carried a flat `max=160` until 2026-08-19 - the single-segment
+    GSM-7 figure - on a router whose own interface advertises 612 ASCII and 268
+    UCS2. It rejected plain text the hardware would have sent, and said nothing
+    about the limit halving the moment one special character appeared.
+
+    The pairs above are what pins that: the same character count passes as
+    GSM-7 and is refused as Unicode.
+    """
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.send_sms = AsyncMock()
+
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"target": ["+123"], "message": message}
+
+    if sendable:
+        await async_send_sms(mock_hass, call)
+        mock_coordinator.api.send_sms.assert_awaited_once()
+        return
+
+    with pytest.raises(ServiceValidationError) as err:
+        await async_send_sms(mock_hass, call)
+
+    # Nothing reached the router - the check runs before the send.
+    mock_coordinator.api.send_sms.assert_not_awaited()
+    # And the error names the limit that applied, so the caller can act.
+    assert err.value.translation_key == "sms_too_long"
+    placeholders = err.value.translation_placeholders or {}
+    assert placeholders["encoding"] in ("GSM-7", "Unicode")
+    assert placeholders["limit"] == str(
+        SMS_MAX_CHARS_GSM7 if is_gsm7(message) else SMS_MAX_CHARS_UNICODE
+    )
 
 
 @pytest.mark.asyncio
@@ -134,7 +210,7 @@ async def test_async_delete_sms_service(mock_hass, mock_coordinator, mock_config
     await async_delete_sms(mock_hass, call)
 
     mock_coordinator.api.delete_sms.assert_awaited_once_with(5)
-    mock_coordinator.async_request_refresh.assert_awaited_once()
+    mock_coordinator.async_force_refresh.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -158,7 +234,7 @@ async def test_async_delete_all_sms_service(
     await async_delete_all_sms(mock_hass, call)
 
     assert mock_coordinator.api.delete_sms.call_count == 2
-    mock_coordinator.async_request_refresh.assert_awaited_once()
+    mock_coordinator.async_force_refresh.assert_awaited_once()
 
 
 @pytest.mark.asyncio
@@ -343,6 +419,13 @@ async def test_async_setup_entry_and_unload(mock_hass):
 
     mock_registry = MagicMock()
     with (
+        # The unique-id migration needs a real entity registry; this test drives
+        # setup with a MagicMock hass, so stub the migration itself. Its own
+        # behavior is covered by the dedicated tests below.
+        patch(
+            "custom_components.huawei_router_5g._async_migrate_tracker_unique_ids",
+            new=AsyncMock(),
+        ),
         patch(
             "custom_components.huawei_router_5g.dr.async_get",
             return_value=mock_registry,
@@ -395,6 +478,123 @@ async def test_async_setup_entry_and_unload(mock_hass):
         await bg_task_coro2
 
 
+@pytest.mark.asyncio
+async def test_supported_net_modes_is_read_before_the_first_refresh(mock_hass):
+    """The accepted-mode list must be set **before** `async_refresh`.
+
+    `async_refresh` is what makes every entity write its state. The network-mode
+    select reads its options from `coordinator.supported_net_modes`, so setting
+    that list after the refresh publishes the fallback options and then leaves
+    them there — nothing writes state again until the next scheduled poll, three
+    minutes later by default.
+
+    **This shipped, briefly, and looked like nothing was wrong**: the log said
+    initialization completed, the router answered correctly when queried by
+    hand, and the dropdown still showed the wrong list through two restarts.
+    Ordering between two adjacent lines was the entire defect, and no assertion
+    covered it — the outcome tests all passed.
+
+    Asserted on call order rather than on the value, because the value is right
+    either way; only the timing is wrong.
+    """
+    from custom_components.huawei_router_5g import async_setup_entry
+
+    calls: list[str] = []
+
+    mock_entry = MagicMock()
+    mock_entry.options = {
+        "host": "192.168.8.1",
+        "username": "admin",
+        "password": "pw",
+    }
+    mock_entry.data = {"mac": "00:11:22:33:44:55"}
+    mock_entry.entry_id = "test_id"
+    mock_entry.title = "Router"
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g._async_migrate_tracker_unique_ids",
+            new=AsyncMock(),
+        ),
+        patch(
+            "custom_components.huawei_router_5g.dr.async_get",
+            return_value=MagicMock(),
+        ),
+        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_class,
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
+        ) as mock_coord_class,
+    ):
+        await async_setup_entry(mock_hass, mock_entry)
+        bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
+
+        api = mock_api_class.return_value
+        coordinator = mock_coord_class.return_value
+        api.login = AsyncMock(side_effect=lambda: calls.append("login"))
+        api.get_supported_net_modes = AsyncMock(
+            side_effect=lambda: calls.append("modes") or ["00", "08", "03"]
+        )
+        coordinator.async_refresh = AsyncMock(
+            side_effect=lambda: calls.append("refresh")
+        )
+
+        await bg_task_coro
+
+    assert calls == ["login", "modes", "refresh"], (
+        f"the mode list must be read after login and before the first refresh, got {calls}"
+    )
+    assert coordinator.supported_net_modes == ["00", "08", "03"]
+
+
+@pytest.mark.asyncio
+async def test_a_failed_mode_list_read_cannot_block_the_first_refresh(mock_hass):
+    """The list is cosmetic; the data fetch is not.
+
+    An earlier revision read the list before the refresh with no guard of its
+    own, so a failure there fell to the outer handler and the entry came up with
+    no data at all. Both requirements hold at once: read it first, and never let
+    it stop what follows.
+    """
+    from custom_components.huawei_router_5g import async_setup_entry
+
+    mock_entry = MagicMock()
+    mock_entry.options = {
+        "host": "192.168.8.1",
+        "username": "admin",
+        "password": "pw",
+    }
+    mock_entry.data = {"mac": "00:11:22:33:44:55"}
+    mock_entry.entry_id = "test_id"
+    mock_entry.title = "Router"
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g._async_migrate_tracker_unique_ids",
+            new=AsyncMock(),
+        ),
+        patch(
+            "custom_components.huawei_router_5g.dr.async_get",
+            return_value=MagicMock(),
+        ),
+        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as mock_api_class,
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
+        ) as mock_coord_class,
+    ):
+        await async_setup_entry(mock_hass, mock_entry)
+        bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
+
+        api = mock_api_class.return_value
+        coordinator = mock_coord_class.return_value
+        api.login = AsyncMock()
+        api.get_supported_net_modes = AsyncMock(side_effect=RuntimeError("busy"))
+        coordinator.async_refresh = AsyncMock()
+
+        await bg_task_coro
+
+        coordinator.async_refresh.assert_called_once()
+
+
 @pytest.mark.parametrize("box_type", [1, 2, 3, 4, 5, 6, 7, 8, 9, 10])
 @pytest.mark.asyncio
 async def test_async_get_sms_list_box_types(
@@ -412,3 +612,90 @@ async def test_async_get_sms_list_box_types(
     mock_coordinator.api.get_sms_list.assert_called_with(
         page=1, box_type=BoxTypeEnum(box_type), read_count=20
     )
+
+
+# ---------------------------------------------------------------------------
+# Repair lifecycle — a repair must not outlive the entry that raised it
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_unload_clears_every_repair_this_entry_raised(mock_config_entry):
+    """Unloading must clear the entry's repairs.
+
+    A repair left behind by a disabled or reloading entry points at an
+    integration that is not running. `auth_failed` is `is_fixable=True`, so it
+    offers a repair flow that cannot be served.
+    """
+    from custom_components.huawei_router_5g import async_unload_entry
+    from custom_components.huawei_router_5g.const import DOMAIN, REPAIR_NAMES
+
+    hass = MagicMock()
+    hass.config_entries.async_unload_platforms = AsyncMock(return_value=True)
+    coordinator = MagicMock()
+    coordinator.api.logout = AsyncMock()
+    coordinator.hass = hass
+    coordinator.entry = mock_config_entry
+    coordinator.clear_repairs = MagicMock()
+    mock_config_entry.runtime_data = coordinator
+
+    assert await async_unload_entry(hass, mock_config_entry) is True
+
+    coordinator.clear_repairs.assert_called_once()
+    # Guard the guard: the helper must actually name every repair.
+    assert set(REPAIR_NAMES) == {"auth_failed", "conn_error"}
+    assert DOMAIN == "huawei_router_5g"
+
+
+@pytest.mark.asyncio
+async def test_clear_repairs_deletes_each_entry_scoped_id(mock_hass, mock_config_entry):
+    """`clear_repairs` deletes one entry-scoped id per known repair.
+
+    Asserts the **ids**, not just the call count: the registry keys on
+    `(domain, issue_id)`, so a bare id would give every config entry the same
+    slot and the wrong repair would be cleared.
+    """
+    from custom_components.huawei_router_5g.const import DOMAIN, REPAIR_NAMES
+    from custom_components.huawei_router_5g.coordinator import (
+        HuaweiRouter5GDataUpdateCoordinator,
+    )
+
+    coordinator = MagicMock()
+    coordinator.hass = mock_hass
+    coordinator.entry = mock_config_entry
+    coordinator.clear_repairs = (
+        HuaweiRouter5GDataUpdateCoordinator.clear_repairs.__get__(coordinator)
+    )
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.ir.async_delete_issue"
+    ) as delete:
+        coordinator.clear_repairs()
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}
+    assert all(call.args[1] == DOMAIN for call in delete.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_remove_entry_clears_repairs_without_the_coordinator(mock_config_entry):
+    """Deletion must clear repairs, and must not reach for `runtime_data`.
+
+    `async_remove_entry` runs after unload, so the coordinator is gone. The
+    integration previously had no `async_remove_entry` at all — meaning a
+    repair raised at deletion time stayed in the Repairs panel permanently,
+    with nothing left that could ever clear it.
+    """
+    from custom_components.huawei_router_5g import async_remove_entry
+    from custom_components.huawei_router_5g.const import REPAIR_NAMES
+
+    hass = MagicMock()
+    # No runtime_data: touching it must raise rather than silently pass.
+    if hasattr(mock_config_entry, "runtime_data"):
+        del mock_config_entry.runtime_data
+
+    with patch("custom_components.huawei_router_5g.ir.async_delete_issue") as delete:
+        await async_remove_entry(hass, mock_config_entry)
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}

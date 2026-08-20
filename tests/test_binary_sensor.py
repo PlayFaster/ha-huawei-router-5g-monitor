@@ -10,9 +10,11 @@ from custom_components.huawei_router_5g.binary_sensor import (
     LTE_CA_DESCRIPTION,
     MOBILE_CONN_DESCRIPTION,
     ROAMING_DESCRIPTION,
+    ROUTER_DIAGNOSTICS_DESCRIPTION,
     SIM_STATUS_DESCRIPTION,
     SINGLE_SSID_MODE_DESCRIPTION,
     SMS_STORAGE_FULL_DESCRIPTION,
+    VALUE_BINARY_SENSORS,
     WIFI_5G_STATUS_DESCRIPTION,
     WIFI_24G_STATUS_DESCRIPTION,
     WIFI_STATUS_DESCRIPTION,
@@ -21,15 +23,19 @@ from custom_components.huawei_router_5g.binary_sensor import (
     HuaweiLteCaSensor,
     HuaweiMobileConnectionSensor,
     HuaweiRoamingSensor,
+    HuaweiRouterDiagnosticsSensor,
     HuaweiSimStatusSensor,
     HuaweiSingleSsidModeSensor,
     HuaweiSmsStorageFullSensor,
+    HuaweiValueBinarySensor,
     HuaweiWifi5GStatusSensor,
     HuaweiWifi24GStatusSensor,
     HuaweiWifiStatusSensor,
+    _flag,
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
+from tests.conftest import assert_links_to_parent, without_about
 
 # ---------------------------------------------------------------------------
 # HuaweiBestConnectionSensor
@@ -110,7 +116,7 @@ def test_best_connection_device_info(mock_coordinator, mock_config_entry):
     mac = "DC:71:96:11:22:33"
     assert info["identifiers"] == {(DOMAIN, f"{mac}_signal")}
     assert info["manufacturer"] == "Huawei"
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 # ---------------------------------------------------------------------------
@@ -188,7 +194,7 @@ def test_sms_storage_full_device_info(mock_coordinator, mock_config_entry):
     info = sensor.device_info
     mac = "DC:71:96:11:22:33"
     assert info["identifiers"] == {(DOMAIN, f"{mac}_sms")}
-    assert info["via_device"] == (DOMAIN, f"{mac}_system")
+    assert_links_to_parent(info, f"{mac}_system")
 
 
 def test_lte_ca_no_coordinator_data(mock_coordinator, mock_config_entry):
@@ -656,4 +662,183 @@ async def test_binary_sensor_setup_entry():
     await async_setup_entry(hass, entry, async_add_entities)
     async_add_entities.assert_called_once()
     entities = async_add_entities.call_args[0][0]
-    assert len(entities) == 12
+    # 13 purpose-built subclasses plus every VALUE_BINARY_SENSORS description.
+    # Derived rather than hard-coded, so adding a description cannot silently
+    # skip registration - the count would still match a stale literal.
+    assert len(entities) == 14 + len(VALUE_BINARY_SENSORS)
+
+
+# ---------------------------------------------------------------------------
+# §T-4 value-driven binary sensors
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        ("1", True),
+        ("2", True),
+        ("true", True),
+        ("0", False),
+        ("off", False),
+        ("OFF", False),
+        ("false", False),
+        (None, None),
+        ("", None),
+    ],
+)
+def test_a_router_flag_maps_to_a_bool(raw, expected) -> None:
+    """`0`/`off`/`false` are all off, in any casing.
+
+    An exact match on one spelling is the defect `zte_router_5g` shipped in its
+    projection guard, and nothing in this API guarantees casing.
+    """
+    data = {"monitoring_status": {"poorSignalStatus": raw}}
+    assert _flag(data, "monitoring_status", "poorSignalStatus") is expected
+
+
+def test_a_missing_block_reads_as_unavailable_not_false() -> None:
+    """An endpoint that failed its fetch must not publish a confident `off`."""
+    assert _flag({}, "csps_state", "psstate") is None
+    assert _flag(None, "csps_state", "psstate") is None
+    assert _flag({"csps_state": None}, "csps_state", "psstate") is None
+
+
+@pytest.mark.parametrize("description", VALUE_BINARY_SENSORS)
+def test_every_value_binary_sensor_reads_its_flag(description) -> None:
+    """Each description must actually resolve against a realistic payload.
+
+    A `value_fn` pointed at the wrong block or a misspelled key returns None
+    forever and looks exactly like an endpoint the router does not support.
+    """
+    data = {
+        "monitoring_status": {"poorSignalStatus": "1", "speedLimitStatus": "1"},
+        "csps_state": {"psstate": "1", "csstate": "1"},
+        "start_date": {"SetMonthData": "1"},
+        "converged_status": {"SimLockEnable": "1"},
+        "dial_up_connection": {"RoamAutoConnectEnable": "1"},
+        "security_sip": {"SipStatus": "1"},
+        "security_upnp": {"UpnpStatus": "1"},
+        "voice_volte": {"volte_enable": "1"},
+    }
+    coordinator = MagicMock()
+    coordinator.data = data
+    entry = MagicMock()
+    entry.entry_id = "test"
+    sensor = HuaweiValueBinarySensor(coordinator, entry, description)
+    assert sensor.is_on is True, f"{description.key} did not resolve"
+
+
+def test_a_description_without_a_value_fn_reports_unavailable() -> None:
+    """The guard exists so a mistake degrades rather than raises.
+
+    Covered by a test rather than silenced with a `pragma: no cover` — a
+    suppression would need a reviewed allow-list entry claiming the branch
+    cannot be reached, which is a claim, not a fact.
+    """
+    coordinator = MagicMock()
+    coordinator.data = {}
+    entry = MagicMock()
+    entry.entry_id = "test"
+    sensor = HuaweiValueBinarySensor(coordinator, entry, BEST_CONN_DESCRIPTION)
+    assert sensor.is_on is None
+
+
+# ---------------------------------------------------------------------------
+# Router Diagnostics
+# ---------------------------------------------------------------------------
+
+
+def _diag(**over):
+    """Build a healthy onekey_diag block, with overrides applied."""
+    block = {
+        "connection_status": "2",
+        "signal_status": "0",
+        "sim_status": "0",
+        "dialupswitch_off": "0",
+        "datalimit_off": "0",
+        "roam_off": "0",
+        "staticdns": "0",
+        "apnstatus": "0",
+        "modemdialup_err": "0",
+        "speedLimitStatus": "0",
+    }
+    block.update(over)
+    return {"onekey_diag": block}
+
+
+def _diag_sensor(data):
+    """Build the diagnostics sensor over `data`."""
+    coordinator = MagicMock()
+    coordinator.data = data
+    entry = MagicMock()
+    entry.entry_id = "test"
+    entry.unique_id = "abc"
+    return HuaweiRouterDiagnosticsSensor(
+        coordinator, entry, ROUTER_DIAGNOSTICS_DESCRIPTION
+    )
+
+
+def test_two_is_healthy_not_zero() -> None:
+    """`connection_status` is a verdict, not a boolean.
+
+    Its healthy value is `2`. Reading it as a flag — `0` good, non-zero bad —
+    inverts the sensor completely, which is why this is pinned rather than
+    left to the reader of the field name.
+    """
+    assert _diag_sensor(_diag()).is_on is False
+
+
+def test_anything_that_is_not_the_healthy_value_is_a_problem() -> None:
+    """`!= "2"`, not `== "8"`.
+
+    Only `2` and `8` have ever been observed. Enumerating failure codes would
+    be a guess about every code never seen; treating not-known-good as a
+    problem is sound on the evidence.
+    """
+    assert _diag_sensor(_diag(connection_status="8")).is_on is True
+    assert _diag_sensor(_diag(connection_status="7")).is_on is True
+
+
+def test_a_missing_block_reads_unknown_not_healthy() -> None:
+    """A failed fetch must not publish a confident all-clear."""
+    assert _diag_sensor({}).is_on is None
+    assert _diag_sensor(None).is_on is None
+    assert _diag_sensor(_diag(connection_status="")).is_on is None
+
+
+def test_the_observed_failure_names_its_causes() -> None:
+    """The exact state measured on 2026-08-15 with mobile data switched off."""
+    sensor = _diag_sensor(
+        _diag(connection_status="8", dialupswitch_off="1", apnstatus="2")
+    )
+    attrs = sensor.extra_state_attributes
+    assert sensor.is_on is True
+    assert attrs["verdict"] == "8"
+    assert attrs["reasons"] == ["Mobile data switched off", "APN problem"]
+
+
+def test_a_healthy_router_reports_no_reasons() -> None:
+    """Nine zeroes means nothing to report, not nine problems."""
+    attrs = _diag_sensor(_diag()).extra_state_attributes
+    assert attrs["reasons"] == []
+    assert attrs["verdict"] == "2"
+
+
+def test_the_raw_block_is_published_alongside_the_labels() -> None:
+    """Seven of the nine labels are read from field names, not measured.
+
+    Publishing the raw block lets a reader who disagrees with a label see the
+    field that produced it.
+    """
+    attrs = _diag_sensor(_diag(signal_status="3")).extra_state_attributes
+    assert attrs["raw"]["signal_status"] == "3"
+    assert attrs["reasons"] == ["Signal problem"]
+    assert without_about(_diag_sensor({}).extra_state_attributes) == {}
+
+
+def test_the_diagnostics_attributes_are_unrecorded() -> None:
+    """Section 14: none of this is a time series."""
+    assert HuaweiRouterDiagnosticsSensor._unrecorded_attributes == frozenset(
+        {"reasons", "raw", "verdict", "about"}
+    )

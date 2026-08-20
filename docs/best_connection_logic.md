@@ -113,7 +113,7 @@ No coordinator data  →  None (unavailable)
 
 ## Hardware Notes (H165-383)
 
-| API field | Behaviour on H165-383 |
+| API field | Behavior on H165-383 |
 | :-- | :-- |
 | `sc_band` | Always null — unusable as NR indicator |
 | `network_type` | Returns `"LTE"` in NSA 5G mode — unusable as 5G gate |

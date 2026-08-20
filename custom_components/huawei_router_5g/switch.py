@@ -1,24 +1,42 @@
 """Switch platform for Huawei Router 5G Monitor."""
 
 import logging
+from collections.abc import Callable
 from dataclasses import dataclass
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import CONF_STOP_POLLING
+from .const import CONF_STOP_POLLING, DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import (
+    ABOUT_UNRECORDED,
+    HuaweiAboutEntity,
+    build_device_info,
+    confirm_write,
+)
 
 _LOGGER = logging.getLogger(__name__)
 
-PARALLEL_UPDATES = 0
+# Section 22. `1`, not `0`.
+#
+# `0` means *unlimited*. This platform issues commands with a real-world effect
+# on the router, and `api.py` serializes every call behind an `asyncio.Lock`
+# precisely because concurrent calls answer with "Busy" / `110001`. That lock is
+# the actual safety mechanism; `PARALLEL_UPDATES = 1` states the same intent at
+# the platform boundary and stops N concurrent service calls each occupying a
+# Home Assistant task while they queue on it.
+#
+# Decided per write path rather than copied from `zte_router_5g` — see
+# `number.py`, which reaches the opposite answer for the opposite reason.
+PARALLEL_UPDATES = 1
 
 
 @dataclass(frozen=True, kw_only=True)
@@ -26,10 +44,33 @@ class HuaweiSwitchEntityDescription(SwitchEntityDescription):
     """Describes a Huawei Router 5G switch entity."""
 
     group: str = "system"
+    # dev_standards Section 14 - the human-facing `about` note. Mandatory; a
+    # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
+    about: str | None = None
+
+    # dev_standards Section 22 — the write-confirmation exclusion, declared
+    # where a reviewer reading this entity will see it.
+    #
+    # A write that re-establishes the connection makes the router answer
+    # abnormally **while succeeding**, so a targeted read-back reports a
+    # working command as failed. The protection is also structural — no reader
+    # exists in `api.py::READ_BACK_ENDPOINTS` for the endpoints these need —
+    # but the section asks for the exclusion to be visible on the entity
+    # rather than left as an unwritten rule two modules away.
+    #
+    # `None` means the write is confirmable and is expected to confirm. A
+    # string is the reason it never will be.
+    no_confirmation: str | None = None
 
 
 PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="pause_polling",
+    about=(
+        "Stops the scheduled polling without removing the integration. "
+        "Entities hold their last values rather than going unavailable. "
+        "Explicit actions - Refresh Now, and the refresh after a control "
+        "change - still reach the router while this is on."
+    ),
     translation_key="pause_polling",
     entity_category=EntityCategory.CONFIG,
     group="system",
@@ -37,13 +78,37 @@ PAUSE_POLLING_DESCRIPTION = HuaweiSwitchEntityDescription(
 
 MOBILE_DATA_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="mobile_data",
+    about=(
+        "Turns the mobile data connection on or off. The LAN and WiFi are "
+        "unaffected, so this does not disconnect local devices from each "
+        "other - only from the internet. A refusal by the router raises an "
+        "error rather than reporting an unearned success."
+    ),
     translation_key="mobile_data",
     entity_category=EntityCategory.CONFIG,
     group="system",
 )
 
+WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
+    key="wifi",
+    about=(
+        "Turns the router's WiFi radios on or off. It switches the radios themselves, "
+        "not the individual SSIDs - with the radio off, the per-SSID settings still "
+        "read as enabled and mean nothing."
+    ),
+    translation_key="wifi",
+    entity_category=EntityCategory.CONFIG,
+    group="wifi",
+)
+
 GUEST_WIFI_DESCRIPTION = HuaweiSwitchEntityDescription(
     key="wifi_guest_network",
+    about=(
+        "Turns the guest network on or off. The `ssid` attribute names the "
+        "network being controlled. Worth knowing before leaving it on: on "
+        "this hardware the guest SSID is configured open, so an unattended "
+        "`on` is an unauthenticated network on air."
+    ),
     translation_key="wifi_guest_network",
     entity_category=EntityCategory.CONFIG,
     group="wifi",
@@ -66,13 +131,16 @@ async def async_setup_entry(
                 coordinator, entry, PAUSE_POLLING_DESCRIPTION, initial_pause_state
             ),
             HuaweiMobileDataSwitch(coordinator, entry, MOBILE_DATA_DESCRIPTION),
+            HuaweiWifiSwitch(coordinator, entry, WIFI_DESCRIPTION),
             HuaweiGuestWifiSwitch(coordinator, entry, GUEST_WIFI_DESCRIPTION),
         ]
     )
 
 
 class HuaweiSwitch(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], SwitchEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    SwitchEntity,
 ):
     """Base class for Huawei Router 5G switches."""
 
@@ -93,10 +161,142 @@ class HuaweiSwitch(
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
         self._group = description.group
 
+        # The last position the router reported, held across polls.
+        #
+        # **Section 22: never render a missing key as an off/false position,
+        # and never fall to `unknown` after a user toggles.** Reading the
+        # coordinator payload directly does both — and it also published the
+        # *old* value after a confirmed write, because `confirm_write` verifies
+        # the new value and discards the block it read. `[1.2.0-dev23]`
+        # replaced a post-write `async_force_refresh()` with that read-back;
+        # the refresh had been repopulating `coordinator.data`, so the publish
+        # that followed showed the new state. Nothing replaced it.
+        #
+        # The latch is where a confirmed write puts its answer. `zte_router_5g`
+        # has carried it since before this bug existed, which is why the same
+        # read-back works there.
+        self._last_known: bool | None = None
+
+    def _read_position(self) -> bool | None:
+        """Return the position in the current payload, or None if unreadable.
+
+        Subclasses that reflect router state override this. The base returns
+        None so a switch backed by something other than the payload — Pause
+        Polling reads `entry.options` — inherits nothing it should not.
+        """
+        return None
+
+    def _remember_position(self) -> None:
+        """Latch the payload's position, ignoring a poll that cannot say."""
+        position = self._read_position()
+        if position is not None:
+            self._last_known = position
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Latch the new position before publishing it."""
+        self._remember_position()
+        super()._handle_coordinator_update()
+
+    async def async_added_to_hass(self) -> None:
+        """Seed the latch from whatever the first poll already fetched."""
+        await super().async_added_to_hass()
+        self._remember_position()
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the last position the router reported.
+
+        Falls back to the payload while the latch is unseeded, so an entity
+        that has not yet seen a poll still reads correctly rather than showing
+        `unknown` for a value the coordinator already holds. Once seeded, the
+        latch governs: it is what a confirmed write writes into, and it is what
+        holds the position when a later poll omits the key.
+        """
+        if self._last_known is not None:
+            return self._last_known
+        return self._read_position()
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
         return build_device_info(self.coordinator, self._group)
+
+    async def _async_confirm(
+        self,
+        endpoint: str,
+        extract: Callable[[dict[str, Any]], Any],
+        expected: str,
+        label: str,
+        new_state: bool,
+    ) -> None:
+        """Confirm a completed write by re-reading the one key it changed.
+
+        Section 22. Replaces a debounced full refresh — 26 endpoints and up to
+        ten seconds to learn a single flag, during which the frontend's
+        optimistic toggle springs back and then corrects itself.
+
+        **Three outcomes, and only one of them is an error.** A read that
+        disagrees twice means the router declined the command and the user
+        must be told. A read that fails or omits the key means *unverified*:
+        the write may well have taken effect, so it is logged and left to the
+        next poll rather than reported as a failure the user would act on.
+
+        Called after the write has already succeeded, so it never re-raises
+        the write's own exception.
+        """
+        confirmed = await confirm_write(
+            self.coordinator.api,
+            endpoint,
+            extract,
+            expected,
+            label=f"{self._entry.title}: {label}",
+        )
+
+        if confirmed is False:
+            raise HomeAssistantError(
+                translation_domain=DOMAIN,
+                translation_key="write_not_confirmed",
+                translation_placeholders={"action": label},
+            )
+
+        if confirmed is True:
+            # The device agrees. **Store before publishing.** `is_on` reads the
+            # latch, and the coordinator payload is still the pre-write one
+            # until the next poll — publishing without this re-stamps the old
+            # value over the frontend's optimistic toggle, which is exactly the
+            # defect this argument was added to fix.
+            self._last_known = new_state
+            self.async_write_ha_state()
+            return
+
+        # Unverified: the write reached the router, the read that would have
+        # proved it did not. Nothing to publish and nothing to raise.
+        #
+        # **Deliberately no refresh here.** Forcing one would fetch all 26
+        # endpoints to re-ask a question the router has just failed to answer,
+        # so the transient case would cost two reads *and* a full poll — more
+        # work than the debounced refresh this mechanism replaced, in exactly
+        # the situation where the router is already struggling. The next
+        # scheduled poll settles it at no extra cost.
+
+
+def _guest_enable_flag(block: dict[str, Any]) -> Any:
+    """Pull the guest SSID's enable flag out of the WiFi settings block.
+
+    The flag is not a top-level key: the block carries every SSID and the
+    guest network is the one whose `wifiisguestnetwork` is set. Matching on
+    that rather than on list position, because the router does not guarantee
+    an order — the same lesson the APN profile lookup learned when it came
+    back 1, 3, 2.
+    """
+    ssids = (block.get("Ssids") or {}).get("Ssid", [])
+    if isinstance(ssids, dict):
+        ssids = [ssids]
+    for ssid in ssids:
+        if str(ssid.get("wifiisguestnetwork")) == "1":
+            return ssid.get("WifiEnable")
+    return None
 
 
 class HuaweiPausePollingSwitch(HuaweiSwitch):
@@ -136,14 +336,13 @@ class HuaweiPausePollingSwitch(HuaweiSwitch):
         self.async_write_ha_state()
 
         if not state:
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
 
 
 class HuaweiMobileDataSwitch(HuaweiSwitch):
     """Switch to enable or disable the mobile data connection."""
 
-    @property
-    def is_on(self) -> bool | None:
+    def _read_position(self) -> bool | None:
         """Return True if mobile data is enabled."""
         data = self.coordinator.data
         if not data:
@@ -156,26 +355,98 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable mobile data."""
-        try:
-            await self.coordinator.api.set_mobile_data(True)
-            await self.coordinator.async_request_refresh()
-        except Exception as err:
-            _LOGGER.error("%s: Enable mobile data failed: %s", self._entry.title, err)
+        await self._async_set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable mobile data."""
+        await self._async_set(False)
+
+    async def _async_set(self, enable: bool) -> None:
+        """Write the mobile-data state, raising if the router refused.
+
+        A write path may never return a success-shaped result having done
+        nothing. This previously logged the exception and returned, so a failed
+        toggle looked identical to a successful one: the service call
+        succeeded, the switch sprang back on the next poll, and the only
+        evidence was a log line. `button.py` already had this right.
+        """
+        action = "Enable" if enable else "Disable"
         try:
-            await self.coordinator.api.set_mobile_data(False)
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.api.set_mobile_data(enable)
         except Exception as err:
-            _LOGGER.error("%s: Disable mobile data failed: %s", self._entry.title, err)
+            _LOGGER.exception("%s: %s mobile data failed", self._entry.title, action)
+            raise HomeAssistantError(f"{action} mobile data failed: {err}") from err
+
+        # Outside the error boundary on purpose. The write has already
+        # succeeded; a blip while re-reading must not report the write as
+        # failed and invite a retry of a command with a real-world effect.
+        await self._async_confirm(
+            "mobile_dataswitch",
+            lambda block: block.get("dataswitch"),
+            "1" if enable else "0",
+            f"{action} mobile data",
+            new_state=enable,
+        )
+
+
+class HuaweiWifiSwitch(HuaweiSwitch):
+    """Master WiFi switch - the radios, not the individual networks.
+
+    **A different level from the guest switch**, and that distinction is why an
+    earlier attempt at this control could not be made to work. The router keeps
+    radio state in `wlan/status-switch-settings` and per-SSID state in
+    `wlan/multi-basic-settings`; the SSID flags are gated by the radio, so
+    writing them while the radio is off changes nothing.
+
+    Reads `monitoring_status.WifiStatus`, which is already polled - the radio
+    block would be a second round trip for the same fact. Confirmed to track
+    the radios in both directions on a live B535.
+    """
+
+    def _read_position(self) -> bool | None:
+        """Return True if the WiFi radios are on."""
+        data = self.coordinator.data
+        if not data:
+            return None
+        raw = (data.get("monitoring_status") or {}).get("WifiStatus")
+        return None if raw in (None, "") else str(raw) == "1"
+
+    async def async_turn_on(self, **kwargs: Any) -> None:
+        """Turn the WiFi radios on."""
+        await self._async_set(True)
+
+    async def async_turn_off(self, **kwargs: Any) -> None:
+        """Turn the WiFi radios off."""
+        await self._async_set(False)
+
+    async def _async_set(self, enable: bool) -> None:
+        """Write the radio state, raising if the router refused."""
+        action = "Enable" if enable else "Disable"
+        try:
+            await self.coordinator.api.set_wifi(enable)
+        except Exception as err:
+            _LOGGER.exception("%s: %s WiFi failed", self._entry.title, action)
+            raise HomeAssistantError(f"{action} WiFi failed: {err}") from err
+
+        # Outside the error boundary - see HuaweiMobileDataSwitch._async_set.
+        await self._async_confirm(
+            "monitoring_status",
+            lambda block: block.get("WifiStatus"),
+            "1" if enable else "0",
+            f"{action} WiFi",
+            new_state=enable,
+        )
 
 
 class HuaweiGuestWifiSwitch(HuaweiSwitch):
     """Switch to enable or disable the guest WiFi network."""
 
-    @property
-    def is_on(self) -> bool | None:
+    # dev_standards Section 14. The guest SSID is a static string republished
+    # on every poll; recording it adds a row per poll and puts the network name
+    # into long-term history.
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset({"ssid"})
+
+    def _read_position(self) -> bool | None:
         """Return True if guest WiFi is enabled."""
         data = self.coordinator.data
         if not data:
@@ -192,28 +463,43 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
 
     async def async_turn_on(self, **kwargs: Any) -> None:
         """Enable guest WiFi."""
-        try:
-            await self.coordinator.api.set_guest_wifi(True)
-        except Exception as err:
-            _LOGGER.error("%s: Enable guest WiFi failed: %s", self._entry.title, err)
-        finally:
-            await self.coordinator.async_request_refresh()
+        await self._async_set(True)
 
     async def async_turn_off(self, **kwargs: Any) -> None:
         """Disable guest WiFi."""
+        await self._async_set(False)
+
+    async def _async_set(self, enable: bool) -> None:
+        """Write the guest-WiFi state, raising if the router refused.
+
+        The previous form logged the failure and then refreshed in a `finally`,
+        which masked it twice over: the service call reported success, and the
+        refresh made the switch look as though it had simply been re-read.
+        """
+        action = "Enable" if enable else "Disable"
         try:
-            await self.coordinator.api.set_guest_wifi(False)
+            await self.coordinator.api.set_guest_wifi(enable)
         except Exception as err:
-            _LOGGER.error("%s: Disable guest WiFi failed: %s", self._entry.title, err)
-        finally:
-            await self.coordinator.async_request_refresh()
+            _LOGGER.exception("%s: %s guest WiFi failed", self._entry.title, action)
+            raise HomeAssistantError(f"{action} guest WiFi failed: {err}") from err
+
+        # Outside the error boundary — see HuaweiMobileDataSwitch._async_set.
+        # The guest flag is nested inside the SSID list rather than being a
+        # flat key, which is why the read-back takes an extractor.
+        await self._async_confirm(
+            "wlan_multi_basic_settings",
+            _guest_enable_flag,
+            "1" if enable else "0",
+            f"{action} guest WiFi",
+            new_state=enable,
+        )
 
     @property
     def extra_state_attributes(self) -> dict[str, Any]:
         """Return the state attributes."""
         data = self.coordinator.data
         if not data:
-            return {}
+            return self._with_about(None) or {}
         multi_settings = data.get("wlan_multi_basic_settings") or {}
         ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
         if isinstance(ssids, dict):
@@ -221,5 +507,5 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
 
         for ssid in ssids:
             if str(ssid.get("wifiisguestnetwork")) == "1":
-                return {"ssid": ssid.get("WifiSsid")}
-        return {}
+                return self._with_about({"ssid": ssid.get("WifiSsid")}) or {}
+        return self._with_about(None) or {}

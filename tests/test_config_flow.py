@@ -3,6 +3,7 @@
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
+import voluptuous as vol
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
@@ -14,7 +15,9 @@ from custom_components.huawei_router_5g.config_flow import (
     HuaweiRouter5GConfigFlow,
     HuaweiRouter5GOptionsFlow,
     _clean_host,
+    _edit_schema,
     _merge_credentials,
+    _user_schema,
     _validate_credentials,
 )
 
@@ -34,7 +37,7 @@ from custom_components.huawei_router_5g.config_flow import (
     ],
 )
 def test_clean_host(raw, expected):
-    """Test that host entries are normalised to a bare host."""
+    """Test that host entries are normalized to a bare host."""
     assert _clean_host(raw) == expected
 
 
@@ -676,13 +679,38 @@ async def test_config_flow_reconfigure_success():
 
 
 # ---------------------------------------------------------------------------
-# Host normalisation & blank-password retention
+# Edge cases — uncovered lines
 # ---------------------------------------------------------------------------
 
 
 @pytest.mark.asyncio
+async def test_reauth_confirm_without_reauth_entry():
+    """Test async_step_reauth_confirm raises when _reauth_entry is None."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow._reauth_entry = None
+
+    with pytest.raises(ValueError, match="Reauth entry is not initialized"):
+        await flow.async_step_reauth_confirm(None)
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_entry_not_found():
+    """Test async_step_reconfigure aborts when entry is not found."""
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "unknown_entry"}
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=None)
+
+    result = await flow.async_step_reconfigure(None)
+    assert result["type"] == FlowResultType.ABORT
+    assert result["reason"] == "entry_not_found"
+
+
+@pytest.mark.asyncio
 async def test_user_step_strips_url_host():
-    """Test that a URL entered as host is normalised before being stored."""
+    """Test that a URL entered as host is normalized before being stored."""
     flow = HuaweiRouter5GConfigFlow()
     flow.hass = MagicMock()
     flow.context = {}
@@ -767,3 +795,184 @@ async def test_options_flow_blank_password_keeps_stored():
 
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"][CONF_PASSWORD] == "stored_password"
+
+
+@pytest.mark.asyncio
+async def test_validate_credentials_with_no_mac_in_device_information():
+    """A router that reports no MAC must yield `mac: None`, not crash.
+
+    All three MAC keys are optional and some firmware omits every one. The
+    normalization step is guarded by `if mac:`, and nothing had exercised the
+    guard's false side — so an unguarded `.lower()` would have raised
+    `AttributeError` inside the config flow, which surfaces to the user as
+    "unknown error" with no clue what happened.
+    """
+    with patch(
+        "custom_components.huawei_router_5g.config_flow.HuaweiRouter5GAPI"
+    ) as mock_api_class:
+        mock_api = mock_api_class.return_value
+        mock_api.login = AsyncMock()
+        mock_api.get_data = AsyncMock(
+            return_value={
+                "device_information": {
+                    "DeviceName": "B535s-232",
+                    "SoftwareVersion": "11.0.1.1",
+                    "HardwareVersion": "Ver.A",
+                    # No MacAddress1 / wan_mac_address / WanMacAddress.
+                }
+            }
+        )
+        mock_api.logout = AsyncMock()
+
+        result = await _validate_credentials(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "password",
+            }
+        )
+
+    assert result["mac"] is None
+    assert result["model"] == "B535s-232"
+
+
+@pytest.mark.asyncio
+async def test_reconfigure_shows_the_form_before_any_input():
+    """Opening Reconfigure must render the form, not attempt a validation.
+
+    Every existing reconfigure test passed `user_input`, so the branch that
+    handles the *first* render — the one every user hits — was never taken.
+    """
+    entry = MagicMock()
+    entry.options = {
+        CONF_HOST: "http://192.168.8.1",
+        CONF_USERNAME: "admin",
+        CONF_PASSWORD: "stored",
+    }
+
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {"entry_id": "known_entry"}
+    flow.hass.config_entries.async_get_entry = MagicMock(return_value=entry)
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials"
+    ) as validate:
+        result = await flow.async_step_reconfigure(None)
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["step_id"] == "reconfigure"
+    assert not result["errors"]
+    validate.assert_not_called(), "the form render must not talk to the router"
+
+
+@pytest.mark.asyncio
+async def test_options_flow_leaves_the_title_alone_when_the_name_is_unchanged():
+    """Resubmitting Options without renaming must not rewrite the entry title.
+
+    `test_options_flow_title_update` covers the rename; the *unchanged* case is
+    the common one and was untested, so a mutation dropping the comparison —
+    updating the title on every save — would have passed. That is not
+    cosmetic: `async_update_entry` with a title triggers listeners and a
+    reload.
+    """
+    entry = MagicMock()
+    entry.title = "My Huawei Router"
+    entry.options = {CONF_HOST: "http://192.168.8.1", CONF_PASSWORD: "p"}
+
+    flow = HuaweiRouter5GOptionsFlow(entry)
+    flow.hass = MagicMock()
+
+    with patch(
+        "custom_components.huawei_router_5g.config_flow._validate_credentials",
+        return_value={},
+    ):
+        result = await flow.async_step_init(
+            {
+                "name": "My Huawei Router",
+                CONF_HOST: "http://192.168.8.1",
+                CONF_PASSWORD: "p",
+            }
+        )
+
+    flow.hass.config_entries.async_update_entry.assert_not_called()
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+
+
+# --------------------------------------------------------------------------
+# Section 9 — stored secrets are never pre-filled into a schema
+# --------------------------------------------------------------------------
+#
+# Ported from `zte_router_5g`, which wrote this as the reference implementation
+# for the other projects and mutation-proved it against three regressions.
+#
+# There is **no defect here today** — this component has zero `suggested_value`
+# uses — so this is a guard, not a fix. It is worth having because the failure
+# is silent: the screen looks correct, and the stored password is exposed only
+# when someone clicks the eye icon to reveal the field. `dev_standards` records
+# two projects having shipped exactly that.
+
+# Distinctive enough that finding it anywhere in a rendered schema is
+# unambiguous evidence the stored password leaked into the form.
+_STORED_SECRET = "s3cr3t-stored-password-do-not-render"
+
+_SECRET_KEYS = {CONF_PASSWORD}
+
+_STORED_ENTRY = {
+    "name": "Huawei 5G",
+    CONF_HOST: "http://192.168.8.1",
+    CONF_USERNAME: "admin",
+    CONF_PASSWORD: _STORED_SECRET,
+}
+
+
+def _markers(schema):
+    return list(schema.schema)
+
+
+def _resolved_default(marker):
+    """Return a voluptuous marker's default, or None if it has none.
+
+    Defaults are wrapped in a callable factory, so `marker.default` is not the
+    value — calling it is what reveals what the form would actually show.
+    """
+    default = getattr(marker, "default", vol.UNDEFINED)
+    if default is vol.UNDEFINED:
+        return None
+    return default() if callable(default) else default
+
+
+@pytest.mark.parametrize("build", [_user_schema, _edit_schema])
+def test_stored_secrets_are_never_pre_filled(build) -> None:
+    """A stored password must not be rendered back into a form.
+
+    Both schemas are checked: `_user_schema` takes defaults too, so a future
+    change that starts seeding it from a stored entry is caught here as well.
+    """
+    schema = build(_STORED_ENTRY)
+
+    for marker in _markers(schema):
+        if marker.schema not in _SECRET_KEYS:
+            continue
+        assert _resolved_default(marker) in (None, ""), (
+            f"{marker.schema} is pre-filled with the stored value"
+        )
+        description = getattr(marker, "description", None) or {}
+        assert "suggested_value" not in description, (
+            f"{marker.schema} carries the stored value as suggested_value"
+        )
+
+
+@pytest.mark.parametrize("build", [_user_schema, _edit_schema])
+def test_no_field_leaks_the_stored_secret(build) -> None:
+    """Belt and braces: the secret must not appear in *any* field.
+
+    The per-field check above only inspects keys already known to be secret.
+    This catches the other shape — a stored password copied into some
+    non-secret field's default, where the eye icon is not even needed.
+    """
+    schema = build(_STORED_ENTRY)
+    rendered = repr(schema.schema) + "".join(
+        repr(_resolved_default(m)) for m in _markers(schema)
+    )
+    assert _STORED_SECRET not in rendered

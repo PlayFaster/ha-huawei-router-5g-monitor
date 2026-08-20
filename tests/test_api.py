@@ -1,11 +1,13 @@
 """Tests for the Huawei Router 5G API client."""
 
-from datetime import datetime, timedelta
+import asyncio
+from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
+    LoginErrorAlreadyLoginException,
     LoginErrorPasswordWrongException,
     LoginErrorUsernameWrongException,
     ResponseErrorException,
@@ -18,6 +20,7 @@ from custom_components.huawei_router_5g.api import (
     HuaweiRouter5GAPI,
     _normalize_router_url,
 )
+from custom_components.huawei_router_5g.const import NET_MODE_SETTLE, REQUEST_TIMEOUT
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -159,6 +162,7 @@ def test_create_connection_sync():
             api.url,
             username=api.username,
             password=api.password,
+            timeout=REQUEST_TIMEOUT,
         )
         mock_client_class.assert_called_once_with(mock_conn)
         assert conn is mock_conn
@@ -237,20 +241,60 @@ async def test_logout_clears_client():
 
 @pytest.mark.asyncio
 async def test_logout_no_connection():
-    """Test that logout is a no-op when not connected."""
+    """logout() with no connection must do nothing observable.
+
+    "It does not raise" was the whole of this test, which passes if logout
+    silently tears down state it should have left alone. Assert the no-op:
+    the client and connection stay as they were, and nothing was dispatched
+    to a thread.
+    """
     api = _make_api()
-    await api.logout()  # should not raise
+    api._client = None
+
+    with patch("asyncio.to_thread", new=AsyncMock()) as to_thread:
+        await api.logout()
+
+    to_thread.assert_not_called()
+    assert api._connection is None
+    assert api._client is None
+
+
+@pytest.mark.asyncio
+async def test_logout_calls_the_real_library_method():
+    """Logout must call `client.user.logout()`.
+
+    Asserting the **method that exists** is the whole point. The previous form
+    called `connection.logout`, which `Connection` has never had, so the
+    integration logged out of nothing on every unload and reload while the
+    test passed against an auto-created `MagicMock` attribute.
+    """
+    api = _make_api()
+    client = MagicMock()
+    api._client = client
+    api._connection = MagicMock()
+
+    with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
+        await api.logout()
+
+    client.user.logout.assert_called_once()
+    assert api._connection is None
+    assert api._client is None
 
 
 @pytest.mark.asyncio
 async def test_logout_exception():
-    """Test that logout handles exceptions gracefully."""
-    api = _make_api()
-    mock_conn = MagicMock()
-    api._connection = mock_conn
-    api._client = MagicMock()
+    """A failed logout is swallowed, and the connection is discarded anyway.
 
-    mock_conn.logout.side_effect = Exception("Logout failed")
+    Teardown is best-effort: there is nothing useful to do with the error and
+    the session is being abandoned regardless. What stops that swallow hiding
+    a wrong method name again is the library contract test, not this one.
+    """
+    api = _make_api()
+    client = MagicMock()
+    api._client = client
+    api._connection = MagicMock()
+
+    client.user.logout.side_effect = Exception("Logout failed")
 
     with patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())):
         await api.logout()
@@ -732,8 +776,13 @@ async def test_reboot_success():
     ):
         await api.reboot()
 
-    # Verify reboot was called on the mock client before it was reset
-    mock_client.device.reboot.assert_called_once()
+    # `set_control(REBOOT)`, not `reboot()`. Both exist in library 1.11.0;
+    # 2.0.0 removes `reboot()`, so asserting the surviving spelling is what
+    # makes this test outlive the bump.
+    from huawei_lte_api.enums.device import ControlModeEnum
+
+    mock_client.device.set_control.assert_called_once_with(ControlModeEnum.REBOOT)
+    mock_client.device.reboot.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -770,7 +819,10 @@ async def test_clear_traffic_success():
     ):
         await api.clear_traffic_statistics()
 
-    api._client.monitoring.clear_traffic.assert_called_once()
+    # `set_clear_traffic` — asserting the method that actually exists. The
+    # previous assertion named `clear_traffic`, which does not exist in the
+    # library, and passed because `MagicMock` creates any attribute on demand.
+    api._client.monitoring.set_clear_traffic.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -845,24 +897,64 @@ async def test_set_mobile_data_error():
 
 
 @pytest.mark.asyncio
-async def test_set_net_mode_success():
-    """Test successful net mode setting."""
+async def test_set_net_mode_sends_the_routers_own_bands_back():
+    """A mode change must not assert band values from a library table.
+
+    `net/net-mode` takes all three fields together, so a mode change has to
+    supply bands too. It used to send `LTEBandEnum.ALL` / `NetworkBandEnum.ALL`
+    — constants never checked against the device. The reference H165-383 clamps
+    them to its own supported mask, so the assumption was invisible there; a
+    router that took the value literally would have had its band selection
+    silently reset on every mode change.
+
+    The current bands are now read and handed straight back, which asks the
+    router to keep what it has.
+    """
     api = _make_api()
     api._client = MagicMock()
     api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {
+        "NetworkMode": "00",
+        "LTEBand": "7A0880800D5",
+        "NetworkBand": "2000004680380",
+    }
 
-    from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
-
-    mode = "03"
+    mode = "08"
     with patch(
         "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
     ):
         await api.set_net_mode(mode)
 
     api._client.net.set_net_mode.assert_called_once_with(
-        lteband=LTEBandEnum.ALL.value,
-        networkband=NetworkBandEnum.ALL.value,
-        networkmode=mode,
+        lteband="7A0880800D5",
+        networkband="2000004680380",
+        networkmode="08",
+    )
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_falls_back_to_all_when_bands_unreadable():
+    """An unreadable band read must not block the mode change.
+
+    A mode change that cannot name any band is worse than one using the old
+    assumption, so the library constants remain the fallback — but only there.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.side_effect = RuntimeError("no answer")
+
+    from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_net_mode("03")
+
+    api._client.net.set_net_mode.assert_called_once_with(
+        lteband=f"{LTEBandEnum.ALL.value:x}",
+        networkband=f"{NetworkBandEnum.ALL.value:x}",
+        networkmode="03",
     )
 
 
@@ -907,7 +999,17 @@ async def test_set_guest_wifi_on_manual():
     ):
         await api.set_guest_wifi(True)
 
-    # Should call post_set with BOTH SSIDs
+    # Deliberately `_session.post_set`, NOT `wlan.set_multi_basic_settings()`.
+    #
+    # The public setter exists, but it posts only
+    # `{'Ssids': {'Ssid': clients}, 'WifiRestart': 1}` and discards every other
+    # top-level key. Probed against a live B535 on 2026-08-14, the GET returns
+    # `Ssids`, `DbhoEnable` and `modify_guest_ssid` — so swapping would
+    # silently drop band-steering and guest-SSID state on every toggle.
+    #
+    # **If you are here because this assertion failed after switching to the
+    # public setter: the switch is the bug, not this test.** Full reasoning is
+    # at the call site in api.py and in docs/DEVELOPMENT.md.
     api._client.wlan._session.post_set.assert_called_once()
     path, args = api._client.wlan._session.post_set.call_args[0]
     assert path == "wlan/multi-basic-settings"
@@ -1054,6 +1156,58 @@ async def test_delete_sms_error():
         pytest.raises(Exception, match="Delete fail"),
     ):
         await api.delete_sms(index)
+
+
+# ---------------------------------------------------------------------------
+# _create_connection_sync() — url is None (line 76)
+# ---------------------------------------------------------------------------
+
+
+def test_create_connection_sync_url_none():
+    """Test that _create_connection_sync raises when url is None."""
+    api = _make_api()
+    api.url = None
+
+    with pytest.raises(ValueError, match="Router URL is not initialized"):
+        api._create_connection_sync()
+
+
+# ---------------------------------------------------------------------------
+# _ensure_client() — login fails to set client (line 137)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_ensure_client_login_leaves_client_none():
+    """Test _ensure_client raises when _login_internal leaves client None."""
+    api = _make_api()
+    api._client = None
+
+    with (
+        patch.object(api, "_login_internal", new=AsyncMock()),
+        pytest.raises(
+            HuaweiConnectionError, match="Failed to establish API client connection"
+        ),
+    ):
+        await api._ensure_client()
+
+
+# ---------------------------------------------------------------------------
+# get_data() — client is None inside _fetch (line 193)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_data_client_none_in_fetch():
+    """Test get_data raises when client is None inside _fetch."""
+    api = _make_api()
+    api._client = None
+
+    with (
+        patch.object(api, "_ensure_client", new=AsyncMock()),
+        pytest.raises(HuaweiConnectionError, match="API client not established"),
+    ):
+        await api.get_data()
 
 
 # ---------------------------------------------------------------------------
@@ -1348,7 +1502,7 @@ async def test_ensure_client_resets_on_inactivity():
     api = _make_api()
     api._client = MagicMock()
     api._connection = MagicMock()
-    api._last_activity = datetime.now() - timedelta(seconds=200)
+    api._last_activity = datetime.now(UTC) - timedelta(seconds=200)
 
     new_client = MagicMock()
 
@@ -1437,3 +1591,682 @@ async def test_execute_with_retry_raises_non_expiry_error():
         pytest.raises(ResponseErrorException, match="Other error"),
     ):
         await api._execute_with_retry(mock_fn)
+
+
+# ---------------------------------------------------------------------------
+# Reconnect (§T-4e)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_reconnect_cycles_the_dialup_session():
+    """`dialup/dial` Action 0 then 1 - NOT `net.reconnect()`.
+
+    `net/reconnect` is refused by this hardware with `-1: Unknown` even though
+    the library exposes it and the router advertises the feature. The method
+    existing says nothing about the device accepting it, which is why this
+    asserts the two-step dialup path instead.
+
+    Verified live on 2026-08-15: `CurrentConnectTime` went 3893 -> 4 -> 10.
+    """
+    api = _make_api()
+    mock_client = MagicMock()
+    api._client = mock_client
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.reconnect()
+
+    mock_client.dial_up._session.post_set.assert_called_once_with(
+        "dialup/dial", {"Action": 0}
+    )
+    mock_client.dial_up.dial.assert_called_once_with()
+    mock_client.net.reconnect.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_reconnect_resets_the_client_on_success():
+    """The held session is against a connection that has just gone away.
+
+    Reusing it would fail the next read on a stale handle rather than simply
+    reconnecting, which is the same reasoning as `reboot`.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.reconnect()
+
+    assert api._client is None
+    assert api._connection is None
+
+
+@pytest.mark.asyncio
+async def test_reconnect_error_resets_client_and_raises():
+    """A failed reconnect must not report success — §22, and §O-4."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread",
+            new=AsyncMock(side_effect=Exception("Reconnect fail")),
+        ),
+        pytest.raises(Exception, match="Reconnect fail"),
+    ):
+        await api.reconnect()
+
+    assert api._client is None
+
+
+# ---------------------------------------------------------------------------
+# Master WiFi switch (§T-5)
+# ---------------------------------------------------------------------------
+
+
+def _wifi_client(radios):
+    """Build a client whose radio block returns `radios`."""
+    client = MagicMock()
+    client.wlan.status_switch_settings.return_value = {"radios": {"radio": radios}}
+    return client
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_round_trips_the_radio_block():
+    """The GET response is written back whole, with only `wifienable` changed.
+
+    Building a payload from scratch drops the fields the response carries and
+    this code does not understand — the same reasoning as `set_guest_wifi`.
+    """
+    api = _make_api()
+    api._client = _wifi_client(
+        [
+            {"wifienable": "0", "index": "0", "ID": "Radio.1.", "RestrictState": "0"},
+            {"wifienable": "0", "index": "1", "ID": "Radio.2.", "RestrictState": "0"},
+        ]
+    )
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_wifi(True)
+
+    endpoint, payload = api._client.wlan._session.post_set.call_args[0]
+    assert endpoint == "wlan/status-switch-settings"
+    radios = payload["radios"]["radio"]
+    assert [r["wifienable"] for r in radios] == ["1", "1"]
+    # Everything else survived the round trip.
+    assert radios[0]["ID"] == "Radio.1."
+    assert radios[0]["RestrictState"] == "0"
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_does_not_use_the_broken_library_helper():
+    """`wlan.wifi_network_switch()` answers `100005` on this hardware.
+
+    It builds its payload from `find_wlan_settings`/`save_wlan_settings`, and
+    the router rejects the result. Verified on a live B535, 2026-08-15 — and it
+    is the most likely reason an earlier attempt at this control was abandoned.
+    """
+    api = _make_api()
+    api._client = _wifi_client([{"wifienable": "1", "index": "0"}])
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_wifi(False)
+
+    api._client.wlan.wifi_network_switch.assert_not_called()
+    api._client.wlan.set_multi_basic_settings.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_accepts_a_single_radio_returned_as_a_dict():
+    """Accept a bare dict, which this API returns for a single radio."""
+    api = _make_api()
+    api._client = _wifi_client({"wifienable": "0", "index": "0"})
+    api._connection = MagicMock()
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        await api.set_wifi(True)
+
+    payload = api._client.wlan._session.post_set.call_args[0][1]
+    assert payload["radios"]["radio"][0]["wifienable"] == "1"
+
+
+@pytest.mark.asyncio
+async def test_set_wifi_raises_when_the_router_reports_no_radios():
+    """A model that does not expose this block must fail loudly, not silently.
+
+    Writing nothing and reporting success is the failure shape this project has
+    already shipped twice.
+    """
+    api = _make_api()
+    api._client = _wifi_client([])
+    api._connection = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        pytest.raises(HuaweiConnectionError, match="no WiFi radios"),
+    ):
+        await api.set_wifi(True)
+
+    api._client.wlan._session.post_set.assert_not_called()
+
+
+# ---------------------------------------------------------------------------
+# get_supported_net_modes() and the `-1` read-back path
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_reads_the_access_list():
+    """The accepted modes come from `AccessList.Access`.
+
+    The reference H165-383 answers `["00", "08", "03"]` — Auto, 5G Only and
+    4G Only, exactly the three its web interface offers.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.return_value = {
+        "AccessList": {"Access": ["00", "08", "03"]},
+        "BandList": {"Band": []},
+    }
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() == ["00", "08", "03"]
+
+
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_accepts_a_single_string():
+    """A router offering one mode may return a bare string rather than a list."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.return_value = {"AccessList": {"Access": "00"}}
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() == ["00"]
+
+
+@pytest.mark.parametrize(
+    "listing",
+    [
+        {},
+        {"AccessList": {}},
+        {"AccessList": {"Access": []}},
+        {"AccessList": {"Access": {"unexpected": "shape"}}},
+    ],
+    ids=["empty", "no-access-key", "empty-list", "wrong-type"],
+)
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_returns_none_on_an_unusable_answer(listing):
+    """`None` means *not known*, and the select keeps its full fallback list.
+
+    Distinguishing this from an empty list matters: an empty list would leave a
+    dropdown with no options at all on hardware that simply answers oddly.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.return_value = listing
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() is None
+
+
+@pytest.mark.asyncio
+async def test_get_supported_net_modes_swallows_a_failed_read():
+    """A router that refuses the endpoint must not raise into setup."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode_list.side_effect = RuntimeError("no support")
+
+    with patch(
+        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    ):
+        assert await api.get_supported_net_modes() is None
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_treats_minus_one_as_applied_when_the_readback_agrees():
+    """`-1: Unknown` is not a refusal — the router applies and then answers badly.
+
+    Confirmed live on 2026-08-16: from `03`, a write of `00` raised, and the
+    router's own web interface showed Auto immediately afterwards. So `-1` means
+    *applied, response unverifiable*, and the read-back after the radio settles
+    is what decides.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {
+        "NetworkMode": "00",
+        "LTEBand": "7A0880800D5",
+        "NetworkBand": "2000004680380",
+    }
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch(
+            "custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()
+        ) as mock_sleep,
+        patch(
+            "custom_components.huawei_router_5g.api.confirm_write",
+            new=AsyncMock(return_value=True),
+        ) as mock_confirm,
+    ):
+        await api.set_net_mode("00")
+
+    # The write was attempted, and `-1` did not stop it being treated as applied.
+    api._client.net.set_net_mode.assert_called_once()
+
+    # It waited for the radio before reading. Reading immediately is what the
+    # old `no_confirmation` reason was really describing.
+    mock_sleep.assert_awaited_once_with(NET_MODE_SETTLE)
+
+    # And it confirmed against `net_mode`, for the mode it asked for.
+    mock_confirm.assert_awaited_once()
+    assert mock_confirm.await_args.args[1] == "net_mode"
+    assert mock_confirm.await_args.args[3] == "00"
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_raises_when_the_readback_disagrees():
+    """A genuine refusal answers `-1` too. Only the read-back separates them."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {"NetworkMode": "00"}
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "custom_components.huawei_router_5g.api.confirm_write",
+            new=AsyncMock(return_value=False),
+        ),
+        pytest.raises(ResponseErrorException),
+    ):
+        await api.set_net_mode("08")
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_unverified_readback_does_not_raise():
+    """`None` is unverified, not failed — the change may well have applied.
+
+    Raising here would invite the user to repeat a command that already took
+    effect, which on a radio re-registration is the worse outcome.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {"NetworkMode": "00"}
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+        patch(
+            "custom_components.huawei_router_5g.api.confirm_write",
+            new=AsyncMock(return_value=None),
+        ) as mock_confirm,
+        patch("custom_components.huawei_router_5g.api._LOGGER") as mock_logger,
+    ):
+        await api.set_net_mode("08")
+
+    # The read-back ran and could not decide.
+    mock_confirm.assert_awaited_once()
+
+    # An unverified write is not silent: it warns, and the wording tells the
+    # user the change may have applied rather than implying it failed.
+    mock_logger.warning.assert_called_once()
+    assert "could not be confirmed" in mock_logger.warning.call_args[0][0]
+    assert "may have applied" in mock_logger.warning.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_reraises_a_response_error_that_is_not_minus_one():
+    """Any other code is a real error and must surface untouched."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {"NetworkMode": "00"}
+    api._client.net.set_net_mode.side_effect = ResponseErrorException(
+        "No support", "100002"
+    )
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        pytest.raises(ResponseErrorException),
+    ):
+        await api.set_net_mode("08")
+
+
+@pytest.mark.asyncio
+async def test_set_net_mode_minus_one_confirms_without_deadlocking():
+    """The `-1` read-back must run with the lock released.
+
+    Every other `-1` test patches `confirm_write`, so the real `read_back` is
+    never entered — and `read_back` re-acquires `self._lock`, which
+    `set_net_mode` was already holding. `asyncio.Lock` is not reentrant, so the
+    task waited on itself forever and the integration never polled again. This
+    test drives the genuine read-back and is the one that fails against the
+    pre-fix code.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.net.net_mode.return_value = {
+        "NetworkMode": "00",
+        "LTEBand": "7A0880800D5",
+        "NetworkBand": "2000004680380",
+    }
+    api._client.net.set_net_mode.side_effect = ResponseErrorException("Unknown", "-1")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch("custom_components.huawei_router_5g.api.asyncio.sleep", new=AsyncMock()),
+    ):
+        await asyncio.wait_for(api.set_net_mode("00"), timeout=5)
+
+    # The write went out, the router's own bands went with it, and the
+    # read-back that confirmed it saw the requested mode.
+    api._client.net.set_net_mode.assert_called_once()
+    assert api._client.net.net_mode.call_count >= 2
+
+    # And the lock is free afterwards, so the next poll can run.
+    assert not api._lock.locked()
+
+
+# ---------------------------------------------------------------------------
+# The lock: re-entrancy, bounded waiting, and closing what it opened
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_read_back_refuses_to_re_enter_a_lock_this_task_holds():
+    """Re-entry must raise where it used to hang.
+
+    `asyncio.Lock` is not reentrant, so a write path that took the lock and
+    then called `read_back` waited on itself with no exception, no log and no
+    recovery until Home Assistant restarted. An error names the caller on the
+    first press instead.
+    """
+    api = _make_api()
+
+    async with api._locked("set_net_mode"):
+        with pytest.raises(RuntimeError, match="already held by this task"):
+            await api.read_back("net_mode")
+
+    # The guard did not leave the lock in a broken state.
+    assert not api._lock.locked()
+    assert api._lock_owner is None
+
+
+@pytest.mark.asyncio
+async def test_lock_acquisition_is_bounded_and_names_the_operation():
+    """A lock held by someone else fails loudly rather than waiting for ever."""
+    api = _make_api()
+    await api._lock.acquire()
+    try:
+        with (
+            patch("custom_components.huawei_router_5g.api.LOCK_TIMEOUT", 0.01),
+            pytest.raises(HuaweiConnectionError, match="get_data"),
+        ):
+            await api.get_data()
+    finally:
+        api._lock.release()
+
+
+@pytest.mark.asyncio
+async def test_contention_from_another_task_still_waits():
+    """Only re-entry raises. Ordinary contention must queue, as it always did."""
+    api = _make_api()
+    order: list[str] = []
+
+    async def _hold() -> None:
+        async with api._locked("first"):
+            order.append("first-in")
+            await asyncio.sleep(0)
+            order.append("first-out")
+
+    async def _follow() -> None:
+        await asyncio.sleep(0)
+        async with api._locked("second"):
+            order.append("second-in")
+
+    await asyncio.gather(_hold(), _follow())
+
+    assert order == ["first-in", "first-out", "second-in"]
+
+
+def test_reset_client_closes_the_http_session():
+    """Dropping the reference is not closing it.
+
+    `huawei_lte_api` holds a pooled `requests.Session`; leaving it to the
+    garbage collector is why two sockets to the router sat in `CLOSE_WAIT`
+    while the integration was wedged.
+    """
+    api = _make_api()
+    connection = MagicMock()
+    api._connection = connection
+    api._client = MagicMock()
+
+    api._reset_client()
+
+    connection.requests_session.close.assert_called_once_with()
+    assert api._connection is None
+    assert api._client is None
+
+
+def test_reset_client_survives_a_failing_close():
+    """A close that raises must not stop the client being cleared."""
+    api = _make_api()
+    connection = MagicMock()
+    connection.requests_session.close.side_effect = OSError("already gone")
+    api._connection = connection
+    api._client = MagicMock()
+
+    api._reset_client()
+
+    assert api._connection is None
+    assert api._client is None
+
+
+@pytest.mark.asyncio
+async def test_invalidate_clears_the_connection_without_the_lock():
+    """The coordinator calls this after a timeout, possibly while wedged.
+
+    Taking the lock here would mean waiting for the very fault being cleared.
+    """
+    api = _make_api()
+    connection = MagicMock()
+    api._connection = connection
+    api._client = MagicMock()
+    await api._lock.acquire()
+    try:
+        await api.invalidate()
+    finally:
+        api._lock.release()
+
+    assert api._client is None
+    connection.requests_session.close.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# probe_liveness()
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_probe_liveness_reports_a_reachable_router_and_cleans_up():
+    """A fresh connection that answers means the fault is on our side.
+
+    It must also log out and close: this router permits one login, so a probe
+    that leaked sessions would cause the outage it exists to diagnose.
+    """
+    api = _make_api()
+    conn = MagicMock()
+    client = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch.object(api, "_create_connection_sync", return_value=(conn, client)),
+    ):
+        assert await api.probe_liveness() is True
+
+    client.device.information.assert_called_once_with()
+    client.user.logout.assert_called_once_with()
+    conn.requests_session.close.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_probe_liveness_reports_an_unreachable_router():
+    """Both paths failing means the router really is down; say so, and tidy up."""
+    api = _make_api()
+    conn = MagicMock()
+    client = MagicMock()
+    client.device.information.side_effect = OSError("no route to host")
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch.object(api, "_create_connection_sync", return_value=(conn, client)),
+    ):
+        assert await api.probe_liveness() is False
+
+    # Even on failure the session it opened is released.
+    conn.requests_session.close.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# The write deadline and the fetch deadline
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_a_hung_write_gives_up_and_frees_the_lock():
+    """A write whose worker never returns must not hold the lock for ever.
+
+    `asyncio.to_thread` cannot be cancelled, so before this the task waited
+    indefinitely while holding `_lock`, and every later caller failed at
+    `LOCK_TIMEOUT` one after another with the integration unusable until a
+    reload.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    async def _never(*_args, **_kwargs):
+        await asyncio.sleep(3600)
+
+    with (
+        patch("asyncio.to_thread", new=_never),
+        patch("custom_components.huawei_router_5g.api.WRITE_TIMEOUT", 0.05),
+        patch("custom_components.huawei_router_5g.api._LOGGER") as mock_logger,
+    ):
+        await asyncio.wait_for(api.set_mobile_data(enable=True), timeout=5)
+
+    # The lock is free, so the next poll can run.
+    assert not api._lock.locked()
+    assert api._lock_owner is None
+
+    # And it is reported as unverified, not failed: the command reached the
+    # router and may well have applied.
+    mock_logger.warning.assert_called_once()
+    assert "may have applied" in mock_logger.warning.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_the_fetch_returns_what_it_has_when_its_deadline_expires():
+    """An overrunning poll must salvage its work, not be abandoned wholesale.
+
+    The outer `asyncio.timeout` can only cancel from outside, which throws away
+    everything collected and orphans the worker. The internal deadline stops
+    between endpoints and hands back what it has.
+    """
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        # Negative, so the very first between-endpoint check trips.
+        patch("custom_components.huawei_router_5g.api.FETCH_DEADLINE", -1),
+        patch("custom_components.huawei_router_5g.api._LOGGER") as mock_logger,
+    ):
+        data = await api.get_data()
+
+    # The critical block is always present: it is fetched before any deadline
+    # check can run, which is what lets the caller survive a partial poll.
+    assert "device_information" in data
+
+    # Everything after it was skipped, not silently dropped.
+    assert "device_signal" not in data
+    mock_logger.warning.assert_called_once()
+    assert "deadline" in mock_logger.warning.call_args[0][0]
+    assert "Skipped" in mock_logger.warning.call_args[0][0]
+
+
+@pytest.mark.asyncio
+async def test_probe_liveness_calls_a_refused_second_session_inconclusive():
+    """A refusal is not an unreachable router - this hardware permits one login.
+
+    Returning False here would report a router that is plainly alive - alive
+    enough to refuse - as down, inverting the probe's whole purpose.
+    """
+    api = _make_api()
+    conn = MagicMock()
+    client = MagicMock()
+    client.device.information.side_effect = LoginErrorAlreadyLoginException(
+        "Already login", "108003"
+    )
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        patch.object(api, "_create_connection_sync", return_value=(conn, client)),
+    ):
+        assert await api.probe_liveness() is None
+
+    # The session it opened is still released.
+    conn.requests_session.close.assert_called_once_with()

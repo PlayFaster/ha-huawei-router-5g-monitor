@@ -19,10 +19,18 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import build_device_info
+from .helpers import HuaweiAboutEntity, build_device_info
 
 _LOGGER = logging.getLogger(__name__)
 
+# Section 22. `0`, deliberately — and deliberately different from
+# `zte_router_5g`, which sets `1` on every writable platform.
+#
+# The only entity here is the polling interval, and it does **not** command the
+# router: it writes to `ConfigEntry.options`, which Home Assistant owns and
+# serializes itself. There is no session to tear down and no command to
+# duplicate, so `1` would buy nothing. The value follows the write path, not the
+# platform's name.
 PARALLEL_UPDATES = 0
 
 
@@ -31,11 +39,21 @@ class HuaweiNumberEntityDescription(NumberEntityDescription):
     """Describes Huawei number entity."""
 
     group: str = "system"
+    # dev_standards Section 14 - the human-facing `about` note. Mandatory; a
+    # sweep in `tests/test_entity_hygiene.py` fails when one is missing.
+    about: str | None = None
 
 
 # Define the entity description for static metadata
 POLLING_INTERVAL_DESCRIPTION = HuaweiNumberEntityDescription(
     key="polling_interval",
+    about=(
+        "How often this integration asks the router for data, in seconds. It "
+        "is saved to the config entry, so it survives a restart. Changes are "
+        "debounced for two seconds so dragging the slider does not fire a "
+        "poll per step; a pending change is flushed if the entity is removed "
+        "mid-debounce rather than silently discarded."
+    ),
     translation_key="polling_interval",
     native_min_value=30,
     native_max_value=3600,
@@ -68,7 +86,9 @@ async def async_setup_entry(
 
 
 class HuaweiPollingInterval(
-    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator], NumberEntity
+    HuaweiAboutEntity,
+    CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
+    NumberEntity,
 ):
     """Number entity to control the polling interval with persistence."""
 
@@ -95,12 +115,17 @@ class HuaweiPollingInterval(
         # Local state
         self._attr_native_value = initial_value
         self._refresh_task: asyncio.Task[None] | None = None
+        # The value a pending debounce is going to write. Held separately from
+        # `_attr_native_value` so removal can flush it, and cleared once the
+        # debounce commits.
+        self._pending_value: float | None = None
 
     async def async_set_native_value(self, value: float) -> None:
         """Handle the UI slider change."""
         # Update local UI state immediately for responsiveness
         self._attr_native_value = value
         self.async_write_ha_state()
+        self._pending_value = value
 
         # Cancel any pending update task to reset the debounce timer
         if self._refresh_task:
@@ -129,19 +154,43 @@ class HuaweiPollingInterval(
                 self._entry, options=new_options
             )
 
+            self._pending_value = None
+
             # 3. Trigger an immediate refresh using the new interval
-            await self.coordinator.async_request_refresh()
+            await self.coordinator.async_force_refresh()
 
         except asyncio.CancelledError:
-            # Task was cancelled because the user moved the slider again
+            # Task was canceled because the user moved the slider again
             pass
-        except Exception as err:
-            _LOGGER.error("Failed to apply polling interval change: %s", err)
+        except Exception:
+            _LOGGER.exception("Failed to apply polling interval change")
 
     async def async_will_remove_from_hass(self) -> None:
-        """Cancel any pending debounce task on removal."""
+        """Flush a pending debounced write, then cancel the task.
+
+        Canceling without writing loses the value. The window is only two
+        seconds, but a reload is exactly what lands inside it: an options
+        change reloads the entry, so a user who moves the slider and
+        immediately changes a setting watches the interval snap back with no
+        explanation and nothing logged.
+
+        Only the persistence is flushed — no refresh is requested, because the
+        entity is being torn down.
+        """
         if self._refresh_task:
             self._refresh_task.cancel()
+            self._refresh_task = None
+
+        if self._pending_value is None:
+            return
+
+        val_int = int(self._pending_value)
+        self._pending_value = None
+        _LOGGER.debug("Flushing pending polling interval on removal: %ss", val_int)
+        self.coordinator.update_interval = timedelta(seconds=val_int)
+        new_options = dict(self._entry.options)
+        new_options[CONF_SCAN_INTERVAL] = val_int
+        self.hass.config_entries.async_update_entry(self._entry, options=new_options)
 
     @property
     def device_info(self) -> DeviceInfo:

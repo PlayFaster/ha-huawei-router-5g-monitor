@@ -34,134 +34,511 @@
   },
   "entity": {
     "sensor": {
-      "model_name": { "name": "Model Name" },
-      "sw_version": { "name": "Software Version" },
-      "hw_version": { "name": "Hardware Version" },
-      "imei": { "name": "IMEI" },
-      "wan_ip": { "name": "WAN IP Address" },
-      "wan_ipv6": { "name": "WAN IPv6 Address" },
-      "uptime": { "name": "Uptime Duration" },
-      "uptime_timestamp": { "name": "Uptime" },
-      "current_connection_duration": { "name": "Connection Duration" },
-      "current_connection_timestamp": { "name": "Connection Uptime" },
-      "total_connection_time": { "name": "Total Duration" },
-      "total_connection_timestamp": { "name": "Total Uptime" },
-      "battery": { "name": "Battery" },
-      "wifi_users": { "name": "WiFi Connected" },
-      "total_connected": { "name": "Total Connected" },
-      "wired_connected": { "name": "Wired Connected" },
-      "wifi_capacity": { "name": "User Capacity" },
-      "primary_dns": { "name": "Primary DNS Server" },
-      "secondary_dns": { "name": "Secondary DNS Server" },
-      "primary_ipv6_dns": { "name": "Primary IPv6 DNS Server" },
-      "secondary_ipv6_dns": { "name": "Secondary IPv6 DNS Server" },
-      "last_updated": { "name": "Last Updated" },
-      "network_type": { "name": "Network Type" },
-      "preferred_network_mode": { "name": "Preferred Network Mode" },
-      "operator": { "name": "Operator" },
-      "plmn": { "name": "Operator Code" },
-      "operator_search_mode": { "name": "Operator Search Mode" },
-      "rsrp": { "name": "LTE RSRP" },
-      "rsrq": { "name": "LTE RSRQ" },
-      "rssi": { "name": "LTE RSSI" },
-      "sinr": { "name": "LTE SINR" },
-      "signal_bars": { "name": "Signal Bars" },
-      "signal_bars_nr": { "name": "5G Signal Bars" },
-      "cell_id": { "name": "LTE Cell ID" },
-      "pci": { "name": "LTE PCI" },
-      "tac": { "name": "LTE TAC" },
-      "band": { "name": "LTE Band" },
-      "mode": { "name": "LTE Mode" },
-      "transmit_power": { "name": "LTE Transmit Power" },
-      "uplink_mcs": { "name": "LTE Uplink MCS" },
-      "downlink_mcs": { "name": "LTE Downlink MCS" },
-      "earfcn": { "name": "LTE EARFCN" },
-      "rrc_status": { "name": "LTE RRC Status" },
-      "ims": { "name": "IMS Status" },
-      "lte_uplink_frequency": { "name": "LTE Uplink Frequency" },
-      "lte_downlink_frequency": { "name": "LTE Downlink Frequency" },
-      "transmission_mode": { "name": "LTE Transmission Mode" },
-      "enodeb_id": { "name": "eNodeB ID" },
-      "cqi_0": { "name": "LTE CQI" },
-      "lte_uplink_bandwidth": { "name": "LTE Uplink Bandwidth" },
-      "lte_downlink_bandwidth": { "name": "LTE Downlink Bandwidth" },
-      "5g_uplink_frequency": { "name": "5G Uplink Frequency" },
-      "5g_downlink_frequency": { "name": "5G Downlink Frequency" },
-      "nr5g_band": { "name": "5G NR Band" },
-      "nr_rsrp": { "name": "5G RSRP" },
-      "nr_rsrq": { "name": "5G RSRQ" },
-      "nr_sinr": { "name": "5G SINR" },
-      "5g_uplink_bandwidth": { "name": "5G Uplink Bandwidth" },
-      "5g_downlink_bandwidth": { "name": "5G Downlink Bandwidth" },
-      "5g_uplink_mcs": { "name": "5G Uplink MCS" },
-      "5g_downlink_mcs": { "name": "5G Downlink MCS" },
-      "5g_transmit_power": { "name": "5G Transmit Power" },
-      "5g_earfcn": { "name": "5G EARFCN" },
-      "5g_block_error_rate": { "name": "5G Block Error Rate" },
-      "5g_rank": { "name": "5G Rank" },
-      "5g_cqi_0": { "name": "5G CQI" },
-      "total_download": { "name": "Total Download" },
-      "total_upload": { "name": "Total Upload" },
-      "total_data": { "name": "Total Data" },
-      "current_download_rate": { "name": "Download Rate" },
-      "current_upload_rate": { "name": "Upload Rate" },
-      "max_download_rate": { "name": "Max Download Rate" },
-      "max_upload_rate": { "name": "Max Upload Rate" },
-      "current_connection_upload": { "name": "Connection Upload" },
-      "current_connection_download": { "name": "Connection Download" },
-      "current_day_used": { "name": "Day Used" },
-      "month_download": { "name": "Month Download" },
-      "month_download_gb": { "name": "Month Download (GB)" },
-      "month_upload": { "name": "Month Upload" },
-      "month_upload_gb": { "name": "Month Upload (GB)" },
-      "month_total": { "name": "Month Total" },
-      "sms_unread": { "name": "Unread Msg" },
-      "sms_total": { "name": "Total (Device)" },
-      "sms_total_msg": { "name": "Total Msg" },
-      "sms_unread_device": { "name": "Unread (Device)" },
-      "sms_inbox_device": { "name": "Inbox (Device)" },
-      "sms_outbox_device": { "name": "Outbox (Device)" },
-      "sms_drafts_device": { "name": "Drafts (Device)" },
-      "sms_deleted_device": { "name": "Deleted (Device)" },
-      "sms_capacity_device": { "name": "Capacity (Device)" },
-      "sms_unread_sim": { "name": "Unread (SIM)" },
-      "sms_inbox_sim": { "name": "Inbox (SIM)" },
-      "sms_outbox_sim": { "name": "Outbox (SIM)" },
-      "sms_drafts_sim": { "name": "Drafts (SIM)" },
-      "sms_capacity_sim": { "name": "Capacity (SIM)" },
-      "sms_messages_sim": { "name": "Total (SIM)" },
-      "sms_new": { "name": "In Process" },
-      "last_sms": { "name": "Last Msg" }
+      "5g_block_error_rate": {
+        "name": "5G Block Error Rate"
+      },
+      "5g_cqi_0": {
+        "name": "5G CQI"
+      },
+      "5g_downlink_bandwidth": {
+        "name": "5G Downlink Bandwidth"
+      },
+      "5g_downlink_frequency": {
+        "name": "5G Downlink Frequency"
+      },
+      "5g_downlink_mcs": {
+        "name": "5G Downlink MCS"
+      },
+      "5g_earfcn": {
+        "name": "5G EARFCN"
+      },
+      "5g_rank": {
+        "name": "5G Rank"
+      },
+      "5g_transmit_power": {
+        "name": "5G Transmit Power"
+      },
+      "5g_uplink_bandwidth": {
+        "name": "5G Uplink Bandwidth"
+      },
+      "5g_uplink_frequency": {
+        "name": "5G Uplink Frequency"
+      },
+      "5g_uplink_mcs": {
+        "name": "5G Uplink MCS"
+      },
+      "alert_threshold": {
+        "name": "Alert Threshold"
+      },
+      "antenna_1": {
+        "name": "Antenna 1"
+      },
+      "antenna_2": {
+        "name": "Antenna 2"
+      },
+      "apn": {
+        "name": "APN"
+      },
+      "apn_profile": {
+        "name": "APN Profile"
+      },
+      "band": {
+        "name": "LTE Band"
+      },
+      "battery": {
+        "name": "Battery"
+      },
+      "billing_cycle_day": {
+        "name": "Billing Cycle Day"
+      },
+      "carrier_build": {
+        "name": "Carrier Build"
+      },
+      "cell_id": {
+        "name": "LTE Cell ID"
+      },
+      "counters_last_reset": {
+        "name": "Counters Last Reset"
+      },
+      "country_code": {
+        "name": "Country Code"
+      },
+      "cqi_0": {
+        "name": "LTE CQI"
+      },
+      "current_connection_download": {
+        "name": "Connection Download"
+      },
+      "current_connection_duration": {
+        "name": "Connection Duration"
+      },
+      "current_connection_timestamp": {
+        "name": "Connection Uptime"
+      },
+      "current_connection_upload": {
+        "name": "Connection Upload"
+      },
+      "current_day_used": {
+        "name": "Day Used"
+      },
+      "current_download_rate": {
+        "name": "Download Rate"
+      },
+      "current_upload_rate": {
+        "name": "Upload Rate"
+      },
+      "data_allowance": {
+        "name": "Data Allowance"
+      },
+      "day_connected_time": {
+        "name": "Day Connected Time"
+      },
+      "downlink_mcs": {
+        "name": "LTE Downlink MCS"
+      },
+      "earfcn": {
+        "name": "LTE EARFCN"
+      },
+      "enodeb_id": {
+        "name": "eNodeB ID"
+      },
+      "iccid": {
+        "name": "ICCID"
+      },
+      "imei": {
+        "name": "IMEI"
+      },
+      "ims": {
+        "name": "IMS Status"
+      },
+      "imsi": {
+        "name": "IMSI"
+      },
+      "last_sms": {
+        "name": "Last Msg"
+      },
+      "last_updated": {
+        "name": "Last Updated"
+      },
+      "line_state": {
+        "name": "Line State"
+      },
+      "lte_downlink_bandwidth": {
+        "name": "LTE Downlink Bandwidth"
+      },
+      "lte_downlink_frequency": {
+        "name": "LTE Downlink Frequency"
+      },
+      "lte_uplink_bandwidth": {
+        "name": "LTE Uplink Bandwidth"
+      },
+      "lte_uplink_frequency": {
+        "name": "LTE Uplink Frequency"
+      },
+      "max_download_rate": {
+        "name": "Max Download Rate"
+      },
+      "max_upload_rate": {
+        "name": "Max Upload Rate"
+      },
+      "mcc_mnc": {
+        "name": "MCC MNC"
+      },
+      "mode": {
+        "name": "LTE Mode"
+      },
+      "model_name": {
+        "name": "Model Name"
+      },
+      "month_connected_time": {
+        "name": "Month Connected Time"
+      },
+      "month_download": {
+        "name": "Month Download"
+      },
+      "month_download_gb": {
+        "name": "Month Download (GB)"
+      },
+      "month_total": {
+        "name": "Month Total"
+      },
+      "month_upload": {
+        "name": "Month Upload"
+      },
+      "month_upload_gb": {
+        "name": "Month Upload (GB)"
+      },
+      "mtu": {
+        "name": "MTU"
+      },
+      "network_type": {
+        "name": "Network Type"
+      },
+      "nr5g_band": {
+        "name": "5G NR Band"
+      },
+      "nr_rsrp": {
+        "name": "5G RSRP"
+      },
+      "nr_rsrq": {
+        "name": "5G RSRQ"
+      },
+      "nr_sinr": {
+        "name": "5G SINR"
+      },
+      "operator": {
+        "name": "Operator"
+      },
+      "operator_search_mode": {
+        "name": "Operator Search Mode"
+      },
+      "pci": {
+        "name": "LTE PCI"
+      },
+      "plmn": {
+        "name": "Operator Code"
+      },
+      "preferred_network_mode": {
+        "name": "Preferred Network Mode"
+      },
+      "primary_band": {
+        "name": "Primary Band"
+      },
+      "primary_dns": {
+        "name": "Primary DNS Server"
+      },
+      "primary_ipv6_dns": {
+        "name": "Primary IPv6 DNS Server"
+      },
+      "product_name": {
+        "name": "Product Name"
+      },
+      "projected_usage": {
+        "name": "Projected Usage"
+      },
+      "rrc_status": {
+        "name": "LTE RRC Status"
+      },
+      "rsrp": {
+        "name": "LTE RSRP"
+      },
+      "rsrq": {
+        "name": "LTE RSRQ"
+      },
+      "rssi": {
+        "name": "LTE RSSI"
+      },
+      "secondary_cell_pci": {
+        "name": "Secondary Cell PCI"
+      },
+      "secondary_dns": {
+        "name": "Secondary DNS Server"
+      },
+      "secondary_ipv6_dns": {
+        "name": "Secondary IPv6 DNS Server"
+      },
+      "serial_number": {
+        "name": "Serial Number"
+      },
+      "signal_bars": {
+        "name": "Signal Bars"
+      },
+      "signal_bars_nr": {
+        "name": "5G Signal Bars"
+      },
+      "sim_number": {
+        "name": "SIM Number"
+      },
+      "sinr": {
+        "name": "LTE SINR"
+      },
+      "sms_capacity_device": {
+        "name": "Capacity (Device)"
+      },
+      "sms_capacity_sim": {
+        "name": "Capacity (SIM)"
+      },
+      "sms_deleted_device": {
+        "name": "Deleted (Device)"
+      },
+      "sms_drafts_device": {
+        "name": "Drafts (Device)"
+      },
+      "sms_drafts_sim": {
+        "name": "Drafts (SIM)"
+      },
+      "sms_inbox_device": {
+        "name": "Inbox (Device)"
+      },
+      "sms_inbox_sim": {
+        "name": "Inbox (SIM)"
+      },
+      "sms_messages_sim": {
+        "name": "Total (SIM)"
+      },
+      "sms_new": {
+        "name": "In Process"
+      },
+      "sms_outbox_device": {
+        "name": "Outbox (Device)"
+      },
+      "sms_outbox_sim": {
+        "name": "Outbox (SIM)"
+      },
+      "sms_total": {
+        "name": "Total (Device)"
+      },
+      "sms_total_msg": {
+        "name": "Total Msg"
+      },
+      "sms_unread": {
+        "name": "Unread Msg"
+      },
+      "sms_unread_device": {
+        "name": "Unread (Device)"
+      },
+      "sms_unread_sim": {
+        "name": "Unread (SIM)"
+      },
+      "supported_modes": {
+        "name": "Supported Modes"
+      },
+      "sw_version": {
+        "name": "Software Version"
+      },
+      "tac": {
+        "name": "LTE TAC"
+      },
+      "total_connected": {
+        "name": "Total Connected"
+      },
+      "total_connection_time": {
+        "name": "Total Duration"
+      },
+      "total_connection_timestamp": {
+        "name": "Total Uptime"
+      },
+      "total_data": {
+        "name": "Total Data"
+      },
+      "total_download": {
+        "name": "Total Download"
+      },
+      "total_upload": {
+        "name": "Total Upload"
+      },
+      "transmission_mode": {
+        "name": "LTE Transmission Mode"
+      },
+      "transmit_power": {
+        "name": "LTE Transmit Power"
+      },
+      "uplink_mcs": {
+        "name": "LTE Uplink MCS"
+      },
+      "uptime": {
+        "name": "Uptime Duration"
+      },
+      "uptime_timestamp": {
+        "name": "Uptime"
+      },
+      "wan_dns": {
+        "name": "WAN DNS"
+      },
+      "wan_dns_ipv6": {
+        "name": "WAN DNS IPv6"
+      },
+      "wan_ip": {
+        "name": "WAN IP Address"
+      },
+      "wan_ipv6": {
+        "name": "WAN IPv6 Address"
+      },
+      "web_ui_version": {
+        "name": "Web UI Version"
+      },
+      "wifi_capacity": {
+        "name": "User Capacity"
+      },
+      "wifi_users": {
+        "name": "WiFi Connected"
+      },
+      "wired_connected": {
+        "name": "Wired Connected"
+      }
     },
     "button": {
-      "refresh": { "name": "Refresh Now" },
-      "reboot": { "name": "Reboot" },
-      "clear_traffic": { "name": "Clear Traffic Statistics" }
+      "cleanup_unused_entities": {
+        "name": "Clean up unused entities"
+      },
+      "clear_traffic": {
+        "name": "Clear Traffic Statistics"
+      },
+      "reboot": {
+        "name": "Reboot"
+      },
+      "reconnect": {
+        "name": "Reconnect"
+      },
+      "refresh": {
+        "name": "Refresh Now"
+      }
     },
     "binary_sensor": {
-      "best_connection": { "name": "Best Connection" },
-      "sms_storage_full": { "name": "SMS Storage Full" },
-      "wifi_status": { "name": "Status" },
-      "wifi24g_status": { "name": "2.4GHz Status" },
-      "wifi5g_status": { "name": "5GHz Status" },
-      "mobile_connection": { "name": "Mobile Connection" },
-      "endc_status": { "name": "5G ENDC Active" },
-      "endc_restricted": { "name": "5G Restricted" },
-      "single_ssid_mode": { "name": "Single SSID Mode" },
-      "roaming": { "name": "Roaming Status" },
-      "sim_status": { "name": "SIM Card Status" },
-      "lte_ca": { "name": "LTE Carrier Aggregation" }
+      "best_connection": {
+        "name": "Best Connection"
+      },
+      "data_plan_enabled": {
+        "name": "Data Plan Enabled"
+      },
+      "data_service": {
+        "name": "Data Service"
+      },
+      "endc_restricted": {
+        "name": "5G Restricted"
+      },
+      "endc_status": {
+        "name": "5G ENDC Active"
+      },
+      "integration_health": {
+        "name": "Integration Health"
+      },
+      "lte_ca": {
+        "name": "LTE Carrier Aggregation"
+      },
+      "mobile_connection": {
+        "name": "Mobile Connection"
+      },
+      "poor_signal": {
+        "name": "Poor Signal"
+      },
+      "roaming": {
+        "name": "Roaming Status"
+      },
+      "roaming_auto_connect": {
+        "name": "Roaming Auto-Connect"
+      },
+      "router_diagnostics": {
+        "name": "Router Diagnostics"
+      },
+      "sim_locked": {
+        "name": "SIM Locked"
+      },
+      "sim_status": {
+        "name": "SIM Card Status"
+      },
+      "single_ssid_mode": {
+        "name": "Single SSID Mode"
+      },
+      "sip_alg": {
+        "name": "SIP ALG"
+      },
+      "sms_storage_full": {
+        "name": "SMS Storage Full"
+      },
+      "speed_limited": {
+        "name": "Speed Limited"
+      },
+      "upnp": {
+        "name": "UPnP"
+      },
+      "voice_service": {
+        "name": "Voice Service"
+      },
+      "volte": {
+        "name": "VoLTE"
+      },
+      "wifi24g_status": {
+        "name": "2.4GHz Status"
+      },
+      "wifi5g_status": {
+        "name": "5GHz Status"
+      },
+      "wifi_status": {
+        "name": "Status"
+      }
     },
     "switch": {
-      "pause_polling": { "name": "Pause Polling" },
-      "mobile_data": { "name": "Mobile Data" },
-      "wifi_guest_network": { "name": "Guest Network" }
+      "mobile_data": {
+        "name": "Mobile Data"
+      },
+      "pause_polling": {
+        "name": "Pause Polling"
+      },
+      "wifi": {
+        "name": "WiFi"
+      },
+      "wifi_guest_network": {
+        "name": "Guest Network"
+      }
     },
     "select": {
-      "network_mode": { "name": "Preferred Network Mode" }
+      "network_mode": {
+        "name": "Preferred Network Mode"
+      }
     },
     "number": {
-      "polling_interval": { "name": "Polling Interval" }
+      "polling_interval": {
+        "name": "Polling Interval"
+      }
+    }
+  },
+  "exceptions": {
+    "sms_too_long": {
+      "message": "The message is {length} characters, but this router accepts at most {limit} when the text needs {encoding} encoding ({segments} segments). Shorten it, or remove any emoji and special characters to get the longer GSM-7 limit."
+    },
+    "write_not_confirmed": {
+      "message": "The router accepted the {action} command but still reports the old setting. The change was not applied — check the router and try again."
+    }
+  },
+  "issues": {
+    "auth_failed": {
+      "title": "Huawei router sign-in failed",
+      "description": "Home Assistant could not sign in to {entry_title}. The stored username or password may no longer be accepted, or the router may be refusing new sessions. Re-enter the credentials to reconnect."
+    },
+    "conn_error": {
+      "title": "Huawei router is not responding",
+      "description": "Home Assistant stopped receiving data from {entry_title}. Check that the router is powered on and reachable at its configured address. This clears itself once communication is restored."
     }
   },
   "options": {
@@ -183,6 +560,18 @@
       "cannot_connect": "Failed to connect to router. Check the URL/IP address.",
       "invalid_auth": "Invalid credentials. Please check your username and password.",
       "unknown": "Unexpected error occurred."
+    }
+  },
+  "services": {
+    "cleanup_unused_entities": {
+      "name": "Clean up unused entities",
+      "description": "Removes device tracker entities for clients the router no longer reports. Runs as a preview by default.",
+      "fields": {
+        "dry_run": {
+          "name": "Preview only",
+          "description": "Leave on to list what would be removed without removing anything. Turn off to actually remove them."
+        }
+      }
     }
   },
   "title": "Huawei Router 5G Monitor"

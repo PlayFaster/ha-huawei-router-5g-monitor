@@ -1,22 +1,146 @@
+# SYNCED FILE — DO NOT EDIT IN A PROJECT.
+# Edit dev-workbench/workbench/python/pyproject_common.toml and re-sync.
+
 target-version = "py313"
 line-length = 88
 
 [lint]
 select = [
-    "B",     # flake8-bugbear
-    "E",     # pycodestyle error
-    "F",     # Pyflakes
-    "I",     # isort
-    "UP",    # pyupgrade
-    "W",     # pycodestyle warning
-    "N",     # pep8-naming
-    "D",     # pydocstyle
-    "ASYNC", # flake8-async
-    "RUF",   # Ruff-specific rules
-    "SIM",   # flake8-simplify
-    "T20",   # flake8-print (forbids print statements)
+    "A001",   # Variable {name} is shadowing a Python builtin
+    "ASYNC",  # flake8-async
+    "B",      # flake8-bugbear
+    "BLE",    # flake8-blind-except
+    "COM818", # Trailing comma on bare tuple prohibited
+    "D",      # pydocstyle
+    "DTZ",    # flake8-datetimez
+    "E",      # pycodestyle error
+    "F",      # Pyflakes
+    "FLY",    # flynt (f-strings conversion)
+    "FURB",   # refurb (modernizing refactoring)
+    "G",      # flake8-logging-format
+    "I",      # isort
+    "ICN001", # import conventions; {name} should be imported as {asname}
+    "INP",    # flake8-no-pep420
+    "ISC",    # flake8-implicit-str-concat
+    "LOG",    # flake8-logging
+    "N",      # pep8-naming
+    "PERF",   # Perflint
+    "PGH",    # pygrep-hooks
+    "PIE",    # flake8-pie
+    "PL",     # pylint rules
+    "PT",     # flake8-pytest-style
+    "PTH",    # flake8-pathlib
+    "PYI",    # flake8-pyi
+    "RET",    # flake8-return
+    "RSE",    # flake8-raise
+    "RUF",    # Ruff-specific rules
+    "S",      # flake8-bandit security checks
+    "SIM",    # flake8-simplify
+    "SLF",    # flake8-self
+    "SLOT",   # flake8-slots
+    "T100",   # Trace found: {name} used
+    "T20",    # flake8-print (forbids print statements)
+    "TC",     # flake8-type-checking
+    "TID",    # Tidy imports
+    "TRY",    # tryceratops exception handling
+    "UP",     # pyupgrade
+    "W",      # pycodestyle warning
 ]
 ignore = [
-    "D203", # Conflict with D211 (HA prefers no blank line before class)
-    "D213", # Conflict with D212 (HA prefers summary on first line)
+    # Async rules
+    "ASYNC109",
+    "ASYNC110",
+    "ASYNC240",
+
+    # Conflict with D211 (HA prefers no blank line before class)
+    "D203",
+    # Conflict with D212 (HA prefers summary on first line)
+    "D213",
+    # No blank lines allowed after function docstring
+    "D202",
+    
+    # Line too long (handled by ruff format)
+    "E501",
+
+    # Conflict with the formatter
+    "W191",
+    "E111",
+    "E114",
+    "E117",
+    "D206",
+    "D300",
+    "Q",
+    "COM812",
+    "COM819",
+
+    # Voluptuous validators are function calls in default arguments
+    "B008",
+    # Cache on methods
+    "B019",
+    
+    # Docstring style issues
+    "D406",
+    "D407",
+    "D417",
+    
+    # Imports outside top-level (essential for fixtures and patching)
+    "PLC0415",
+    # Empty string simplification
+    "PLC1901",
+    # Redundant lambda
+    "PLW0108",
+    # eq without hash
+    "PLW1641",
+    # Variable overwritten
+    "PLW2901",
+    
+    # Pytest rules
+    "PT011",
+    "PT018",
+    
+    # Type checking rules
+    "TC001",
+    "TC002",
+    "TC003",
+    "TC006",
+    
+    # Complexity and positional args rules
+    "PLR0911",
+    "PLR0912",
+    "PLR0913",
+    "PLR0915",
+    "PLR0917",
+    
+    # Magic value used in comparison
+    "PLR2004",
+    
+    # Refurb rules
+    "FURB116",
+    
+    # Tryceratops exception rules
+    "TRY003",
+    "TRY400",
+    
+    # Ruff rules
+    "RUF001",
+    "RUF012",
+    "RUF015",
+    "RUF043",
+    
+    # Simplify rules
+    "SIM102",
+    "SIM103",
+    "SIM108",
+    "SIM115",
+
+    # Pyupgrade Python 3.12+ type rules
+    "UP047",
+    "UP049",
+
+    # Disable invalid __all__ format, multi-line implicit concat, logging exception usage
+    "PLE0605",
+    "ISC004",
+    "LOG004",
 ]
+
+

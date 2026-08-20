@@ -10,9 +10,27 @@ rules:
   config-flow-test-coverage: done
   dependency-transparency: done
   docs-actions: done
+  docs-conditions:
+    status: exempt
+    comment: |
+      The integration registers no conditions - there is no
+      device_condition.py and no async_get_conditions - so there is nothing to
+      document. Absent rather than exempt until 2026-08-14, which is worse
+      than either: a rule that is missing is not assessed, it is invisible.
+      Revisit if a condition is ever added; the exemption is about having
+      none, not about documentation being unnecessary.
   docs-high-level-description: done
   docs-installation-instructions: done
   docs-removal-instructions: done
+  docs-triggers:
+    status: exempt
+    comment: |
+      The integration registers no triggers - there is no device_trigger.py
+      and no async_get_triggers. Entity state changes are consumed through
+      ordinary state triggers, which belong to the automation engine rather
+      than to this integration. Same history as docs-conditions: added here
+      after an iqs_next_steps completeness check found both absent from this
+      file while present in the canonical.
   entity-event-setup: done
   entity-unique-id: done
   has-entity-name: done
@@ -36,8 +54,19 @@ rules:
   # Gold Tier
   devices: done
   diagnostics: done
-  discovery: exempt
-  discovery-update-info: exempt
+  discovery:
+    status: exempt
+    comment: |
+      SSDP discovery is technically possible - core huawei_lte matches Huawei
+      InternetGatewayDevice - but it would only pre-fill the host. The router
+      still requires credentials, so the user completes the same flow either
+      way. Revisit if HA gains credential-less onboarding for these devices.
+  discovery-update-info:
+    status: exempt
+    comment: |
+      No discovery is implemented, so there is no discovery payload from which
+      to refresh the host. The address is user-supplied and updated through the
+      reconfigure flow.
   docs-data-update: done
   docs-examples: done
   docs-known-limitations: done
@@ -54,7 +83,18 @@ rules:
   icon-translations: done
   reconfiguration-flow: done
   repair-issues: done
-  stale-devices: exempt
+  stale-devices:
+    status: exempt
+    comment: |
+      The six sub-devices (System, Signal, Data, SMS, WiFi, Clients) are facets
+      of one router, not separately removable hardware, so none can become
+      stale. Connected clients are device_tracker ENTITIES on the Clients
+      sub-device rather than devices - see the device_info override recorded in
+      docs/ha_compatibility.md - and this rule is device-scoped.
+      That override is the precondition for this exemption. Were it removed, HA
+      2026.9+ would create a device per client and this rule would become live.
+      Entity accumulation is handled by the cleanup_unused_entities action,
+      which goes beyond what IQS requires.
 
   # Platinum Tier
   async-dependency: todo

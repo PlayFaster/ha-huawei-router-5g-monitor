@@ -3,13 +3,15 @@
 import asyncio
 import contextlib
 import logging
+import time
 from datetime import datetime, timedelta
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
-from homeassistant.core import HomeAssistant
+from homeassistant.core import CALLBACK_TYPE, HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers.event import async_call_later
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
@@ -17,8 +19,18 @@ from .api import HuaweiAuthError, HuaweiRouter5GAPI
 from .const import (
     CONF_SCAN_INTERVAL,
     CONF_STOP_POLLING,
+    CRITICAL_ENDPOINT,
     DEFAULT_SCAN_INTERVAL,
+    DOMAIN,
+    ENDPOINT_NAMES,
+    FETCH_STRIKE_LIMIT,
     FETCH_TIMEOUT,
+    HEALTH_DRIFT_STRIKE_LIMIT,
+    REPAIR_AUTH_FAILED,
+    REPAIR_CONN_ERROR,
+    REPAIR_CONN_STRIKE_LIMIT,
+    REPAIR_NAMES,
+    SIGNAL_CONTRACT_KEYS,
 )
 from .helpers import get_router_model, parse_sms_list
 
@@ -26,7 +38,7 @@ _LOGGER = logging.getLogger(__name__)
 
 # Minimum drop in a router uptime counter (seconds) treated as a genuine reset.
 # A real reboot/reconnect resets the counter to ~0, so this margin only rejects
-# small downward blips from counter quantisation or stale cached readings.
+# small downward blips from counter quantization or stale cached readings.
 UPTIME_REBOOT_MARGIN = 30
 
 
@@ -46,6 +58,76 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         self.last_update_success_time: datetime | None = None
         self.last_sms_timestamp: str | None = None
         self.fired_sms_hashes: set[str] = set()
+
+        # One-shot flag set by async_force_refresh so an explicit user action
+        # fetches even while polling is paused (dev_standards Section 13).
+        self._force_refresh_once = False
+
+        # Cancel handle for a follow-up refresh scheduled by a disruptive
+        # button. Held so a second press replaces the first rather than
+        # stacking, and so unload can cancel it - a timer that outlives the
+        # entry fires against a coordinator whose API is already logged out.
+        self._pending_refresh: CALLBACK_TYPE | None = None
+
+        # Single-slot memo for the usage projection, held per entry.
+        #
+        # The projection has two consumers on the same state write — the
+        # sensor's value and its `confidence` attribute — so without this it
+        # is computed twice per poll to produce two halves of one answer.
+        #
+        # **Per coordinator rather than per module.** A module-level slot is
+        # shared by every config entry, so two routers each replace the
+        # other's entry on every poll and the memo never hits — it degrades
+        # to no memo at all, silently, on exactly the installs that poll most.
+        # It also survives between tests, which makes ordering matter.
+        #
+        # Keyed by identity, not equality: the payload is replaced wholesale
+        # on each refresh, so `is` is correct and cheap. Holding the payload
+        # is what makes identity safe — it cannot be collected and have its
+        # `id()` reused while it is still the key.
+        self.projection_cache: tuple[Any, Any] | None = None
+
+        # The non-live options this entry was built with. The update listener
+        # compares against it to tell a connection change, which must reload,
+        # from a tuning change, which must not (Section 9). Set by
+        # `async_setup_entry`; seeded here so the attribute always exists.
+        self.reload_signature: dict[str, Any] = {}
+
+        # One-shot latch so a persistently failing health computation warns
+        # once per session rather than once per poll. Reset on the first
+        # success, so a fault that returns is reported again.
+        self._health_compute_failed = False
+
+        # Section 19 health state. Deliberately NOT stored in `self.data`,
+        # which is None before the first success and frozen at last-good values
+        # during an outage — a verdict held there could never describe the
+        # failure that stopped it being updated.
+        self._endpoint_strikes: dict[str, int] = {}
+
+        # Liveness-probe state. `_fault_is_local` is None until a probe has
+        # run, True when a fresh connection succeeded while the pooled one kept
+        # failing (our fault), False when both failed (the router's). The latch
+        # keeps the probe to once per exhausted strike budget — this router
+        # permits one login, so a probe per poll would cause outages rather
+        # than diagnose them.
+        # `True` the fault is ours, `False` the router is unreachable, and
+        # `None` either not yet probed or the router refused a second session —
+        # alive, but with nothing to say about which end is at fault.
+        self._fault_is_local: bool | None = None
+        self._probe_done = False
+        # Mode codes the router says it accepts, populated once after login.
+        # `None` means not yet known, which is not the same as "none accepted" —
+        # the select falls back to its full list rather than showing nothing.
+        self.supported_net_modes: list[str] | None = None
+        self.health_snapshot: dict[str, Any] = {
+            # Cold start: nothing has been fetched, so no verdict is possible.
+            # Section 19 forbids `None` here — see `_healthy_snapshot`.
+            "severity": "unknown",
+            "issues": [],
+            "degraded_capabilities": [],
+            "drift": [],
+            "last_good_update": None,
+        }
 
         # Reboot-detection latches — frozen timestamps for uptime-derived sensors.
         # Each is recomputed exactly once per genuine counter reset and then held.
@@ -91,17 +173,347 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             update_interval=timedelta(seconds=scan_interval),
         )
 
+    def _healthy_snapshot(self) -> dict[str, Any]:
+        """Return a snapshot describing a healthy integration.
+
+        **`severity` is `"ok"`, never `None`.** The other three attributes are
+        legitimately empty when healthy and Home Assistant renders an empty list
+        as a blank cell, so `None` showed the user "Unknown" beside three blanks
+        — indistinguishable from a sensor that never populated. A literal `"ok"`
+        beside three blanks is unambiguous. Section 19 makes this normative;
+        putting placeholder text into the lists instead would break any
+        automation filtering them on `| count > 0`.
+        """
+        return {
+            "severity": "ok",
+            "issues": [],
+            "degraded_capabilities": [],
+            "drift": [],
+            "last_good_update": (
+                self.last_update_success_time.isoformat()
+                if self.last_update_success_time
+                else None
+            ),
+        }
+
+    async def _async_diagnose_fault(self) -> None:
+        """Ask which end is at fault, once per exhausted strike budget.
+
+        Every path to the router was reachable during the 2026-08-17 lockup —
+        web GUI, host, container — while the integration reported everything
+        unavailable and blamed the router. One cheap call on a **brand-new**
+        connection separates the two cases, which is exactly how the fault was
+        diagnosed by hand.
+
+        The timing is logged beside the failing path on purpose: "a fresh
+        connection answered in 0.04s while the pooled one timed out at 30s" is
+        the whole diagnosis in one line, and it was the absence of that line
+        that made the original fault take an hour to find.
+        """
+        if self._probe_done:
+            return
+        self._probe_done = True
+
+        started = time.monotonic()
+        alive = await self.api.probe_liveness()
+        elapsed = time.monotonic() - started
+        self._fault_is_local = alive
+
+        if alive is None:
+            # The router refused a second session. It is answering — it has to
+            # be, to refuse — but nothing here can say whether the established
+            # path is at fault. Rebuild anyway: a connection we cannot vouch
+            # for is worth replacing, and the next poll re-establishes it.
+            _LOGGER.warning(
+                "%s: the router refused a second session after %.2fs, so which "
+                "end is at fault is undetermined. Rebuilding the connection.",
+                self.entry.title,
+                elapsed,
+            )
+            await self.api.invalidate()
+            return
+
+        if not alive:
+            _LOGGER.warning(
+                "%s: a fresh connection to the router also failed after %.2fs; "
+                "the router is genuinely unreachable.",
+                self.entry.title,
+                elapsed,
+            )
+            return
+
+        _LOGGER.warning(
+            "%s: a fresh connection answered in %.2fs while the established "
+            "session kept failing. The fault is on this side; rebuilding the "
+            "connection.",
+            self.entry.title,
+            elapsed,
+        )
+        await self.api.invalidate()
+
+    def update_health(
+        self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
+    ) -> None:
+        """Recompute the Section 19 health verdict.
+
+        Held as a coordinator attribute rather than inside `self.data`, which is
+        `None` before the first success and **frozen at the last good values**
+        during an outage — a verdict living there could never describe the
+        failure that stopped it being updated.
+
+        Wrapped so a malformed payload can never crash the update it is
+        diagnosing. **The wrapper stays; where the failure goes changed.**
+
+        It previously logged at DEBUG and then set a *healthy* snapshot — so a
+        verdict that had stopped working reported "no problems" for ever, at a
+        level nobody runs. This sensor exists to explain an outage; the one
+        state it must never report cleanly is its own failure. Found by
+        `masked_errors_check` on 2026-08-16 as a Class A finding.
+
+        The first failure per session warns; the rest are debug, because a
+        broken computation is broken on every poll and one warning per poll is
+        how a warning stops being read. The snapshot now carries the failure
+        rather than hiding it.
+        """
+        try:
+            self.health_snapshot = self._compute_health(
+                data, failed=failed, cold_start=cold_start
+            )
+            self._health_compute_failed = False
+        except Exception:
+            if not self._health_compute_failed:
+                self._health_compute_failed = True
+                _LOGGER.warning(
+                    "%s: Health computation failed; the Integration Health "
+                    "verdict is unavailable until this is fixed.",
+                    self.entry.title,
+                    exc_info=True,
+                )
+            else:
+                _LOGGER.debug(
+                    "%s: Health computation still failing.",
+                    self.entry.title,
+                    exc_info=True,
+                )
+            snapshot = self._healthy_snapshot()
+            # `error`, not `warning`: Section 19 defines `error` as a total
+            # outage *or* a verdict that cannot be computed, and this sensor
+            # failing to assess itself is the second of those.
+            snapshot["severity"] = "error"
+            snapshot["issues"] = ["health_verdict_unavailable"]
+            self.health_snapshot = snapshot
+
+    def _compute_health(
+        self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
+    ) -> dict[str, Any]:
+        """Build the health snapshot. See `update_health` for the guarantees."""
+        snapshot = self._healthy_snapshot()
+
+        if failed:
+            # Cold start flags on the FIRST failure: there are no held values,
+            # so waiting out the strike budget leaves the user with a wholly
+            # unavailable integration and no explanation. At runtime the strike
+            # budget applies, so one blip raises no alarm.
+            if cold_start:
+                snapshot["severity"] = "error"
+                snapshot["issues"] = [
+                    "The router has never answered since this integration "
+                    "started. Check the host address and credentials."
+                ]
+            elif self.consecutive_failures >= FETCH_STRIKE_LIMIT:
+                snapshot["severity"] = "error"
+                snapshot["issues"] = [
+                    f"No successful update in {self.consecutive_failures} "
+                    "consecutive attempts; the values shown are the last known "
+                    "good ones."
+                ]
+
+            # Name which end is at fault when the probe has an answer. Without
+            # this the sensor says "no successful update" for both a wedged
+            # session and a router that is switched off, which is the one
+            # distinction a user needs to act on.
+            if self._fault_is_local is True:
+                snapshot["issues"].append(
+                    "The router answered a fresh connection while this "
+                    "integration's own session did not; the connection has "
+                    "been rebuilt."
+                )
+            elif self._fault_is_local is False:
+                snapshot["issues"].append(
+                    "A fresh connection to the router also failed; the router "
+                    "is not reachable from Home Assistant."
+                )
+            elif self._probe_done:
+                # Probed, and the router refused a second session. Reported
+                # rather than dropped: "it refused us" is a different fact from
+                # "we never asked", and only the latch tells them apart.
+                snapshot["issues"].append(
+                    "The router refused a second connection, so which end is "
+                    "at fault could not be determined."
+                )
+            return snapshot
+
+        if not data:
+            return snapshot
+
+        # 1. Capability degradation — an endpoint `api.get_data` silently
+        #    dropped. Strike-budgeted so a one-poll blip is not reported.
+        missing = [
+            key
+            for key in ENDPOINT_NAMES
+            if key != CRITICAL_ENDPOINT and key not in data
+        ]
+        for key in ENDPOINT_NAMES:
+            if key in missing:
+                self._endpoint_strikes[key] = self._endpoint_strikes.get(key, 0) + 1
+            else:
+                self._endpoint_strikes.pop(key, None)
+
+        degraded = sorted(
+            ENDPOINT_NAMES[key]
+            for key, strikes in self._endpoint_strikes.items()
+            if strikes >= HEALTH_DRIFT_STRIKE_LIMIT
+        )
+
+        # 2. Contract drift — a non-empty response that parses to nothing
+        #    meaningful. This is the direct catch for a firmware field rename,
+        #    and it is the highest-value check here.
+        drift: list[str] = []
+        signal = data.get("device_signal")
+        if isinstance(signal, dict) and signal:
+            if all(signal.get(k) in (None, "") for k in SIGNAL_CONTRACT_KEYS):
+                drift.append(
+                    "The router returned a signal block containing none of "
+                    f"{', '.join(SIGNAL_CONTRACT_KEYS)} — its firmware may have "
+                    "renamed these fields."
+                )
+
+        issues = [f"{name} is not responding." for name in degraded] + drift
+        snapshot["degraded_capabilities"] = degraded
+        snapshot["drift"] = drift
+        snapshot["issues"] = issues
+        # Section 19's five-value enum, and the two middle values are not
+        # interchangeable: `degraded` means a capability was lost while the core
+        # still works, `warning` means the data that did arrive may be wrong.
+        # Drift outranks degradation — doubting a reading is worse than knowing
+        # one is missing.
+        if drift:
+            snapshot["severity"] = "warning"
+        elif degraded:
+            snapshot["severity"] = "degraded"
+        else:
+            snapshot["severity"] = "ok"
+        return snapshot
+
+    def clear_repairs(self) -> None:
+        """Delete every repair issue this entry may have raised.
+
+        Called on unload and on removal. After removal there is no coordinator
+        left that could ever clear one, so a repair raised at deletion time
+        would sit in the Repairs panel permanently — `auth_failed` is
+        `is_fixable=True` and would offer a flow for an integration that no
+        longer exists.
+
+        `ir.async_delete_issue` is a no-op for an issue that was never created,
+        so this is unconditional rather than tracked.
+        """
+        for name in REPAIR_NAMES:
+            ir.async_delete_issue(self.hass, DOMAIN, f"{name}_{self.entry.entry_id}")
+
+    @callback
+    def async_schedule_refresh(self, delay: float) -> None:
+        """Schedule one forced refresh `delay` seconds from now.
+
+        For controls that take the router away and bring it back. The reading
+        immediately after such a write is stale by definition, so without this
+        the entities sit wrong until the next scheduled poll - twenty minutes
+        by default.
+
+        **A paused integration still gets the refresh**, and that is the point
+        rather than an oversight. Section 13 holds that an explicit user action
+        must not be swallowed by the pause, and the follow-up is part of the
+        press rather than background polling - with polling paused it is the
+        *only* way the user ever sees the result of the button they pushed.
+        Every other write path in this integration already forces through the
+        pause; this one was the exception until 2026-08-15. `unifi_network_monitor`
+        reached the same conclusion first.
+
+        The one case it declines is when a scheduled poll would arrive first
+        anyway - which can only happen while polling is running.
+
+        A second press replaces the pending refresh rather than queueing a
+        second one.
+        """
+        paused = bool(self.entry.options.get(CONF_STOP_POLLING, False))
+        interval = self.update_interval.total_seconds() if self.update_interval else 0
+        if not paused and interval and delay >= interval:
+            _LOGGER.debug(
+                "%s: Poll interval %ss is shorter than the %ss follow-up; "
+                "letting the scheduled poll cover it.",
+                self.entry.title,
+                interval,
+                delay,
+            )
+            return
+
+        self.async_cancel_scheduled_refresh()
+
+        async def _fire(_now: datetime) -> None:
+            self._pending_refresh = None
+            await self.async_force_refresh()
+
+        self._pending_refresh = async_call_later(self.hass, delay, _fire)
+
+    @callback
+    def async_cancel_scheduled_refresh(self) -> None:
+        """Cancel a pending follow-up refresh, if there is one."""
+        if self._pending_refresh is not None:
+            self._pending_refresh()
+            self._pending_refresh = None
+
+    async def async_force_refresh(self) -> None:
+        """Force an immediate fetch, even while polling is paused.
+
+        Every explicit user action — Refresh Now, a control change, an SMS
+        service — must route through here rather than calling
+        ``async_request_refresh`` directly, or it is silently swallowed by the
+        pause short-circuit at exactly the moment the user wanted a fetch
+        (dev_standards Section 13). Scheduled polls still respect the pause.
+        """
+        self._force_refresh_once = True
+        try:
+            await self.async_request_refresh()
+        except Exception:
+            # The flag is consumed at the top of `_async_update_data`, so an
+            # update that never runs would leave it set and the next
+            # *scheduled* poll would fetch despite the pause. Self-correcting
+            # after one cycle, but Section 13 asks that every path out clears
+            # it.
+            self._force_refresh_once = False
+            raise
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the API with resilience and pause support."""
+        # Consume the one-shot force flag before anything can short-circuit.
+        forced = self._force_refresh_once
+        self._force_refresh_once = False
+
         is_paused = self.entry.options.get(CONF_STOP_POLLING, False)
         is_first_run = self.data is None
 
-        if is_paused and not is_first_run:
+        if is_paused and not is_first_run and not forced:
             _LOGGER.debug(
                 "%s: Polling is paused; returning cached data.", self.entry.title
             )
             return self.data
 
+        if forced and is_paused:
+            _LOGGER.debug(
+                "%s: Explicit user action; fetching despite paused polling.",
+                self.entry.title,
+            )
+
+        data = None
         try:
             async with asyncio.timeout(FETCH_TIMEOUT):
                 try:
@@ -112,169 +524,23 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                         self.entry.title,
                     )
                     data = await self.api.get_data()
-
-                # Critical Data Guard: If essential keys are missing, treat as a
-                # fetch failure rather than a partial success that would
-                # clear sensors.
-                if not data or "device_information" not in data:
-                    raise UpdateFailed(
-                        "Critical data missing from fetch (e.g. device_info)"
-                    )
-
-                dev_info = data.get("device_information") or {}
-                new_model = get_router_model(dev_info)
-                new_sw = dev_info.get("SoftwareVersion")
-                new_hw = dev_info.get("HardwareVersion")
-
-                if (
-                    new_model != self.model
-                    or new_sw != self.sw_version
-                    or new_hw != self.hw_version
-                ):
-                    _LOGGER.info(
-                        "%s: Hardware metadata updated: %s sw=%s hw=%s",
-                        self.entry.title,
-                        new_model,
-                        new_sw,
-                        new_hw,
-                    )
-                    self.model = new_model
-                    self.sw_version = new_sw
-                    self.hw_version = new_hw
-
-                    new_entry_data = dict(self.entry.data)
-                    new_entry_data.update(
-                        {
-                            "model": new_model,
-                            "sw_version": new_sw,
-                            "hw_version": new_hw,
-                        }
-                    )
-                    self.hass.config_entries.async_update_entry(
-                        self.entry, data=new_entry_data
-                    )
-
-                if self.consecutive_failures > 0:
-                    _LOGGER.info(
-                        "%s: Communication restored after %d failures.",
-                        self.entry.title,
-                        self.consecutive_failures,
-                    )
-                    ir.async_delete_issue(
-                        self.hass,
-                        "huawei_router_5g",
-                        f"conn_error_{self.entry.entry_id}",
-                    )
-
-                self.last_update_success_time = dt_util.now()
-                self.consecutive_failures = 0
-
-                # SMS Event Logic
-                if "sms_list" in data:
-                    _LOGGER.debug(
-                        "%s: Raw SMS list: %s", self.entry.title, data["sms_list"]
-                    )
-                self._check_new_sms(data)
-
-                # --- Uptime reboot-detection latches ---
-                # Each counter is compared against its last-seen value. A drop of
-                # more than UPTIME_REBOOT_MARGIN seconds is treated as a genuine
-                # reset; the frozen timestamp is recomputed once and then held.
-                # Bad or missing readings are ignored; the cached value is kept.
-                entry_data_updates: dict[str, Any] = {}
-
-                dev_info = data.get("device_information") or {}
-                traffic = data.get("traffic_statistics") or {}
-
-                # 1. System uptime → system boot timestamp
-                sys_sec: int | None = None
-                with contextlib.suppress(ValueError, TypeError):
-                    if (raw := dev_info.get("uptime")) is not None:
-                        sys_sec = int(float(raw))
-                if sys_sec is None or sys_sec < 0:
-                    data["system_boot_time"] = self._system_boot_time
-                else:
-                    if self._system_boot_time is None or (
-                        self._last_system_uptime is not None
-                        and sys_sec < self._last_system_uptime - UPTIME_REBOOT_MARGIN
-                    ):
-                        t = dt_util.now() - timedelta(seconds=sys_sec)
-                        self._system_boot_time = t.replace(microsecond=0)
-                        entry_data_updates["system_boot_time"] = (
-                            self._system_boot_time.isoformat()
-                        )
-                        entry_data_updates["last_system_uptime"] = sys_sec
-                        _LOGGER.debug(
-                            "%s: System boot time latched: %s",
-                            self.entry.title,
-                            self._system_boot_time,
-                        )
-                    self._last_system_uptime = sys_sec
-                    data["system_boot_time"] = self._system_boot_time
-
-                # 2. Current connection time → connection start timestamp
-                conn_sec: int | None = None
-                with contextlib.suppress(ValueError, TypeError):
-                    if (raw := traffic.get("CurrentConnectTime")) is not None:
-                        conn_sec = int(float(raw))
-                if conn_sec is None or conn_sec < 0:
-                    data["conn_start_time"] = self._conn_start_time
-                else:
-                    if self._conn_start_time is None or (
-                        self._last_conn_uptime is not None
-                        and conn_sec < self._last_conn_uptime - UPTIME_REBOOT_MARGIN
-                    ):
-                        t = dt_util.now() - timedelta(seconds=conn_sec)
-                        self._conn_start_time = t.replace(microsecond=0)
-                        entry_data_updates["conn_start_time"] = (
-                            self._conn_start_time.isoformat()
-                        )
-                        entry_data_updates["last_conn_uptime"] = conn_sec
-                        _LOGGER.debug(
-                            "%s: Connection start time latched: %s",
-                            self.entry.title,
-                            self._conn_start_time,
-                        )
-                    self._last_conn_uptime = conn_sec
-                    data["conn_start_time"] = self._conn_start_time
-
-                # 3. Total connection time → total connection origin timestamp
-                total_sec: int | None = None
-                with contextlib.suppress(ValueError, TypeError):
-                    if (raw := traffic.get("TotalConnectTime")) is not None:
-                        total_sec = int(float(raw))
-                if total_sec is None or total_sec < 0:
-                    data["total_conn_start_time"] = self._total_conn_start_time
-                else:
-                    if self._total_conn_start_time is None or (
-                        self._last_total_conn_time is not None
-                        and total_sec
-                        < self._last_total_conn_time - UPTIME_REBOOT_MARGIN
-                    ):
-                        t = dt_util.now() - timedelta(seconds=total_sec)
-                        self._total_conn_start_time = t.replace(microsecond=0)
-                        entry_data_updates["total_conn_start_time"] = (
-                            self._total_conn_start_time.isoformat()
-                        )
-                        entry_data_updates["last_total_conn_time"] = total_sec
-                        _LOGGER.debug(
-                            "%s: Total connection start time latched: %s",
-                            self.entry.title,
-                            self._total_conn_start_time,
-                        )
-                    self._last_total_conn_time = total_sec
-                    data["total_conn_start_time"] = self._total_conn_start_time
-
-                if entry_data_updates:
-                    self.hass.config_entries.async_update_entry(
-                        self.entry, data={**self.entry.data, **entry_data_updates}
-                    )
-
-                return data
-
         except (TimeoutError, HuaweiAuthError) as err:
             self.consecutive_failures += 1
-            if self.data is not None and self.consecutive_failures <= 3:
+
+            if isinstance(err, TimeoutError):
+                # `asyncio.timeout` cancels the await from out here, so none of
+                # `api.py`'s own `except` blocks run and its client is never
+                # reset. Without this the next poll reuses the same wedged
+                # connection, for ever — the reason a single deadlock survived
+                # until Home Assistant was restarted.
+                await self.api.invalidate()
+            # `<=` against the same constant `_compute_health` uses `>=` on,
+            # so the two sit one poll apart on purpose: health reports `error`
+            # on the third failure, entities go unavailable on the fourth.
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 _LOGGER.warning(
                     "%s: Fetch failed due to %s (failure %d/3), "
                     "holding last known values.",
@@ -284,13 +550,14 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     else "timeout",
                     self.consecutive_failures,
                 )
+                self.update_health(None, failed=True, cold_start=False)
                 return self.data
 
             if isinstance(err, HuaweiAuthError):
                 ir.async_create_issue(
                     self.hass,
-                    "huawei_router_5g",
-                    f"auth_failed_{self.entry.entry_id}",
+                    DOMAIN,
+                    f"{REPAIR_AUTH_FAILED}_{self.entry.entry_id}",
                     is_fixable=True,
                     is_persistent=True,
                     severity=ir.IssueSeverity.ERROR,
@@ -298,31 +565,43 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     translation_placeholders={"entry_title": self.entry.title},
                     data={"entry_id": self.entry.entry_id},
                 )
+                self.update_health(None, failed=True, cold_start=self.data is None)
                 raise ConfigEntryAuthFailed("Authentication failed") from err
+
+            await self._async_diagnose_fault()
 
             error_msg = "API request timed out"
             _LOGGER.exception("%s: %s", self.entry.title, error_msg)
-            ir.async_create_issue(
-                self.hass,
-                "huawei_router_5g",
-                f"conn_error_{self.entry.entry_id}",
-                is_fixable=False,
-                is_persistent=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key="conn_error",
-                translation_placeholders={"entry_title": self.entry.title},
-            )
+            if self.consecutive_failures >= REPAIR_CONN_STRIKE_LIMIT:
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
+                    is_fixable=False,
+                    is_persistent=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="conn_error",
+                    translation_placeholders={"entry_title": self.entry.title},
+                )
+            self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed(error_msg) from err
 
         except Exception as err:
             self.consecutive_failures += 1
-            if self.data is not None and self.consecutive_failures <= 3:
+            # `<=` against the same constant `_compute_health` uses `>=` on,
+            # so the two sit one poll apart on purpose: health reports `error`
+            # on the third failure, entities go unavailable on the fourth.
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
                 _LOGGER.warning(
                     "%s: Fetch failed (failure %d/3), holding last known values: %s",
                     self.entry.title,
                     self.consecutive_failures,
                     err,
                 )
+                self.update_health(None, failed=True, cold_start=False)
                 return self.data
 
             if is_paused:
@@ -330,12 +609,190 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "%s: Initial fetch failed while paused. Starting with empty data.",
                     self.entry.title,
                 )
+                self.update_health(None, failed=True, cold_start=True)
                 return {}
 
             _LOGGER.exception(
                 "%s: Connection lost. Marking entities unavailable.", self.entry.title
             )
+            self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed(f"Communication error: {err}") from err
+
+        # Post-Fetch Processing & Validation (Outside the main try block)
+        if not data or "device_information" not in data:
+            self.update_health(None, failed=True, cold_start=self.data is None)
+            raise UpdateFailed("Critical data missing from fetch (e.g. device_info)")
+
+        dev_info = data.get("device_information") or {}
+        new_model = get_router_model(dev_info)
+        new_sw = dev_info.get("SoftwareVersion")
+        new_hw = dev_info.get("HardwareVersion")
+
+        if (
+            new_model != self.model
+            or new_sw != self.sw_version
+            or new_hw != self.hw_version
+        ):
+            _LOGGER.info(
+                "%s: Hardware metadata updated: %s sw=%s hw=%s",
+                self.entry.title,
+                new_model,
+                new_sw,
+                new_hw,
+            )
+            self.model = new_model
+            self.sw_version = new_sw
+            self.hw_version = new_hw
+
+            new_entry_data = dict(self.entry.data)
+            new_entry_data.update(
+                {
+                    "model": new_model,
+                    "sw_version": new_sw,
+                    "hw_version": new_hw,
+                }
+            )
+            self.hass.config_entries.async_update_entry(self.entry, data=new_entry_data)
+
+        if self.consecutive_failures > 0:
+            _LOGGER.info(
+                "%s: Communication restored after %d failures.",
+                self.entry.title,
+                self.consecutive_failures,
+            )
+            ir.async_delete_issue(
+                self.hass,
+                DOMAIN,
+                f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
+            )
+            # Re-arm the probe. A fault that returns must be diagnosed again.
+            self._probe_done = False
+            self._fault_is_local = None
+
+        self.last_update_success_time = dt_util.now()
+        self.consecutive_failures = 0
+
+        # Section 19: a success clears the verdict in the SAME cycle — never
+        # leave it `on` until some later poll.
+        self.update_health(data, failed=False, cold_start=False)
+
+        # SMS Event Logic
+        if "sms_list" in data:
+            self._log_sms_shape(data["sms_list"])
+        self._check_new_sms(data)
+
+        # --- Uptime reboot-detection latches ---
+        entry_data_updates: dict[str, Any] = {}
+        # 1. System uptime
+        sys_sec: int | None = None
+        with contextlib.suppress(ValueError, TypeError):
+            if (raw := dev_info.get("uptime")) is not None:
+                sys_sec = int(float(raw))
+        if sys_sec is None or sys_sec < 0:
+            data["system_boot_time"] = self._system_boot_time
+        else:
+            if self._system_boot_time is None or (
+                self._last_system_uptime is not None
+                and sys_sec < self._last_system_uptime - UPTIME_REBOOT_MARGIN
+            ):
+                t = dt_util.now() - timedelta(seconds=sys_sec)
+                self._system_boot_time = t.replace(microsecond=0)
+                entry_data_updates["system_boot_time"] = (
+                    self._system_boot_time.isoformat()
+                )
+                entry_data_updates["last_system_uptime"] = sys_sec
+                _LOGGER.debug(
+                    "%s: System boot time latched: %s",
+                    self.entry.title,
+                    self._system_boot_time,
+                )
+            self._last_system_uptime = sys_sec
+            data["system_boot_time"] = self._system_boot_time
+
+        # 2. Current connection time
+        traffic = data.get("traffic_statistics") or {}
+        conn_sec: int | None = None
+        with contextlib.suppress(ValueError, TypeError):
+            if (raw := traffic.get("CurrentConnectTime")) is not None:
+                conn_sec = int(float(raw))
+        if conn_sec is None or conn_sec < 0:
+            data["conn_start_time"] = self._conn_start_time
+        else:
+            if self._conn_start_time is None or (
+                self._last_conn_uptime is not None
+                and conn_sec < self._last_conn_uptime - UPTIME_REBOOT_MARGIN
+            ):
+                t = dt_util.now() - timedelta(seconds=conn_sec)
+                self._conn_start_time = t.replace(microsecond=0)
+                entry_data_updates["conn_start_time"] = (
+                    self._conn_start_time.isoformat()
+                )
+                entry_data_updates["last_conn_uptime"] = conn_sec
+                _LOGGER.debug(
+                    "%s: Connection start time latched: %s",
+                    self.entry.title,
+                    self._conn_start_time,
+                )
+            self._last_conn_uptime = conn_sec
+            data["conn_start_time"] = self._conn_start_time
+
+        # 3. Total connection time
+        total_sec: int | None = None
+        with contextlib.suppress(ValueError, TypeError):
+            if (raw := traffic.get("TotalConnectTime")) is not None:
+                total_sec = int(float(raw))
+        if total_sec is None or total_sec < 0:
+            data["total_conn_start_time"] = self._total_conn_start_time
+        else:
+            if self._total_conn_start_time is None or (
+                self._last_total_conn_time is not None
+                and total_sec < self._last_total_conn_time - UPTIME_REBOOT_MARGIN
+            ):
+                t = dt_util.now() - timedelta(seconds=total_sec)
+                self._total_conn_start_time = t.replace(microsecond=0)
+                entry_data_updates["total_conn_start_time"] = (
+                    self._total_conn_start_time.isoformat()
+                )
+                entry_data_updates["last_total_conn_time"] = total_sec
+                _LOGGER.debug(
+                    "%s: Total connection start time latched: %s",
+                    self.entry.title,
+                    self._total_conn_start_time,
+                )
+            self._last_total_conn_time = total_sec
+            data["total_conn_start_time"] = self._total_conn_start_time
+
+        if entry_data_updates:
+            self.hass.config_entries.async_update_entry(
+                self.entry, data={**self.entry.data, **entry_data_updates}
+            )
+
+        return data
+
+    def _log_sms_shape(self, block: Any) -> None:
+        """Log the SMS payload's shape, never its contents.
+
+        **This used to log `data["sms_list"]` verbatim.** That block carries
+        `Phone` and `Content` for every message, so a debug log held the
+        sender's number and the full text of every SMS — the same two fields
+        `diagnostics.py` deliberately pseudonymizes. A log file has no
+        redaction layer at all and is the thing users are asked to paste into
+        an issue report.
+
+        The line exists to diagnose payload-shape variance, which `parse_sms_list`
+        has to tolerate. Keys and a count answer that; values never did.
+        Same pattern as `api.set_guest_wifi`, which logs `payload keys` only.
+        """
+        messages = (block or {}).get("Messages") or {}
+        entries = messages.get("Message") or []
+        if isinstance(entries, dict):
+            entries = [entries]
+        _LOGGER.debug(
+            "%s: SMS list: %d message(s); fields: %s",
+            self.entry.title,
+            len(entries),
+            sorted(entries[0]) if entries else [],
+        )
 
     def _check_new_sms(self, data: dict[str, Any]) -> None:
         """Check for new SMS messages and fire events."""
@@ -371,7 +828,12 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 new_messages.append(msg)
 
         for msg in new_messages:
-            _LOGGER.info("%s: New SMS from %s", self.entry.title, msg["phone"])
+            # **No sender number.** This is `info`, so it reaches every log on
+            # a default install with no debug enabled - the only personal datum
+            # that did. The bus event below carries `phone` and `content` for
+            # anything that needs them, which is where the README's own
+            # automation example reads them from.
+            _LOGGER.info("%s: New SMS received", self.entry.title)
             self.hass.bus.async_fire(
                 "huawei_router_5g_sms_received",
                 {
