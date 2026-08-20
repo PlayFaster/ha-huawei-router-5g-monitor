@@ -2,10 +2,17 @@
 
 ## [1.2.0] - 2026-08-16 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health
 
+### Highlights
+
+- **WiFi Switch**: Turn your main router WiFi on and off, plus Guest WiFi.
+- **Reconnect Button**: Quick reconnect now available, in addition to existing full reboot.
+- **Data Use Projection**: Predict and track monthly data usage for your billing cycle.
+- **Longer SMS**: Send longer SMS messages (up to 612 characters), same as Router web GUI.
+
 ### Summary
 
-- **38 New Entities & End-of-Cycle Forecast**: Adds broad diagnostic, system, and signal sensors across eight new router endpoints, including a Projected Usage forecast sensor.
 - **Controls & Actions**: Adds a Master Wi-Fi switch, a Reconnect button, and a device tracker cleanup action.
+- **38 New Entities & End-of-Cycle Forecast**: Adds broad diagnostic, system, and signal sensors across eight new router endpoints, including a Projected Usage forecast sensor.
 - **Dynamic Network Mode Selection**: Dynamically discovers supported cellular network modes from the router (including 5G Only) while preventing accidental band resets.
 - **Resilience & Health**: Introduces an Integration Health diagnostic sensor with 5-state severity and contract drift detection, automated follow-up refreshes after reboots, and bounded write execution.
 - **Connection Recovery & Timeouts**: Recovers gracefully from transport timeouts by invalidating wedged sessions, clearing stale sockets, and enforcing internal fetch deadlines to salvage partial polling data.

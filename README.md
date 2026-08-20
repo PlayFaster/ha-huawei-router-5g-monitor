@@ -331,7 +331,7 @@ Toggle main WiFi, enable or disable Guest WiFi on demand, and monitor WiFi radio
 </summary><br>
 
 - **Radio Controls**:
-  - **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi_network`): Turn all router WiFi radios on or off simultaneously without affecting wired LAN connections.
+  - **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi`): Turn all router WiFi radios on or off simultaneously without affecting wired LAN connections.
   - **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Enable or disable the isolated guest wireless network on demand or via automation.
   - See the [Scheduled Main & Guest WiFi Control](#-scheduled-main--guest-wifi-control) example.
 - **Radio & Band Status Sensors**:
@@ -631,7 +631,7 @@ Several settings are exposed as control entities so you can drive them from dash
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi_network`): Toggle the router's WiFi on or off.
+- **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi`): Toggle the router's WiFi on or off.
 - **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
 
 ![WiFi Screen](.github/images/huawei_5g_wifi_screen.png)
@@ -1230,7 +1230,7 @@ description: "Notifies when the router attaches to a different cell tower"
 mode: single
 triggers:
   - trigger: state
-    entity_id: sensor.huawei_5g_signal_cell_id
+    entity_id: sensor.huawei_5g_signal_lte_cell_id 
     not_from:
       - "unknown"
       - "unavailable"
@@ -1247,8 +1247,8 @@ actions:
       title: "Huawei: Serving Cell Tower Changed"
       message: |
         Cell ID: {{ trigger.from_state.state }} → {{ trigger.to_state.state }}
-        LTE Band: {{ states('sensor.huawei_5g_signal_lte_band') }} (RSRP: {{ states('sensor.huawei_5g_signal_lte_rsrp') }} dBm)
-        5G Band: {{ states('sensor.huawei_5g_signal_5g_nr_band') }} (RSRP: {{ states('sensor.huawei_5g_signal_5g_rsrp') }} dBm)
+        LTE Band: {{ states('sensor.huawei_5g_signal_lte_band') }} (RSRP: {{ states('sensor.huawei_5g_signal_lte_rsrp') | float(0) | round(0) }} dBm)
+        5G Band: {{ states('sensor.huawei_5g_signal_5g_nr_band') }} (RSRP: {{ states('sensor.huawei_5g_signal_5g_rsrp') | float(0) | round(0) }} dBm)
     note: |
       Reporting new cellular bands and RSRP levels alongside the
       tower ID explains sudden changes in throughput or reception.
@@ -1297,7 +1297,7 @@ actions:
         sequence:
           - action: switch.turn_on
             target:
-              entity_id: switch.huawei_5g_wifi_wifi_network
+              entity_id: switch.huawei_5g_wifi_wifi
             note: Turns master WiFi radios back on across all configured bands.
       - conditions:
           - condition: trigger
@@ -1313,7 +1313,7 @@ actions:
         sequence:
           - action: switch.turn_off
             target:
-              entity_id: switch.huawei_5g_wifi_wifi_network
+              entity_id: switch.huawei_5g_wifi_wifi
             note: |
               Turns off all WiFi radios. Note that switching the master
               radio off also disables guest broadcasting until turned back on.
@@ -1540,7 +1540,7 @@ description: "Notifies when the router reports a different firmware version"
 mode: single
 triggers:
   - trigger: state
-    entity_id: sensor.huawei_5g_system_sw_version
+    entity_id: sensor.huawei_5g_system_software_version
     not_from:
       - "unknown"
       - "unavailable"
@@ -1682,8 +1682,8 @@ actions:
       message: |
         Network: {{ states('sensor.huawei_5g_signal_network_type') }}
         Signal Bars: {{ states('sensor.huawei_5g_signal_signal_bars') }}/5
-        LTE RSRP: {{ states('sensor.huawei_5g_signal_lte_rsrp') }} dBm
-        5G RSRP: {{ states('sensor.huawei_5g_signal_5g_rsrp') }} dBm
+        LTE RSRP: {{ states('sensor.huawei_5g_signal_lte_rsrp') | float(0) | round(0) }} dBm
+        5G RSRP: {{ states('sensor.huawei_5g_signal_5g_rsrp') | float(0) | round(0) }} dBm
         Monthly Usage: {{ states('sensor.huawei_5g_data_month_total') | float(0) | round(1) }} {{ state_attr('sensor.huawei_5g_data_month_total', 'unit_of_measurement') }}
         Last Updated: {{ states('sensor.huawei_5g_system_last_updated') }}
 ```
