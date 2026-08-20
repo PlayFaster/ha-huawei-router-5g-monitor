@@ -5,13 +5,14 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Threshold Enforced; `fail_under = 100`](#120-dev58---2026-08-18---coverage-threshold-enforced-fail_under--100)
+  - [\[1.2.0-dev77\] - 2026-08-20 - Hardware Check Entity Matching Fixed; SIM Number Masked](#120-dev77---2026-08-20---hardware-check-entity-matching-fixed-sim-number-masked)
   - [\[1.2.0-dev73\] - 2026-08-19 - Send-SMS Length Limits Made Encoding-Aware](#120-dev73---2026-08-19---send-sms-length-limits-made-encoding-aware)
   - [\[1.2.0-dev71\] - 2026-08-19 - SMS Payload and Sender Number Removed From Logs](#120-dev71---2026-08-19---sms-payload-and-sender-number-removed-from-logs)
   - [\[1.2.0-dev70\] - 2026-08-19 - Switch State Latch; Stale Published Position Fixed](#120-dev70---2026-08-19---switch-state-latch-stale-published-position-fixed)
   - [\[1.2.0-dev65\] - 2026-08-19 - Connection Repair Strike Threshold Raised to Ten](#120-dev65---2026-08-19---connection-repair-strike-threshold-raised-to-ten)
   - [\[1.2.0-dev61\] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document](#120-dev61---2026-08-19---guard-bands-on-a-text-sensor-added-to-match-a-document)
   - [\[1.2.0-dev59\] - 2026-08-19 - Hardware Check Report Output Added](#120-dev59---2026-08-19---hardware-check-report-output-added)
+  - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Threshold Enforced; `fail_under = 100`](#120-dev58---2026-08-18---coverage-threshold-enforced-fail_under--100)
   - [\[1.2.0-dev57\] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap](#120-dev57---2026-08-18---lockup-sweep-bounded-writes-salvaged-polls-and-the-standards-that-set-the-trap)
   - [\[1.2.0-dev56\] - 2026-08-18 - Network-Mode Write Deadlock Fixed; API Recovery Added](#120-dev56---2026-08-18---network-mode-write-deadlock-fixed-api-recovery-added)
   - [\[1.2.0-dev54\] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family](#120-dev54---2026-08-17---health-severity-and-strike-constants-aligned-with-the-family)
