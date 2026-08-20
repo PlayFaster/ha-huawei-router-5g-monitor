@@ -35,6 +35,7 @@ from custom_components.huawei_router_5g.api import HuaweiAuthError
 from custom_components.huawei_router_5g.const import (
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
+    REPAIR_CONN_STRIKE_LIMIT,
 )
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
@@ -206,6 +207,8 @@ async def test_a_timeout_raises_a_transient_repair(hass_stub) -> None:
     """
     coordinator = _coordinator(hass_stub)
     coordinator.data = None
+    # One short of the Repair threshold, so this poll is the one that reaches it.
+    coordinator.consecutive_failures = REPAIR_CONN_STRIKE_LIMIT - 1
     coordinator.api.get_data.side_effect = TimeoutError
 
     with (
@@ -222,6 +225,33 @@ async def test_a_timeout_raises_a_transient_repair(hass_stub) -> None:
     assert kwargs["is_persistent"] is False
     assert kwargs["translation_key"] == "conn_error"
     assert kwargs["translation_placeholders"] == {"entry_title": "My Huawei Router"}
+
+
+@pytest.mark.asyncio
+async def test_no_repair_until_the_problem_stops_fixing_itself(hass_stub) -> None:
+    """Entities go unavailable on the fourth failure; the Repair waits for the tenth.
+
+    Raising both at once tells the user nothing the unavailable entities have
+    not already told them. The Repairs panel is for a problem that has stopped
+    resolving on its own.
+    """
+    coordinator = _coordinator(hass_stub)
+    coordinator.data = None
+    coordinator.consecutive_failures = REPAIR_CONN_STRIKE_LIMIT - 2
+    coordinator.api.get_data.side_effect = TimeoutError
+
+    with (
+        patch(
+            "custom_components.huawei_router_5g.coordinator.ir.async_create_issue"
+        ) as issue,
+        pytest.raises(UpdateFailed),
+    ):
+        await coordinator._async_update_data()
+
+    # The update still failed - only the Repair is withheld.
+    assert coordinator.consecutive_failures == REPAIR_CONN_STRIKE_LIMIT - 1
+    raised = [call.args[2] for call in issue.call_args_list]
+    assert not any("conn_error" in issue_id for issue_id in raised)
 
 
 @pytest.mark.asyncio

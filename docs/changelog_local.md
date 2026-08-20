@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev65\] - 2026-08-19 - The Not-Responding Repair Fired Six Polls Early](#120-dev65---2026-08-19---the-not-responding-repair-fired-six-polls-early)
   - [\[1.2.0-dev61\] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document](#120-dev61---2026-08-19---guard-bands-on-a-text-sensor-added-to-match-a-document)
   - [\[1.2.0-dev59\] - 2026-08-19 - The Hardware Check Filed No Report](#120-dev59---2026-08-19---the-hardware-check-filed-no-report)
   - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Is Now a Gate, Not a Readout](#120-dev58---2026-08-18---coverage-is-now-a-gate-not-a-readout)
@@ -146,6 +147,28 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev65] - 2026-08-19 - The Not-Responding Repair Fired Six Polls Early
+
+Found while aligning the **Under the Hood** sections of this README against `zte_router_5g`'s. The two documents described the same Repair at different thresholds, and checking which was right showed the code was the one out of step.
+
+### Fixed
+
+- **The "router is not responding" Repair was raised on the fourth consecutive failure, not the tenth.** It sat unguarded in the timeout branch of `_async_update_data`, so it fired in the same poll that marked every entity `Unavailable` — telling the user nothing the unavailable entities had not just told them. The README's Repairs table already said ten, and the note directly beneath it said the panel "stays quiet until a problem has clearly stopped fixing itself", which the behaviour contradicted.
+- **Now gated on a new `REPAIR_CONN_STRIKE_LIMIT = 10`**, matching `zte_router_5g`. At the default 180-second interval that is about half an hour of continuous failure before the Repairs panel speaks. Deliberately well above `FETCH_STRIKE_LIMIT`, and the constant's comment says why.
+
+### Changed
+
+- **`README.md`** — the Repairs note now states the tenth-failure threshold and the half-hour it implies, rather than leaving "clearly stopped fixing itself" undefined.
+- **`README.md`** — new FAQ entry, **A "Router is not responding" Repair has appeared**, matching the one `zte_router_5g` already carried. Its checks are worded for this integration: Huawei's repair text does not name the configured address, so it does not tell the user to compare it.
+- **`README.md`** — Session Handling now says the integration "logs back in and retries it immediately, so the action still completes". It previously said it re-authenticates "on the next attempt", which understated it: `_execute_with_retry` re-logs in and re-runs the call inside the same request, and the coordinator does the same for a mid-fetch expiry.
+
+### Notes
+
+- The recovery path needed no change. The delete runs whenever `consecutive_failures > 0`, so the Repair clears correctly whether or not it was ever raised.
+- One existing test now seeds `consecutive_failures` to nine so it still reaches the raise; a new test asserts that nine failures produce no Repair while the update still fails. Suite **849 passing**, coverage **100% line and branch** with the `fail_under` gate satisfied, ruff clean.
+- **Not run for this change**: mypy, and the assertion audit.
+- Two `README.md` items found in the same review are **not** fixed here: the Session Handling intro repeats its own first detail sentence verbatim, and Huawei has no counterpart to ZTE's "Polling Loop" bullet.
 
 ## [1.2.0-dev61] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document
 

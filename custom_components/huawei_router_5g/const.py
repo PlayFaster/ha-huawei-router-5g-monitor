@@ -177,6 +177,16 @@ SIGNAL_CONTRACT_KEYS: tuple[str, ...] = ("rsrp", "rsrq", "rssi", "sinr")
 # marked unavailable. Last known values are held until then.
 FETCH_STRIKE_LIMIT = 3
 
+# Consecutive failed polls before the "not responding" Repair is raised.
+#
+# Deliberately well above `FETCH_STRIKE_LIMIT`. Entities go unavailable on the
+# fourth failure, which the user can already see; a Repair raised at the same
+# moment tells them nothing they have not just been told. The Repairs panel is
+# for a problem that has stopped fixing itself, so this waits until that is
+# established — at the default 180-second interval, about half an hour of
+# continuous failure. Matches `zte_router_5g`.
+REPAIR_CONN_STRIKE_LIMIT = 10
+
 # Section 19: consecutive polls a capability must be missing before Integration
 # Health reports it degraded, so a single blip raises no alarm.
 #

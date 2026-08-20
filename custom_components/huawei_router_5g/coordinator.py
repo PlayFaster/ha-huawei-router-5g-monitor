@@ -28,6 +28,7 @@ from .const import (
     HEALTH_DRIFT_STRIKE_LIMIT,
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
+    REPAIR_CONN_STRIKE_LIMIT,
     REPAIR_NAMES,
     SIGNAL_CONTRACT_KEYS,
 )
@@ -571,16 +572,17 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
             error_msg = "API request timed out"
             _LOGGER.exception("%s: %s", self.entry.title, error_msg)
-            ir.async_create_issue(
-                self.hass,
-                DOMAIN,
-                f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
-                is_fixable=False,
-                is_persistent=False,
-                severity=ir.IssueSeverity.WARNING,
-                translation_key="conn_error",
-                translation_placeholders={"entry_title": self.entry.title},
-            )
+            if self.consecutive_failures >= REPAIR_CONN_STRIKE_LIMIT:
+                ir.async_create_issue(
+                    self.hass,
+                    DOMAIN,
+                    f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
+                    is_fixable=False,
+                    is_persistent=False,
+                    severity=ir.IssueSeverity.WARNING,
+                    translation_key="conn_error",
+                    translation_placeholders={"entry_title": self.entry.title},
+                )
             self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed(error_msg) from err
 
