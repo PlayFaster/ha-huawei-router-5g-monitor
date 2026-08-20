@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.2.0] - 2026-08-16 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health
+## [1.2.0] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health
 
 ### Highlights
 

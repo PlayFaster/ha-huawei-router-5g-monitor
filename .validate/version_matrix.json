@@ -30,7 +30,7 @@
     },
     "ruff": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
-      "version": "0.16.2"
+      "version": "0.16.3"
     },
     "yamllint": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
