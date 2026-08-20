@@ -170,8 +170,8 @@ Raised by comparing the router's own interface against `zte_router_5g`. The expe
 
 - **The check cannot live in the schema.** `vol.Schema` validates a value in isolation and cannot ask which alphabet is in play. The schema keeps the GSM-7 figure as a coarse outer bound and the real check runs in the service handler, before anything reaches the router.
 - **The tests were proven to fail against the flat limit** before being kept — three of five cases. The pair that matters is the same character count passing as GSM-7 and being refused as Unicode, which is the distinction a single number cannot express.
-- **`README.md` needed no change.** Its length table already stated 612 and 268 and said that going over is "rejected with an error naming the limit that applied" — which was **false** until now, since the flat cap rejected at 160 with a generic schema error. The document described the intended behaviour; the code now delivers it.
-- **The ceilings come from the router's web interface, not from the API.** `sms.config` is the block most likely to publish them and has not been probed; noted in `huawei_how_to_access.md` for whoever does. Behaviour past four segments is untested — the integration refuses rather than finding out.
+- **`README.md` needed no change.** Its length table already stated 612 and 268 and said that going over is "rejected with an error naming the limit that applied" — which was **false** until now, since the flat cap rejected at 160 with a generic schema error. The document described the intended behavior; the code now delivers it.
+- **The ceilings come from the router's web interface, not from the API.** `sms.config` is the block most likely to publish them and has not been probed; noted in `huawei_how_to_access.md` for whoever does. Behavior past four segments is untested — the integration refuses rather than finding out.
 - Suite **868 passing**, coverage **100% line and branch**, ruff and mypy strict clean, assertion audit 0 of 720.
 
 ## [1.2.0-dev71] - 2026-08-19 - SMS Bodies and Sender Numbers Were Being Written to the Log
@@ -182,7 +182,7 @@ Raised by an external review of the README's privacy claim, and the claim was th
 
 - **The SMS payload was logged verbatim at `debug`.** `coordinator.py` logged `data["sms_list"]` whole, and that block carries `Phone` and `Content` for every message — so a debug log held the sender's number and the full text of every SMS. It now logs the **shape**: the message count and the field names, which is what the line existed for. `parse_sms_list` has to tolerate payload variance; keys and a count diagnose that, values never did. Same pattern as `api.set_guest_wifi`, which logs `payload keys` only.
 - **The sender's number was logged at `info`.** That reaches every user's log on a default install with nothing enabled — the only personal datum that did. The line now reads `New SMS received`. Nothing is lost: the bus event still carries `phone` and `content`, which is where the README's own automation example reads them from.
-- **`README.md` said neither of these happened.** It claimed debug logs "not response payloads" and that the text of SMS messages "are not written to it", directly above a warning that log files have no redaction and an instruction on how to export one. Rewritten to state what is now true, and the sender-number caveat is gone because the behaviour is gone.
+- **`README.md` said neither of these happened.** It claimed debug logs "not response payloads" and that the text of SMS messages "are not written to it", directly above a warning that log files have no redaction and an instruction on how to export one. Rewritten to state what is now true, and the sender-number caveat is gone because the behavior is gone.
 
 ### Notes
 
@@ -207,7 +207,7 @@ The write always worked. The router always changed. The confirmation always succ
 
 - **This was a regression, and its cause is precise.** `[1.2.0-dev23]` implemented Section 22's read-back and removed `await self.coordinator.async_force_refresh()` from all three switch write paths. That refresh had been repopulating the payload — the thing that made the publish show the new value. Nothing replaced it. `select.py` kept its refresh and was never affected; `number.py` is options-backed and sets its own value directly. Both were checked.
 - **Section 22 already required the latch** — "never render a missing key as an off/false position… latch the last reported position and hold it". This project had never implemented that bullet, which is why the same read-back works in `zte_router_5g` and failed here. The `dev_std_review` recorded §22 as `PARTIAL` for this project with exactly that reason; the value that reached the conformance matrix on 2026-08-17 was `DONE`.
-- **The new tests were proven to fail against the pre-fix code** before being kept — six failures across the three switches. They are parametrised over every device-writing switch, so a fourth switch is covered by adding a row rather than a test, and they capture what `is_on` reads **at the moment of the publish**, with the payload deliberately left stale. Asserting afterwards would miss a publish that sent the old value.
+- **The new tests were proven to fail against the pre-fix code** before being kept — six failures across the three switches. They are parametrized over every device-writing switch, so a fourth switch is covered by adding a row rather than a test, and they capture what `is_on` reads **at the moment of the publish**, with the payload deliberately left stale. Asserting afterwards would miss a publish that sent the old value.
 - **`hardware_check.py` gained a published-state row per write**, additive rather than replacing the device read-back — the two answer different questions and the device one was never wrong. It forces a Refresh first, because entity state is only as fresh as the last poll and polling may be paused or on a long interval.
 - Shared: `dev_standards` **1.29.0** gives the latch bullet a `**Test:**` clause and its own coverage row, plus a hardware-script rule to verify what was published. Cross-project audit is chore **C-019** with `stubbed_publish_tests.md`; the static check that would ban stubbing the publish is **parked**, with reasons, in that file.
 - Suite **861 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
@@ -218,7 +218,7 @@ Found while aligning the **Under the Hood** sections of this README against `zte
 
 ### Fixed
 
-- **The "router is not responding" Repair was raised on the fourth consecutive failure, not the tenth.** It sat unguarded in the timeout branch of `_async_update_data`, so it fired in the same poll that marked every entity `Unavailable` — telling the user nothing the unavailable entities had not just told them. The README's Repairs table already said ten, and the note directly beneath it said the panel "stays quiet until a problem has clearly stopped fixing itself", which the behaviour contradicted.
+- **The "router is not responding" Repair was raised on the fourth consecutive failure, not the tenth.** It sat unguarded in the timeout branch of `_async_update_data`, so it fired in the same poll that marked every entity `Unavailable` — telling the user nothing the unavailable entities had not just told them. The README's Repairs table already said ten, and the note directly beneath it said the panel "stays quiet until a problem has clearly stopped fixing itself", which the behavior contradicted.
 - **Now gated on a new `REPAIR_CONN_STRIKE_LIMIT = 10`**, matching `zte_router_5g`. At the default 180-second interval that is about half an hour of continuous failure before the Repairs panel speaks. Deliberately well above `FETCH_STRIKE_LIMIT`, and the constant's comment says why.
 
 ### Changed
@@ -241,7 +241,7 @@ The sensor manifest check flagged `sensor.huawei_5g_signal_lte_transmit_power` a
 ### Fixed
 
 - **`min_limit` and `max_limit` removed from both transmit-power sensors.** They are **text sensors** — no `native_unit_of_measurement`, no `device_class`, no `state_class` — and on this hardware the router reports a compound string naming each channel rather than a single figure. A numeric plausibility band was never appropriate for either.
-- **The band could never fire, so it described the sensors wrongly while doing nothing.** The generic guard in `native_value` casts with `float()` and passes non-numeric values through untouched. That behaviour is shared by every sensor and is not the problem; the two `about` notes and code comments explaining that the band "applies only to the single-number case" were rationalisation written after the fact for these two entries, and they are gone with it.
+- **The band could never fire, so it described the sensors wrongly while doing nothing.** The generic guard in `native_value` casts with `float()` and passes non-numeric values through untouched. That behavior is shared by every sensor and is not the problem; the two `about` notes and code comments explaining that the band "applies only to the single-number case" were rationalization written after the fact for these two entries, and they are gone with it.
 - **`docs/value_min_max.md`** — both table rows removed, with a `v2.1.0` entry recording why.
 
 ### Notes
@@ -320,8 +320,8 @@ Plan and evidence: `.notes/issues/login_lockup_202608/`, §13.
 
 ### Notes
 
-- **`dev_standards.md` 1.26.0 and `code_review.md` v1.2.0 were updated, and both were contributors to the original defect rather than bystanders.** §22 required writes to be serialised **and** confirmed by a read-back without saying the two must not nest — following both literally deadlocks a non-reentrant lock. §8 mandated the coordinator timeout and was silent on the cleanup that cancellation skips. §8 also gained the internal-deadline rule, §11 the rule that a mock must not sit on the seam under test, and §22 two hardware-script rules: re-run after any change the script's own findings caused, and give each check a timeout. `code_review.md` §6 was named for re-entrancy and covered no lock re-entrancy at all.
-- **Cross-project chores `C-016` and `C-017` are recorded only.** No work was carried out on ZTE, UniFi or WiFi, and none is authorised.
+- **`dev_standards.md` 1.26.0 and `code_review.md` v1.2.0 were updated, and both were contributors to the original defect rather than bystanders.** §22 required writes to be serialized **and** confirmed by a read-back without saying the two must not nest — following both literally deadlocks a non-reentrant lock. §8 mandated the coordinator timeout and was silent on the cleanup that cancellation skips. §8 also gained the internal-deadline rule, §11 the rule that a mock must not sit on the seam under test, and §22 two hardware-script rules: re-run after any change the script's own findings caused, and give each check a timeout. `code_review.md` §6 was named for re-entrancy and covered no lock re-entrancy at all.
+- **Cross-project chores `C-016` and `C-017` are recorded only.** No work was carried out on ZTE, UniFi or WiFi, and none is authorized.
 - Suite **848 passing**, coverage **100% line and branch** (measured), ruff lint and format clean, mypy standard and strict clean, assertion audit 0 of 712, prettier and markdownlint clean.
 - **Still unverified on hardware**: the restructured `set_net_mode` read-back has not been exercised against the router since `dev56`. It is the top item for the next attended run, with `--debug`.
 
@@ -375,7 +375,7 @@ From `sync_check_projects` 2026-08-17, items B.1 and B.2. Both are cross-project
 - **`dev_standards.md` §19 was updated first, at v1.25.0**, because `severity` is a published contract that user templates compare against. Naming the attributes without naming their values had left all four projects compliant and mutually unintelligible — `zte_router_5g` `ok`/`degraded`/`warning`/`error`/`unknown`, this project `None`/`warning`/`error`, `unifi_network_monitor` `None`/`moderate`/`serious`, `wifi_ssid_monitor` `None`/`minor`/`serious`. **ZTE's vocabulary was adopted as both the earliest and the most expressive**; UniFi and WiFi still have to move.
 - `README.md`'s published attribute table now lists all five values, and tells automation authors to test `severity` rather than whether the lists are empty.
 - **B.3 from the same report is fixed too**: the public `CHANGELOG.md` `[1.2.0]` header carried no descriptive title, which `changelog_format.md` §2 requires. Done by the owner.
-- Suite **830 passing**, ruff and prettier clean, assertion audit 0 of 694. Three shared `x_project` records were settled alongside this — `about_list_generator.md` gained its mandatory status table, `device_registry_2026_08.md` left the queue with Huawei's cell normalised to `DONE`, and chore `C-008` closed. Those are outside this repository.
+- Suite **830 passing**, ruff and prettier clean, assertion audit 0 of 694. Three shared `x_project` records were settled alongside this — `about_list_generator.md` gained its mandatory status table, `device_registry_2026_08.md` left the queue with Huawei's cell normalized to `DONE`, and chore `C-008` closed. Those are outside this repository.
 
 ## [1.2.0-dev53] - 2026-08-17 - Documentation Reconciliation: Four False Statements
 
@@ -410,13 +410,13 @@ Caught by **Validate All → Tests: Assertion Audit**, which failed with two tes
 ### Notes
 
 - **Not allow-listed, and that was the right call.** An allow-list entry would have recorded the gap rather than closed it, on the same day plan item 10 took this project from four zero-assertion tests to zero. Audit now reports **0 of 694**.
-- The two were written to close a coverage gap, and they did — coverage counts a line as covered when it executes, whether or not anything checks the result. **Coverage and assertion count measure different things, and passing one says nothing about the other.** Both tests ran the code they targeted; neither would have failed if the behaviour had been wrong.
+- The two were written to close a coverage gap, and they did — coverage counts a line as covered when it executes, whether or not anything checks the result. **Coverage and assertion count measure different things, and passing one says nothing about the other.** Both tests ran the code they targeted; neither would have failed if the behavior had been wrong.
 
 ## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor
 
 ### Removed
 
-- **`python-typing-update`**: Completely dropped across the toolchain (`version_matrix.json`, `version_matrix.md`, `Dockerfile`, `.pre-commit-config.yaml`, `tasks.json`, `check_tool_drift.py`, documentation, and tests). All typing modernisations (`list[]`, `dict[]`, `X | Y`, `from __future__ import annotations`, type-checking imports) are natively enforced by Ruff (`UP`, `PYI`, `TC`, `FURB` rules in `pyproject_common.toml`).
+- **`python-typing-update`**: Completely dropped across the toolchain (`version_matrix.json`, `version_matrix.md`, `Dockerfile`, `.pre-commit-config.yaml`, `tasks.json`, `check_tool_drift.py`, documentation, and tests). All typing modernizations (`list[]`, `dict[]`, `X | Y`, `from __future__ import annotations`, type-checking imports) are natively enforced by Ruff (`UP`, `PYI`, `TC`, `FURB` rules in `pyproject_common.toml`).
 
 ### Added
 
@@ -454,7 +454,7 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 
 ### Fixed
 
-- **`api.py` 91% → 100%.** Twenty-two uncovered lines across the two new methods. `get_supported_net_modes` had no test at all: not the `AccessList` read, not the bare-string form a single-mode router may return, not the four unusable-answer shapes that must yield `None` rather than an empty list, not the swallowed failure. `set_net_mode`'s `-1` branch — the whole point of `[1.2.0-dev42]` — was equally untested: applied-and-confirmed, genuinely refused, unverified, and a non-`-1` error re-raised. **Nine tests added.** The band-argument tests written at the time covered the easy half and left the logic that carries the behaviour uncovered.
+- **`api.py` 91% → 100%.** Twenty-two uncovered lines across the two new methods. `get_supported_net_modes` had no test at all: not the `AccessList` read, not the bare-string form a single-mode router may return, not the four unusable-answer shapes that must yield `None` rather than an empty list, not the swallowed failure. `set_net_mode`'s `-1` branch — the whole point of `[1.2.0-dev42]` — was equally untested: applied-and-confirmed, genuinely refused, unverified, and a non-`-1` error re-raised. **Nine tests added.** The band-argument tests written at the time covered the easy half and left the logic that carries the behavior uncovered.
 - **`select.py` 97% → 100%.** `_label_to_code`'s final `return "00"`, reached only by a label matching no known mode — unreachable through the UI, which submits only options the entity published, and there so a malformed service call cannot send an arbitrary string to the radio.
 
 ### Changed
@@ -572,13 +572,13 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 ### Fixed
 
 - **17 UK spellings in shipped `about` text**, applied as surgical single-word swaps with the surrounding sentences untouched: `initialise`, `signalling`, `stabilise`, `dialling`, `customisation`, `favour`, `tunnelling`, `Centre`, `judgement`, `neighbouring`, `summarised`, `licence`. Swept repo-wide in the same commit, so `__init__.py`, `all_sensors.md`, `test_unique_id_migration.py` and this file's own history are included.
-- **Three notes carried developer narrative rather than user text.** `poor_signal` ended by telling the reader which assumption to revisit; `speed_limited` repeated it; the WiFi switch recounted that an earlier implementation "appeared to work and did not". The domain facts are kept — `poor_signal` and `speed_limited` now say the router does not publish the threshold, which is true and useful, rather than asserting one; the WiFi switch keeps the radio-versus-SSID distinction, which explains observable behaviour, without naming bands the code does not distinguish.
+- **Three notes carried developer narrative rather than user text.** `poor_signal` ended by telling the reader which assumption to revisit; `speed_limited` repeated it; the WiFi switch recounted that an earlier implementation "appeared to work and did not". The domain facts are kept — `poor_signal` and `speed_limited` now say the router does not publish the threshold, which is true and useful, rather than asserting one; the WiFi switch keeps the radio-versus-SSID distinction, which explains observable behavior, without naming bands the code does not distinguish.
 - **`cleanup_unused_entities` did not state the limitation that actually bounds it.** It described removing entities for clients the router no longer reports without saying that the router retains away clients for months, so a user with a crowded Clients device could reasonably read the button as broken. Now says so, and both safety properties survive the rewrite: the no-preview warning and the guarantee that nothing is removed while the router has not answered. The same limitation was added to `README.md`.
 - **`integration_health` trimmed** from 67 words by removing an editorializing close and a maintainer aside. The five attribute names stay — they are a published cross-project contract — as does the never-unavailable guarantee.
 
 ### Notes
 
-- **Roughly 20 further notes exceed the length register and were deliberately left.** In each case the length is domain fact rather than padding: `rsrp` carries its own good/bad thresholds and its guard-band rejection behaviour, `clear_traffic` carries irreversibility, `projected_usage` explains why it has no state class. Cutting them to length would have breached the prompt's fact-invariance rules. Enforcing the register literally is a separate decision about what gets sacrificed.
+- **Roughly 20 further notes exceed the length register and were deliberately left.** In each case the length is domain fact rather than padding: `rsrp` carries its own good/bad thresholds and its guard-band rejection behavior, `clear_traffic` carries irreversibility, `projected_usage` explains why it has no state class. Cutting them to length would have breached the prompt's fact-invariance rules. Enforcing the register literally is a separate decision about what gets sacrificed.
 - **`[MISSING]` produced nothing actionable.** `nr_rsrp`, `nr_rsrq` and `nr_sinr` carry no numeric thresholds of their own but each refers to its LTE twin, which does. Adding NR-specific figures would have meant inventing them.
 - `tests/test_entity_hygiene.py` — 29 passing. That is the two-way reconciliation between `docs/about_attribute_list.md` and the descriptions, so doc and code are confirmed in step.
 - The shared prompt, `dev_standards` §14 and `doc_style.md` were all changed by what this run exposed — principally a contradiction between §14 asking for a one-line note and requiring good/fair/poor guidance in the same sentence. Those changes are outside this repository.
@@ -660,7 +660,7 @@ Two runs and a triage — the documented cadence. **1633 mutants; survivors 356 
 
 ### Changed
 
-- **`build_device_info`'s label map is hoisted to `SUB_DEVICE_LABELS`** and reconciled in both directions against the groups the descriptions actually use. Its `group.capitalize()` fallback produces **the identical string** for `system`, `signal`, `data` and `clients`, so a mistyped key there is invisible to every behavioural test — four mutations of it survive by construction. The fallback is kept deliberately: a `KeyError` would fail entity setup over a typo, which is worse than a slightly wrong label. Verified by introducing a typo and watching the new check fail.
+- **`build_device_info`'s label map is hoisted to `SUB_DEVICE_LABELS`** and reconciled in both directions against the groups the descriptions actually use. Its `group.capitalize()` fallback produces **the identical string** for `system`, `signal`, `data` and `clients`, so a mistyped key there is invisible to every behavioral test — four mutations of it survive by construction. The fallback is kept deliberately: a `KeyError` would fail entity setup over a typo, which is worse than a slightly wrong label. Verified by introducing a typo and watching the new check fail.
 
 ### Notes
 
@@ -741,7 +741,7 @@ A pass over work that had been **verified and then invalidated by later changes*
 ### Notes
 
 - Suite **726 passing**, 100% line and branch coverage, 0 partial branches. Coverage held without new tests: the removed branch took its own partial with it.
-- **A third behaviour change was added to the `[1.2.0-dev23]` entry rather than left unstated** — a _refused_ write now takes about two seconds to report, because `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice. A confirmed write is a single read and remains faster than what it replaced.
+- **A third behavior change was added to the `[1.2.0-dev23]` entry rather than left unstated** — a _refused_ write now takes about two seconds to report, because `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice. A confirmed write is a single read and remains faster than what it replaced.
 
 ## [1.2.0-dev24] - 2026-08-15 - Section 6 and Section 12 Tests Verified Against Real Regressions
 
@@ -781,7 +781,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 - **§3 (`format_mac()`) was declined by the owner, and the reasoning is recorded rather than the fix.** The standard does mandate it (`dev_standards.md:77`). This project canonicalises to its own form — lowercase, colons stripped — consistently at the config flow, and that value is `entry.unique_id`, every sub-device identifier and every entity `unique_id`. Adopting `format_mac()` would change all of them, orphaning 166 entities and losing their history, in exchange for comparability with a hypothetical native integration claiming the same MAC. **`zte_router_5g` is not a counter-example**: it keys on IMEI and never touches a MAC, so §3's bullet never fires there. The two projects hit different branches of the same rule.
 - **§11 is not yet DONE**, and adding `sensor.py` to the mutation list is what closes it. Both siblings mutate `sensor.py`; Huawei is the only one that does not, because `[1.2.0-dev18]`'s 158 `about` notes generate over a thousand string-literal mutants. Carried as item 6 in `status_plan.md` with `coordinator.py`'s unrun mutants (P-11).
 - **The read-back map is an explicit allow-list**, so a write path cannot reach an arbitrary part of the router. Network mode and Reconnect have no reader by design — both re-establish the connection, so the router answers abnormally _while succeeding_ and a read-back would report a working command as failed. §22 asks for that exclusion to be visible in review rather than left as an unwritten rule; a test asserts no reader exists for either.
-- **Three behaviour changes worth knowing about.** An Options edit now reloads the entry, which it never did. A write whose confirmation cannot be read no longer raises — it previously did, because the confirmation was a coordinator refresh whose exception propagated; under §22 that outcome is _unverified_ and is left to the next poll. And **a refused write now takes about two seconds to report the refusal** — `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice, because these routers commonly answer the first read after a write with the old value. A _confirmed_ write is a single read and is faster than the debounced refresh it replaced.
+- **Three behavior changes worth knowing about.** An Options edit now reloads the entry, which it never did. A write whose confirmation cannot be read no longer raises — it previously did, because the confirmation was a coordinator refresh whose exception propagated; under §22 that outcome is _unverified_ and is left to the next poll. And **a refused write now takes about two seconds to report the refusal** — `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice, because these routers commonly answer the first read after a write with the old value. A _confirmed_ write is a single read and is faster than the debounced refresh it replaced.
 - `_stale_tracker_entities` and `_tracked_macs` moved from `__init__.py` to `helpers.py`. They now have two callers, and a platform module importing from the package `__init__` would be a circular import.
 - Suite **683 → 720**, 100% line and branch coverage, 0 partial branches. `ruff`, `mypy custom_components/ --strict`, IQS static all clean.
 
@@ -795,7 +795,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 - `code_review` ran with `SINCE=f5ae452` — the baseline this work started from — and reports **0 Critical, 0 High, 2 Medium, 1 Low**. Report at `.notes/code_review/code_review_20260815_0756.md`. It is deliberately the last pass of the sequence, after the mutation run and both depth reviews, and a thin result is the expected outcome rather than a failure to look.
 - **The dominant theme is absence rather than error.** Neither Medium finding is wrong code; both are a missing connection. The projection is derived independently by `native_value` and by `extra_state_attributes` — they cannot disagree today, and nothing structural keeps it that way. And an Options-flow change to host, username or password never reaches the running integration, because there is no update listener and no reload: Reauth and Reconfigure both reload, Options edits the same three fields and does not.
-- **The Options-flow gap is left for its own commit.** It is a user-visible behaviour change — an options edit would start reloading the entry — and it was raised independently by `dev_std_review` earlier in this run. It is recorded as `status_plan.md` §P-9 and in the review, from two directions, rather than folded into a review commit.
+- **The Options-flow gap is left for its own commit.** It is a user-visible behavior change — an options edit would start reloading the entry — and it was raised independently by `dev_std_review` earlier in this run. It is recorded as `status_plan.md` §P-9 and in the review, from two directions, rather than folded into a review commit.
 - Masked-errors companion check clean on all three classes. The single Class C finding of this run — `assert_links_to_parent()` asserting only that `via_device_id` was truthy — was fixed in `[1.2.0-dev20]`.
 - Suite unchanged at **683 passing**, 100% line and branch coverage, 0 partial branches, ruff and `mypy --strict` clean, IQS static PASSED.
 
@@ -920,7 +920,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Notes
 
-- `unifi_network_monitor` had the correct behaviour already. Recorded as `x_proj_chores` C-011 and written into `dev_standards.md` §13 at **1.23.0**, so ZTE inherits the settled rule.
+- `unifi_network_monitor` had the correct behavior already. Recorded as `x_proj_chores` C-011 and written into `dev_standards.md` §13 at **1.23.0**, so ZTE inherits the settled rule.
 
 ---
 
@@ -1008,7 +1008,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Fixed
 
-- `entity.sensor.hw_version` and `entity.sensor.imei` were defined in `strings.json` with no `translation_key` producing them, orphaned since `364942c` deleted both sensors on 2026-05-02. Sensor artefacts now reconcile 96/96/96.
+- `entity.sensor.hw_version` and `entity.sensor.imei` were defined in `strings.json` with no `translation_key` producing them, orphaned since `364942c` deleted both sensors on 2026-05-02. Sensor artifacts now reconcile 96/96/96.
 
 ---
 

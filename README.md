@@ -1230,7 +1230,7 @@ description: "Notifies when the router attaches to a different cell tower"
 mode: single
 triggers:
   - trigger: state
-    entity_id: sensor.huawei_5g_signal_lte_cell_id 
+    entity_id: sensor.huawei_5g_signal_lte_cell_id
     not_from:
       - "unknown"
       - "unavailable"
@@ -1850,7 +1850,7 @@ The **Integration Health** binary sensor (System device) reports:
 
 - **Total outage** — the router unreachable. Flagged on the **first** failure at startup (there are no held values, so waiting would leave you with no explanation), or on the **third** consecutive failure at runtime. A success clears it in the same cycle.
 - **Degraded capability** — an optional endpoint that has exhausted its own strike budget.
-- **Contract drift** — a successful response containing none of the fields the integration expects, which usually means a firmware update renamed them.
+- **Firmware API changes (`drift`)** — a successful response containing none of the fields the integration expects, which usually means a router firmware update renamed or changed them.
 
 It is deliberately **available at all times**, including when every other entity has gone unavailable — a health sensor that disappears during an outage cannot explain the silence. See the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
 

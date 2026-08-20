@@ -14,18 +14,18 @@
 - **Controls & Actions**: Adds a Master Wi-Fi switch, a Reconnect button, and a device tracker cleanup action.
 - **38 New Entities & End-of-Cycle Forecast**: Adds broad diagnostic, system, and signal sensors across eight new router endpoints, including a Projected Usage forecast sensor.
 - **Dynamic Network Mode Selection**: Dynamically discovers supported cellular network modes from the router (including 5G Only) while preventing accidental band resets.
-- **Resilience & Health**: Introduces an Integration Health diagnostic sensor with 5-state severity and contract drift detection, automated follow-up refreshes after reboots, and bounded write execution.
-- **Connection Recovery & Timeouts**: Recovers gracefully from transport timeouts by invalidating wedged sessions, clearing stale sockets, and enforcing internal fetch deadlines to salvage partial polling data.
+- **Resilience & Health**: Introduces an Integration Health diagnostic sensor with 5-state severity and firmware API change detection, automated follow-up refreshes after reboots, and bounded write execution.
+- **Connection Recovery & Timeouts**: Recovers automatically from transport timeouts by resetting wedged sessions, clearing stale sockets, and enforcing internal fetch deadlines to preserve partial poll data.
 - **Entity Identity & Guidance**: Migrates device tracker unique IDs to entry-scoped identifiers, standardizes `about` attribute guidance notes across all entities, and upgrades the underlying client library to `huawei-lte-api` 2.0.1.
 
 ### Added
 
-- **New Router & Signal Entities**: Added 38 entities across eight new router endpoints, including six identity sensors, nine System sensors, four System binary sensors (including VoLTE), eight Signal entities, a data-plan block, a Line State sensor, and a **Router Diagnostics** sensor reporting the router's internal connection status.
+- **New Router & Signal Entities**: Added 38 entities across eight router endpoints, including identity sensors, System metrics, VoLTE and binary sensors, Signal diagnostics, and a **Router Diagnostics** connection status sensor.
 - **Projected Data Usage**: Added a data usage forecast sensor that calculates projected monthly bandwidth consumption with credibility and confidence attributes.
 - **Master Wi-Fi Switch**: Added a master Wi-Fi radio control switch that safely toggles the 2.4 GHz and 5 GHz hardware radios.
 - **Reconnect Button**: Added a button to re-establish cellular data sessions on demand.
 - **Entity Cleanup Action**: Added a `cleanup_unused_entities` action (with dry-run preview by default) to remove stale device tracker entities left behind by transient guest devices.
-- **Integration Health Diagnostic Sensor**: Added a system health sensor that monitors endpoint availability, catches total connection outages, provides standardized 5-state severity reporting (`ok`, `degraded`, `warning`, `error`, `unknown`), and alerts on firmware contract drift.
+- **Integration Health Diagnostic Sensor**: Added a diagnostic problem sensor monitoring endpoint availability, standardized 5-state severity (`ok`, `degraded`, `warning`, `error`, `unknown`), and unexpected firmware-driven changes.
 - **Action Icons & Context**: Added full icon translations for all registered actions across automation and script editors.
 
 ### Changed
@@ -39,7 +39,7 @@
 
 ### Fixed
 
-- **5G Network Mode Mapping & Band Safety**: Added full mapping for 5G-Only mode (`08`), resolved transient `-1` confirmation errors during radio re-registration, executed confirmation read-backs outside concurrency locks, and ensured mode changes preserve existing cellular band selections.
+- **5G Network Mode Mapping & Band Safety**: Added full mapping for 5G-Only mode (`08`), handled transient radio re-registration responses, moved confirmation read-backs outside locks, and ensured mode changes preserve active cellular band selections.
 - **Connection Recovery on Timeout**: Automatically resets and closes underlying HTTP sessions on coordinator timeouts, clearing stale sockets and rebuilding fresh client sessions without requiring a Home Assistant restart.
 - **Device Tracker Multi-Router Conflicts**: Migrated device tracker unique IDs to be scoped per configuration entry, preventing entity collisions and missing client devices on setups with multiple Huawei routers.
 - **Session Logout & Traffic Reset Calls**: Corrected library method bindings for session logout and traffic counter clearing, ensuring active sessions are properly closed on reload.
@@ -54,7 +54,7 @@
 
 ### Changed
 
-- **Display Units & Precision**: 23 sensors now display expected units and decimal places (data sizes in GB, data rates in Mbit/s, durations in hours, rounded signal/frequency values) while native values used for long-term statistics stay unchanged.
+- **Display Units & Precision**: 23 sensors now display configured units and precision (GB, Mbit/s, hours, rounded signal/frequency values) without altering native values used for long-term statistics.
 - **Polling Toggle Future Ready**: Turning off "Enable polling for changes" in the entry's system options now reliably stops scheduled polling and will satisfy the upcoming HA requirement (implicit `ContextVar` detection is being removed in HA 2026.8).
 - **Disabled-by-Default Sensors**: User Capacity, Month Download (GB), and Month Upload (GB) are now disabled by default for new installs.
 
@@ -67,8 +67,7 @@
 
 ### Summary
 
-- v1.1.1 is clean-up and bug-fixes, no new features.
-- Fixed a timestamp bug and removed several sensors from long term statistics.
+- Maintenance and stability release addressing uptime timestamp drift, session handling, and long-term statistics tracking.
 
 ### Fixed
 
@@ -84,15 +83,15 @@
 ### Changed
 
 - **Dynamic entity icons**: All entity icons migrated to HA's `icons.json` translation system. Signal bars (1–3), battery (10–100%), and SMS unread sensors now display context-aware icons that change automatically based on sensor value or state.
-- **Long-term statistics cleanup**: Removed `state_class` from 32 sensors that were incorrectly generating Long Term Statistics entries — specifically frequency/bandwidth sensors, SMS count sensors, connection duration sensors, and data rate sensors. These sensors report instantaneous or cumulative values that are not suitable for HA's statistics pipeline.
+- **Long-term statistics cleanup**: Removed `state_class` from 32 sensors (frequency, bandwidth, SMS counts, connection durations, and data rates) that report instantaneous values not suited for long-term statistics.
 
 ## [1.1.0] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up
 
 ### Changed
 
-- **Under the Hood**: Significant code clean-up.
-- **Unique ID via MAC**: Changed to have the Unique IDs generated from MAC not IP.
-- **Automation Examples**: Updated the automation examples.
+- **Under the Hood**: Significant internal code clean-up.
+- **MAC-Based Unique IDs**: Migrated entity unique IDs from IP address to MAC address to ensure stable entity identity across network reconfigurations.
+- **Automation Examples**: Updated and modernized example automations.
 
 ## [1.0.2] - 2026-05-05 - Release - SMS Management, WiFi Sub-Device and Client Counts
 

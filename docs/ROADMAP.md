@@ -50,7 +50,7 @@ The inputs already exist: `lan_host_info` and `wlan_host_list` are polled every 
 Shape to decide — a `binary_sensor`, an HA event for automations to catch, or a persistent notification. An event is the most composable and the least opinionated about how the user wants to be told.
 
 - **Value**: ⭐⭐⭐
-- **Effort**: Medium — the detection is easy, the persistence and the first-run behaviour are the work.
+- **Effort**: Medium — the detection is easy, the persistence and the first-run behavior are the work.
 - **Trigger**: Agreement on the persistence mechanism, which is shared with the entry below.
 
 ### Retire long-unseen device trackers
@@ -119,7 +119,7 @@ Band-combine is the unknown: which block owns it has not been established, and `
 
 ### 5G Mode select, and a sensor to read it back
 
-The router GUI offers a **5G Mode** dropdown with three values — **SA+NSA**, **NSA**, **SA** — and it is available whether Preferred Network Mode is Auto or 5G Only, as long as the router is working in 5G. Setting **SA** can cause signal loss; the owner's expectation is that the router eventually falls back to 4G, which is an observation to confirm rather than a documented behaviour.
+The router GUI offers a **5G Mode** dropdown with three values — **SA+NSA**, **NSA**, **SA** — and it is available whether Preferred Network Mode is Auto or 5G Only, as long as the router is working in 5G. Setting **SA** can cause signal loss; the owner's expectation is that the router eventually falls back to 4G, which is an observation to confirm rather than a documented behavior.
 
 **The write path does not exist yet, and neither does the read path.** Both were checked before this entry was written:
 

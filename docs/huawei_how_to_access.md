@@ -10,15 +10,15 @@ Everything below was measured against a live **B535 / H165-383**, firmware `4.4.
 
 ## 📐 The shape of this API — read this first
 
-The three sibling projects reach their devices in three different ways, and the difference decides how each of these documents is organised:
+The three sibling projects reach their devices in three different ways, and the difference decides how each of these documents is organized:
 
-| Project | Interface | Document organised by |
+| Project | Interface | Document organized by |
 | :-- | :-- | :-- |
 | `unifi_network_monitor` | REST, one URL per resource | URL |
 | `zte_router_5g` | Two `goform` endpoints, resource named in a `cmd=` parameter | `cmd` / `goformId` name |
 | **`huawei_router_5g`** | **A third-party library over a documented-by-reverse-engineering XML API** | **Library endpoint** |
 
-**This integration does not speak HTTP to the router at all.** Every call goes through [`huawei-lte-api`](https://pypi.org/project/huawei-lte-api/), pinned at **1.11.0**, which owns the URL construction, the XML parsing, the CSRF token handling and the session cookie. So the unit that corresponds to "an endpoint" here is **a library method** — `client.monitoring.status()`, `client.device.signal()` — and this document is organised that way.
+**This integration does not speak HTTP to the router at all.** Every call goes through [`huawei-lte-api`](https://pypi.org/project/huawei-lte-api/), pinned at **1.11.0**, which owns the URL construction, the XML parsing, the CSRF token handling and the session cookie. So the unit that corresponds to "an endpoint" here is **a library method** — `client.monitoring.status()`, `client.device.signal()` — and this document is organized that way.
 
 Three consequences worth knowing before debugging:
 
@@ -26,7 +26,7 @@ Three consequences worth knowing before debugging:
 - **A method existing in the library says nothing about the hardware supporting it.** The library covers the whole Huawei HiLink family. This model refuses a third of it. See [Not supported on this hardware](#-not-supported-on-this-hardware).
 - **The library is synchronous.** Every call is wrapped in `asyncio.to_thread` in `api.py`. This is also why the IQS `async-dependency` and `inject-websession` rules sit at `todo` — there is no async interface to adopt and no `aiohttp` session to inject.
 
-Base URL is normalised by `_normalize_router_url` in `api.py`; a bare host such as `192.168.8.1` gains `http://`, because the library's `Connection` rejects a schemeless URL outright.
+Base URL is normalized by `_normalize_router_url` in `api.py`; a bare host such as `192.168.8.1` gains `http://`, because the library's `Connection` rejects a schemeless URL outright.
 
 ---
 
@@ -46,11 +46,11 @@ The router accepts a single username and password — **there is no separate `ad
 >
 > An earlier revision of this document claimed the integration ran anonymously and that "anonymous is enough for everything the integration polls". **Both statements were wrong.** Had they been true, every poll would have aborted on the critical endpoint.
 
-Some reads _do_ answer anonymously — `device.basic_information`, `device.vendorname` and `system.deviceinfoex` all did on the same probe. That is what made the wrong claim plausible. It does not generalise, and `device.information` is the counter-example that matters.
+Some reads _do_ answer anonymously — `device.basic_information`, `device.vendorname` and `system.deviceinfoex` all did on the same probe. That is what made the wrong claim plausible. It does not generalize, and `device.information` is the counter-example that matters.
 
 Roughly **90 of the library's ~240 read methods answer `100003: No rights (needs login)`** — the configuration surface: WiFi security settings, MAC filters, VPN, USB storage, voice/SIP account details, firmware update controls. Supplying the stored password as `admin` was tested and made **no difference to any of them**, so they are not a credential problem — they need a session this API grants differently, or the model does not permit them at all.
 
-### Error codes worth recognising
+### Error codes worth recognizing
 
 | Code | Meaning | What to do |
 | :-- | :-- | :-- |
@@ -76,7 +76,7 @@ Roughly **90 of the library's ~240 read methods answer `100003: No rights (needs
 
 `api.py` calls **`client.user.logout()`**. It previously called `Connection.logout()`, **a method that has never existed in this library**, hidden behind a `# type: ignore[attr-defined]`. Every unload and every reload leaked a session, silently, because a failed logout is deliberately swallowed — an unload must not be blocked by it.
 
-**The lesson generalises:** a `type: ignore[attr-defined]` on a library call is a _claim about that library_, and this project made that claim falsely twice. `tests/test_entity_hygiene.py` now sweeps every suppression against a reviewed allow-list for exactly this reason.
+**The lesson generalizes:** a `type: ignore[attr-defined]` on a library call is a _claim about that library_, and this project made that claim falsely twice. `tests/test_entity_hygiene.py` now sweeps every suppression against a reviewed allow-list for exactly this reason.
 
 ### The session degrades under sustained bulk querying
 
@@ -127,7 +127,7 @@ So: **probe endpoints in small batches, and re-verify any negative result on a f
 
 ## 📤 Writes
 
-**Ten**, all serialised behind one `asyncio.Lock` and routed through `_execute_with_retry`.
+**Ten**, all serialized behind one `asyncio.Lock` and routed through `_execute_with_retry`.
 
 | Endpoint                        | Action                 | Register tier |
 | :------------------------------ | :--------------------- | :------------ |
@@ -162,7 +162,7 @@ The router's web interface states both ceilings: **612 ASCII characters, 268 UCS
 
 **Which one applies is decided by the content.** A single emoji or curly quote forces UCS-2 for the whole message, so the same text that fits as plain ASCII can be refused once one special character is added.
 
-**Read from the GUI, not measured from the API.** `sms.config` is the block most likely to publish these values and has not been probed. Behaviour past four segments is untested — the integration refuses rather than finding out.
+**Read from the GUI, not measured from the API.** `sms.config` is the block most likely to publish these values and has not been probed. Behavior past four segments is untested — the integration refuses rather than finding out.
 
 ### Three spellings that matter
 
@@ -284,7 +284,7 @@ There is **no brand field anywhere on this hardware**. Probed 2026-08-16: `devic
 
 **Method: a full surface diff, not a probe.** 1.11.0 was unpacked alongside 2.0.1 and both enumerated — every group, every method signature, every enum member, every exception. That is the only way to answer "what is new" without guessing, and it is what the earlier field-level scans could not do.
 
-**The surface barely moved.** 70 groups and 336 methods → 70 groups and 340 methods. No new groups, no enum changes, no exception changes. Most signature diffs are `Dict[str, Any]` → `dict[str, Any]` typing modernisation.
+**The surface barely moved.** 70 groups and 336 methods → 70 groups and 340 methods. No new groups, no enum changes, no exception changes. Most signature diffs are `Dict[str, Any]` → `dict[str, Any]` typing modernization.
 
 ### Six methods added
 
@@ -349,8 +349,8 @@ Only `voice.codec()` refuses.
 
 ## 📚 Related documents
 
-- `ha-zte-router-5g-monitor/docs/zte_how_to_access.md` — the ZTE companion, organised by `cmd` name because that interface is two endpoints with a parameter.
-- `ha-unifi-network-monitor/docs/api_endpoints.md` — the UniFi companion, organised by URL.
+- `ha-zte-router-5g-monitor/docs/zte_how_to_access.md` — the ZTE companion, organized by `cmd` name because that interface is two endpoints with a parameter.
+- `ha-unifi-network-monitor/docs/api_endpoints.md` — the UniFi companion, organized by URL.
 - `.notes/info/extra_fields/extra_fields_decide_202608.md` — the field-by-field review this document's verdicts are drawn from, with sub-device, category and default decisions.
 - `.notes/info/extra_fields/extra_fields_202608.md` — the raw working notes and evidence trail behind it.
 - `docs/all_sensors.md` — which entity each polled field becomes.
