@@ -175,6 +175,30 @@ def _parse_complex_float(val: Any) -> Any:
     return f_val if f_val is not None else s_val
 
 
+_GSM7_BASIC = (
+    "@£$¥èéùìòÇ\nØø\rÅåΔ_ΦΓΛΩΠΨΣΘΞÆæßÉ !\"#¤%&'()*+,-./0123456789:;<=>?"
+    "¡ABCDEFGHIJKLMNOPQRSTUVWXYZÄÖÑÜ§¿abcdefghijklmnopqrstuvwxyzäöñüà"
+)
+# The extension table. These are still GSM-7, but each costs two septets
+# because it is sent as ESC + character, so they are counted separately by
+# anything that cares about segment boundaries.
+_GSM7_EXTENDED = "\f^{}\\[~]|€"
+
+GSM7_CHARS = frozenset(_GSM7_BASIC + _GSM7_EXTENDED)
+
+
+def is_gsm7(text: str) -> bool:
+    """Return True when every character is in the GSM 03.38 alphabet.
+
+    False means at least one character forces UCS-2 for the whole message — a
+    single emoji or curly quote is enough, which is why the Unicode ceiling is
+    so much lower than the plain-text one.
+
+    Ported from `zte_router_5g`, which established the table.
+    """
+    return all(char in GSM7_CHARS for char in text)
+
+
 def get_network_type_label(code: str | None) -> str | None:
     """Map a Huawei CurrentNetworkType code to a human-readable label."""
     if code is None:

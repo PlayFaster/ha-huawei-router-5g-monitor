@@ -142,6 +142,14 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Why the tests missed it.** They asserted `async_write_ha_state` was called, and separately that `is_on` read a hand-set payload — never the join. The publish was a `MagicMock`, so what it would have carried was unobservable. Capture it instead: `side_effect=lambda: published.append(switch.is_on)`, with the payload left pre-write.
 - **Why the hardware check missed it.** Every write check verified the **router**, which was correct throughout. Nothing asked what Home Assistant published. It now does, as a second row per write, forcing a refresh first because polling may be paused.
 
+### An Encoding-Dependent Limit Cannot Live in a Service Schema (v1.2.0-dev73)
+
+- **The send-SMS schema carried a flat `vol.Length(max=160)`** — a bare literal, no constant, no comment. 160 is the single-segment GSM-7 figure. This router's own interface advertises **612 ASCII and 268 UCS2**, so the integration was refusing messages the hardware would have sent, at about a quarter of the available length.
+- **Which ceiling applies depends on the content, not the length.** A message drawn entirely from the GSM 03.38 alphabet is packed as septets; **one** emoji or curly quote forces UCS-2 for the whole message and more than halves what fits. A flat limit is wrong in both directions — too small for plain text, and silent about the halving.
+- **So it cannot be enforced by the schema.** `vol.Schema` validates a value in isolation and cannot ask which alphabet is in play. The schema keeps the GSM-7 figure as a coarse outer bound; `_validate_sms_length()` does the real check in the service handler, before anything reaches the router.
+- **`ServiceValidationError`, not `HomeAssistantError`** — the caller got the call wrong and can fix it, so the error names the length, the limit, the encoding and the segment count.
+- **The numbers are segment arithmetic, which is how they were confirmed.** 612 = 4 × 153 and 268 = 4 × 67 both divide exactly, so this hardware concatenates **four** segments. `zte_router_5g` carries five (765 / 335), which is the only reason its constants differ.
+
 ### Timestamp-Based SMS Tracking (v1.1.0)
 
 - **Change**: Pivoted the `_check_new_sms` logic from comparing slot indices to comparing message dates.

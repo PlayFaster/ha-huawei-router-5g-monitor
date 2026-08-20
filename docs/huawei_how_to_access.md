@@ -156,6 +156,14 @@ Every one is classified in `scripts/write_classification.py`; `tests/test_write_
 
 **The router closes its end during radio re-registration.** Sockets left over from before the change sit in `CLOSE_WAIT` until something closes them — three connections to the router were open during the 2026-08-17 lockup, two already half-closed. A `requests.Session` that is only dereferenced does not close them, and its pool will hand a dead one back out. Anything that discards a connection here must call `session.close()`, which is what `_reset_client()` now does.
 
+### Outgoing SMS length is capped at four segments
+
+The router's web interface states both ceilings: **612 ASCII characters, 268 UCS2**. Both divide exactly by one segment — 612 = 4 × 153, 268 = 4 × 67 — so this hardware concatenates at most **four** segments. `zte_router_5g` allows five.
+
+**Which one applies is decided by the content.** A single emoji or curly quote forces UCS-2 for the whole message, so the same text that fits as plain ASCII can be refused once one special character is added.
+
+**Read from the GUI, not measured from the API.** `sms.config` is the block most likely to publish these values and has not been probed. Behaviour past four segments is untested — the integration refuses rather than finding out.
+
 ### Three spellings that matter
 
 **`device.set_control(ControlModeEnum.REBOOT)`, not `device.reboot()`.** Both exist in 1.11.0, but **2.0.0 removes `reboot()` and `control()`** and keeps only `set_control`. The current spelling is correct on both, so the library bump needs no change here.
@@ -230,7 +238,7 @@ Found by the endpoint sweep and **not** assessed. Recorded so the next person st
 | `diagnosis.diagnose_ping`, `.diagnose_traceroute` | 11, 6 | **The router will run a ping or traceroute on request.** Interesting and unexplored |
 | `diagnosis.time_reboot` | 4 | **Scheduled reboot, and it is ENABLED on the reference unit.** `enable='1'`, `dayinterval='7'`, `begintime='60'`, `endtime='300'` — a reboot every 7 days in a window that reads as 01:00–05:00 if the times are minutes past midnight, which is **inference from the values fitting, not measurement**. Worth knowing even if never exposed: it explains a weekly uptime reset, and it interacts with reboot detection. `zte_router_5g` exposes an equivalent |
 | `online_update.status`, `.configuration`, `.autoupdate_config` | 8, 4, 2 | Firmware update state — may decode `monitoring_status.OnlineUpdateStatus`, which was rejected as an unknown code |
-| `sms.config` | 16 | SMS behavior settings |
+| `sms.config` | 16 | SMS behavior settings. **Worth a look for the outgoing length ceilings** — those are currently taken from the router's web interface rather than from the API, and this is the block most likely to carry them |
 | `led.appctrlled` | 3 | LED control |
 | `redirection.homepage`, `staticroute.wanpath`, `dhcp.static_addr_info` | 1–2 | Minor configuration |
 

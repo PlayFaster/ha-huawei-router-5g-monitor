@@ -8,7 +8,7 @@ import voluptuous as vol
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from homeassistant.helpers import config_validation as cv
 from homeassistant.helpers import device_registry as dr
 from homeassistant.helpers import entity_registry as er
@@ -24,9 +24,12 @@ from .const import (
     DOMAIN,
     REPAIR_NAMES,
     SERVICE_CLEANUP,
+    SMS_MAX_CHARS_GSM7,
+    SMS_MAX_CHARS_UNICODE,
+    SMS_SEGMENTS_MAX,
 )
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import _stale_tracker_entities, parse_sms_list
+from .helpers import _stale_tracker_entities, is_gsm7, parse_sms_list
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -36,7 +39,9 @@ SERVICE_SEND_SMS_SCHEMA = vol.Schema(
     {
         vol.Optional("entry_id"): str,
         vol.Required("target"): vol.All(cv.ensure_list, [str]),
-        vol.Required("message"): vol.All(str, vol.Length(min=1, max=160)),
+        vol.Required("message"): vol.All(
+            str, vol.Length(min=1, max=SMS_MAX_CHARS_GSM7)
+        ),
     }
 )
 
@@ -115,11 +120,41 @@ def _get_coordinator(
     )
 
 
+def _validate_sms_length(message: str) -> None:
+    """Reject a message longer than the router will carry, before sending it.
+
+    Which ceiling applies depends on the content: a message drawn entirely
+    from the GSM 03.38 alphabet is packed as septets and fits far more than one
+    containing a single emoji or curly quote, which forces UCS-2 for the whole
+    message. The flat `max=160` this replaced was wrong in both directions —
+    too small for plain text on a router that carries 612, and silent about the
+    fact that the limit halves the moment one special character appears.
+
+    `ServiceValidationError` rather than `HomeAssistantError`: the caller got
+    the call wrong and can fix it (dev_standards Section 9).
+    """
+    gsm7 = is_gsm7(message)
+    limit = SMS_MAX_CHARS_GSM7 if gsm7 else SMS_MAX_CHARS_UNICODE
+    if len(message) <= limit:
+        return
+    raise ServiceValidationError(
+        translation_domain=DOMAIN,
+        translation_key="sms_too_long",
+        translation_placeholders={
+            "length": str(len(message)),
+            "limit": str(limit),
+            "encoding": "GSM-7" if gsm7 else "Unicode",
+            "segments": str(SMS_SEGMENTS_MAX),
+        },
+    )
+
+
 async def async_send_sms(hass: HomeAssistant, call: ServiceCall) -> None:
     """Service to send an SMS."""
     coordinator = _get_coordinator(hass, call.data)
     target = call.data["target"]
     message = call.data["message"]
+    _validate_sms_length(message)
 
     try:
         await coordinator.api.send_sms(target, message)

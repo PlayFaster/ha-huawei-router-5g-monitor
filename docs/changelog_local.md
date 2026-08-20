@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev73\] - 2026-08-19 - The Send-SMS Limit Was a Quarter of What the Router Carries](#120-dev73---2026-08-19---the-send-sms-limit-was-a-quarter-of-what-the-router-carries)
   - [\[1.2.0-dev71\] - 2026-08-19 - SMS Bodies and Sender Numbers Were Being Written to the Log](#120-dev71---2026-08-19---sms-bodies-and-sender-numbers-were-being-written-to-the-log)
   - [\[1.2.0-dev70\] - 2026-08-19 - Every Switch Published the Value It Had Just Replaced](#120-dev70---2026-08-19---every-switch-published-the-value-it-had-just-replaced)
   - [\[1.2.0-dev65\] - 2026-08-19 - The Not-Responding Repair Fired Six Polls Early](#120-dev65---2026-08-19---the-not-responding-repair-fired-six-polls-early)
@@ -55,11 +56,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -149,6 +150,29 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev73] - 2026-08-19 - The Send-SMS Limit Was a Quarter of What the Router Carries
+
+Raised by comparing the router's own interface against `zte_router_5g`. The expectation was that Huawei's ceilings were slightly tighter; the finding was that the integration's ceiling had nothing to do with the router at all.
+
+### Fixed
+
+- **`send_sms` rejected any message over 160 characters.** The service schema carried a flat `vol.Length(min=1, max=160)` — a bare literal with no constant and no comment. 160 is the single-segment GSM-7 figure. This router's interface advertises **612 ASCII and 268 UCS2**, so the integration refused messages the hardware would have sent, at roughly a quarter of the available length.
+- **The limit now follows the encoding.** A message drawn entirely from the GSM 03.38 alphabet is packed as septets; one emoji or curly quote forces UCS-2 for the whole message and more than halves what fits. A flat limit is wrong in both directions — too small for plain text, and silent about the halving. `_validate_sms_length()` picks the ceiling from the content and raises `ServiceValidationError` naming the length, the limit, the encoding and the segment count.
+
+### Added
+
+- **`SMS_SEGMENTS_MAX = 4`, `SMS_MAX_CHARS_GSM7 = 612`, `SMS_MAX_CHARS_UNICODE = 268`**, with the arithmetic recorded: both figures divide exactly by one segment (4 × 153, 4 × 67), which is what confirms they are concatenation boundaries rather than arbitrary numbers. `zte_router_5g` allows five segments, and that is the only reason its constants differ.
+- **`is_gsm7()` and `GSM7_CHARS` in `helpers.py`**, ported from `zte_router_5g`, which established the alphabet table.
+- **`sms_too_long`** in `strings.json` and `translations/en.json`.
+
+### Notes
+
+- **The check cannot live in the schema.** `vol.Schema` validates a value in isolation and cannot ask which alphabet is in play. The schema keeps the GSM-7 figure as a coarse outer bound and the real check runs in the service handler, before anything reaches the router.
+- **The tests were proven to fail against the flat limit** before being kept — three of five cases. The pair that matters is the same character count passing as GSM-7 and being refused as Unicode, which is the distinction a single number cannot express.
+- **`README.md` needed no change.** Its length table already stated 612 and 268 and said that going over is "rejected with an error naming the limit that applied" — which was **false** until now, since the flat cap rejected at 160 with a generic schema error. The document described the intended behaviour; the code now delivers it.
+- **The ceilings come from the router's web interface, not from the API.** `sms.config` is the block most likely to publish them and has not been probed; noted in `huawei_how_to_access.md` for whoever does. Behaviour past four segments is untested — the integration refuses rather than finding out.
+- Suite **868 passing**, coverage **100% line and branch**, ruff and mypy strict clean, assertion audit 0 of 720.
 
 ## [1.2.0-dev71] - 2026-08-19 - SMS Bodies and Sender Numbers Were Being Written to the Log
 

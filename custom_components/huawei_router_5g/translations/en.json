@@ -524,6 +524,9 @@
     }
   },
   "exceptions": {
+    "sms_too_long": {
+      "message": "The message is {length} characters, but this router accepts at most {limit} when the text needs {encoding} encoding ({segments} segments). Shorten it, or remove any emoji and special characters to get the longer GSM-7 limit."
+    },
     "write_not_confirmed": {
       "message": "The router accepted the {action} command but still reports the old setting. The change was not applied — check the router and try again."
     }

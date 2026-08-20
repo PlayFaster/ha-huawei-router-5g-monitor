@@ -306,6 +306,31 @@ PROJECTION_CREDIBILITY_DAYS = 3.0
 PROJECTION_CONFIDENCE_LOW = 0.4
 PROJECTION_CONFIDENCE_MEDIUM = 0.75
 
+# --- Outgoing SMS length ------------------------------------------------------
+#
+# The router's own web interface states the ceilings: **612 ASCII characters,
+# 268 UCS2**. Both divide exactly by one segment — 612 = 4 x 153 and
+# 268 = 4 x 67 — so this hardware concatenates at most **four** segments, one
+# fewer than `zte_router_5g`.
+#
+# Which ceiling applies depends on the content, not on the length. A message
+# drawn entirely from the GSM 03.38 alphabet is packed as septets; a single
+# emoji or curly quote forces UCS-2 for the **whole** message and roughly
+# halves what fits.
+#
+# The service schema previously carried a flat `max=160` — the single-segment
+# GSM-7 figure, hardcoded with no constant and no comment. That was wrong in
+# both directions: it rejected plain-text messages this router would have sent
+# happily, and it would have accepted a 160-character Unicode message without
+# ever mentioning that the limit differs. Enforced in `async_send_sms` rather
+# than the schema, because the schema cannot see which alphabet is in play.
+#
+# Behavior past four segments is untested on this hardware; these ceilings keep
+# callers out of that zone rather than describing what happens there.
+SMS_SEGMENTS_MAX = 4
+SMS_MAX_CHARS_GSM7 = 612
+SMS_MAX_CHARS_UNICODE = 268
+
 # The one action that removes entities rather than commanding the router.
 # Defaults to a dry run: a client that is merely powered off is still usually
 # in the router's host list, but a router that has aged it out is

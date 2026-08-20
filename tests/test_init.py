@@ -4,7 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from custom_components.huawei_router_5g import (
@@ -15,6 +15,11 @@ from custom_components.huawei_router_5g import (
     async_send_sms,
     async_setup,
 )
+from custom_components.huawei_router_5g.const import (
+    SMS_MAX_CHARS_GSM7,
+    SMS_MAX_CHARS_UNICODE,
+)
+from custom_components.huawei_router_5g.helpers import is_gsm7
 
 
 @pytest.fixture
@@ -137,6 +142,60 @@ async def test_async_send_sms_service(mock_hass, mock_coordinator, mock_config_e
     await async_send_sms(mock_hass, call)
 
     mock_coordinator.api.send_sms.assert_awaited_once_with(["+123"], "hello")
+
+
+@pytest.mark.parametrize(
+    ("message", "sendable"),
+    [
+        # Plain text, right on the GSM-7 ceiling and one past it.
+        ("a" * SMS_MAX_CHARS_GSM7, True),
+        ("a" * (SMS_MAX_CHARS_GSM7 + 1), False),
+        # One emoji forces UCS-2 for the whole message, so the ceiling more
+        # than halves. This is the case a flat limit cannot express: the same
+        # length that passes above is refused here.
+        ("\U0001f600" + "a" * (SMS_MAX_CHARS_UNICODE - 1), True),
+        ("\U0001f600" + "a" * SMS_MAX_CHARS_UNICODE, False),
+        # A curly quote is enough on its own - it is not in GSM 03.38.
+        ("\u2019" + "a" * SMS_MAX_CHARS_UNICODE, False),
+    ],
+)
+@pytest.mark.asyncio
+async def test_the_sms_length_limit_follows_the_encoding(
+    message, sendable, mock_hass, mock_coordinator, mock_config_entry
+):
+    """Which ceiling applies depends on the characters, not on the length.
+
+    The service carried a flat `max=160` until 2026-08-19 - the single-segment
+    GSM-7 figure - on a router whose own interface advertises 612 ASCII and 268
+    UCS2. It rejected plain text the hardware would have sent, and said nothing
+    about the limit halving the moment one special character appeared.
+
+    The pairs above are what pins that: the same character count passes as
+    GSM-7 and is refused as Unicode.
+    """
+    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
+    mock_coordinator.api.send_sms = AsyncMock()
+
+    call = MagicMock(spec=ServiceCall)
+    call.data = {"target": ["+123"], "message": message}
+
+    if sendable:
+        await async_send_sms(mock_hass, call)
+        mock_coordinator.api.send_sms.assert_awaited_once()
+        return
+
+    with pytest.raises(ServiceValidationError) as err:
+        await async_send_sms(mock_hass, call)
+
+    # Nothing reached the router - the check runs before the send.
+    mock_coordinator.api.send_sms.assert_not_awaited()
+    # And the error names the limit that applied, so the caller can act.
+    assert err.value.translation_key == "sms_too_long"
+    placeholders = err.value.translation_placeholders or {}
+    assert placeholders["encoding"] in ("GSM-7", "Unicode")
+    assert placeholders["limit"] == str(
+        SMS_MAX_CHARS_GSM7 if is_gsm7(message) else SMS_MAX_CHARS_UNICODE
+    )
 
 
 @pytest.mark.asyncio
