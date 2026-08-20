@@ -5,30 +5,30 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.0-dev73\] - 2026-08-19 - The Send-SMS Limit Was a Quarter of What the Router Carries](#120-dev73---2026-08-19---the-send-sms-limit-was-a-quarter-of-what-the-router-carries)
-  - [\[1.2.0-dev71\] - 2026-08-19 - SMS Bodies and Sender Numbers Were Being Written to the Log](#120-dev71---2026-08-19---sms-bodies-and-sender-numbers-were-being-written-to-the-log)
-  - [\[1.2.0-dev70\] - 2026-08-19 - Every Switch Published the Value It Had Just Replaced](#120-dev70---2026-08-19---every-switch-published-the-value-it-had-just-replaced)
-  - [\[1.2.0-dev65\] - 2026-08-19 - The Not-Responding Repair Fired Six Polls Early](#120-dev65---2026-08-19---the-not-responding-repair-fired-six-polls-early)
+  - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Threshold Enforced; `fail_under = 100`](#120-dev58---2026-08-18---coverage-threshold-enforced-fail_under--100)
+  - [\[1.2.0-dev73\] - 2026-08-19 - Send-SMS Length Limits Made Encoding-Aware](#120-dev73---2026-08-19---send-sms-length-limits-made-encoding-aware)
+  - [\[1.2.0-dev71\] - 2026-08-19 - SMS Payload and Sender Number Removed From Logs](#120-dev71---2026-08-19---sms-payload-and-sender-number-removed-from-logs)
+  - [\[1.2.0-dev70\] - 2026-08-19 - Switch State Latch; Stale Published Position Fixed](#120-dev70---2026-08-19---switch-state-latch-stale-published-position-fixed)
+  - [\[1.2.0-dev65\] - 2026-08-19 - Connection Repair Strike Threshold Raised to Ten](#120-dev65---2026-08-19---connection-repair-strike-threshold-raised-to-ten)
   - [\[1.2.0-dev61\] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document](#120-dev61---2026-08-19---guard-bands-on-a-text-sensor-added-to-match-a-document)
-  - [\[1.2.0-dev59\] - 2026-08-19 - The Hardware Check Filed No Report](#120-dev59---2026-08-19---the-hardware-check-filed-no-report)
-  - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Is Now a Gate, Not a Readout](#120-dev58---2026-08-18---coverage-is-now-a-gate-not-a-readout)
+  - [\[1.2.0-dev59\] - 2026-08-19 - Hardware Check Report Output Added](#120-dev59---2026-08-19---hardware-check-report-output-added)
   - [\[1.2.0-dev57\] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap](#120-dev57---2026-08-18---lockup-sweep-bounded-writes-salvaged-polls-and-the-standards-that-set-the-trap)
-  - [\[1.2.0-dev56\] - 2026-08-18 - Every Network-Mode Change Deadlocked the Integration](#120-dev56---2026-08-18---every-network-mode-change-deadlocked-the-integration)
+  - [\[1.2.0-dev56\] - 2026-08-18 - Network-Mode Write Deadlock Fixed; API Recovery Added](#120-dev56---2026-08-18---network-mode-write-deadlock-fixed-api-recovery-added)
   - [\[1.2.0-dev54\] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family](#120-dev54---2026-08-17---health-severity-and-strike-constants-aligned-with-the-family)
   - [\[1.2.0-dev53\] - 2026-08-17 - Documentation Reconciliation: Four False Statements](#120-dev53---2026-08-17---documentation-reconciliation-four-false-statements)
-  - [\[1.2.0-dev52\] - 2026-08-17 - Two New Tests Asserted Nothing](#120-dev52---2026-08-17---two-new-tests-asserted-nothing)
+  - [\[1.2.0-dev52\] - 2026-08-17 - Assertion Audit: Two Hollow Tests Given Real Assertions](#120-dev52---2026-08-17---assertion-audit-two-hollow-tests-given-real-assertions)
   - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
-  - [\[1.2.0-dev50\] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks](#120-dev50---2026-08-17---client-tracking-opt-out-assessed-the-poll-is-cheaper-than-it-looks)
-  - [\[1.2.0-dev47\] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested](#120-dev47---2026-08-17---coverage-back-to-100-the-new-code-was-untested)
-  - [\[1.2.0-dev46\] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen](#120-dev46---2026-08-17---the-right-mode-list-published-too-late-to-be-seen)
+  - [\[1.2.0-dev50\] - 2026-08-17 - Client-Tracking Opt-Out Assessment; Poll Cost Measured](#120-dev50---2026-08-17---client-tracking-opt-out-assessment-poll-cost-measured)
+  - [\[1.2.0-dev47\] - 2026-08-17 - Coverage Restored to 100%; dev43 and dev46 Gaps Covered](#120-dev47---2026-08-17---coverage-restored-to-100-dev43-and-dev46-gaps-covered)
+  - [\[1.2.0-dev46\] - 2026-08-17 - Network Mode Option List Publication Ordering Fixed](#120-dev46---2026-08-17---network-mode-option-list-publication-ordering-fixed)
   - [\[1.2.0-dev45\] - 2026-08-17 - README Review Findings Applied](#120-dev45---2026-08-17---readme-review-findings-applied)
-  - [\[1.2.0-dev43\] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name](#120-dev43---2026-08-17---the-router-was-in-a-5g-mode-the-integration-could-not-name)
+  - [\[1.2.0-dev43\] - 2026-08-17 - 5G Only Mode `08` Added to Network Mode Labels](#120-dev43---2026-08-17---5g-only-mode-08-added-to-network-mode-labels)
   - [\[1.2.0-dev42\] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked](#120-dev42---2026-08-16---network-mode-reported-failure-for-a-write-that-worked)
   - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
   - [\[1.2.0-dev39\] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes](#120-dev39---2026-08-16---four-broken-hyphens-shipped-in-entity-notes)
   - [\[1.2.0-dev38\] - 2026-08-16 - About Notes Reviewed; US Spelling Swept](#120-dev38---2026-08-16---about-notes-reviewed-us-spelling-swept)
   - [\[1.2.0-dev37\] - 2026-08-16 - Roadmap Scoped to Features; Cleanup Limitation Documented](#120-dev37---2026-08-16---roadmap-scoped-to-features-cleanup-limitation-documented)
-  - [\[1.2.0-dev36\] - 2026-08-16 - The Stored Password Is Load-Bearing](#120-dev36---2026-08-16---the-stored-password-is-load-bearing)
+  - [\[1.2.0-dev36\] - 2026-08-16 - API Access Reference Corrected; `vendorname` Trap Recorded](#120-dev36---2026-08-16---api-access-reference-corrected-vendorname-trap-recorded)
   - [\[1.2.0-dev35\] - 2026-08-16 - README: Reading Your Signal Data, Automations, Tailoring](#120-dev35---2026-08-16---readme-reading-your-signal-data-automations-tailoring)
   - [\[1.2.0-dev34\] - 2026-08-16 - README: Entities, Controls and Actions; 1.2.0 Release Notes](#120-dev34---2026-08-16---readme-entities-controls-and-actions-120-release-notes)
   - [\[1.2.0-dev33\] - 2026-08-16 - README: Compatibility and Other Options](#120-dev33---2026-08-16---readme-compatibility-and-other-options)
@@ -43,7 +43,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev23\] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router](#120-dev23---2026-08-15---review-findings-implemented-options-changes-now-reach-the-router)
   - [\[1.2.0-dev22\] - 2026-08-15 - Code Review](#120-dev22---2026-08-15---code-review)
   - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS De-duplication and the Event Payload Contract](#120-dev21---2026-08-15---depth-review-sms-de-duplication-and-the-event-payload-contract)
-  - [\[1.2.0-dev20\] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Was Being Published as an IP Token](#120-dev20---2026-08-15---mutation-findings-implemented-firmware-version-was-being-published-as-an-ip-token)
+  - [\[1.2.0-dev20\] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Token Fixed](#120-dev20---2026-08-15---mutation-findings-implemented-firmware-version-token-fixed)
   - [\[1.2.0-dev19\] - 2026-08-15 - Mutation Testing Configured and First Run Triaged](#120-dev19---2026-08-15---mutation-testing-configured-and-first-run-triaged)
   - [\[1.2.0-dev18\] - 2026-08-15 - `about` Attribute Notes on Every Entity](#120-dev18---2026-08-15---about-attribute-notes-on-every-entity)
   - [\[1.2.0-dev17\] - 2026-08-15 - Router Diagnostics Sensor](#120-dev17---2026-08-15---router-diagnostics-sensor)
@@ -151,7 +151,23 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
-## [1.2.0-dev73] - 2026-08-19 - The Send-SMS Limit Was a Quarter of What the Router Carries
+## [1.2.0-dev77] - 2026-08-20 - Hardware Check Entity Matching Fixed; SIM Number Masked
+
+Both findings come from the owner's attended hardware run on 2026-08-20. The run itself was clean — 25 passed, 3 declined — and every published-state row matched its device row. Neither fault is in the integration; both are in the script that checks it.
+
+### Fixed
+
+- **`set_guest_wifi published` skipped with "entity or Refresh button not found".** `_find_switch` matched `entity_id.endswith("_" + key)`, and **entity ids are built from the entity's name, not its description key**. `guest_wifi` is named "Guest Network", so the entity is `switch.huawei_5g_wifi_guest_network` and the match failed. It held for `wifi` and `mobile_data` by coincidence, which is why the flaw shipped. The check skipped honestly rather than passing wrongly, but the effect was that **the one switch on an open, unauthenticated network was the only one whose published state went unverified**.
+- **Matched on friendly name instead**, which is what `_find_entity` already does for the select and the Refresh button. `exclude="guest"` handles the one real collision, since "wifi" appears in the guest switch's name too. Verified against the live instance: all three switches now resolve, including `switch.huawei_5g_wifi_guest_network`.
+- **The SIM's own number is masked to its last four digits on the console.** The report has handled this correctly since the split — the full number goes to the gitignored detail file and `.reports` shows `[withheld]` — but the console printed it in full, twice: the "sending to" line and the confirmation prompt. A terminal transcript is pasted into a chat or an issue at least as readily as a report is. Four digits is enough to recognise your own SIM before confirming a charged send, which is the only reason it is shown; the detail report still records the full number.
+
+### Notes
+
+- **`unique_id` was the better key and was rejected on cost.** It is `f"{entry.unique_id}_{description.key}"`, so it maps exactly to what the calling code knows — but the entity registry is not on the REST API, and reaching for the websocket to resolve one entity is more machinery than this check earns. The reasoning is recorded at the function so the next person does not re-derive it.
+- **The next attended run is the one that matters.** `set_guest_wifi published` should appear as a real row rather than a skip. Until it does, that switch has never had its published state verified on hardware.
+- Suite **868 passing**, ruff clean, CLI parses. No integration code changed.
+
+## [1.2.0-dev73] - 2026-08-19 - Send-SMS Length Limits Made Encoding-Aware
 
 Raised by comparing the router's own interface against `zte_router_5g`. The expectation was that Huawei's ceilings were slightly tighter; the finding was that the integration's ceiling had nothing to do with the router at all.
 
@@ -174,7 +190,7 @@ Raised by comparing the router's own interface against `zte_router_5g`. The expe
 - **The ceilings come from the router's web interface, not from the API.** `sms.config` is the block most likely to publish them and has not been probed; noted in `huawei_how_to_access.md` for whoever does. Behavior past four segments is untested — the integration refuses rather than finding out.
 - Suite **868 passing**, coverage **100% line and branch**, ruff and mypy strict clean, assertion audit 0 of 720.
 
-## [1.2.0-dev71] - 2026-08-19 - SMS Bodies and Sender Numbers Were Being Written to the Log
+## [1.2.0-dev71] - 2026-08-19 - SMS Payload and Sender Number Removed From Logs
 
 Raised by an external review of the README's privacy claim, and the claim was the thing that was wrong.
 
@@ -192,7 +208,7 @@ Raised by an external review of the README's privacy claim, and the claim was th
 - Shared: `dev_standards` **1.30.0** extends §20 from the diagnostics download to `_LOGGER` — never log a device payload verbatim, log its shape, and keep identifiers in the bus event rather than the line announcing it. The section's reasoning always applied; its scope had stopped at the surface that already had redaction.
 - Suite **863 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
 
-## [1.2.0-dev70] - 2026-08-19 - Every Switch Published the Value It Had Just Replaced
+## [1.2.0-dev70] - 2026-08-19 - Switch State Latch; Stale Published Position Fixed
 
 Reported from live use: pressing **WiFi**, **Guest Network** or **Mobile Data** toggled, sprang back to the old position, and stayed wrong until a refresh. In both directions, on every press.
 
@@ -212,7 +228,7 @@ The write always worked. The router always changed. The confirmation always succ
 - Shared: `dev_standards` **1.29.0** gives the latch bullet a `**Test:**` clause and its own coverage row, plus a hardware-script rule to verify what was published. Cross-project audit is chore **C-019** with `stubbed_publish_tests.md`; the static check that would ban stubbing the publish is **parked**, with reasons, in that file.
 - Suite **861 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
 
-## [1.2.0-dev65] - 2026-08-19 - The Not-Responding Repair Fired Six Polls Early
+## [1.2.0-dev65] - 2026-08-19 - Connection Repair Strike Threshold Raised to Ten
 
 Found while aligning the **Under the Hood** sections of this README against `zte_router_5g`'s. The two documents described the same Repair at different thresholds, and checking which was right showed the code was the one out of step.
 
@@ -252,7 +268,7 @@ The sensor manifest check flagged `sensor.huawei_5g_signal_lte_transmit_power` a
 - `sinr` and `nr_sinr` also carry `min_limit=-30` and are untouched — both are genuinely numeric.
 - **No tests, linting or coverage run for this change**, by instruction. The sensor manifest check should stop flagging both entities, since the declaration it objected to no longer exists.
 
-## [1.2.0-dev59] - 2026-08-19 - The Hardware Check Filed No Report
+## [1.2.0-dev59] - 2026-08-19 - Hardware Check Report Output Added
 
 The owner said plainly that he had no confidence in `scripts/hardware_check.py`, in either tier, **because it did not report out**. That was correct: it printed results to stdout and kept them in a list, and wrote nothing anywhere. No run could be examined afterwards, so every result it produced was a claim rather than evidence.
 
@@ -284,7 +300,7 @@ Two checks also turned out not to be running, and one long-standing statement ab
 - Six rules went into `dev_standards` §22 (**1.27.0**) and cross-project chore **C-018** was raised for `zte_router_5g` and `unifi_network_monitor`, both of which have the same script. `wifi_ssid_monitor` has none. **Recorded only — no work was done on any other project.**
 - Suite **848 passing**, coverage 100% line and branch, ruff and mypy strict clean.
 
-## [1.2.0-dev58] - 2026-08-18 - Coverage Is Now a Gate, Not a Readout
+## [1.2.0-dev58] - 2026-08-18 - Coverage Threshold Enforced; `fail_under = 100`
 
 Closes cross-project chore **C-007**, which had sat outstanding in every column.
 
@@ -325,7 +341,7 @@ Plan and evidence: `.notes/issues/login_lockup_202608/`, §13.
 - Suite **848 passing**, coverage **100% line and branch** (measured), ruff lint and format clean, mypy standard and strict clean, assertion audit 0 of 712, prettier and markdownlint clean.
 - **Still unverified on hardware**: the restructured `set_net_mode` read-back has not been exercised against the router since `dev56`. It is the top item for the next attended run, with `--debug`.
 
-## [1.2.0-dev56] - 2026-08-18 - Every Network-Mode Change Deadlocked the Integration
+## [1.2.0-dev56] - 2026-08-18 - Network-Mode Write Deadlock Fixed; API Recovery Added
 
 **Changing Preferred Network Mode took the integration fully offline until Home Assistant was restarted, every time.** The router remained reachable throughout — from its own web GUI, from the host, and from inside the container. Measured while wedged: TCP connect 20 ms, a fresh login 0.04 s, a fresh full poll 1.09 s across 26 blocks, container up 24 hours with no restarts. Nothing was wrong with the router, the network or the container.
 
@@ -399,7 +415,7 @@ From `sync_check_projects` 2026-08-17, items B.1 and B.2. Both are cross-project
 - **`README.md`, `ROADMAP.md` and `proj_structure.md` needed no changes.** `proj_structure.md` was reconciled against the filesystem in both directions — nothing listed that does not exist, nothing on disk missing from it. README entity counts verified at both mentions.
 - **`DEVELOPMENT.md` was thinner than the session warranted**, which is what prompted the extra pass: fourteen entries, none covering the three pitfalls above. The success patterns had been kept current; the pitfalls had not.
 
-## [1.2.0-dev52] - 2026-08-17 - Two New Tests Asserted Nothing
+## [1.2.0-dev52] - 2026-08-17 - Assertion Audit: Two Hollow Tests Given Real Assertions
 
 Caught by **Validate All → Tests: Assertion Audit**, which failed with two tests not on the allow-list. Both were added at `[1.2.0-dev47]`, in the commit whose entry says coverage was restored to 100%.
 
@@ -427,7 +443,7 @@ Caught by **Validate All → Tests: Assertion Audit**, which failed with two tes
 
 - **`sync_projects.ps1`**: Deployed updated matrices, tasks, and pre-commit configurations across all workspace integration projects.
 
-## [1.2.0-dev50] - 2026-08-17 - Client-Tracking Opt-Out Assessed; the Poll Is Cheaper Than It Looks
+## [1.2.0-dev50] - 2026-08-17 - Client-Tracking Opt-Out Assessment; Poll Cost Measured
 
 Documentation only — no code change. The `setup_cleanup_options.md` porting guide had never been assessed for this project; its three capabilities all read "Not assessed". Assessed against source, and the result is two `N/A` with reasons and one live candidate.
 
@@ -448,7 +464,7 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 - Three shared documents were corrected alongside this, outside this repository: `setup_cleanup_options.md` carries the Huawei assessment and the same measurements, worded to travel — an assessment that stops at the endpoint count will reach the wrong answer on any of the four projects. `device_registry_2026_08.md` still listed Huawei as **EXPOSED** with no `_compat.py` and predicted sub-devices detaching at HA 2027.8, closed by plan item 2 four days ago. `test_quality_metrics.md` still showed 11 partial branches and 4 zero-assertion tests outstanding, both closed by plan items 9 and 10.
 - **`1.2.0-dev48` has no entry here.** It was committed before `[1.2.0-dev47]` despite the higher number, and its own changelog edit did not include one.
 
-## [1.2.0-dev47] - 2026-08-17 - Coverage Back to 100%; the New Code Was Untested
+## [1.2.0-dev47] - 2026-08-17 - Coverage Restored to 100%; dev43 and dev46 Gaps Covered
 
 **Found while checking something else.** Verifying the `x_proj_checks` branch-coverage row meant running coverage, which reported **99%** — a standard this project had held all week. Both gaps were introduced by `[1.2.0-dev43]` and `[1.2.0-dev46]`, and neither of those entries mentions coverage, because it was never run before claiming them clean.
 
@@ -466,7 +482,7 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 - **Suite 818 → 830. Coverage 100% line and branch, 0 partial branches**, measured rather than assumed.
 - The lesson is narrow and worth keeping: two changelog entries this week asserted "ruff and mypy clean" as though that were the standard. It is not — this project's bar is 100% line and branch, and neither entry had checked it.
 
-## [1.2.0-dev46] - 2026-08-17 - The Right Mode List, Published Too Late to Be Seen
+## [1.2.0-dev46] - 2026-08-17 - Network Mode Option List Publication Ordering Fixed
 
 `[1.2.0-dev43]` made the network-mode options come from the router. They did not reach the user: the dropdown still showed nine entries through two restarts and a reload. **The list was correct in memory the whole time and was written to state before it existed.**
 
@@ -506,7 +522,7 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 - Two further findings needed no change: the `about` section already carries a table of worked examples, and the device-tracker limitation was covered by the rewrite above.
 - `1.2.0-dev44` was never committed — the version number was skipped, not a missing entry.
 
-## [1.2.0-dev43] - 2026-08-17 - The Router Was in a 5G Mode the Integration Could Not Name
+## [1.2.0-dev43] - 2026-08-17 - 5G Only Mode `08` Added to Network Mode Labels
 
 Found by the owner setting **5G Only** in the router's web interface and watching the Home Assistant select go `unknown`. One symptom, four causes.
 
@@ -594,7 +610,7 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 
 - **`README.md`**: the cleanup action cannot remove clients the router still lists, and Huawei routers retain away devices for months — they must be deleted in the router's own web interface.
 
-## [1.2.0-dev36] - 2026-08-16 - The Stored Password Is Load-Bearing
+## [1.2.0-dev36] - 2026-08-16 - API Access Reference Corrected; `vendorname` Trap Recorded
 
 ### Fixed
 
@@ -816,7 +832,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev20] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Was Being Published as an IP Token
+## [1.2.0-dev20] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Token Fixed
 
 ### Fixed
 

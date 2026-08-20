@@ -586,7 +586,8 @@ async def _toggle_and_restore(
     read: Any,
     write: Any,
     headers: dict[str, str] | None = None,
-    key: str | None = None,
+    words: tuple[str, ...] | None = None,
+    exclude: str = "",
 ) -> None:
     """Flip a boolean write, read it back, and put it back as it was.
 
@@ -609,8 +610,10 @@ async def _toggle_and_restore(
 
         # Second row, second question. The one above says the router changed;
         # this says Home Assistant told the user so.
-        if key is not None:
-            await _check_published_state(report, headers, name, key, not before)
+        if words is not None:
+            await _check_published_state(
+                report, headers, name, words, not before, exclude=exclude
+            )
     finally:
         try:
             await write(before)
@@ -704,7 +707,8 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
             lambda: _wifi_state(api),
             api.set_wifi,
             headers=headers,
-            key="wifi",
+            words=("wifi",),
+            exclude="guest",
         ),
     )
 
@@ -722,7 +726,7 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
             lambda: _mobile_data_state(api),
             api.set_mobile_data,
             headers=headers,
-            key="mobile_data",
+            words=("mobile", "data"),
         ),
     )
 
@@ -825,7 +829,7 @@ async def _check_guest_wifi(
             lambda: _guest_wifi_state(api),
             api.set_guest_wifi,
             headers=headers,
-            key="guest_wifi",
+            words=("guest",),
         )
     finally:
         if enabled_here:
@@ -973,21 +977,53 @@ def _find_entity(states: list[dict[str, Any]], domain: str, *words: str) -> str 
     return None
 
 
-def _find_switch(states: list[dict[str, Any]], key: str) -> str | None:
-    """Return the switch entity for one description key.
+def _mask_number(number: str | None) -> str:
+    """Show only the last four digits of a phone number.
 
-    Matched on `entity_id` rather than friendly name, because names are
-    translated and keys are not. `guest_wifi` also ends with `wifi`, so the
-    master WiFi switch excludes it explicitly - matching the longest key
-    instead would silently pick the wrong entity when a key is added.
+    The report already keeps the full number out of `.reports`, in the
+    gitignored detail file. The **console** had no such treatment, and a
+    terminal transcript gets pasted into a chat or an issue at least as
+    readily as a report does. Four digits is enough for an operator to
+    recognise their own SIM before confirming a charged send, which is the
+    only reason it is shown at all.
+    """
+    if not number:
+        return "unknown"
+    digits = str(number)
+    return f"...{digits[-4:]}" if len(digits) > 4 else digits
+
+
+def _find_switch(
+    states: list[dict[str, Any]],
+    *words: str,
+    exclude: str = "",
+) -> str | None:
+    """Return the switch whose friendly name carries every word in `words`.
+
+    **Matched on the name, not on the description key.** An earlier version
+    matched `entity_id.endswith("_" + key)`, which held by coincidence for
+    `wifi` and `mobile_data` and missed `guest_wifi` entirely: entity ids are
+    built from the entity's *name*, and that description is named "Guest
+    Network", so its entity is `switch.huawei_5g_wifi_guest_network`. The
+    check skipped on 2026-08-20, leaving the one switch on an open,
+    unauthenticated network unverified.
+
+    `unique_id` would be the stable link - it is `f"{entry.unique_id}_{key}"` -
+    but the entity registry is not on the REST API, and reaching for the
+    websocket to resolve one entity is more machinery than this earns. Names
+    are what `_find_entity` already uses for the select and the Refresh button.
+
+    `exclude` drops a near-match: "wifi" appears in the guest switch's name
+    too, so the master WiFi switch has to say which one it does not mean.
     """
     for state in states:
         entity_id = str(state.get("entity_id", ""))
         if not entity_id.startswith("switch."):
             continue
-        if not entity_id.endswith(f"_{key}"):
+        name = str(state.get("attributes", {}).get("friendly_name", "")).lower()
+        if not all(word in name for word in words):
             continue
-        if key == "wifi" and entity_id.endswith("_guest_wifi"):
+        if exclude and exclude in name:
             continue
         return entity_id
     return None
@@ -997,8 +1033,9 @@ async def _check_published_state(
     report: Report,
     headers: dict[str, str] | None,
     name: str,
-    key: str,
+    words: tuple[str, ...],
     expected: bool,
+    exclude: str = "",
 ) -> None:
     """Assert Home Assistant publishes what the router was just told.
 
@@ -1023,7 +1060,7 @@ async def _check_published_state(
         return
 
     states = await asyncio.to_thread(_ha_get, "/api/states", headers)
-    entity_id = _find_switch(states, key)
+    entity_id = _find_switch(states, *words, exclude=exclude)
     button_id = _find_entity(states, "button", "refresh")
     if entity_id is None or button_id is None:
         report.skip(f"{name} published", "entity or Refresh button not found")
@@ -1213,8 +1250,9 @@ async def _check_send_and_delete_sms(api: HuaweiRouter5GAPI, report: Report) -> 
         report.skip("delete_sms", "no message was sent, so there is nothing to delete")
         return
 
-    print(f"    {_dim(f'sending to the SIM own number {own!r}')}")
-    if not _confirm(f"send an SMS to {own}? (your operator may charge)"):
+    masked = _mask_number(own)
+    print(f"    {_dim(f'sending to the SIM own number {masked}')}")
+    if not _confirm(f"send an SMS to {masked}? (your operator may charge)"):
         report.skip("send_sms", "declined")
         report.skip("delete_sms", "no message was sent")
         return
