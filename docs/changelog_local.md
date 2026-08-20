@@ -5,6 +5,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.0-dev71\] - 2026-08-19 - SMS Bodies and Sender Numbers Were Being Written to the Log](#120-dev71---2026-08-19---sms-bodies-and-sender-numbers-were-being-written-to-the-log)
+  - [\[1.2.0-dev70\] - 2026-08-19 - Every Switch Published the Value It Had Just Replaced](#120-dev70---2026-08-19---every-switch-published-the-value-it-had-just-replaced)
   - [\[1.2.0-dev65\] - 2026-08-19 - The Not-Responding Repair Fired Six Polls Early](#120-dev65---2026-08-19---the-not-responding-repair-fired-six-polls-early)
   - [\[1.2.0-dev61\] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document](#120-dev61---2026-08-19---guard-bands-on-a-text-sensor-added-to-match-a-document)
   - [\[1.2.0-dev59\] - 2026-08-19 - The Hardware Check Filed No Report](#120-dev59---2026-08-19---the-hardware-check-filed-no-report)
@@ -53,11 +55,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -147,6 +149,44 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.0-dev71] - 2026-08-19 - SMS Bodies and Sender Numbers Were Being Written to the Log
+
+Raised by an external review of the README's privacy claim, and the claim was the thing that was wrong.
+
+### Fixed
+
+- **The SMS payload was logged verbatim at `debug`.** `coordinator.py` logged `data["sms_list"]` whole, and that block carries `Phone` and `Content` for every message — so a debug log held the sender's number and the full text of every SMS. It now logs the **shape**: the message count and the field names, which is what the line existed for. `parse_sms_list` has to tolerate payload variance; keys and a count diagnose that, values never did. Same pattern as `api.set_guest_wifi`, which logs `payload keys` only.
+- **The sender's number was logged at `info`.** That reaches every user's log on a default install with nothing enabled — the only personal datum that did. The line now reads `New SMS received`. Nothing is lost: the bus event still carries `phone` and `content`, which is where the README's own automation example reads them from.
+- **`README.md` said neither of these happened.** It claimed debug logs "not response payloads" and that the text of SMS messages "are not written to it", directly above a warning that log files have no redaction and an instruction on how to export one. Rewritten to state what is now true, and the sender-number caveat is gone because the behaviour is gone.
+
+### Notes
+
+- **The asymmetry is what made this worth fixing rather than documenting.** `diagnostics.py` pseudonymizes both fields — a capture reads `"Phone": "phone-1"` and `"Content": "<Content: 7 chars>"`. The log path had no redaction layer at all, and it is the one users are told to paste into an issue report.
+- **The test now guards the property, not the string.** It asserted `"Raw SMS list" in caplog.text` — which passed _because_ the dump existed. It supplies a message with a real-looking number and body, asserts the shape is present, and asserts both values are **absent**. A second test asserts the `info` line carries no number while the event still does.
+- Only that one line dumped a payload; every other `_LOGGER` call logs status, endpoint names or error text. Checked across the component.
+- Shared: `dev_standards` **1.30.0** extends §20 from the diagnostics download to `_LOGGER` — never log a device payload verbatim, log its shape, and keep identifiers in the bus event rather than the line announcing it. The section's reasoning always applied; its scope had stopped at the surface that already had redaction.
+- Suite **863 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
+
+## [1.2.0-dev70] - 2026-08-19 - Every Switch Published the Value It Had Just Replaced
+
+Reported from live use: pressing **WiFi**, **Guest Network** or **Mobile Data** toggled, sprang back to the old position, and stayed wrong until a refresh. In both directions, on every press.
+
+The write always worked. The router always changed. The confirmation always succeeded. **The switch published the pre-write value anyway.**
+
+### Fixed
+
+- **`is_on` now reads a latch, not the coordinator payload.** `confirm_write` verifies one key and **discards the block it read**, so after a confirmed write `coordinator.data` still holds the pre-write value. `async_write_ha_state()` then re-evaluated `is_on` against it and re-stamped the old position over the frontend's optimistic toggle. `_last_known` is updated on every coordinator update and set directly by a confirmed write, so the confirmed value is stored before it is published. It falls back to the payload only while unseeded, so a switch that has not yet seen a poll still reads correctly.
+- **A poll that omits the key no longer disturbs the position.** Previously it returned `None` and the switch went `unknown`.
+
+### Notes
+
+- **This was a regression, and its cause is precise.** `[1.2.0-dev23]` implemented Section 22's read-back and removed `await self.coordinator.async_force_refresh()` from all three switch write paths. That refresh had been repopulating the payload — the thing that made the publish show the new value. Nothing replaced it. `select.py` kept its refresh and was never affected; `number.py` is options-backed and sets its own value directly. Both were checked.
+- **Section 22 already required the latch** — "never render a missing key as an off/false position… latch the last reported position and hold it". This project had never implemented that bullet, which is why the same read-back works in `zte_router_5g` and failed here. The `dev_std_review` recorded §22 as `PARTIAL` for this project with exactly that reason; the value that reached the conformance matrix on 2026-08-17 was `DONE`.
+- **The new tests were proven to fail against the pre-fix code** before being kept — six failures across the three switches. They are parametrised over every device-writing switch, so a fourth switch is covered by adding a row rather than a test, and they capture what `is_on` reads **at the moment of the publish**, with the payload deliberately left stale. Asserting afterwards would miss a publish that sent the old value.
+- **`hardware_check.py` gained a published-state row per write**, additive rather than replacing the device read-back — the two answer different questions and the device one was never wrong. It forces a Refresh first, because entity state is only as fresh as the last poll and polling may be paused or on a long interval.
+- Shared: `dev_standards` **1.29.0** gives the latch bullet a `**Test:**` clause and its own coverage row, plus a hardware-script rule to verify what was published. Cross-project audit is chore **C-019** with `stubbed_publish_tests.md`; the static check that would ban stubbing the publish is **parked**, with reasons, in that file.
+- Suite **861 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
 
 ## [1.2.0-dev65] - 2026-08-19 - The Not-Responding Repair Fired Six Polls Early
 

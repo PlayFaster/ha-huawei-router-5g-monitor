@@ -678,7 +678,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         # SMS Event Logic
         if "sms_list" in data:
-            _LOGGER.debug("%s: Raw SMS list: %s", self.entry.title, data["sms_list"])
+            self._log_sms_shape(data["sms_list"])
         self._check_new_sms(data)
 
         # --- Uptime reboot-detection latches ---
@@ -769,6 +769,31 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         return data
 
+    def _log_sms_shape(self, block: Any) -> None:
+        """Log the SMS payload's shape, never its contents.
+
+        **This used to log `data["sms_list"]` verbatim.** That block carries
+        `Phone` and `Content` for every message, so a debug log held the
+        sender's number and the full text of every SMS — the same two fields
+        `diagnostics.py` deliberately pseudonymizes. A log file has no
+        redaction layer at all and is the thing users are asked to paste into
+        an issue report.
+
+        The line exists to diagnose payload-shape variance, which `parse_sms_list`
+        has to tolerate. Keys and a count answer that; values never did.
+        Same pattern as `api.set_guest_wifi`, which logs `payload keys` only.
+        """
+        messages = (block or {}).get("Messages") or {}
+        entries = messages.get("Message") or []
+        if isinstance(entries, dict):
+            entries = [entries]
+        _LOGGER.debug(
+            "%s: SMS list: %d message(s); fields: %s",
+            self.entry.title,
+            len(entries),
+            sorted(entries[0]) if entries else [],
+        )
+
     def _check_new_sms(self, data: dict[str, Any]) -> None:
         """Check for new SMS messages and fire events."""
         sms_list = parse_sms_list(data.get("sms_list"))
@@ -803,7 +828,12 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 new_messages.append(msg)
 
         for msg in new_messages:
-            _LOGGER.info("%s: New SMS from %s", self.entry.title, msg["phone"])
+            # **No sender number.** This is `info`, so it reaches every log on
+            # a default install with no debug enabled - the only personal datum
+            # that did. The bus event below carries `phone` and `content` for
+            # anything that needs them, which is where the README's own
+            # automation example reads them from.
+            _LOGGER.info("%s: New SMS received", self.entry.title)
             self.hass.bus.async_fire(
                 "huawei_router_5g_sms_received",
                 {
