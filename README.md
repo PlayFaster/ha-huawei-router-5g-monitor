@@ -37,7 +37,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [💬 SMS Actions](#-sms-actions)
   - [💡 Example Automations](#-example-automations)
   - [📥 Installation](#-installation)
-  - [🔧 Configuration](#-configuration)
+  - [📋 Configuration](#-configuration)
   - [🔩 Under the Hood - Technical Architecture](#-under-the-hood---technical-architecture)
   - [❓ FAQ \& Troubleshooting](#-faq--troubleshooting)
   - [❗ Known Limitations /❔ What's Missing?](#-known-limitations--whats-missing)
@@ -127,7 +127,7 @@ Track signal strength metrics (SINR, RSRP, RSRQ, RSSI), serving cell tower detai
 
 <br>
 
-#### 📶 Reading Your Signal Data
+### 📶 Reading Your Signal Data
 
 This integration reports a lot of signal numbers. This section explains which ones matter, what to expect, and how to compare one setup (location, config) against another.
 
@@ -238,7 +238,8 @@ Monitor daily and monthly data consumption, active session totals, and upload/do
 
 - **Monthly Data Usage**: Track your monthly download, upload and total data usage. See the [Data Usage Alert](#-data-usage-alert) example.
 - **Session Usage**: Track your download and upload for this session/connection (i.e. since last router restart).
-- **Allowance & Threshold Alerts**: Configure allowance limits and warning thresholds matching your cellular data plan.
+- **Allowance & Threshold Info**: Visibility to the allowance limits and warning thresholds you set in the router web UI.
+- **Projected Cycle Usage** (`sensor.huawei_5g_data_projected_usage`): An estimate of where you will finish the cycle at your current rate. See [Data Usage Projection](#-data-usage-projection) below.
 
 | Data Sensors | Data Diagnostics |
 | :-: | :-: |
@@ -250,7 +251,7 @@ Monitor daily and monthly data consumption, active session totals, and upload/do
 
 <br>
 
-#### 🔮 Data Usage Projections
+### 🔮 Data Usage Projection
 
 **Projected Usage** answers the question standard usage counters do not: _am I on course to stay within or exceed my allowance?_
 
@@ -385,7 +386,7 @@ This integration features **dynamic polling**, the ability to pause polling comp
 - **Pause Polling**: Switch to halt polling when you want to avoid extra network requests while managing the router's web UI. See the [Auto-Resume Polling](#-auto-resume-polling) example.
 - **Configurable Update Interval**: Dynamically adjust the scan interval (30s to 1 hour, default `180` seconds) via a number entity or automation. See the [Dynamic Polling Interval](#-dynamic-polling-interval) example.
 - **Actions Always Fetch**: Pressing **Refresh Now**, making a settings change (switch/select) or an SMS action fetches immediately **even while paused** — only scheduled polls are suppressed. See the [Morning Signal Report](#-morning-signal-report) example.
-- **Standard System Option**: Also honours Home Assistant's **System options > Enable polling for changes** toggle.
+- **Standard System Option**: Also honors Home Assistant's **System options > Enable polling for changes** toggle.
 
 ![System Configuration Controls](.github/images/huawei_5g_sensor_control_info_mini.png)
 
@@ -459,11 +460,11 @@ This integration provides **159 entities** (depending on your firmware) organize
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-### 1. Do nothing (the easy option)
+#### 1. Do nothing (the easy option)
 
 If you're simply not interested in some sensors, **you don't need to do anything — just ignore them.** The overhead is minimal (a disabled entity costs nothing; even an enabled one is just a row on a card). If in doubt, leave everything as-is.
 
-### 2. Disable sensors or sub-devices (standard Home Assistant)
+#### 2. Disable sensors or sub-devices (standard Home Assistant)
 
 Use Home Assistant's built-in visibility controls — nothing specific to this integration:
 
@@ -1532,7 +1533,7 @@ actions:
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
 </summary><br>
 
-Routers ou your ISP can update firmware without prompting, so this is often the only notice you get that the router changed.
+Routers or your ISP can update firmware without prompting, so this is often the only notice you get that the router changed.
 
 ```yaml
 alias: "Huawei Firmware: Firmware Version Changed"
@@ -1748,7 +1749,7 @@ Standard HACS custom-repository integration update behavior:
 
 <br>
 
-## 🔧 Configuration
+## 📋 Configuration
 
 ### 🔧 Initial Setup
 
@@ -1791,7 +1792,7 @@ After installation, open **Settings > Devices & Services > Huawei Router 5G Moni
 | -------- | ---------------------------------------------------------- |
 | Host     | Router IP address (change if the router's LAN IP changes). |
 | Username | Router login username.                                     |
-| Password | Admin password (update if changed on the router).          |
+| Password | Leave blank to keep the current password                   |
 | Name     | Custom prefix for all devices (default: `Huawei 5G`).      |
 
 > [!TIP]
@@ -1884,7 +1885,7 @@ Some problems need you to do something, so they are also raised in Home Assistan
 
 ### 🔐 Session Handling
 
-The router permits only one login session at a time. The integration releases its session when the config entry is unloaded, reloaded or removed.
+Huawei routers are generally tolerant of concurrent sessions, but some firmware models restrict simultaneous authenticated web sessions. The integration releases its session when the config entry is unloaded, reloaded or removed.
 
 <details>
 
@@ -1925,7 +1926,7 @@ If you log into the router's web interface, you can pause polling with the **Pau
 >
 > The entries below cover the problems that come up most often. If you are working through one and not getting to a resolution, remember that "turning it off and on again" is a cliche for a reason.
 >
-> **Reboot the router, and restart Home Assistant, before declaring failure or seeking help.** While neither is guaranteed to fix your issue, they can be are surprisingly effective.
+> **Reboot the router, and restart Home Assistant, before declaring failure or seeking help.** While neither is guaranteed to fix your issue, they can be surprisingly effective.
 
 ### 🔌 Connection & Authentication
 
@@ -1939,8 +1940,8 @@ If you log into the router's web interface, you can pause polling with the **Pau
 
 - Verify the IP address is correct (the Huawei default is usually `192.168.8.1`).
 - Confirm the username and password are correct. The username is optional and varies by model and firmware.
-  - The username and password are the same as you use to login to the router via its webUI.
-  - Username can be changed in the webUI, as well as password, so ensure you are using the current version of both.
+  - The username and password are the same as you use to log in to the router via its web UI.
+  - Username can be changed in the web UI, as well as password, so ensure you are using the current version of both.
 - Ensure the router is powered on and reachable from your Home Assistant instance.
 
 ---
