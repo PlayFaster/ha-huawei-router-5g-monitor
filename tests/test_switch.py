@@ -487,3 +487,231 @@ async def test_a_refused_wifi_write_raises_rather_than_reporting_success() -> No
     with pytest.raises(HomeAssistantError, match="Enable WiFi failed"):
         await switch.async_turn_on()
     coordinator.async_force_refresh.assert_not_awaited()
+
+
+# ---------------------------------------------------------------------------
+# What the user actually sees after a write
+#
+# Every switch below reflects router state, so each is driven through its real
+# write path and asked the only question that matters: after a confirmed write,
+# what does `is_on` report *at the moment the state is published*?
+#
+# The existing tests assert that the publish happened and, separately, that
+# `is_on` reads a hand-set payload. Both passed for a fortnight while every
+# toggle published the pre-write value, because nothing joined them. Adding a
+# fourth switch adds a row here rather than needing a new test.
+# ---------------------------------------------------------------------------
+
+_DEVICE_SWITCHES = [
+    pytest.param(
+        HuaweiMobileDataSwitch,
+        MOBILE_DATA_DESCRIPTION,
+        "set_mobile_data",
+        "mobile_dataswitch",
+        {"mobile_dataswitch": {"dataswitch": "0"}},
+        {"dataswitch": "1"},
+        id="mobile_data",
+    ),
+    pytest.param(
+        HuaweiWifiSwitch,
+        WIFI_DESCRIPTION,
+        "set_wifi",
+        "monitoring_status",
+        {"monitoring_status": {"WifiStatus": "0"}},
+        {"WifiStatus": "1"},
+        id="wifi",
+    ),
+    pytest.param(
+        HuaweiGuestWifiSwitch,
+        GUEST_WIFI_DESCRIPTION,
+        "set_guest_wifi",
+        "wlan_multi_basic_settings",
+        {
+            "wlan_multi_basic_settings": {
+                "Ssids": {
+                    "Ssid": [{"wifiisguestnetwork": "1", "WifiEnable": "0"}],
+                }
+            }
+        },
+        {"Ssids": {"Ssid": [{"wifiisguestnetwork": "1", "WifiEnable": "1"}]}},
+        id="guest_wifi",
+    ),
+]
+
+
+def _switch_under_test(
+    cls, description, setter, read_back_block, stale, mock_coordinator, entry
+):
+    """Build a switch whose coordinator payload is deliberately pre-write."""
+    api = MagicMock()
+    setattr(api, setter, AsyncMock())
+    api.read_back = AsyncMock(return_value=read_back_block)
+    mock_coordinator.api = api
+    # **The payload stays stale on purpose.** A confirmed read-back does not
+    # update it, so anything reading it publishes the old position.
+    mock_coordinator.data = stale
+
+    switch = cls(mock_coordinator, entry, description)
+    switch.hass = MagicMock()
+    return switch, api
+
+
+@pytest.mark.parametrize(
+    ("cls", "description", "setter", "endpoint", "stale", "read_back_block"),
+    _DEVICE_SWITCHES,
+)
+@pytest.mark.asyncio
+async def test_a_confirmed_write_publishes_the_new_position(
+    cls,
+    description,
+    setter,
+    endpoint,
+    stale,
+    read_back_block,
+    mock_coordinator,
+    mock_config_entry,
+):
+    """After a confirmed write the switch must report the value it just set."""
+    switch, api = _switch_under_test(
+        cls,
+        description,
+        setter,
+        read_back_block,
+        stale,
+        mock_coordinator,
+        mock_config_entry,
+    )
+
+    # Capture what `is_on` reads at the instant the state is written, which is
+    # what reaches the frontend. Asserting afterwards would miss a publish that
+    # sent the old value and was corrected later.
+    published: list[bool | None] = []
+    switch.async_write_ha_state = MagicMock(
+        side_effect=lambda: published.append(switch.is_on)
+    )
+
+    await switch.async_turn_on()
+
+    api.read_back.assert_awaited_once_with(endpoint)
+    assert published == [True], (
+        f"{description.key} published {published} - the coordinator payload is "
+        "still pre-write, so the position must come from the latch"
+    )
+    assert switch.is_on is True
+
+
+@pytest.mark.parametrize(
+    ("cls", "description", "setter", "endpoint", "stale", "read_back_block"),
+    _DEVICE_SWITCHES,
+)
+@pytest.mark.asyncio
+async def test_an_unverified_write_leaves_the_position_alone(
+    cls,
+    description,
+    setter,
+    endpoint,
+    stale,
+    read_back_block,
+    mock_coordinator,
+    mock_config_entry,
+):
+    """A read-back that cannot answer must not move the switch either way.
+
+    `None` is unverified, not failed. The write may well have applied, but
+    nothing here knows it, so the position stays where the router last put it
+    and the next poll settles it.
+    """
+    switch, api = _switch_under_test(
+        cls,
+        description,
+        setter,
+        read_back_block,
+        stale,
+        mock_coordinator,
+        mock_config_entry,
+    )
+    api.read_back = AsyncMock(return_value=None)
+    switch.async_write_ha_state = MagicMock()
+
+    await switch.async_turn_on()
+
+    assert switch.is_on is False
+    switch.async_write_ha_state.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("cls", "description", "setter", "endpoint", "stale", "read_back_block"),
+    _DEVICE_SWITCHES,
+)
+@pytest.mark.asyncio
+async def test_a_refused_write_leaves_the_position_alone(
+    cls,
+    description,
+    setter,
+    endpoint,
+    stale,
+    read_back_block,
+    mock_coordinator,
+    mock_config_entry,
+):
+    """A read-back that disagrees twice is a refusal: raise, and do not move."""
+    switch, api = _switch_under_test(
+        cls,
+        description,
+        setter,
+        read_back_block,
+        stale,
+        mock_coordinator,
+        mock_config_entry,
+    )
+    # The router keeps reporting the old value.
+    api.read_back = AsyncMock(return_value=stale[endpoint])
+    switch.async_write_ha_state = MagicMock()
+
+    with pytest.raises(HomeAssistantError):
+        await switch.async_turn_on()
+
+    assert switch.is_on is False
+    switch.async_write_ha_state.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("cls", "description", "setter", "endpoint", "stale", "read_back_block"),
+    _DEVICE_SWITCHES,
+)
+@pytest.mark.asyncio
+async def test_a_poll_missing_the_key_holds_the_last_position(
+    cls,
+    description,
+    setter,
+    endpoint,
+    stale,
+    read_back_block,
+    mock_coordinator,
+    mock_config_entry,
+):
+    """Section 22: never render a missing key as an off position.
+
+    A degraded poll that omits the block must leave the switch where the router
+    last put it, not drop it to off or to unknown.
+    """
+    switch, _api = _switch_under_test(
+        cls,
+        description,
+        setter,
+        read_back_block,
+        stale,
+        mock_coordinator,
+        mock_config_entry,
+    )
+    switch.async_write_ha_state = MagicMock()
+
+    # A good poll establishes the position...
+    mock_coordinator.data = {endpoint: read_back_block}
+    switch._handle_coordinator_update()
+    assert switch.is_on is True
+
+    # ...and a poll that drops the block entirely must not disturb it.
+    mock_coordinator.data = {}
+    switch._handle_coordinator_update()
+    assert switch.is_on is True

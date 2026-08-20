@@ -585,6 +585,8 @@ async def _toggle_and_restore(
     name: str,
     read: Any,
     write: Any,
+    headers: dict[str, str] | None = None,
+    key: str | None = None,
 ) -> None:
     """Flip a boolean write, read it back, and put it back as it was.
 
@@ -604,6 +606,11 @@ async def _toggle_and_restore(
             name,
             f"{before} -> {after}",
         )
+
+        # Second row, second question. The one above says the router changed;
+        # this says Home Assistant told the user so.
+        if key is not None:
+            await _check_published_state(report, headers, name, key, not before)
     finally:
         try:
             await write(before)
@@ -654,6 +661,9 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
     may be outside the ATTENDED tier, and nothing the register claims is
     offered may be missing from this file.
     """
+    # Read once, at the top: every write check now verifies what Home
+    # Assistant published as well as what the router holds.
+    headers = _ha_headers()
     print()
     print(_yellow("  Attended tier - each write is confirmed separately."))
     print(_dim("  Answering anything but 'y' skips. Ctrl-C also skips."))
@@ -678,7 +688,7 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
         "If the WiFi radio is off it is turned ON for this check and put back,\n"
         "because the guest SSID is gated by the radio and cannot be observed\n"
         "without it.",
-        lambda: _check_guest_wifi(api, report, radio_on),
+        lambda: _check_guest_wifi(api, report, radio_on, headers),
     )
 
     await _offer(
@@ -693,6 +703,8 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
             "set_wifi",
             lambda: _wifi_state(api),
             api.set_wifi,
+            headers=headers,
+            key="wifi",
         ),
     )
 
@@ -709,10 +721,11 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
             "set_mobile_data",
             lambda: _mobile_data_state(api),
             api.set_mobile_data,
+            headers=headers,
+            key="mobile_data",
         ),
     )
 
-    headers = _ha_headers()
     if headers is None:
         report.skip(
             "ha_contention",
@@ -778,7 +791,10 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
 
 
 async def _check_guest_wifi(
-    api: HuaweiRouter5GAPI, report: Report, radio_on: bool | None
+    api: HuaweiRouter5GAPI,
+    report: Report,
+    radio_on: bool | None,
+    headers: dict[str, str] | None,
 ) -> None:
     """Exercise the guest SSID, turning the radio on first when it is off.
 
@@ -808,6 +824,8 @@ async def _check_guest_wifi(
             "set_guest_wifi",
             lambda: _guest_wifi_state(api),
             api.set_guest_wifi,
+            headers=headers,
+            key="guest_wifi",
         )
     finally:
         if enabled_here:
@@ -953,6 +971,82 @@ def _find_entity(states: list[dict[str, Any]], domain: str, *words: str) -> str 
         if all(word in name for word in words):
             return entity_id
     return None
+
+
+def _find_switch(states: list[dict[str, Any]], key: str) -> str | None:
+    """Return the switch entity for one description key.
+
+    Matched on `entity_id` rather than friendly name, because names are
+    translated and keys are not. `guest_wifi` also ends with `wifi`, so the
+    master WiFi switch excludes it explicitly - matching the longest key
+    instead would silently pick the wrong entity when a key is added.
+    """
+    for state in states:
+        entity_id = str(state.get("entity_id", ""))
+        if not entity_id.startswith("switch."):
+            continue
+        if not entity_id.endswith(f"_{key}"):
+            continue
+        if key == "wifi" and entity_id.endswith("_guest_wifi"):
+            continue
+        return entity_id
+    return None
+
+
+async def _check_published_state(
+    report: Report,
+    headers: dict[str, str] | None,
+    name: str,
+    key: str,
+    expected: bool,
+) -> None:
+    """Assert Home Assistant publishes what the router was just told.
+
+    **The gap this closes.** Every other write check verifies the *router*, by
+    reading the value back through the API. The router was never the problem in
+    the 2026-08-19 switch defect: the write landed, the read-back confirmed it,
+    and Home Assistant published the pre-write value anyway. Four clean runs of
+    this script reported PASS on write paths that showed users the wrong state,
+    because nothing here had ever asked what the integration published.
+
+    **Additive, never a replacement.** The device row still runs and still
+    means what it meant; this is a second row answering a second question.
+
+    **The refresh is not optional.** Entity state is whatever the last poll
+    produced, and polling may be paused or on a long interval, so without
+    forcing a fetch this would read a stale entity and pass or fail on timing
+    rather than on behaviour. Refresh Now reaches the router even while Pause
+    Polling is on, by the Section 13 contract.
+    """
+    if headers is None:
+        report.skip(f"{name} published", "no Home Assistant token")
+        return
+
+    states = await asyncio.to_thread(_ha_get, "/api/states", headers)
+    entity_id = _find_switch(states, key)
+    button_id = _find_entity(states, "button", "refresh")
+    if entity_id is None or button_id is None:
+        report.skip(f"{name} published", "entity or Refresh button not found")
+        return
+
+    await asyncio.to_thread(
+        _ha_post, "/api/services/button/press", headers, {"entity_id": button_id}
+    )
+
+    want = "on" if expected else "off"
+    state = ""
+    for _ in range(HA_SETTLE_ATTEMPTS):
+        await asyncio.sleep(HA_SETTLE_POLL)
+        fresh = await asyncio.to_thread(_ha_get, f"/api/states/{entity_id}", headers)
+        state = str(fresh.get("state"))
+        if state == want:
+            break
+
+    report.record(
+        state == want,
+        f"{name} published",
+        f"{entity_id} reads {state!r} after a refresh; the router was set to {want!r}",
+    )
 
 
 async def _check_ha_contention(report: Report, headers: dict[str, str]) -> None:

@@ -134,6 +134,14 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Verifying against the device cannot see what the host logged.** The same check diffs Home Assistant's error log across itself. No debug level is needed — the outcomes that matter are logged at `WARNING` and `ERROR`; only the healthy "answered `-1`" line is `DEBUG`.
 - **A restore that records nothing cannot be audited.** Only _failed_ restores left a row, so a report showing nothing meant either a clean restore or a check that never got that far. Every restore is now a row, including the network mode, which previously told the operator to put it back by hand — a breach of Section 22's existing "restore in a `finally`" rule rather than a gap in it.
 
+### A Confirmed Write Needs Somewhere to Put Its Answer (v1.2.0-dev66)
+
+- **`confirm_write` verifies a value and discards the block it read.** It returns `True` / `False` / `None`, nothing more. So an entity whose state comes from `coordinator.data` still holds the **pre-write** payload when the confirmation succeeds — and calling `async_write_ha_state()` there re-stamps the old value over the frontend's optimistic toggle.
+- **`[1.2.0-dev23]` removed the `async_force_refresh()` that had been covering this.** The refresh repopulated the payload, which is what made the publish show the new value. The read-back that replaced it is faster and more precise and does not do that job. The comment "Publish now rather than waiting for a poll" described an intent the code no longer achieved.
+- **The fix is Section 22's own latch**, which this project had never implemented: `_last_known` on the entity, updated on every coordinator update and set directly by a confirmed write. `is_on` reads the latch and falls back to the payload only while it is unseeded. `zte_router_5g` has carried it from the start, which is why the identical read-back works there.
+- **Why the tests missed it.** They asserted `async_write_ha_state` was called, and separately that `is_on` read a hand-set payload — never the join. The publish was a `MagicMock`, so what it would have carried was unobservable. Capture it instead: `side_effect=lambda: published.append(switch.is_on)`, with the payload left pre-write.
+- **Why the hardware check missed it.** Every write check verified the **router**, which was correct throughout. Nothing asked what Home Assistant published. It now does, as a second row per write, forcing a refresh first because polling may be paused.
+
 ### Timestamp-Based SMS Tracking (v1.1.0)
 
 - **Change**: Pivoted the `_check_new_sms` logic from comparing slot indices to comparing message dates.

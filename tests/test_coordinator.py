@@ -52,13 +52,36 @@ async def test_coordinator_communication_restoration_log(
 
 
 @pytest.mark.asyncio
-async def test_coordinator_sms_debug_log(mock_hass, mock_config_entry, caplog):
-    """Test that the coordinator logs the raw SMS list at debug level."""
+async def test_the_sms_debug_log_carries_shape_and_never_contents(
+    mock_hass, mock_config_entry, caplog
+):
+    """The SMS payload's shape may be logged. Its values may not.
+
+    This asserted `"Raw SMS list" in caplog.text` until 2026-08-19, which is
+    what the coordinator did: it logged the block verbatim, so a debug log held
+    every sender number and every message body — the two fields `diagnostics.py`
+    goes out of its way to pseudonymize, in the one file that has no redaction
+    and that users are told to paste into issue reports.
+
+    Asserting the absence of the values is the point. A test for the message
+    text alone would pass again the moment someone reinstates the dump.
+    """
     mock_api = MagicMock()
     mock_api.get_data = AsyncMock(
         return_value={
             "device_information": {"DeviceName": "B535"},
-            "sms_list": {"Messages": {"Message": []}},
+            "sms_list": {
+                "Messages": {
+                    "Message": [
+                        {
+                            "Index": "40001",
+                            "Phone": "+353871234567",
+                            "Content": "meet me at the usual place",
+                            "Date": "2026-08-19 10:00:00",
+                        }
+                    ]
+                }
+            },
         }
     )
 
@@ -69,7 +92,92 @@ async def test_coordinator_sms_debug_log(mock_hass, mock_config_entry, caplog):
     caplog.set_level(logging.DEBUG)
     await coordinator._async_update_data()
 
-    assert "Raw SMS list" in caplog.text
+    # The shape is there, which is what a payload-variance problem needs.
+    assert "1 message(s)" in caplog.text
+    assert "Content" in caplog.text and "Phone" in caplog.text
+
+    # The values are not - at any level.
+    assert "+353871234567" not in caplog.text
+    assert "meet me at the usual place" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_the_sms_shape_log_counts_a_lone_message_sent_as_a_dict(
+    mock_hass, mock_config_entry, caplog
+):
+    """One message arrives as a bare dict, not a list of one.
+
+    The router collapses a single-entry list, the same shape `parse_sms_list`
+    has to tolerate. Counting it as one message rather than iterating its keys
+    is the distinction this pins.
+    """
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(
+        return_value={
+            "device_information": {"DeviceName": "B535"},
+            "sms_list": {
+                "Messages": {
+                    "Message": {
+                        "Index": "40003",
+                        "Phone": "+353871234567",
+                        "Content": "single",
+                        "Date": "2026-08-19 11:00:00",
+                    }
+                }
+            },
+        }
+    )
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+
+    caplog.set_level(logging.DEBUG)
+    await coordinator._async_update_data()
+
+    assert "1 message(s)" in caplog.text
+    assert "+353871234567" not in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_new_sms_is_announced_without_the_senders_number(
+    mock_hass, mock_config_entry, caplog
+):
+    """`info` reaches every log with nothing enabled, so it carries no identifier.
+
+    The number is in the bus event, which is where an automation reads it —
+    the README's own example uses `trigger.event.data.phone`.
+    """
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, MagicMock()
+    )
+    # Past the first-run baseline, so the next message fires an event.
+    coordinator.last_sms_timestamp = "2026-08-19 09:00:00"
+
+    caplog.set_level(logging.INFO)
+    coordinator._check_new_sms(
+        {
+            "sms_list": {
+                "Messages": {
+                    "Message": [
+                        {
+                            "Index": "40002",
+                            "Phone": "+353871234567",
+                            "Content": "bring milk",
+                            "Date": "2026-08-19 10:00:00",
+                        }
+                    ]
+                }
+            }
+        }
+    )
+
+    assert "New SMS received" in caplog.text
+    assert "+353871234567" not in caplog.text
+
+    # The event still carries what an automation needs.
+    _, args, _ = mock_hass.bus.async_fire.mock_calls[0]
+    assert args[1]["phone"] == "+353871234567"
+    assert args[1]["content"] == "bring milk"
 
 
 @pytest.mark.asyncio

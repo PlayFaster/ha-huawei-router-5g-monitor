@@ -8,7 +8,7 @@ from typing import Any
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
-from homeassistant.core import HomeAssistant
+from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
@@ -161,6 +161,62 @@ class HuaweiSwitch(
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
         self._group = description.group
 
+        # The last position the router reported, held across polls.
+        #
+        # **Section 22: never render a missing key as an off/false position,
+        # and never fall to `unknown` after a user toggles.** Reading the
+        # coordinator payload directly does both — and it also published the
+        # *old* value after a confirmed write, because `confirm_write` verifies
+        # the new value and discards the block it read. `[1.2.0-dev23]`
+        # replaced a post-write `async_force_refresh()` with that read-back;
+        # the refresh had been repopulating `coordinator.data`, so the publish
+        # that followed showed the new state. Nothing replaced it.
+        #
+        # The latch is where a confirmed write puts its answer. `zte_router_5g`
+        # has carried it since before this bug existed, which is why the same
+        # read-back works there.
+        self._last_known: bool | None = None
+
+    def _read_position(self) -> bool | None:
+        """Return the position in the current payload, or None if unreadable.
+
+        Subclasses that reflect router state override this. The base returns
+        None so a switch backed by something other than the payload — Pause
+        Polling reads `entry.options` — inherits nothing it should not.
+        """
+        return None
+
+    def _remember_position(self) -> None:
+        """Latch the payload's position, ignoring a poll that cannot say."""
+        position = self._read_position()
+        if position is not None:
+            self._last_known = position
+
+    @callback
+    def _handle_coordinator_update(self) -> None:
+        """Latch the new position before publishing it."""
+        self._remember_position()
+        super()._handle_coordinator_update()
+
+    async def async_added_to_hass(self) -> None:
+        """Seed the latch from whatever the first poll already fetched."""
+        await super().async_added_to_hass()
+        self._remember_position()
+
+    @property
+    def is_on(self) -> bool | None:
+        """Return the last position the router reported.
+
+        Falls back to the payload while the latch is unseeded, so an entity
+        that has not yet seen a poll still reads correctly rather than showing
+        `unknown` for a value the coordinator already holds. Once seeded, the
+        latch governs: it is what a confirmed write writes into, and it is what
+        holds the position when a later poll omits the key.
+        """
+        if self._last_known is not None:
+            return self._last_known
+        return self._read_position()
+
     @property
     def device_info(self) -> DeviceInfo:
         """Return device information with sub-device support."""
@@ -172,6 +228,7 @@ class HuaweiSwitch(
         extract: Callable[[dict[str, Any]], Any],
         expected: str,
         label: str,
+        new_state: bool,
     ) -> None:
         """Confirm a completed write by re-reading the one key it changed.
 
@@ -204,7 +261,12 @@ class HuaweiSwitch(
             )
 
         if confirmed is True:
-            # The device agrees. Publish now rather than waiting for a poll.
+            # The device agrees. **Store before publishing.** `is_on` reads the
+            # latch, and the coordinator payload is still the pre-write one
+            # until the next poll — publishing without this re-stamps the old
+            # value over the frontend's optimistic toggle, which is exactly the
+            # defect this argument was added to fix.
+            self._last_known = new_state
             self.async_write_ha_state()
             return
 
@@ -280,8 +342,7 @@ class HuaweiPausePollingSwitch(HuaweiSwitch):
 class HuaweiMobileDataSwitch(HuaweiSwitch):
     """Switch to enable or disable the mobile data connection."""
 
-    @property
-    def is_on(self) -> bool | None:
+    def _read_position(self) -> bool | None:
         """Return True if mobile data is enabled."""
         data = self.coordinator.data
         if not data:
@@ -324,6 +385,7 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
             lambda block: block.get("dataswitch"),
             "1" if enable else "0",
             f"{action} mobile data",
+            new_state=enable,
         )
 
 
@@ -341,8 +403,7 @@ class HuaweiWifiSwitch(HuaweiSwitch):
     the radios in both directions on a live B535.
     """
 
-    @property
-    def is_on(self) -> bool | None:
+    def _read_position(self) -> bool | None:
         """Return True if the WiFi radios are on."""
         data = self.coordinator.data
         if not data:
@@ -373,6 +434,7 @@ class HuaweiWifiSwitch(HuaweiSwitch):
             lambda block: block.get("WifiStatus"),
             "1" if enable else "0",
             f"{action} WiFi",
+            new_state=enable,
         )
 
 
@@ -384,8 +446,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
     # into long-term history.
     _unrecorded_attributes = ABOUT_UNRECORDED | frozenset({"ssid"})
 
-    @property
-    def is_on(self) -> bool | None:
+    def _read_position(self) -> bool | None:
         """Return True if guest WiFi is enabled."""
         data = self.coordinator.data
         if not data:
@@ -430,6 +491,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
             _guest_enable_flag,
             "1" if enable else "0",
             f"{action} guest WiFi",
+            new_state=enable,
         )
 
     @property
