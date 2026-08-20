@@ -35,7 +35,6 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [🔍 What You Get](#-what-you-get)
   - [🔘 Controls \& Settings](#-controls--settings)
   - [💬 SMS Actions](#-sms-actions)
-  - [📸 Screenshots](#-screenshots)
   - [💡 Example Automations](#-example-automations)
   - [📥 Installation](#-installation)
   - [🔧 Configuration](#-configuration)
@@ -77,7 +76,6 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 **🏠 Home Assistant Version:**
 
 - Minimum: Home Assistant **2024.6**
-  - Use of `entry.runtime_data` and typed `ConfigEntry[DataUpdateCoordinator]` added in HA **2024.6**.
 - Minimum Python: **3.12+** (this is built into and handled by HA, but relevant for non-standard installs).
 
 ## 🎯 Use Cases
@@ -86,8 +84,13 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - **Best Signal**: Use signal diagnostics (RSRP, SINR) to optimize the physical placement or orientation of your router. → [Morning Signal Report](#-morning-signal-report) example.
   - **Performance Tracking**: Use signal history to check whether the performance from your 5G/LTE ISP is stable or changing. → [Cell Tower Change Alert](#-cell-tower-change-alert) example.
   - **Connection Quality**: Know if your router has dropped to a lower-capability 4G/LTE only connection. → [Signal Quality Alert](#-signal-quality-alert) example.
+
 - **Data Cap Management**: Create automations to get notified when your usage crosses a threshold you set (for example, as you approach your monthly data limit) to avoid unexpected overage charges on limited 5G plans. → [Data Usage Alert](#-data-usage-alert) example.
-- **Unattended Recovery**: Reconnect the cellular session or reboot the router when the connection stops recovering on its own. → [Auto-Reconnect](#-auto-reconnect-on-prolonged-outage) and [Auto-Reboot](#-auto-reboot-on-prolonged-outage) examples.
+
+- **Presence & Local Network Control**: Automatically track when family or guest devices connect to your LAN/WLAN (`device_tracker`), monitor total active client counts, and schedule master or guest WiFi availability (e.g., enable guest WiFi for visitors or disable WiFi overnight). → [Scheduled Main & Guest WiFi Control](#-scheduled-main--guest-wifi-control) example.
+
+- **Unattended Recovery**: Reconnect the cellular session or reboot the router when the connection stops recovering on its own. → [Auto-Reconnect](#-auto-reconnect-on-prolonged-outage) and [Auto-Reboot](#-auto-reboot-on-a-prolonged-outage) examples.
+
 - **Smart SMS Gateway**: Use your router as a notification bridge; for example, forward home security alerts to your mobile phone. → [Alert on Incoming SMS](#-alert-on-incoming-sms) example.
   - ❗**Obligatory Warning**: It is _**YOUR**_ responsibility to understand whether having your Router send SMS messages is going to incur an extra charge from your ISP.
 
@@ -113,9 +116,10 @@ Track signal strength metrics (SINR, RSRP, RSRQ, RSSI), serving cell tower detai
 </summary><br>
 
 - **Detailed Signal Metrics**: SINR, RSRP, RSRQ and RSSI for both the 5G NR and the LTE anchor cell tower.
-- **RF Engineering Data**: Monitor CQI, MCS, Transmit Power, and Carrier Aggregation status. See the [Signal Quality Alert](#-signal-quality-alert) example.
-- **Frequency Tracking**: Active 5G/LTE bands, EARFCN, and uplink/downlink frequencies.
 - **Cell Tower Info**: Monitor Cell ID, eNodeB ID, PCI, and active bands. See the [Cell Tower Change Alert](#-cell-tower-change-alert) example.
+- **Connection Type**: Track Carrier Aggregation and ENDC status plus LTE and 5G bands in use. See the [Signal Quality Alert](#-signal-quality-alert) example.
+
+![Signal Sensors](.github/images/huawei_5g_signal_info.png)
 
 ---
 
@@ -149,7 +153,9 @@ This integration reports a lot of signal numbers. This section explains which on
 They move independently, and that is the point:
 
 - **Strong RSRP, poor SINR** — you are close to a busy tower. Plenty of signal, but lots of interference. Speeds disappoint despite "full bars".
-- **Weak RSRP, good SINR** — you are far out from the tower but the sector is quiet. Often perfectly usable, and sometimes faster than the first case. ![SNR vs RSRP](.github/images/huawei_5g_snr_rsrp.png)
+- **Weak RSRP, good SINR** — you are far out from the tower but the sector is quiet. Often perfectly usable, and sometimes faster than the first case.
+
+![SNR vs RSRP](.github/images/huawei_5g_snr_rsrp.png)
 
 #### What the numbers mean
 
@@ -232,20 +238,27 @@ Monitor daily and monthly data consumption, active session totals, and upload/do
 
 - **Monthly Data Usage**: Track your monthly download, upload and total data usage. See the [Data Usage Alert](#-data-usage-alert) example.
 - **Session Usage**: Track your download and upload for this session/connection (i.e. since last router restart).
-- **Daily Usage**: Track your total usage (upload + download) for today.
-- **Download & Upload Speed**: Track your upload and download speeds. Note: This is valid, but only at the instant data was fetched from the router.
-- **Billing Cycle Day** (`sensor.huawei_5g_data_billing_cycle_day`): The day of the month the router zeroes its counters. This is the router's own billing cycle and need not be the 1st — worth checking against your provider's bill.
-- **Projected Usage** (`sensor.huawei_5g_data_projected_usage`): An estimate of where you will finish the cycle at your current rate. See [Understanding the usage projection](#understanding-the-usage-projection) below.
+- **Allowance & Threshold Alerts**: Configure allowance limits and warning thresholds matching your cellular data plan.
 
 | Data Sensors | Data Diagnostics |
 | :-: | :-: |
-| ![Data Sensors](.github/images/huawei_5g_data_screen_mini.png) | ![Data Diagnostics](.github/images/huawei_5g_data_diags.png) |
+| ![Data Sensors](.github/images/huawei_5g_data_info_mini.png) | ![Data Diagnostics](.github/images/huawei_5g_data_diags.png) |
 
 ---
 
-#### Understanding the usage projection
+</details>
+
+<br>
+
+#### 🔮 Data Usage Projections
 
 **Projected Usage** answers the question standard usage counters do not: _am I on course to stay within or exceed my allowance?_
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 See the [Projected Overage Alert](#-projected-overage-alert) automation example.
 
@@ -280,6 +293,61 @@ condition:
 
 <br>
 
+### 👥 Connected Clients
+
+Monitor all connected wired and wireless devices with automated client device tracking, breakdown counters, and stale entity cleanup.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- **Client Breakdown Sensors**:
+  - **Total Connected** (`sensor.huawei_5g_clients_total_connected`): Total count of all currently active clients on your network.
+  - **WiFi Connected** (`sensor.huawei_5g_clients_wifi_connected`): Clients currently associated across all WiFi bands and SSIDs (including the guest network).
+  - **Wired Connected** (`sensor.huawei_5g_clients_wired_connected`): Clients currently connected via physical Ethernet LAN ports.
+- **Dynamic Device Trackers**: Creates individual `device_tracker` entities for every discovered LAN and WLAN device (keyed by MAC address) to track presence (`home` / `not_home`).
+- **Entity Cleanup Tools**:
+  - **Clean up Unused Entities Button** (`button.huawei_5g_clients_cleanup_unused_entities`): Immediately removes tracker entities for clients the router no longer reports.
+  - **Cleanup Service Action** (`huawei_router_5g.cleanup_unused_entities`): Programmatic cleanup with dry-run support. See [Connected Clients Management](#-connected-clients-management-clients-device) for parameter details and example usage.
+
+![Connected Clients](.github/images/huawei_5g_client_screen.png)
+
+---
+
+</details>
+
+<br>
+
+### 🛜 WiFi & Guest Network Control
+
+Toggle main WiFi, enable or disable Guest WiFi on demand, and monitor WiFi radio status.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- **Radio Controls**:
+  - **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi_network`): Turn all router WiFi radios on or off simultaneously without affecting wired LAN connections.
+  - **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Enable or disable the isolated guest wireless network on demand or via automation.
+  - See the [Scheduled Main & Guest WiFi Control](#-scheduled-main--guest-wifi-control) example.
+- **Radio & Band Status Sensors**:
+  - **WiFi Status** (`binary_sensor.huawei_5g_wifi_status`): Overall state of the WiFi subsystem.
+  - **2.4GHz Status** (`binary_sensor.huawei_5g_wifi_24g_status`): Operational state of the 2.4 GHz radio.
+  - **5GHz Status** (`binary_sensor.huawei_5g_wifi_5g_status`): Operational state of the 5 GHz radio.
+  - **Single SSID Mode** (`binary_sensor.huawei_5g_wifi_single_ssid_mode`): Reports whether band steering (combined SSID) is active.
+
+![WiFi Controls](.github/images/huawei_5g_wifi_screen.png)
+
+---
+
+</details>
+
+<br>
+
 ### 📋 Essential Router Management
 
 Reboot router hardware directly from Home Assistant and monitor data integrity with automated self-diagnostics.
@@ -290,8 +358,7 @@ Reboot router hardware directly from Home Assistant and monitor data integrity w
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- **Router Management**: Reboot button, Mobile Data toggle, and Guest WiFi controls. See the [Auto-Reboot on a Prolonged Outage](#-auto-reboot-on-prolonged-outage) example.
-- **Connected Clients**: Dynamic device tracking for every discovered LAN/WLAN client.
+- **Router Management**: Reboot button and Mobile Data toggle. See the [Auto-Reboot on a Prolonged Outage](#-auto-reboot-on-a-prolonged-outage) example.
 - **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
 - **Self-Diagnosis**: An **Integration Health** binary sensor reports if the integration is experiencing issues, including data fetches that _succeeded_ but return nothing usable. See [Self-Diagnosis](#-self-diagnosis) and the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
 
@@ -320,7 +387,7 @@ This integration features **dynamic polling**, the ability to pause polling comp
 - **Actions Always Fetch**: Pressing **Refresh Now**, making a settings change (switch/select) or an SMS action fetches immediately **even while paused** — only scheduled polls are suppressed. See the [Morning Signal Report](#-morning-signal-report) example.
 - **Standard System Option**: Also honours Home Assistant's **System options > Enable polling for changes** toggle.
 
-![System Configuration Controls](.github/images/huawei_5g_sensor_control_info.png)
+![System Configuration Controls](.github/images/huawei_5g_sensor_control_info_mini.png)
 
 ---
 
@@ -364,7 +431,7 @@ This integration provides **159 entities** (depending on your firmware) organize
 >
 > **Not sure what a sensor does?** Most entities carry a short built-in **About** note. Click the sensor to open it, use the **⋮ (three-dots) menu → Details**, and look for the **`about`** attribute — a one-line explanation of that sensor.
 >
-> ![About Attribute Example](.github/images/huawei_5g_data_info_mini.png)
+> ![About Attribute Example](.github/images/huawei_5g_about_attribute.png)
 >
 > That is where the acronyms are decoded: **RSRP**, **RSRQ**, **SINR**, **PCI**, **eNodeB**, **ENDC**, **APN** and the rest each explain themselves in place, so you do not have to look them up to read your own dashboard.
 >
@@ -413,7 +480,7 @@ Typical cases:
 
 Disabled entities stay in the registry (greyed out) and can be re-enabled any time. This hides them from your UI; the integration still polls as normal.
 
-![Signal Sensors](.github/images/huawei_5g_signal_info.png)
+![Signal Sensors](.github/images/huawei_5g_disable_device.png)
 
 ---
 
@@ -518,7 +585,7 @@ Several settings are exposed as control entities so you can drive them from dash
 
 | System Configuration | System Control |
 | :-: | :-: |
-| ![System Configuration](.github/images/huawei_5g_system_config_with_led.png) | ![System Control](.github/images/huawei_5g_system_controls.png) |
+| ![System Configuration](.github/images/huawei_5g_system_config.png) | ![System Control](.github/images/huawei_5g_system_controls.png) |
 
 ---
 
@@ -535,6 +602,8 @@ Several settings are exposed as control entities so you can drive them from dash
 </summary><br>
 
 - **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware.
+
+![System Config with Dropdown](.github/images/huawei_5g_system_config_dropdown.png)
 
 | Selector value | Router web page | Meaning |
 | :-- | :-- | :-- |
@@ -564,6 +633,8 @@ Several settings are exposed as control entities so you can drive them from dash
 
 - **Master WiFi Switch** (`switch.huawei_5g_wifi_wifi_network`): Toggle the router's WiFi on or off.
 - **Guest WiFi Switch** (`switch.huawei_5g_wifi_guest_network`): Toggle the guest wireless network on or off.
+
+![WiFi Screen](.github/images/huawei_5g_wifi_screen.png)
 
 ---
 
@@ -603,6 +674,8 @@ data:
 > [!NOTE]
 >
 > This only removes entities for clients your **router** has already dropped. Huawei routers keep away devices listed for months, and those are reported as long as they remain. To clear them, delete them in the router's own web interface, _then_ use this action.
+
+![WiFi Screen](.github/images/huawei_5g_action_clean_up.png)
 
 ---
 
@@ -655,8 +728,8 @@ There is also an SMS received event and four SMS actions to **send, read and del
 >
 > | Message contains | Fits in one SMS | Maximum accepted |
 > | :-- | :-- | :-- |
-> | Only standard characters (letters, digits, common punctuation) | **160** | **765** |
-> | Any emoji, curly quote, or other special character | **70** | **335** |
+> | Only standard characters (letters, digits, common punctuation) | **160** | **612** |
+> | Any emoji, curly quote, or other special character | **70** | **268** |
 >
 > A single special character changes the encoding for the **whole** message, which is why the second row is so much shorter. Longer messages are split into parts by the router and reassembled by the receiving phone, so they arrive as one message - but **your carrier charges for each part**. A 200-character plain-text alert is 2 parts; the same text with one emoji is 3.
 >
@@ -709,10 +782,8 @@ Fetch a list of SMS messages. Supports **Action Responses** — use the output d
 ```yaml
 action: huawei_router_5g.get_sms_list
 data:
-  entry_id: <your_config_entry_id>
-  count: 50
+  count: 20
   box_type: 1
-response_variable: inbox
 response_variable: inbox
 ```
 
@@ -742,7 +813,6 @@ Delete a single SMS by its storage index. Use the `index` field from `get_sms_li
 ```yaml
 action: huawei_router_5g.delete_sms
 data:
-  entry_id: <your_config_entry_id>
   index: 3
 ```
 
@@ -772,7 +842,6 @@ data:
 ```yaml
 action: huawei_router_5g.delete_all_sms
 data:
-  entry_id: <your_config_entry_id>
   keep_last: 2
 ```
 
@@ -811,24 +880,6 @@ See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
 </details>
 
 <br>
-
-## 📸 Screenshots
-
-### Integration Overview
-
-![Integration](.github/images/huawei_5g_integration_screen_mini.png)
-
-| Signal | System |
-| :-: | :-: |
-| ![Signal](.github/images/huawei_5g_signal_info.png) | ![System](.github/images/huawei_5g_sensor_control_info.png) |
-
-| Data | SMS |
-| :-: | :-: |
-| ![Data](.github/images/huawei_5g_data_info_mini.png) | ![SMS](.github/images/huawei_5g_sms_info.png) |
-
-| Setup | Clients |
-| :-: | :-: |
-| ![Setup](.github/images/huawei_5g_setup_info.png) | ![Clients](.github/images/huawei_5g_device_info_mini.png) |
 
 ## 💡 Example Automations
 
@@ -895,7 +946,7 @@ triggers:
       baseline, so a restart never replays your whole inbox into this
       automation.
 actions:
-  - action: notify.mobile_app_your_phone
+  - action: persistent_notification.create
     data:
       title: "New SMS from {{ trigger.event.data.phone }}"
       message: "{{ trigger.event.data.content }}"
@@ -972,7 +1023,6 @@ triggers:
 actions:
   - action: huawei_router_5g.get_sms_list
     data:
-      entry_id: <your_config_entry_id>
       count: 50
     response_variable: inbox
     note: |
@@ -980,7 +1030,7 @@ actions:
       Recent Msg sensor, so it keeps working even if the SMS entities
       are disabled - and it returns the full message list, which is
       far too bulky to hold as a sensor attribute.
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       message: |
         You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') |
@@ -994,8 +1044,6 @@ actions:
 ---
 
 </details>
-
-<br>
 
 ### 📡 Connection, Data & Signal Automations
 
@@ -1023,7 +1071,7 @@ triggers:
     above: 500
     note: "Triggers when monthly total crosses 500 GB."
 actions:
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei Data: High Usage Alert"
       message: |
@@ -1040,8 +1088,6 @@ actions:
 ---
 
 </details>
-
-<br>
 
 #### 🔮 Projected Overage Alert
 
@@ -1077,7 +1123,7 @@ conditions:
       Skips early cycle days when the projection baseline is too
       short and swings widely.
 actions:
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei Data: Projected to Exceed Allowance"
       message: |
@@ -1086,7 +1132,7 @@ actions:
         (confidence: {{ state_attr('sensor.huawei_5g_data_projected_usage', 'confidence') }}).
     note: |
       Including the confidence level in the message tells you how
-      much weight to give the warning without opening the entity.
+      much weight to give the warning.
 ```
 
 ---
@@ -1112,14 +1158,10 @@ triggers:
       - binary_sensor.huawei_5g_signal_best_connection
     to: "off"
     from: "on"
-    not_from:
-      - "unknown"
-      - "unavailable"
     for: "00:05:00"
     note: |
       Best Connection is on when the router has optimal 5G ENDC
-      and LTE active. not_from suppresses transitions coming directly
-      out of unknown or unavailable states during startup.
+      and LTE active.
   - trigger: numeric_state
     entity_id:
       - sensor.huawei_5g_signal_5g_signal_bars
@@ -1155,7 +1197,7 @@ conditions:
       if the poor signal persists when the action runs, filtering out
       momentary flickers.
 actions:
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Poor Signal Quality Detected"
       message: |
@@ -1174,8 +1216,6 @@ actions:
 
 </details>
 
-<br>
-
 #### 📻 Cell Tower Change Alert
 
 <details>
@@ -1185,8 +1225,8 @@ actions:
 </summary><br>
 
 ```yaml
-alias: "Huawei Signal: Serving Cell Tower Changed"
-description: "Notifies when the router attaches to a different cellular tower"
+alias: "Huawei Signal: Serving Cell Changed"
+description: "Notifies when the router attaches to a different cell tower"
 mode: single
 triggers:
   - trigger: state
@@ -1198,11 +1238,11 @@ triggers:
       - "unknown"
       - "unavailable"
     note: |
-      Fires only when the serving cell ID changes to another
-      valid cell ID, ignoring unknown or unavailable transitions
-      during restarts.
+      Fires only when the serving cell ID changes to another valid
+      cell ID, ignoring unknown or unavailable transitions during
+      restarts or connection blips.
 actions:
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei: Serving Cell Tower Changed"
       message: |
@@ -1220,13 +1260,86 @@ actions:
 
 <br>
 
+#### 🛜 Scheduled Main & Guest WiFi Control
+
+<details>
+
+<summary> &nbsp; &nbsp; Automatically schedule master WiFi and guest network availability across different times of the day.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
+</summary><br>
+
+```yaml
+alias: "Huawei WiFi: Scheduled Main and Guest WiFi"
+description: "Turns main WiFi off at 11pm and on at 6am, and enables guest WiFi between 6pm and 1am"
+mode: single
+triggers:
+  - trigger: time
+    at: "06:00:00"
+    id: main_wifi_on
+    note: Restores primary WiFi in the morning for household devices.
+  - trigger: time
+    at: "18:00:00"
+    id: guest_wifi_on
+    note: Enables the guest network automatically for evening visitors.
+  - trigger: time
+    at: "23:00:00"
+    id: main_wifi_off
+    note: Disables main WiFi overnight; wired Ethernet connections stay active.
+  - trigger: time
+    at: "01:00:00"
+    id: guest_wifi_off
+    note: Turns guest network off late night to prevent unmonitored access.
+actions:
+  - choose:
+      - conditions:
+          - condition: trigger
+            id: main_wifi_on
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.huawei_5g_wifi_wifi_network
+            note: Turns master WiFi radios back on across all configured bands.
+      - conditions:
+          - condition: trigger
+            id: guest_wifi_on
+        sequence:
+          - action: switch.turn_on
+            target:
+              entity_id: switch.huawei_5g_wifi_guest_network
+            note: Enables the guest SSID independently without changing main WiFi.
+      - conditions:
+          - condition: trigger
+            id: main_wifi_off
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.huawei_5g_wifi_wifi_network
+            note: |
+              Turns off all WiFi radios. Note that switching the master
+              radio off also disables guest broadcasting until turned back on.
+      - conditions:
+          - condition: trigger
+            id: guest_wifi_off
+        sequence:
+          - action: switch.turn_off
+            target:
+              entity_id: switch.huawei_5g_wifi_guest_network
+            note: Disables the guest SSID.
+```
+
+---
+
+</details>
+
+<br>
+
 ### 🩺 System Health & Connectivity Alerts
 
 #### 🩺 Integration Health Problem Alert
 
 <details>
 
-<summary> &nbsp; &nbsp; Be alerted when the integration's self-checks detect a persistent fault or contract drift in router API responses.<br>
+<summary> &nbsp; &nbsp; Be alerted when the integration's self-checks detect a persistent fault or change in router API responses.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
 </summary><br>
 
@@ -1246,7 +1359,7 @@ triggers:
       The 10-minute buffer ensures transient timeouts or router
       reboots do not generate false alarms.
 actions:
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei Router Monitor needs attention"
       message: |
@@ -1259,11 +1372,13 @@ actions:
       degraded_capabilities, drift, repairs, and consecutive_failures.
 ```
 
+> [!TIP]
+>
+> To alert only on the serious cases and ignore ordinary connectivity blips, add a condition on the `severity` attribute: `{{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'severity') == 'warning' }}` fires only for a suspected firmware API change, which is the condition that also raises a Repair.
+
 ---
 
 </details>
-
-<br>
 
 #### 🔄 Router Reboot Alert
 
@@ -1281,27 +1396,24 @@ triggers:
   - trigger: state
     entity_id: sensor.huawei_5g_system_uptime
     not_from:
-      - "unknown"
-      - "unavailable"
+      - unknown
+      - unavailable
     not_to:
-      - "unknown"
-      - "unavailable"
+      - unknown
+      - unavailable
     note: |
       Fires when the boot timestamp shifts, ignoring state dropouts
       caused by Home Assistant restarts or temporary disconnects.
 actions:
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei Router Rebooted"
       message: "The router has rebooted. System Uptime: {{ states('sensor.huawei_5g_system_uptime') }}"
-    note: Swap in notify.mobile_app_your_phone to receive this on mobile.
 ```
 
 ---
 
 </details>
-
-<br>
 
 #### 🔁 Auto-Reconnect on Prolonged Outage
 
@@ -1339,7 +1451,7 @@ actions:
   - delay:
       minutes: 5
     note: Allows 5 minutes for the modem to re-attach before reporting.
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei Router Auto-Reconnected"
       message: "Cellular data session re-established after a 15-minute outage."
@@ -1351,7 +1463,7 @@ actions:
 
 <br>
 
-#### 🔄 Auto-Reboot on Prolonged Outage
+#### 🔁 Auto-Reboot on a Prolonged Outage
 
 <details>
 
@@ -1379,19 +1491,16 @@ triggers:
       minutes: 30
     note: |
       Deliberately long. Mobile networks drop and re-establish
-      routinely, and a reboot costs several minutes of downtime — so
-      this should only fire for an outage that has clearly stopped
-      resolving itself. not_from suppresses transitions from unknown
-      or unavailable.
+      routinely, so this should only fire for an outage that
+      has clearly stopped resolving itself.
+      not_from suppresses transitions from unknown or unavailable.
 conditions:
   - condition: state
     entity_id: binary_sensor.huawei_5g_system_integration_health
     state: "off"
     note: |
       Cross-check against the integration's own health verdict. Health
-      being off means polling is succeeding, so "off" is trustworthy
-      live data rather than a stale value held while fetches fail —
-      in which case rebooting would treat the wrong problem.
+      being off means polling is succeeding.
 actions:
   - action: button.press
     target:
@@ -1403,7 +1512,7 @@ actions:
       Holding the automation open for 10 minutes with mode: single
       means it cannot re-trigger while the router is still coming back
       up.
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei Router Rebooted Automatically"
       message: |
@@ -1415,8 +1524,6 @@ actions:
 
 </details>
 
-<br>
-
 #### 🧩 Firmware Change Notification
 
 <details>
@@ -1424,6 +1531,8 @@ actions:
 <summary> &nbsp; &nbsp; Know when the router's firmware has been updated.<br>
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Automation Detail:
 </summary><br>
+
+Routers ou your ISP can update firmware without prompting, so this is often the only notice you get that the router changed.
 
 ```yaml
 alias: "Huawei Firmware: Firmware Version Changed"
@@ -1453,8 +1562,6 @@ actions:
 ---
 
 </details>
-
-<br>
 
 ### 🔄 Polling Control Automations
 
@@ -1491,9 +1598,7 @@ actions:
 
 </details>
 
-<br>
-
-#### 🔄 Dynamic Polling Interval (Time of Day)
+#### 🔄 Dynamic Polling Interval
 
 <details>
 
@@ -1528,7 +1633,7 @@ actions:
             note: |
               Poll every 60 seconds. Changing the interval applies immediately
               without reloading the integration, so no entity becomes briefly
-              unavailable — and it also forces one fetch straight away.
+              unavailable - and it also forces one fetch straight away.
       - conditions:
           - condition: trigger
             id: "night"
@@ -1538,12 +1643,10 @@ actions:
               entity_id: number.huawei_5g_system_polling_interval
             data:
               value: 900
-            note: Poll every 15 minutes overnight to save database space.
+            note: |
+              Poll every 15 minutes. Use the Pause Polling switch instead if
+              you want no polling at all rather than less of it.
 ```
-
----
-
-</details>
 
 ---
 
@@ -1569,12 +1672,11 @@ actions:
     target:
       entity_id: button.huawei_5g_system_refresh_now
     note: |
-      Refresh Now fetches immediately even if Pause Polling is
-      on — explicit user actions always reach the router.
+      Refresh Now fetches immediately even if Pause Polling is on.
   - delay:
       seconds: 15
     note: Allows coordinator fetch to finish before reading states.
-  - action: notify.persistent_notification
+  - action: persistent_notification.create
     data:
       title: "Huawei Morning Router Report"
       message: |
@@ -1654,7 +1756,7 @@ Setup is handled entirely via the UI under **Settings > Devices & Services > Add
 
 You will need the same details that you use for the router's web UI:
 
-- **Host** — Router IP Address (e.g., 192.168.0.1)
+- **Host** — Router IP Address (e.g., 192.168.8.1)
 - **Username** — Optional. Leave blank unless your router's web page asks for one.
 - **Password** — Admin password for the router web interface, required.
 - **Name** — Custom prefix for all devices and entities (default: `Huawei 5G`). This determines entity IDs — e.g. the default produces `sensor.huawei_5g_data_month_total`. Change this if you have multiple routers or prefer a different naming scheme.
@@ -1696,7 +1798,7 @@ After installation, open **Settings > Devices & Services > Huawei Router 5G Moni
 >
 > Changing Name on the Reconfigure screen will change the name of the Huawei devices the integration provides, but will not change the individual sensor entity names. This only happens at set-up, not reconfigure.
 
-![Reconfigure Screen](.github/images/huawei_5g_setup_info.png)
+![Reconfigure Screen](.github/images/huawei_5g_reconfig_screen.png)
 
 ---
 
@@ -1724,6 +1826,8 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
   3. **Third failure** — **Integration Health** turns on, one cycle before anything disappears.
   4. **Fourth failure** — entities are marked `Unavailable` and an error is logged.
 - **Auto-Recovery**: Once the router is back online, the integration restores all entities automatically.
+- **Forced Refresh Always Fetches**: Every explicit action — **Refresh Now**, changing a setting, deleting an SMS — fetches immediately **even while Pause Polling is on**. Only scheduled polls respect the pause.
+- **Polling Loop**: Fetches twenty-six endpoints per cycle, each independent — one that fails costs only the entities it feeds.
 - **Connection Rebuild**: A poll that times out discards its connection, so the next attempt starts a fresh one rather than reusing a stale session.
 - **Which end is at fault**: After the strike budget is spent, the integration tries one call on a brand-new connection. If that answers while the established session keeps failing, the fault is its own — it says so in the log and in the Integration Health sensor, instead of reporting a working router as unreachable.
 - **Partial polls**: A round of endpoint reads that overruns its budget returns what it collected rather than being discarded, so one slow capability costs that capability and not the whole update.
@@ -1780,7 +1884,7 @@ Some problems need you to do something, so they are also raised in Home Assistan
 
 ### 🔐 Session Handling
 
-The integration maintains active sessions with the router's HiLink web API and automatically manages session lifecycle and token refreshing.
+The router permits only one login session at a time. The integration releases its session when the config entry is unloaded, reloaded or removed.
 
 <details>
 
@@ -1788,7 +1892,7 @@ The integration maintains active sessions with the router's HiLink web API and a
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-The integration releases its session when the config entry is unloaded, reloaded or removed. If you log into the router's web interface, you can pause polling with the **Pause Polling** switch to avoid session contention. If a request fails due to an expired token, the integration automatically re-authenticates on the next attempt.
+If you log into the router's web interface, you can pause polling with the **Pause Polling** switch to avoid session contention. If a request fails because the session expired, the integration logs back in and retries it immediately, so the action still completes.
 
 ---
 
@@ -1819,9 +1923,9 @@ The integration releases its session when the config entry is unloaded, reloaded
 
 > [!TIP]
 >
-> The entries below cover the problems that come up most often. If you are working through one and not getting to a resolution, remember that "turning it off and on again" is a cliché for a reason.
+> The entries below cover the problems that come up most often. If you are working through one and not getting to a resolution, remember that "turning it off and on again" is a cliche for a reason.
 >
-> **Reboot the router, and restart Home Assistant, before declaring failure or seeking help.** Neither is guaranteed to fix your issue, and both are surprisingly effective.
+> **Reboot the router, and restart Home Assistant, before declaring failure or seeking help.** While neither is guaranteed to fix your issue, they can be are surprisingly effective.
 
 ### 🔌 Connection & Authentication
 
@@ -1908,7 +2012,22 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 
 </details>
 
-<br>
+#### 🔨 **A "Router is not responding" Repair has appeared**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- This means the integration failed to reach the router **10 times in a row**, so the problem is not resolving on its own. This is not due to a reboot or a brief glitch.
+- Work through the checks in the Repair itself, in order: power-cycle the router; check whether its IP address has changed (the Repair names the address currently configured, so you can compare); check whether the router's password was changed; check the network path between Home Assistant and the router.
+- If the address or the password has changed, use **Reconfigure** on the integration to update it. A static DHCP reservation for the router prevents the address changing again.
+- The Repair clears itself as soon as the router answers.
+
+---
+
+</details>
 
 #### 🛑 **All sensors showing "Unavailable" or "Unknown"**
 
@@ -1973,13 +2092,13 @@ Logs are then visible under **Settings > System > Logs** (click **Load Full Logs
 >
 > **Log files have NO redaction of any kind.** Nothing is stripped or pseudonymized, unlike the diagnostics file above. Review a log before pasting it anywhere.
 >
-> At `debug` this integration logs status messages, error text and the names of failing endpoints — not response payloads — so your password, session token and the **text** of your SMS messages are not written to it. Two things **can** appear: your **router's host or IP**, because HTTP error messages quote the request URL, and the **sender's number of an incoming SMS**, which is recorded at `info` level and so is present even if you never enable debug logging. The diagnostics file above removes both. Other integrations logging alongside it are another matter entirely.
+> At `debug` this integration logs status messages, error text, the names of failing endpoints and the **shape** of a response — field names and counts — never the values. Your password, your session token, the **text** of your SMS messages and the **sender's number** are **not** written to it at any level. One thing **can** appear: your **router's host or IP**, because HTTP error messages quote the request URL. The diagnostics file above removes it.
 
 ---
 
 </details>
 
-#### 🔄 **I deleted and re-added the integration for a fresh start — why did my settings and history come back?**
+#### 🔄 **I deleted and re-added the integration for a fresh start - why did my settings and history come back?**
 
 <details>
 
