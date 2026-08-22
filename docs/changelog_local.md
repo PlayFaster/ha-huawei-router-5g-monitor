@@ -5,7 +5,9 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.0\] - 2026-08-16 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health](#120---2026-08-16---release---new-entities-projected-data-use-wifi-switch-reconnect-button-integration-health)
+  - [\[1.2.1-dev2\] - 2026-08-22 - CI Bump .github PHACC; HA Compatibility; tasks.json](#121-dev2---2026-08-22---ci-bump-github-phacc-ha-compatibility-tasksjson)
+  - [\[1.2.1-dev1\] - 2026-08-20 - CI Bump Ruff](#121-dev1---2026-08-20---ci-bump-ruff)
+  - [\[1.2.0\] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health](#120---2026-08-20---release---new-entities-projected-data-use-wifi-switch-reconnect-button-integration-health)
   - [\[1.2.0-dev77\] - 2026-08-20 - Hardware Check Entity Matching Fixed; SIM Number Masked](#120-dev77---2026-08-20---hardware-check-entity-matching-fixed-sim-number-masked)
   - [\[1.2.0-dev73\] - 2026-08-19 - Send-SMS Length Limits Made Encoding-Aware](#120-dev73---2026-08-19---send-sms-length-limits-made-encoding-aware)
   - [\[1.2.0-dev71\] - 2026-08-19 - SMS Payload and Sender Number Removed From Logs](#120-dev71---2026-08-19---sms-payload-and-sender-number-removed-from-logs)
@@ -153,6 +155,18 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.1-dev2] - 2026-08-22 - CI Bump .github PHACC; HA Compatibility; tasks.json
+
+### Bumps
+
+- **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.12 to v2.0.14
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.355 to 0.13.356
+
+### Changed
+
+- **HA COmpatibility**: Updated `ha_compatibility.md`to list the Home Assistant version/API compatibility of the project.
+- **tasks.json**: Updated `tasks.json` with in-line comments to say edit source not the clone.
+
 ## [1.2.1-dev1] - 2026-08-20 - CI Bump Ruff
 
 ### Bumps
@@ -213,7 +227,7 @@ Both findings come from the owner's attended hardware run on 2026-08-20. The run
 
 - **`set_guest_wifi published` skipped with "entity or Refresh button not found".** `_find_switch` matched `entity_id.endswith("_" + key)`, and **entity ids are built from the entity's name, not its description key**. `guest_wifi` is named "Guest Network", so the entity is `switch.huawei_5g_wifi_guest_network` and the match failed. It held for `wifi` and `mobile_data` by coincidence, which is why the flaw shipped. The check skipped honestly rather than passing wrongly, but the effect was that **the one switch on an open, unauthenticated network was the only one whose published state went unverified**.
 - **Matched on friendly name instead**, which is what `_find_entity` already does for the select and the Refresh button. `exclude="guest"` handles the one real collision, since "wifi" appears in the guest switch's name too. Verified against the live instance: all three switches now resolve, including `switch.huawei_5g_wifi_guest_network`.
-- **The SIM's own number is masked to its last four digits on the console.** The report has handled this correctly since the split — the full number goes to the gitignored detail file and `.reports` shows `[withheld]` — but the console printed it in full, twice: the "sending to" line and the confirmation prompt. A terminal transcript is pasted into a chat or an issue at least as readily as a report is. Four digits is enough to recognise your own SIM before confirming a charged send, which is the only reason it is shown; the detail report still records the full number.
+- **The SIM's own number is masked to its last four digits on the console.** The report has handled this correctly since the split — the full number goes to the gitignored detail file and `.reports` shows `[withheld]` — but the console printed it in full, twice: the "sending to" line and the confirmation prompt. A terminal transcript is pasted into a chat or an issue at least as readily as a report is. Four digits is enough to recognize your own SIM before confirming a charged send, which is the only reason it is shown; the detail report still records the full number.
 
 ### Notes
 
@@ -880,7 +894,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Notes
 
-- `testing_deeper_lev1_review` produced **two** findings and that is the right answer. Most candidates dissolved on inspection: the strike budget is already driven to its limit and past it, the auth retry-once path is covered in `test_reliability_ext.py`, both session-expiry codes are parametrised, and paused-on-the-very-first-poll — the permutation most likely to be missed — was already covered. Both surviving findings are in `coordinator.py`, the one module in the mutation scope that produced no verdicts, so nothing mechanical was ever going to find them.
+- `testing_deeper_lev1_review` produced **two** findings and that is the right answer. Most candidates dissolved on inspection: the strike budget is already driven to its limit and past it, the auth retry-once path is covered in `test_reliability_ext.py`, both session-expiry codes are parametrized, and paused-on-the-very-first-poll — the permutation most likely to be missed — was already covered. Both surviving findings are in `coordinator.py`, the one module in the mutation scope that produced no verdicts, so nothing mechanical was ever going to find them.
 - The review's findings are appended to the same `recommendations_20260815.md` the mutation pass wrote, as Part 2. Overwriting would have destroyed the mutation record and a new filename would have been invisible to `testing_deeper_lev1_implement`, which resolves the path from a date alone.
 - **Suite 682 → 683**, 100% line and branch coverage, 0 partial branches, assertion audit PASSED, ruff and `mypy --strict` clean.
 
@@ -1003,7 +1017,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Notes
 
-- **Declines in two cases.** While polling is paused, because a timer the user did not start is background polling — the write still happens, only the follow-up is suppressed. And when the delay would land after the next scheduled poll, which generalises "only if the interval is greater than a minute".
+- **Declines in two cases.** While polling is paused, because a timer the user did not start is background polling — the write still happens, only the follow-up is suppressed. And when the delay would land after the next scheduled poll, which generalizes "only if the interval is greater than a minute".
 - Routes through `async_force_refresh`, so pausing between the press and the timer does not swallow it. A second press replaces the pending refresh rather than queueing another, and unload cancels it before the logout.
 
 ---
@@ -1057,7 +1071,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Added
 
-- `docs/huawei_how_to_access.md` — organised by library endpoint, since this integration never speaks HTTP to the router. Records what is polled, what is readable and unused, what the hardware refuses, and the field formats that mislead.
+- `docs/huawei_how_to_access.md` — organized by library endpoint, since this integration never speaks HTTP to the router. Records what is polled, what is readable and unused, what the hardware refuses, and the field formats that mislead.
 
 ### Notes
 
