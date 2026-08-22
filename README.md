@@ -40,7 +40,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [📋 Configuration](#-configuration)
   - [🔩 Under the Hood - Technical Architecture](#-under-the-hood---technical-architecture)
   - [❓ FAQ \& Troubleshooting](#-faq--troubleshooting)
-  - [❗ Known Limitations /❔ What's Missing?](#-known-limitations--whats-missing)
+  - [❗ Known Limitations / ❔ What's Missing?](#-known-limitations---whats-missing)
   - [❌ Removal](#-removal)
   - [📝 Maintenance Status](#-maintenance-status)
   - [🤝 Contributors \& Acknowledgements](#-contributors--acknowledgements)
@@ -478,6 +478,7 @@ Typical cases:
 - If you never use the Router's SMS, you may not care about the **SMS** sensors.
 - Not interested in data usage? You may not need the **Data** sub-device.
 - Not monitoring **signal metrics**? You may have no use for the **Signal** sub-device.
+- … and so on.
 
 Disabled entities stay in the registry (greyed out) and can be re-enabled any time. This hides them from your UI; the integration still polls as normal.
 
@@ -908,7 +909,7 @@ See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
 Replace
 
 ```yaml
-action: persistent_notification.create
+action: notify.persistent_notification
 ```
 
 with
@@ -947,7 +948,7 @@ triggers:
       baseline, so a restart never replays your whole inbox into this
       automation.
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "New SMS from {{ trigger.event.data.phone }}"
       message: "{{ trigger.event.data.content }}"
@@ -1031,7 +1032,7 @@ actions:
       Recent Msg sensor, so it keeps working even if the SMS entities
       are disabled - and it returns the full message list, which is
       far too bulky to hold as a sensor attribute.
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       message: |
         You have {{ inbox.messages | selectattr('phone', 'search', 'MY_BANK') |
@@ -1072,7 +1073,7 @@ triggers:
     above: 500
     note: "Triggers when monthly total crosses 500 GB."
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Data: High Usage Alert"
       message: |
@@ -1124,7 +1125,7 @@ conditions:
       Skips early cycle days when the projection baseline is too
       short and swings widely.
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Data: Projected to Exceed Allowance"
       message: |
@@ -1198,7 +1199,7 @@ conditions:
       if the poor signal persists when the action runs, filtering out
       momentary flickers.
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Poor Signal Quality Detected"
       message: |
@@ -1243,7 +1244,7 @@ triggers:
       cell ID, ignoring unknown or unavailable transitions during
       restarts or connection blips.
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei: Serving Cell Tower Changed"
       message: |
@@ -1360,7 +1361,7 @@ triggers:
       The 10-minute buffer ensures transient timeouts or router
       reboots do not generate false alarms.
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Router Monitor needs attention"
       message: |
@@ -1406,7 +1407,7 @@ triggers:
       Fires when the boot timestamp shifts, ignoring state dropouts
       caused by Home Assistant restarts or temporary disconnects.
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Router Rebooted"
       message: "The router has rebooted. System Uptime: {{ states('sensor.huawei_5g_system_uptime') }}"
@@ -1452,7 +1453,7 @@ actions:
   - delay:
       minutes: 5
     note: Allows 5 minutes for the modem to re-attach before reporting.
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Router Auto-Reconnected"
       message: "Cellular data session re-established after a 15-minute outage."
@@ -1513,7 +1514,7 @@ actions:
       Holding the automation open for 10 minutes with mode: single
       means it cannot re-trigger while the router is still coming back
       up.
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Router Rebooted Automatically"
       message: |
@@ -1553,7 +1554,7 @@ triggers:
       Home Assistant restart or a missed poll does not read as a
       version change.
 actions:
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Router Firmware Changed"
       message: |
@@ -1677,7 +1678,7 @@ actions:
   - delay:
       seconds: 15
     note: Allows coordinator fetch to finish before reading states.
-  - action: persistent_notification.create
+  - action: notify.persistent_notification
     data:
       title: "Huawei Morning Router Report"
       message: |
@@ -1699,7 +1700,7 @@ actions:
 
 [![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PlayFaster&repository=ha-huawei-router-5g-monitor&category=integration)
 
-Use the **shortcut badge** above, and then proceed to Step #3 or just ...
+Use the **shortcut badge** above, then proceed to Step 3 - or just …
 
 1. Add this [repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) as a **Custom Repository** in HACS:
    - Open HACS in Home Assistant
@@ -1739,9 +1740,9 @@ Standard HACS custom-repository integration update behavior:
 </summary><br>
 
 - New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
-- For Manual installs: replace the `custom_components/huawei_router_5g` folder and restart.
-- Your settings and entity customizations carry over - Configure options, connection details, renamed entities, enabled/disabled choices, dashboards.
-- New sensors in a release (if any), appear on the first restart after updating.
+- For manual installs: replace the `custom_components/huawei_router_5g` folder and restart.
+- Your settings and entity customizations carry over - Configure options, connection details, renamed entities, enabled/disabled choices, and dashboards.
+- Any new entities in a release appear on the first restart after updating.
 
 ---
 
@@ -1821,7 +1822,7 @@ The integration uses a custom `DataUpdateCoordinator` designed for high stabilit
 
 - **Zero-Blocking Startup**: Home Assistant starts instantly. Hardware identity is loaded from memory, while the first poll happens quietly in the background.
 - **Triggered Refresh**: Changing a setting, deleting SMS, or pressing **Refresh Now** fetches immediately for instant feedback. **Reboot** deliberately does not — the router is on its way down.
-- **3-Strike Logic**: To avoid "Unavailable" flickers during momentary router congestion or signal loss:
+- **3-Strike Logic**: To prevent entities flickering to `Unavailable` during momentary router congestion or signal loss:
   1. **First failure** — logs a warning and holds the last known values until the next scheduled poll.
   2. **Second and third failures** — keep holding, logged at debug so a long outage does not flood the log.
   3. **Third failure** — **Integration Health** turns on, one cycle before anything disappears.
@@ -1861,7 +1862,7 @@ It is deliberately **available at all times**, including when every other entity
 
 ### 🔨 Repairs
 
-Some problems need you to do something, so they are also raised in Home Assistant's **Repairs** panel rather than only on a sensor. All clear themselves automatically once the condition passes.
+Some problems need you to do something, so they are also raised in Home Assistant's **Repairs** panel in addition to the Integration Health sensor. All clear themselves automatically once the condition resolves.
 
 <details>
 
@@ -1877,7 +1878,7 @@ Some problems need you to do something, so they are also raised in Home Assistan
 
 > [!NOTE]
 >
-> A brief outage — a router reboot, a passing network glitch — deliberately does **not** raise a Repair. Integration Health turns on after three failed polls and entities go unavailable after four, but the Repairs panel stays quiet until a problem has clearly stopped fixing itself.
+> A brief outage — a router reboot, a passing network glitch — deliberately does **not** raise a Repair. Integration Health turns on after three failed polls and entities go unavailable after four, keeping the Repairs panel quiet until a problem clearly persists.
 
 ---
 
@@ -2078,7 +2079,7 @@ Attach this file to GitHub issues so maintainers can inspect router firmware res
 
 ---
 
-**If setup itself is failing**, there is no config entry yet, so there is nothing to download. Capture a log instead — add this to `configuration.yaml` and restart:
+**If setup itself is failing**, there is no config entry yet, so there are no diagnostics to download. Capture a log instead — add this to `configuration.yaml` and restart:
 
 ```yaml
 logger:
@@ -2107,12 +2108,12 @@ Logs are then visible under **Settings > System > Logs** (click **Load Full Logs
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-Because Home Assistant keeps most of it on purpose. This is **Home Assistant behavior, not something this integration controls**, and for most people it's the desirable outcome: re-add the same router and things carry on where they left off, rather than starting from nothing.
+Because Home Assistant keeps most of it on purpose. This is **Home Assistant behavior, not something this integration controls**, and for most people it's the desirable outcome: re-add the same router and things carry on where they left off.
 
 | What | How long Home Assistant keeps it | On re-add |
 | :-- | :-- | :-- |
-| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely — these are never deleted | Continue unbroken |
-| **Recent detailed history** | Your recorder retention (10 days by default) | Continues |
+| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely — never deleted | Continue unbroken |
+| **Recent detailed history** | Recorder retention (10 days by default) | Continues |
 | **Entity IDs** (`sensor.…`) | Reused as long as nothing else has taken the name | Dashboards and automations keep working |
 | Renames, icons, areas, labels, enabled/disabled state | **30 days**, in Home Assistant's entity registry | Restored |
 
@@ -2137,7 +2138,7 @@ Also note: an entity ID is reused unless a **different, still-existing** entity 
 
 <br>
 
-## ❗ Known Limitations /❔ What's Missing?
+## ❗ Known Limitations / ❔ What's Missing?
 
 <details>
 
