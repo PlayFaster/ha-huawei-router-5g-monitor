@@ -84,6 +84,16 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Network mode was excluded for that reason and no longer is (2026-08-16).** The reasoning was right but drawn too widely: re-registering the radio makes the router's answers unreliable **for a while**, not permanently. Where the resulting state is readable once things settle — the mode is, a dial is not — the answer is to wait and read, not to give up on confirming. `set_net_mode` now settles for `NET_MODE_SETTLE` and re-reads `net_mode`.
 - **The router's `-1: Unknown` cannot be treated as an answer.** It is returned both for a refusal and for a command the router applied but could not answer for, it does not happen every time, and nothing has isolated what decides it. The observations and dates are in [`huawei_how_to_access.md`](huawei_how_to_access.md) → _Error codes worth recognizing_. What follows for this codebase: the POST response is no more trustworthy than an immediate read-back, so only the settled re-read separates the two cases — and **a run that never saw `-1` has not exercised that path**, which is why the confirmation outcome is reported per run rather than assumed.
 
+### The Repair And The Fault Probe Belong To The Failure Count, Not To One Exception Type (v1.2.1-dev7)
+
+- **Decision**: `conn_error` and `_async_diagnose_fault()` are reached from **both** failure branches, through `_async_report_unreachable()`, keyed on `consecutive_failures` alone.
+- **What was wrong**: both sat inside `except (TimeoutError, HuaweiAuthError)`. A router that is powered off, unplugged or moved to a new address answers with a **refused connection**, which arrives as `HuaweiConnectionError` and takes the general branch — so the most ordinary failure this integration has could recur every poll indefinitely and never raise the card whose own text asks the user to check that the router is powered on and reachable.
+- **Why the probe matters more there, not less**: it opens a fresh connection to separate "the router is down" from "our pooled session is wedged". On a refused connection it confirms the first, which is the line that took an hour to establish by hand during the 2026-08-17 lockup.
+- **Family parity**: `zte_router_5g` has always keyed its equivalent on the failure count and is deliberately blind to which branch incremented it. This now matches.
+- **The strike limit is unchanged** — `REPAIR_CONN_STRIKE_LIMIT`, about half an hour at the default interval, long after the user has seen every entity go unavailable.
+- **Guarded by**: `tests/test_transport_seam.py::test_a_router_that_refuses_the_connection_raises_the_repair`, which asserts absence at nine consecutive failures and presence at ten. Verified by reverting the general branch: that test failed alone.
+- **User-visible.** A Repairs card now appears in cases where none did. It needs a `CHANGELOG.md` line when 1.2.1 is cut.
+
 ### Options Changes Reload; Tuning Changes Do Not (v1.2.0, Section 9)
 
 - **Decision**: `entry.add_update_listener` with a `LIVE_OPTION_KEYS` allow-list holding `scan_interval` and `stop_polling`. Everything outside it reloads the entry.
@@ -243,6 +253,9 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Normalized all MAC identifiers to a consistent lowercase, colon-less format for use in `unique_id`.
 - **Numeric vs. Multi-Carrier Ambiguity (v1.0.1-dev16)**: Standard numeric parsers like `parse_signal_value` are designed to extract the _first_ number found. This is dangerous for multi-carrier strings (e.g., `DL:500 UL:18500`) as it causes "partial-parsing" where only the first value is captured and the rest is discarded.
   - _Fix_: Implemented complexity detection in `helpers.py`. If a string contains colons or multiple segments, the parser bypasses numeric conversion entirely and returns the full raw string, preserving technical fidelity.
+- **Non-Finite Values Are Not Numbers (v1.2.1-dev7)**: `float()` accepts `"inf"` and `"nan"`, so `parse_signal_value` returned them as numbers. `_safe_int` then raised `OverflowError` or `ValueError` from inside a `value_fn` that nothing catches, and `_safe_float` would have published infinity as a sensor state — which reaches long-term statistics and cannot be taken back.
+  - _Fix_: Rejected at the parser, which is the single point every numeric value in the component passes through, so one guard covers all ten call sites. Returns `None`, so the entity goes _unknown_ — what an unreadable value is.
+  - _Consequence_: the `try`/`except` around `int()` in `_parse_complex_int` existed **only** for this case and is now unreachable, so it was deleted rather than left as dead code behind a pragma. Never seen from a router; found while replacing a test that patched the parser to reach the branch.
 - **Background Task Mocking**: Standard tests can fail if background tasks aren't properly awaited.
   - _Fix_: Ensured all tests use `hass.async_block_till_done()` after setup to catch initialization tasks.
 - **SMS Inbox Browsing**: The integration provides the last received message content and unread counts. Browsing the full inbox or replying to specific messages requires the router's web interface.

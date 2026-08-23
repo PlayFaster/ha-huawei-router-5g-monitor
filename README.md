@@ -1862,7 +1862,9 @@ It is deliberately **available at all times**, including when every other entity
 
 ### 🔨 Repairs
 
-Some problems need you to do something, so they are also raised in Home Assistant's **Repairs** panel in addition to the Integration Health sensor. All clear themselves automatically once the condition resolves.
+Some problems need you to do something, so they are also raised in Home Assistant's **Repairs** panel in addition to the Integration Health sensor.
+
+**Two conditions raise a Repair.** Everything else this integration detects is reported on the **Integration Health** sensor or as its own entity, and does not put a card in the panel — a firmware field change shows as `severity: warning` with the detail in the `drift` attribute, and a full message store is the **SMS Storage Full** binary sensor.
 
 <details>
 
@@ -1872,9 +1874,8 @@ Some problems need you to do something, so they are also raised in Home Assistan
 
 | Repair | Raised when | Why it is a Repair |
 | :-- | :-- | :-- |
-| **Huawei router is not responding** | 10 consecutive failed fetches | Ten failures in a row means the problem is not clearing on its own. The text lists what to check — power-cycle, whether the IP changed, whether the password changed, the network path. |
-| **Huawei router data has changed unexpectedly** | 3 consecutive polls succeed but contain none of the expected fields, having reported them before | Nothing looks broken from the outside, but sensors will be blank. It can follow a firmware update or point to a fault in the integration, so it needs reporting either way. |
-| **Huawei router SMS storage is full** | The router's message store is at capacity | New messages will be rejected until some are deleted. |
+| **Huawei router sign-in failed** | The router refuses the stored credentials, and a retry does not recover it | The only one you can act on from the panel — it opens a **reauthentication dialog** so you can re-enter the password. Until you do, no data arrives at all. It can mean the password was changed on the router, or that it is refusing new sessions. |
+| **Huawei router is not responding** | 10 consecutive failed fetches | Ten failures in a row means the problem is not clearing on its own. The text lists what to check — power-cycle, whether the IP changed, whether the password changed, the network path. Clears itself once communication is restored. |
 
 > [!NOTE]
 >

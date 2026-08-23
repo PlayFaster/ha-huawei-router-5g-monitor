@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.1-dev9\] - 2026-08-23 - README Repairs Table Corrected; DEVELOPMENT Entries For The dev7 Fixes](#121-dev9---2026-08-23---readme-repairs-table-corrected-development-entries-for-the-dev7-fixes)
   - [\[1.2.1-dev8\] - 2026-08-23 - Superseded About-Note Drift Test Removed](#121-dev8---2026-08-23---superseded-about-note-drift-test-removed)
   - [\[1.2.1-dev7\] - 2026-08-23 - Not-Responding Repair Reaches a Refused Connection; Non-Finite Readings Rejected at the Parser](#121-dev7---2026-08-23---not-responding-repair-reaches-a-refused-connection-non-finite-readings-rejected-at-the-parser)
   - [\[1.2.1-dev6\] - 2026-08-23 - Transport Seam Added; Depth Findings Closed; Repair Contract Sweeps](#121-dev6---2026-08-23---transport-seam-added-depth-findings-closed-repair-contract-sweeps)
@@ -159,6 +160,26 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.1-dev9] - 2026-08-23 - README Repairs Table Corrected; DEVELOPMENT Entries For The dev7 Fixes
+
+Documentation only. No source or test change.
+
+### Fixed
+
+- **The README's Repairs table described `zte_router_5g`.** It was a verbatim copy with the brand swapped, and it had been wrong since it was written: it listed **"data has changed unexpectedly"** and **"SMS storage is full"**, neither of which is a repair on this project, and it **omitted `auth_failed`** — the one repair a user can act on, since it opens the reauthentication dialog. `strings.json` declares two issue keys and always has.
+- **Both removed rows now say where the condition actually surfaces**, so the correction does not read as those conditions no longer being detected: a firmware field change is Integration Health `severity: warning` with the detail in the `drift` attribute, and a full message store is the **SMS Storage Full** binary sensor.
+- The `conn_error` row's "10 consecutive failed fetches" was true only for timeouts until `[1.2.1-dev7]`. It is now true for every failure type, so the row stands unchanged and is accurate for the first time.
+
+### Added — `docs/DEVELOPMENT.md`
+
+- **The repair and the fault probe belong to the failure count, not to one exception type**, recording why both moved out of the `TimeoutError` branch, the `zte_router_5g` parity, and that the change is user-visible.
+- **Non-finite values are not numbers**, filed beside the two existing `parse_signal_value` pitfalls, including that the `try`/`except` in `_parse_complex_int` became unreachable and was deleted rather than left behind a pragma.
+
+### Notes
+
+- **The divergence the copy exposed is now a cross-project item**: `x_project/repair_set_alignment.md`. All four projects detect the same conditions and surface them four different ways, with three different keys for "cannot reach the device". One decision comes first — which conditions warrant a card — and no per-project work should start before it.
+- **Not linted, at the owner's instruction.** `prettier` has not been run over `README.md` or `docs/DEVELOPMENT.md`.
 
 ## [1.2.1-dev8] - 2026-08-23 - Superseded About-Note Drift Test Removed
 
