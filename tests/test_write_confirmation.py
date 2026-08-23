@@ -516,3 +516,26 @@ def test_no_excluded_write_has_a_read_back_reader() -> None:
     excluded_endpoints = {"dial_up_connection", "dial_up_profiles"}
 
     assert not (excluded_endpoints & set(READ_BACK_ENDPOINTS))
+
+
+@pytest.mark.asyncio
+async def test_a_confirmed_write_publishes_the_new_position() -> None:
+    """The latch is stored before the publish, and the publish carries it.
+
+    The rest of this file stubs `async_write_ha_state` with a bare
+    `MagicMock`, so it can show that a publish happened and not what it
+    carried. That is the gap `stubbed_publish_tests.md` was written about, and
+    the defect it describes is exactly this entity's: `is_on` reads the latch
+    while the coordinator payload is still pre-write, so publishing before the
+    latch is stored re-stamps the old position over the frontend's optimistic
+    toggle and the switch springs back.
+    """
+    switch, _ = _switch({"dataswitch": "1"})
+    published: list[bool | None] = []
+    switch.async_write_ha_state = MagicMock(
+        side_effect=lambda: published.append(switch.is_on)
+    )
+
+    await switch.async_turn_on()
+
+    assert published == [True]

@@ -5,6 +5,11 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.1-dev8\] - 2026-08-23 - Superseded About-Note Drift Test Removed](#121-dev8---2026-08-23---superseded-about-note-drift-test-removed)
+  - [\[1.2.1-dev7\] - 2026-08-23 - Not-Responding Repair Reaches a Refused Connection; Non-Finite Readings Rejected at the Parser](#121-dev7---2026-08-23---not-responding-repair-reaches-a-refused-connection-non-finite-readings-rejected-at-the-parser)
+  - [\[1.2.1-dev6\] - 2026-08-23 - Transport Seam Added; Depth Findings Closed; Repair Contract Sweeps](#121-dev6---2026-08-23---transport-seam-added-depth-findings-closed-repair-contract-sweeps)
+  - [\[1.2.1-dev5\] - 2026-08-23 - Update huawei_how_to_access.md and development.md](#121-dev5---2026-08-23---update-huawei_how_to_accessmd-and-developmentmd)
+  - [\[1.2.1-dev4\] - 2026-08-23 - Bump mypy PHACC; .gitignore; Changelog](#121-dev4---2026-08-23---bump-mypy-phacc-gitignore-changelog)
   - [\[1.2.1-dev2\] - 2026-08-22 - CI Bump .github PHACC; HA Compatibility; tasks.json](#121-dev2---2026-08-22---ci-bump-github-phacc-ha-compatibility-tasksjson)
   - [\[1.2.1-dev1\] - 2026-08-20 - CI Bump Ruff](#121-dev1---2026-08-20---ci-bump-ruff)
   - [\[1.2.0\] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health](#120---2026-08-20---release---new-entities-projected-data-use-wifi-switch-reconnect-button-integration-health)
@@ -60,11 +65,11 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
   - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality\_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
+  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
   - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
   - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
   - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked\_errors\_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
+  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
@@ -154,6 +159,93 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.1-dev8] - 2026-08-23 - Superseded About-Note Drift Test Removed
+
+No source change. Completes R7 of the `about_list_generator` spec, and with it chore `C-013` and that spec's last open cell.
+
+### Removed
+
+- **`test_about_attribute_list_doc_matches_the_code`, and its `_documented_about_notes` helper.** `check_sensor_manifest.py --check` regenerates `docs/about_attribute_list.md` from the code and fails on any difference, which covers everything the test asserted — an entity missing from the document, an entity in the document that no longer exists, and a note reworded on one side only. The spec's R7 says to replace the test with that check and **not to keep both**; Huawei was the only project in the family that ever had it.
+- **The cost of keeping it was a second parser.** The test read the shipped document with a regex of its own, so the generator's table format had two consumers and one owner. `--sync-docs` already flattens single-group projects, partitions entities that have no note into their own table, and leaves final presentation to prettier — any of which would have broken that regex and surfaced as a red suite pointing at the parser rather than at a problem.
+- `_shipped_doc` stays: `test_value_min_max_doc_matches_the_code` still uses it, and that document has no generator-side equivalent.
+
+### Notes
+
+- Test count 904 → **903**, coverage unchanged at 100% line and branch. `Sensor: Check Manifest` reports in sync across 160 entities, which is now the only guard on that document and runs inside `Validate All`.
+- `AGENTS.md`'s "Tests that will stop you" table lists the task in the removed test's place, flagged as a task rather than a pytest test so the distinction is not lost.
+
+## [1.2.1-dev7] - 2026-08-23 - Not-Responding Repair Reaches a Refused Connection; Non-Finite Readings Rejected at the Parser
+
+Two defects found by the transport-seam work of `[1.2.1-dev6]` and recorded there rather than fixed. Both are source changes, with each test verified to fail against the pre-fix code.
+
+### Fixed
+
+- **The "router is not responding" repair could not be raised by the most ordinary failure there is.** `conn_error` and the fault probe both sat on the `TimeoutError` branch, while a router that is powered off, unplugged or moved to a new address answers with a **refused connection** — which arrives as `HuaweiConnectionError` and took the general branch instead. That path could fail every poll indefinitely and never raise the card whose own text asks the user to check that the router is powered on and reachable. Both are now reached from either branch through `_async_report_unreachable()`, keyed on the failure count alone, which is how `zte_router_5g` has always done it. The strike limit is unchanged, so the card still waits out `REPAIR_CONN_STRIKE_LIMIT` consecutive failures — about half an hour at the default interval.
+- **The fault probe now runs for a refused connection too**, which is the case it is most useful in: it opens a fresh connection to separate "the router is down" from "our pooled session is wedged", and that distinction took an hour to establish by hand during the 2026-08-17 lockup.
+- **`"inf"` and `"nan"` reached entities as numbers.** `float()` accepts both, so `parse_signal_value` returned them unchanged: `_safe_int` then raised `OverflowError` or `ValueError` from inside a `value_fn` nothing catches, and `_safe_float` would have published infinity as a sensor state and carried it into long-term statistics, where it cannot be taken back. Non-finite results are now rejected at the parser — the single point every numeric value in the component passes through — and return `None`, so the entity goes _unknown_, which is what an unreadable value is. Not observed from a router; found while replacing a test that had patched the parser to reach the branch.
+
+### Changed
+
+- **`_parse_complex_int` no longer wraps `int()` in a `try`.** The guard existed only for the non-finite case, which is now impossible: `parse_signal_value` returns a finite float or `None`. Removed rather than left as unreachable code behind a coverage pragma.
+
+### Notes
+
+- Test count 895 → **903**, 100% line and branch, zero partial branches, assertion audit 0 of 747, depth PASSED. **Two mutations verified**, each restored by file copy and confirmed by checksum: removing the finite check failed nine tests, and reverting the general branch to skip `_async_report_unreachable` failed the refused-connection test alone.
+- `test_a_router_that_refuses_the_connection_raises_no_repair` recorded the old behavior as an assertion so that changing it would have to be deliberate. It is now `..._raises_the_repair`, asserting absence at nine consecutive failures and presence at ten.
+- **`tests/test_reliability_ext.py` needed an awaitable probe.** Its API stub was a bare `MagicMock`, which was sufficient while the general branch never awaited anything; it does now.
+- **User-visible, and it needs a `CHANGELOG.md` line when 1.2.1 is cut**: a Repairs card now appears after sustained failure in cases where none appeared before.
+
+## [1.2.1-dev6] - 2026-08-23 - Transport Seam Added; Depth Findings Closed; Repair Contract Sweeps
+
+No shipped code changed. Tests, test tooling and documentation. Closes chores **C-021**, **C-022** and **C-023**; `Tests: Depth Check` now reports **PASSED** here.
+
+### Added — the fake router
+
+- **`tests/transport.py`** — a router at the HTTP transport, so a test drives a real poll instead of replacing the API object. `dev_standards` §11 (1.32.0) asks for the transport to be faked rather than the project's own boundary; the three sibling projects do that with `aioclient_mock`, which intercepts `async_get_clientsession` and so reaches nothing here. This project talks through `huawei-lte-api`, which holds its own `requests.Session`, and the equivalent is **`requests_mock`** — shipped by `pytest-homeassistant-custom-component` exactly as `aioclient_mock` is, so **no dependency was added**.
+- **A payload becomes a wire body in one expression.** The library parses with `xmltodict.parse` and unwraps `data["response"]`, so `xmltodict.unparse({"response": payload})` is its exact inverse and no XML is written by hand. The map covers all 26 endpoints a poll reaches; anything absent answers `100002: No support`, which is what a router that does not implement an endpoint sends.
+- **Faults are served, never patched.** Six of them, and each is a payload or a transport error: `session_expired`, `csrf_expired`, `no_rights`, `unreachable`, `timeout`, `endpoint_error`, `endpoint_missing`. The library maps an `<error><code>` body onto its own exception types, so `api.py`'s classification of session expiry runs for real.
+
+### Added — tests
+
+- **`tests/test_transport_seam.py`**, eleven tests driving every declared outcome and every accumulation gate through a real poll. `FETCH_STRIKE_LIMIT`, `HEALTH_DRIFT_STRIKE_LIMIT` and `REPAIR_CONN_STRIKE_LIMIT` are now driven rather than asserted — the deepest test drives **13 consecutive polls**, against a previous best of two.
+- **Three publish-moment captures**, one per file that stubs `async_write_ha_state`: the pause-polling switch, the mobile-data switch after a confirmed write, and the polling-interval number's optimistic publish. Each asserts what the entity read at the moment of the publish rather than what it held afterwards.
+- **Six repair and severity contract sweeps** (chore C-022 step 8): every repair key has a title and description in both translation files; no orphan `issues.*` entry survives a rename; every repair the code raises is in the list `async_remove_entry` deletes; every published `severity` is one of the five §19 strings and never `None`; every finding is classified as drift or capability, never both; and two vacuity guards pinning the counts so a sweep cannot quietly shrink.
+- **The config-flow seam is driven for real** — `_validate_credentials` now runs against the fake router in three tests, including one full user flow with nothing patched, asserting that the normalized MAC it derives becomes the entry's unique id. The remaining branch patches are allow-listed in `tests/test_depth_allowlist.txt` with the reason.
+
+### Fixed — tests
+
+- **A patched `parse_signal_value` replaced with a real input.** `test_parse_complex_int_error_branch` patched the function to return a string so that `int()` would raise, with a comment recording that no real input had been found. `"nan"` is one: `parse_signal_value` returns `float("nan")` and `int(nan)` raises `ValueError`. The mock sat exactly where the defect would be.
+- Test count 868 → **895**, 100% line and branch, zero partial branches, assertion audit 0 of 744. **Nine mutations verified**, each restored by file copy and confirmed by checksum: the repair gate constant, the fetch strike budget, the drift strike budget, the session-expiry code classification, a removed repair description, an orphan issue key, a shortened removal list, a `severity` forced to `None`, and a drift finding re-tagged as a capability.
+
+### Changed — tooling
+
+- **`check_test_depth.py` no longer under-counts a loop** (workbench source, all four projects). Its SEQ sweep multiplied a drive only by a literal `range(3)`, so `range(REPAIR_CONN_STRIKE_LIMIT)` — the better-written form — counted as one poll and the gate it drives was reported as never driven. It now resolves a gate constant and a `constant ± n` bound, and counts module-level test helpers as drives, which its REACH sweep already did. The change can only raise a count, so it cannot invent a finding.
+
+### Notes
+
+- **`conn_error` cannot be raised by a refused connection**, and the repair's own text asks the user to check the router is powered on and reachable. Both the repair and the fault probe sit on the `TimeoutError` branch; a router that is off or has moved address answers with a refused connection and takes the general branch instead. Recorded as an assertion in `test_a_router_that_refuses_the_connection_raises_no_repair` so that changing it is a deliberate act, and carried forward as an open question rather than fixed here.
+- **`_parse_complex_int` raises `OverflowError` on `"inf"`.** Its contract is to return the raw string for anything it cannot turn into a number, and `float("inf")` parses while `int()` on it raises an exception the `except (ValueError, TypeError)` does not catch. Not seen from a router; recorded rather than changed.
+- **A 125002 body proves nothing about this project.** `huawei-lte-api` catches `ResponseErrorLoginCsrfException` internally, reloads the session and retries once, so a test serving that code passes whatever `api.py` does with it. `session_expired` therefore serves **125003**, which the library does not retry. Found by a mutation that survived.
+- **`requests_mock` lowercases `request.path`**, so `lan/HostInfo` arrives as `lan/hostinfo` and a case-sensitive fixture answers "no support" — indistinguishable from a router that does not implement the endpoint. Every comparison in `transport.py` is normalized.
+
+## [1.2.1-dev5] - 2026-08-23 - Update huawei_how_to_access.md and development.md
+
+### Changed
+
+- **Development Docs**: Brought `huawei_how_to_access.md` up-to-date and also updated `DEVELOPMENT.md` to minimize overlap with it.
+
+## [1.2.1-dev4] - 2026-08-23 - Bump mypy PHACC; .gitignore; Changelog
+
+### Bumps
+
+- **Validate Bump**: Bumped `mypy` from 2.3.0 to 2.3.1
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.356 to 0.13.357
+
+### Changed
+
+- **gitignore**: Updated `.gitignore`to add `.mdbase/`an Obsidian folder.
+- **Changelog**: Updated `CHANGELOG.md`to correct last release date.
 
 ## [1.2.1-dev2] - 2026-08-22 - CI Bump .github PHACC; HA Compatibility; tasks.json
 
@@ -862,7 +954,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Notes
 
-- **§3 (`format_mac()`) was declined by the owner, and the reasoning is recorded rather than the fix.** The standard does mandate it (`dev_standards.md:77`). This project canonicalises to its own form — lowercase, colons stripped — consistently at the config flow, and that value is `entry.unique_id`, every sub-device identifier and every entity `unique_id`. Adopting `format_mac()` would change all of them, orphaning 166 entities and losing their history, in exchange for comparability with a hypothetical native integration claiming the same MAC. **`zte_router_5g` is not a counter-example**: it keys on IMEI and never touches a MAC, so §3's bullet never fires there. The two projects hit different branches of the same rule.
+- **§3 (`format_mac()`) was declined by the owner, and the reasoning is recorded rather than the fix.** The standard does mandate it (`dev_standards.md:77`). This project canonicalizes to its own form — lowercase, colons stripped — consistently at the config flow, and that value is `entry.unique_id`, every sub-device identifier and every entity `unique_id`. Adopting `format_mac()` would change all of them, orphaning 166 entities and losing their history, in exchange for comparability with a hypothetical native integration claiming the same MAC. **`zte_router_5g` is not a counter-example**: it keys on IMEI and never touches a MAC, so §3's bullet never fires there. The two projects hit different branches of the same rule.
 - **§11 is not yet DONE**, and adding `sensor.py` to the mutation list is what closes it. Both siblings mutate `sensor.py`; Huawei is the only one that does not, because `[1.2.0-dev18]`'s 158 `about` notes generate over a thousand string-literal mutants. Carried as item 6 in `status_plan.md` with `coordinator.py`'s unrun mutants (P-11).
 - **The read-back map is an explicit allow-list**, so a write path cannot reach an arbitrary part of the router. Network mode and Reconnect have no reader by design — both re-establish the connection, so the router answers abnormally _while succeeding_ and a read-back would report a working command as failed. §22 asks for that exclusion to be visible in review rather than left as an unwritten rule; a test asserts no reader exists for either.
 - **Three behavior changes worth knowing about.** An Options edit now reloads the entry, which it never did. A write whose confirmation cannot be read no longer raises — it previously did, because the confirmation was a coordinator refresh whose exception propagated; under §22 that outcome is _unverified_ and is left to the next poll. And **a refused write now takes about two seconds to report the refusal** — `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice, because these routers commonly answer the first read after a write with the old value. A _confirmed_ write is a single read and is faster than the debounced refresh it replaced.
@@ -917,7 +1009,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ### Notes
 
-- **Correction to `[1.2.0-dev19]`.** That entry called the diagnostics finding "the backstop has never been driven by a MAC or an IPv4 address", on the assumption that `re.sub` raises when its replacement function returns `None`. **It does not** — it treats `None` as an empty replacement and deletes the match, so the backstop _is_ reached and the mutants survived for a different reason: the tests could not tell tokenisation from deletion. Verified by applying the mutation to a byte copy, running the suite against it (39 tests, all green) and restoring with a hash check. The finding is real and is fixed here; its mechanism and severity in that entry were wrong, and the report has been corrected in place.
+- **Correction to `[1.2.0-dev19]`.** That entry called the diagnostics finding "the backstop has never been driven by a MAC or an IPv4 address", on the assumption that `re.sub` raises when its replacement function returns `None`. **It does not** — it treats `None` as an empty replacement and deletes the match, so the backstop _is_ reached and the mutants survived for a different reason: the tests could not tell tokenization from deletion. Verified by applying the mutation to a byte copy, running the suite against it (39 tests, all green) and restoring with a hash check. The finding is real and is fixed here; its mechanism and severity in that entry were wrong, and the report has been corrected in place.
 - **Suite 655 → 682**, 100% line and branch coverage, 0 partial branches, assertion audit PASSED, ruff and `mypy --strict` clean, IQS static PASSED.
 
 ---

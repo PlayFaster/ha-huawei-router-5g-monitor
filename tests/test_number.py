@@ -296,3 +296,38 @@ async def test_removal_after_the_debounce_committed_does_not_write_again(
     await entity.async_will_remove_from_hass()
 
     entity.hass.config_entries.async_update_entry.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_the_slider_publishes_the_value_the_user_chose(
+    mock_coordinator, mock_config_entry
+):
+    """What `native_value` reads at the moment of the publish, not after it.
+
+    The other tests in this file stub `async_write_ha_state` with a bare
+    `MagicMock` and assert the stored option separately, so nothing joins the
+    two halves: a publish carrying the previous value satisfies both. This is
+    the optimistic publish, made before the debounce commits anything, and it
+    is the one the user sees — publishing the old value makes the slider snap
+    back under their finger. `stubbed_publish_tests.md`.
+    """
+    entity = HuaweiPollingInterval(
+        mock_coordinator, mock_config_entry, POLLING_INTERVAL_DESCRIPTION, 180
+    )
+    entity.hass = MagicMock()
+    published: list[float | None] = []
+    entity.async_write_ha_state = MagicMock(
+        side_effect=lambda: published.append(entity.native_value)
+    )
+
+    def close_and_discard(coro):
+        # The debounced task is not what this test is about, and leaving its
+        # coroutine unawaited raises a ResourceWarning that would land on
+        # whichever test happens to run next.
+        coro.close()
+        return MagicMock()
+
+    with patch.object(asyncio, "create_task", close_and_discard):
+        await entity.async_set_native_value(600)
+
+    assert published == [600]

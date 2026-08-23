@@ -196,6 +196,36 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             ),
         }
 
+    async def _async_report_unreachable(self) -> None:
+        """Diagnose which end is at fault, and raise the repair once it is due.
+
+        **Called from both failure branches, and that is the point.** Until
+        2026-08-23 the probe and the `conn_error` repair sat on the
+        `TimeoutError` branch alone, so they were unreachable for the most
+        ordinary failure this integration has: a router that is powered off or
+        has changed address refuses the connection, which arrives as
+        `HuaweiConnectionError` and takes the general branch. The repair's own
+        text asks the user to check the router is powered on and reachable —
+        the one case that could never raise it. `zte_router_5g` keys its
+        equivalent on the failure count alone, and this now matches.
+
+        The strike limit is what keeps it quiet: at the default interval it is
+        about half an hour of continuous failure, long past the point where the
+        user has already seen every entity go unavailable.
+        """
+        await self._async_diagnose_fault()
+        if self.consecutive_failures >= REPAIR_CONN_STRIKE_LIMIT:
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
+                is_fixable=False,
+                is_persistent=False,
+                severity=ir.IssueSeverity.WARNING,
+                translation_key="conn_error",
+                translation_placeholders={"entry_title": self.entry.title},
+            )
+
     async def _async_diagnose_fault(self) -> None:
         """Ask which end is at fault, once per exhausted strike budget.
 
@@ -568,21 +598,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 self.update_health(None, failed=True, cold_start=self.data is None)
                 raise ConfigEntryAuthFailed("Authentication failed") from err
 
-            await self._async_diagnose_fault()
+            await self._async_report_unreachable()
 
             error_msg = "API request timed out"
             _LOGGER.exception("%s: %s", self.entry.title, error_msg)
-            if self.consecutive_failures >= REPAIR_CONN_STRIKE_LIMIT:
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    f"{REPAIR_CONN_ERROR}_{self.entry.entry_id}",
-                    is_fixable=False,
-                    is_persistent=False,
-                    severity=ir.IssueSeverity.WARNING,
-                    translation_key="conn_error",
-                    translation_placeholders={"entry_title": self.entry.title},
-                )
             self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed(error_msg) from err
 
@@ -611,6 +630,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 )
                 self.update_health(None, failed=True, cold_start=True)
                 return {}
+
+            await self._async_report_unreachable()
 
             _LOGGER.exception(
                 "%s: Connection lost. Marking entities unavailable.", self.entry.title

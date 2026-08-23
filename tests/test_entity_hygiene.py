@@ -1077,67 +1077,6 @@ def test_an_entity_with_its_own_attributes_still_emits_the_note() -> None:
     assert switch.extra_state_attributes["about"] == GUEST_WIFI_DESCRIPTION.about
 
 
-def _documented_about_notes() -> dict[str, str]:
-    """Read every key-to-note pair out of `docs/about_attribute_list.md`.
-
-    Reads the shipped document rather than a copy in this file — a second copy
-    would agree with itself forever while the real document rotted.
-    """
-    import re
-
-    path = _shipped_doc("about_attribute_list.md")
-    row = re.compile(r"^\|[^|]+\|[^|]+\|\s*`([^`]+)`\s*\|(.*)\|\s*$")
-
-    notes: dict[str, str] = {}
-    for line in path.read_text(encoding="utf-8").splitlines():
-        match = row.match(line)
-        if match:
-            notes[match.group(1)] = match.group(2).strip()
-    return notes
-
-
-def test_about_attribute_list_doc_matches_the_code() -> None:
-    """`docs/about_attribute_list.md` and the descriptions must agree, both ways.
-
-    `dev_std_review` treats this file as a **descriptive document**, which
-    means an entry for an entity that does not exist fails as readily as a
-    missing one. The text is compared verbatim rather than only the key set: a
-    note reworded in the source while the document keeps the old wording is
-    the same defect as an absent one, and it is the more likely of the two.
-    """
-    from custom_components.huawei_router_5g.device_tracker import (
-        HuaweiRouterDeviceTracker,
-    )
-
-    documented = _documented_about_notes()
-    actual = {
-        key: getattr(desc, "about", None) or ""
-        for descriptions in _descriptions_by_platform().values()
-        for key, desc in descriptions.items()
-    }
-    actual["_attr_about"] = HuaweiRouterDeviceTracker._attr_about or ""
-
-    assert documented, (
-        "no note table found in docs/about_attribute_list.md — parser broken"
-    )
-
-    undocumented = sorted(set(actual) - set(documented))
-    assert not undocumented, "entities the document does not list:\n" + "\n".join(
-        undocumented
-    )
-
-    phantom = sorted(set(documented) - set(actual))
-    assert not phantom, (
-        "docs/about_attribute_list.md lists entities that do not exist:\n"
-        + "\n".join(phantom)
-    )
-
-    mismatched = [key for key in sorted(actual) if documented[key] != actual[key]]
-    assert not mismatched, (
-        "note text differs between the code and the document:\n" + "\n".join(mismatched)
-    )
-
-
 # ---------------------------------------------------------------------------
 # Section 12 — every translation_key used in code resolves in both files
 # ---------------------------------------------------------------------------
@@ -1240,3 +1179,62 @@ def test_no_translation_entry_is_dead() -> None:
         declared = {key for platform in entity.values() for key in platform}
         dead = sorted(declared - keys)
         assert not dead, f"{name} defines entity strings nothing produces: {dead}"
+
+
+# ---------------------------------------------------------------------------
+# Section 19 — the repair-issue text contract
+# ---------------------------------------------------------------------------
+
+
+def _declared_repair_keys() -> set[str]:
+    """Return every repair key the code can raise, read from `const.py`."""
+    from custom_components.huawei_router_5g.const import REPAIR_NAMES
+
+    return set(REPAIR_NAMES)
+
+
+def test_every_repair_issue_has_title_and_description() -> None:
+    """A repair with no text renders as a blank card the user cannot act on.
+
+    Both files, because Home Assistant ships `strings.json` to translators and
+    serves `translations/en.json` to the user: a key present in one and absent
+    from the other renders the raw key for English users while every check on
+    the other file passes.
+
+    Chore `C-022` step 8a.
+    """
+    for name in ("strings.json", "translations/en.json"):
+        issues = _translation_file(name).get("issues", {})
+        for key in sorted(_declared_repair_keys()):
+            assert key in issues, f"{name} has no text for repair {key!r}"
+            assert issues[key].get("title"), f"{name}: {key} has no title"
+            assert issues[key].get("description"), f"{name}: {key} has no description"
+
+
+def test_no_orphan_issue_translations() -> None:
+    """Text left behind by a rename is invisible and outlives its key.
+
+    The other direction from the sweep above, and the one a count cannot see:
+    a file with more entries than the code has keys reads as healthy.
+
+    Chore `C-022` step 8b.
+    """
+    declared = _declared_repair_keys()
+    for name in ("strings.json", "translations/en.json"):
+        issues = set(_translation_file(name).get("issues", {}))
+        orphans = sorted(issues - declared)
+        assert not orphans, f"{name} defines repair text nothing raises: {orphans}"
+
+
+def test_the_repair_text_sweep_is_not_vacuous() -> None:
+    """The sweeps above pass trivially if the key set is empty.
+
+    Pins the count as well as the property, so a rename that empties
+    `REPAIR_NAMES` fails here rather than turning both sweeps green.
+
+    Chore `C-022` step 8f, applied to the text sweeps.
+    """
+    keys = _declared_repair_keys()
+
+    assert len(keys) >= 2
+    assert {"auth_failed", "conn_error"} <= keys

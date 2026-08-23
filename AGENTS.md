@@ -130,12 +130,25 @@ Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`,
 
 Four things to know before editing it:
 
-- **Every run files a report**, from a `finally`, in both tiers. `.reports/hardware_check_<ts>.md` carries verdicts and non-identifying evidence; `.notes/local_only/hardware_check_detail_<ts>.md` carries the identifying values and is written only when a check captured one. `Report.record()` takes the redacted form as `detail` and the identifying form as `sensitive` — it files what it is given and does not sanitise.
+- **Every run files a report**, from a `finally`, in both tiers. `.reports/hardware_check_<ts>.md` carries verdicts and non-identifying evidence; `.notes/local_only/hardware_check_detail_<ts>.md` carries the identifying values and is written only when a check captured one. `Report.record()` takes the redacted form as `detail` and the identifying form as `sensitive` — it files what it is given and does not sanitize.
 - **Skips are rows, not console lines.** A skip that leaves no row is indistinguishable later from a check nobody wrote.
 - **`ha_contention` drives Home Assistant over REST**, not the API object, because a write contending with a live poll exists only inside a running instance. The token comes from `.notes/ha_restart/token.txt`; never read one from `.storage/auth`, and never let one reach either report.
 - **`--debug` is console noise only.** The write-confirmation outcome is captured from the integration's own log records and reported as a check either way — a flag that changed what got _verified_ would make the default run the weaker one.
 
 New checks must record evidence, not just a verdict, and must restore what they changed with the restore itself recorded as a row.
+
+## Before you write a test for new behavior
+
+Four questions, because the first six of the ten analysis categories are each scoped to one function and the defects that survive 100% branch coverage are not.
+
+- **Does it accumulate?** Anything needing N consecutive cycles — `FETCH_STRIKE_LIMIT`, `HEALTH_DRIFT_STRIKE_LIMIT`, `REPAIR_CONN_STRIKE_LIMIT` — must be driven through N real polls. Setting the counter by hand proves the comparison, not that the code can reach it. And ask the killer question: after the first differing cycle, does the comparison still differ? If the code adopts the new value, the finding can never confirm.
+- **Does it need cleaning up?** For everything created, prove it is destroyed across reload and restart, not only entry removal. A repair raised into the issue registry outlives the coordinator that raised it.
+- **Can the outcome actually happen?** Every declared finding, repair key and severity value needs one test producing it end to end, driven through a real poll with the transport faked rather than the API object replaced. `Tests: Depth Check` sweeps this.
+- **Is the value published?** Assert the string a user template compares against — `"ok"`, `"degraded"` — and prove its translation exists, not just the internal constant.
+
+**Faking the transport here means `requests_mock`, not `aioclient_mock`.** This project reaches the network through `huawei-lte-api`, which holds its own `requests.Session`, so `async_get_clientsession` is never involved. The fake router is [`tests/transport.py`](tests/transport.py) and the worked examples are in [`tests/test_transport_seam.py`](tests/test_transport_seam.py); the design record is `.shared/issues/x_project/fault_injection_options.md` §3.
+
+Long form, all ten categories: [`.shared/dev_std/testing_when_writing.md`](.shared/dev_std/testing_when_writing.md) — these four are **SEQ / LIFE / REACH / PUB**.
 
 ## Tests that will stop you
 
@@ -156,7 +169,7 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 | `test_the_device_tracker_carries_a_class_level_note` | the one platform with no description | A sweep over entity descriptions cannot see it, so it would be the single entity in the component with no note and nothing would fail. |
 | `test_every_entity_publishing_attributes_keeps_the_about_note_unrecorded` | Section 14 | `_unrecorded_attributes` is resolved by ordinary attribute lookup and is **not** unioned across bases, so a subclass declaring its own set silently discards the mixin's `{"about"}` — and starts recording the note on that entity alone. Invisible in a diff of the subclass. |
 | `test_an_entity_with_its_own_attributes_still_emits_the_note` | the mechanism, not the declaration | The declaration sweep passes while an entity's own `extra_state_attributes` returns a dict that never went through `_with_about`: the key is declared unrecorded and simply never emitted. |
-| `test_about_attribute_list_doc_matches_the_code` | `docs/about_attribute_list.md` | A descriptive document nothing checks is what this whole file exists against. Compares **note text**, not just the key set — a note reworded in source while the document keeps the old wording is the same defect as an absent one, and the more likely of the two. |
+| `Sensor: Check Manifest` (`--check`) | `docs/about_attribute_list.md`, `all_sensors.md`, `value_min_max.md` | **Not a pytest test — a `Validate All` task.** Regenerates each document from the code and fails on any difference, which covers a missing entity, a phantom one and a reworded note alike. It replaced `test_about_attribute_list_doc_matches_the_code`, removed 2026-08-23: that test read the shipped document with a regex of its own, so the generator's output format had two parsers and only one owner. Chore `C-013`. |
 | `test_every_registered_action_has_an_icon` | Section 12 | There was no `services` block at all while four actions were registered. Reads the action list from **`services.yaml`**, not from `icons.json` — reading the thing under test to build the expectation is how a bidirectional check goes vacuous. |
 | `test_no_icon_entry_names_an_action_that_does_not_exist` | the other direction | A dead icon entry renders nothing and breaks nothing, so it accumulates unnoticed. |
 | `test_action_icons_use_the_current_nested_form` | format drift | The flat form works, so nothing would ever fail; only the nested object can carry per-`section` icons. |
@@ -179,6 +192,18 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 | `test_the_live_keys_are_exactly_the_two_read_every_cycle` | Section 9 | Adding a key to `LIVE_OPTION_KEYS` makes that setting silently stop working: written to the entry, skipped by the reload, never re-read by anything holding the old value. |
 | `test_compat.py` (all) | `_compat.py` | Forces **both** branches of each shim by patching the detection flag. The suite runs against one HA version, so the other branch would never execute — and this integration must be correct on ≤2026.7 and post-2027.8 alike. |
 | `assert_links_to_parent()` / `assert_is_root()` | device-registry link shape | **Never assert `info["via_device"]` directly.** Twelve tests did, and were green only because the installed HA took that branch. These assert the link's presence and exclusivity instead. |
+
+## Mutation testing — what is on the list, and why
+
+**Scoped by `.validate/mutmut_modules.txt`** — currently `*/helpers.py`, `*/diagnostics.py`, `*/device_tracker.py`, `*/coordinator.py`, `*/sensor.py`. A module earns a place when its tests exercise real code: a mutation of a call into a mocked object cannot be detected by any test, so it survives every run and is never a defect.
+
+`api.py`, `config_flow.py`, `switch.py`, `number.py`, `button.py`, `select.py`, `__init__.py`, `_compat.py` and `const.py` are excluded, each with its reason recorded. `coordinator.py` is a deliberate departure from `zte_router_5g`, which excludes it: the API is mocked here too, but the strike budget, the per-endpoint counters, the health snapshot, the uptime latches and the SMS dedup are real code with real boundaries.
+
+**The reasoning lives in [`.notes/test_pytest_issues/mutation_covered_not_covered.md`](.notes/test_pytest_issues/mutation_covered_not_covered.md)** — included modules with their measured results, rejected modules with the reason each, candidates with the case for and against, and the rule for deciding the next one. Read it before adding or removing a module, and record the decision there. This project has the largest mutation surface in the family at roughly 1,633 mutants and 70 minutes, so an addition is a real cost.
+
+**Do not project survivor volume from the source.** `sensor.py` was excluded on a count of string literals predicting over a thousand `about` note survivors, and measured at 53 survivors with no note among them. Measure the module.
+
+**Never delete `mutants/`** — it is the incremental cache and the results store, and changing the module list does not require it. **`only_mutate` must be an indented newline list**; the comma-separated form in the mutmut documentation generates zero mutants and reports no error.
 
 ## Remaining Work (Future — Separate Session)
 

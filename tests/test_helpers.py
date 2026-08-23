@@ -315,23 +315,22 @@ def test_parse_sms_list_invalid_type():
 
 
 def test_parse_complex_int_error():
-    """Test _parse_complex_int error branch."""
-    # We need to trigger the except (ValueError, TypeError) block.
-    # parse_signal_value returns None for "invalid", so it doesn't enter the
-    # try block or returns None. To hit the catch, we'd need parse_signal_value
-    # to return something that int() fails on, but parse_signal_value already
-    # returns float or None. Actually, line 116-117 is hit if int(f_val) fails.
-    # If f_val is 10.5, int(10.5) is 10 (no error).
-    # If we pass a string that parse_signal_value returns as a float but
-    # int() fails? Unlikely.
-    # However, we can mock parse_signal_value inside the test to force the error.
-    from unittest.mock import patch
+    """A value the parser rejects is kept as the string it arrived as.
 
-    with patch(
-        "custom_components.huawei_router_5g.helpers.parse_signal_value",
-        return_value="not_an_int",
-    ):
-        assert _parse_complex_int("trigger_error") == "trigger_error"
+    `"nan"` and `"inf"` are the real cases: `float()` accepts both, so before
+    `parse_signal_value` rejected non-finite values they left it as numbers —
+    `int(nan)` raises `ValueError` and `int(inf)` raises `OverflowError`, from
+    inside a `value_fn` nothing catches. The contract is that anything the
+    parser cannot turn into a number comes back verbatim, so a sensor shows
+    the router's own text rather than a wrong number or an exception.
+
+    **Previously this patched `parse_signal_value` to return a string**, which
+    put the mock exactly where the defect would be: the branch was reached
+    without either function actually doing anything. The comment above it
+    recorded that no real input had been found.
+    """
+    for raw in ("nan", "NaN", "inf", "-inf", "Infinity"):
+        assert _parse_complex_int(raw) == raw
 
 
 def test_parse_sms_list_empty_messages():
@@ -650,3 +649,45 @@ def test_rounding_leaves_integers_alone() -> None:
 
     assert _safe_float("-95") == -95.0
     assert _safe_int("4") == 4
+
+
+@pytest.mark.parametrize("raw", ["inf", "-inf", "Infinity", "nan", "NaN"])
+def test_a_non_finite_reading_parses_to_unknown(raw):
+    """Infinity and NaN are unparsable, not values.
+
+    `float()` accepts all five of these, so without an explicit check they
+    would leave `parse_signal_value` as numbers and every caller would have to
+    defend itself: `_safe_int` raises `OverflowError` on infinity and
+    `ValueError` on NaN, both from inside a `value_fn` that nothing catches,
+    and `_safe_float` would hand infinity to the state machine, where it
+    reaches long-term statistics and cannot be taken back.
+
+    None is the right answer because it is the one every caller already
+    handles — the entity goes *unknown*, which is what an unreadable value is.
+    """
+    assert parse_signal_value(raw) is None
+    assert _safe_int(raw) is None
+    assert _safe_float(raw) is None
+
+
+@pytest.mark.parametrize("raw", [float("inf"), float("-inf"), float("nan")])
+def test_a_non_finite_float_is_rejected_before_rounding(raw):
+    """The numeric branch needs the check too, not only the string branch.
+
+    A caller handing a float straight in skips the parse entirely, so a check
+    placed only after `float(s)` would leave this path open.
+    """
+    assert parse_signal_value(raw) is None
+
+
+def test_a_finite_reading_is_unaffected():
+    """The guard must reject only the non-finite, and this pins that.
+
+    Without it, a check written as `if not val` or `if val != val` in the
+    wrong place would take zero or a negative reading with it — and every
+    signal metric on this router is negative.
+    """
+    assert parse_signal_value("0") == 0.0
+    assert parse_signal_value("-95dBm") == -95.0
+    assert parse_signal_value(-95.0) == -95.0
+    assert parse_signal_value("1e308") == 1e308

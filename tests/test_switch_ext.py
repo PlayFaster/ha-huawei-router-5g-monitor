@@ -322,3 +322,41 @@ async def test_a_successful_write_is_not_reported_as_failed_by_a_read_blip(
     # router has just failed to answer one costs more than the debounced
     # refresh this replaced. The next scheduled poll settles it.
     mock_coordinator.async_force_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_the_pause_switch_publishes_the_new_position(
+    mock_coordinator, mock_config_entry
+):
+    """What the switch reads at the moment it publishes, not afterwards.
+
+    Every other test in this file stubs `async_write_ha_state` with a bare
+    `MagicMock`, which records that a publish happened and nothing about what
+    it carried. `is_on` reads `entry.options`, so the order of the option write
+    and the publish is the whole behavior: publishing first sends the previous
+    position and the toggle springs back under the user's finger until the
+    next update. Section 22, and `stubbed_publish_tests.md`.
+    """
+    switch = HuaweiPausePollingSwitch(
+        mock_coordinator, mock_config_entry, PAUSE_POLLING_DESCRIPTION, False
+    )
+    switch.hass = MagicMock()
+    published: list[bool] = []
+
+    def record_options(entry, options=None, **kwargs):
+        # `ConfigEntry` guards attribute assignment, and the real
+        # `async_update_entry` is the only sanctioned way through it. Going
+        # around the guard is what lets the stub stand in for it here.
+        object.__setattr__(entry, "options", options)
+
+    switch.hass.config_entries.async_update_entry = MagicMock(
+        side_effect=record_options
+    )
+    switch.async_write_ha_state = MagicMock(
+        side_effect=lambda: published.append(switch.is_on)
+    )
+
+    await switch.async_turn_on()
+    await switch.async_turn_off()
+
+    assert published == [True, False]

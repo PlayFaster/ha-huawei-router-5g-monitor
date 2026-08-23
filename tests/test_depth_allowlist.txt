@@ -1,0 +1,7 @@
+# Depth findings that are deliberate, one per line.
+#
+# Each entry is a reviewable act with a written reason. An entry that is not
+# true any more is worse than no allow-list at all, so it is removed when the
+# test that needed it changes.
+
+SEAM::test_config_flow.py:custom_components.huawei_router_5g.config_flow._validate_credentials  # The branch tests only. They cover what the flow does with each outcome — auth failure, connection failure, a duplicate unique id, the reconfigure and options paths — and patching is how each outcome is selected. The function itself is driven for real over the fake transport in the same file: test_validate_credentials_derives_the_identity_from_the_router asserts the MAC, model and versions it derives, and test_a_full_user_flow_reaches_the_router_and_creates_the_entry runs one flow with nothing patched, so the seam is proven reachable rather than assumed.
