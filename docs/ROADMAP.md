@@ -30,7 +30,7 @@ Items that were on this roadmap and were then built. **Membership is by provenan
 
 The coordinator holds a single failure counter for the whole fetch. `api.get_data()` already tolerates individual endpoint failures by omitting them, and the Integration Health sensor now reports that — but there is no per-endpoint backoff, so a permanently dead endpoint is retried on every poll forever.
 
-Strengthened 2026-08-16 by the ecosystem review in `.notes/info/other_huawei_projects/analysis_and_learnings.md`, which reports ISP-customised firmwares (Three UK, Vodafone) locking whole endpoint families behind `100003: No rights`. Two things make this concrete rather than theoretical:
+Strengthened 2026-08-16 by the ecosystem review in `.notes/info/other_huawei_projects/analysis_and_learnings.md`, which reports ISP-customized firmwares (Three UK, Vodafone) locking whole endpoint families behind `100003: No rights`. Two things make this concrete rather than theoretical:
 
 - The reference H165 already returns a permanent `100002: No support` for `monitoring.daily_data_limit`, and the fix was to **hand-remove it from the fetch list** — a manual, per-device answer to what is really a per-firmware problem. `api.py` says so in a comment.
 - `100002` and `100003` are distinguishable from a transient failure, so suppression can key off the response code rather than guessing from a strike count. `_endpoint_strikes` in `coordinator.py` already counts consecutive per-endpoint misses; the counter exists, nothing consumes it for backoff.
@@ -43,7 +43,7 @@ Any suppression must re-probe periodically — `100003` can change with a firmwa
 
 ### New device alert
 
-Notify the user when a client that has never been seen before joins the router — an unrecognised device on the network is the security event a router integration is best placed to report.
+Notify the user when a client that has never been seen before joins the router — an unrecognized device on the network is the security event a router integration is best placed to report.
 
 The inputs already exist: `lan_host_info` and `wlan_host_list` are polled every cycle and `device_tracker` entities are created dynamically from them, so "first appearance of this MAC" is a question the coordinator can already answer. What is missing is the notion of **known**: without persisted state every restart is a cold start and every device looks new.
 
