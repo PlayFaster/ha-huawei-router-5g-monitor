@@ -166,16 +166,16 @@ SSID write operations for guest network configurations where multi-SSID setups a
 
 **Eight** entities restate their group in their name, so their entity IDs read `..._data_total_data` and so on. The list below is the complete scan, taken on 2026-08-24 across all 159 entity descriptions by matching each `strings.json` name against its group's `SUB_DEVICE_LABELS` label — the earlier count of four was a partial reading and named only the first, third, fourth and sixth rows.
 
-| Entity key | Platform | Group | Name |
-| :-- | :-- | :-- | :-- |
-| `total_data` | Sensor | Data | Total Data |
-| `data_allowance` | Sensor | Data | Data Allowance |
-| `data_plan_enabled` | Binary sensor | Data | Data Plan Enabled |
-| `signal_bars` | Sensor | Signal | Signal Bars |
-| `signal_bars_nr` | Sensor | Signal | 5G Signal Bars |
-| `poor_signal` | Binary sensor | Signal | Poor Signal |
-| `sms_storage_full` | Binary sensor | SMS | SMS Storage Full |
-| `wifi` | Switch | WiFi | WiFi |
+| Entity key          | Platform      | Group  | Name              |
+| :------------------ | :------------ | :----- | :---------------- |
+| `total_data`        | Sensor        | Data   | Total Data        |
+| `data_allowance`    | Sensor        | Data   | Data Allowance    |
+| `data_plan_enabled` | Binary sensor | Data   | Data Plan Enabled |
+| `signal_bars`       | Sensor        | Signal | Signal Bars       |
+| `signal_bars_nr`    | Sensor        | Signal | 5G Signal Bars    |
+| `poor_signal`       | Binary sensor | Signal | Poor Signal       |
+| `sms_storage_full`  | Binary sensor | SMS    | SMS Storage Full  |
+| `wifi`              | Switch        | WiFi   | WiFi              |
 
 **Deliberately not renamed — all eight are keeps.** Home Assistant never renames an existing `entity_id`, so the only beneficiary would be a new install, while anyone referencing the current friendly name in an automation or dashboard gets a silent break. `zte_router_5g` kept two doubled IDs for the same reason. The convention applies to **new** entities from here on.
 

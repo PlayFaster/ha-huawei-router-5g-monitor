@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via via_device_id Defined](#121-dev16---2026-08-24---device-tracker-naming-architecture-client-devices-via-via_device_id-defined)
   - [\[1.2.1-dev15\] - 2026-08-24 - Write-Refusal Sweep Added; Rate Sensors Disabled by Default](#121-dev15---2026-08-24---write-refusal-sweep-added-rate-sensors-disabled-by-default)
   - [\[1.2.1-dev14\] - 2026-08-24 - sub_devices_and_trackers.md Reconciled; Six False Statements](#121-dev14---2026-08-24---sub_devices_and_trackersmd-reconciled-six-false-statements)
   - [\[1.2.1-dev13\] - 2026-08-24 - Device-Tracker Naming: Two Contradicting Tasks Merged Into One](#121-dev13---2026-08-24---device-tracker-naming-two-contradicting-tasks-merged-into-one)
@@ -164,6 +165,26 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+
+---
+
+## [1.2.1-dev16] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via `via_device_id` Defined
+
+Documentation only. No source code changes. Aligns the tracker naming architecture and implementation task with Home Assistant Core router standards (Developer Blog 2026/07/21 and Architecture Discussion #1414).
+
+### Changed
+
+- **`info/sub_devices_and_trackers.md` updated with the target HA architecture.**
+  - Explains the architectural distinction between logical sub-devices (internal slices of the router, e.g. Signal/Data/SMS/WiFi) and external network clients (independent hardware connected via the router).
+  - Documents the target design: modeling each client as an independent device linked to the router via `via_device_id`, setting `_attr_has_entity_name = True` with `name = None`.
+  - Details the **Why** (clean `device_tracker.<hostname>` naming, parity with UniFi/FRITZ!Box, `dev_standards.md` §12 compliance), the **How** (`DeviceInfo` construction), and the **Consequences** (non-breaking entity registry behavior for existing users, UI presentation, multi-router disambiguation).
+  - Preserves the full back-story and historical investigation notes.
+- **`tasks/device_tracker_naming.md` refocused into an actionable implementation task.**
+  - Retitled: _Migrate Tracked Clients to Independent Devices via `via_device_id`_.
+  - Structured into a concrete 4-step implementation plan (coordinator router device ID exposure, tracker `DeviceInfo` update, primary entity naming properties, and "Clients" sub-device cleanup).
+  - Includes automated test requirements (`tests/test_device_tracker.py` and `tests/test_mutation_gaps.py`) and live verification checklists.
+  - Conforms strictly to the issue tracking workflow format in `issue_tracking_workflow.md`.
+- **`tasks/README.md` index updated** to reflect the new summary and verification date for `device_tracker_naming.md`.
 
 ---
 
@@ -1456,12 +1477,12 @@ Section §S of the August 2026 update plan — work raised by the `huawei-lte-ap
 
 Run after every other change in this batch, per §S-13 of the tracking notes: the queued work changes the surface the prompt audits, and the prompt is also the check on that work.
 
-| Class                         | Result                                                                                                                                                                                                                                                                                                                                                                                   |
-| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **A** — swallowed exceptions  | **1 accepted.** Every broad `except` in `api.py` re-raises, bar two: the logout teardown (best-effort by design, and the connection is discarded regardless) and the per-endpoint handler in `get_data`, which drops a failed optional endpoint. The second is deliberate **and no longer silent** — the Integration Health sensor reports it as a degraded capability once it persists. |
-| **B** — silent auth timeouts  | **None.** Session expiry is detected from typed exceptions and the `125002` / `125003` / `100003` codes, plus a time-based inactivity reset in `_ensure_client`.                                                                                                                                                                                                                         |
-| **C** — mock-masked tests     | **Mitigated rather than removed.** The API tests still mock the client, but every method name they assert is now independently verified against the installed package by the contract test, which is the layer that was missing.                                                                                                                                                         |
-| **D** — suppressed directives | **3, all reviewed and allow-listed** with written reasons. Down from five, of which three were wrong.                                                                                                                                                                                                                                                                                    |
+| Class | Result |
+| :-- | :-- |
+| **A** — swallowed exceptions | **1 accepted.** Every broad `except` in `api.py` re-raises, bar two: the logout teardown (best-effort by design, and the connection is discarded regardless) and the per-endpoint handler in `get_data`, which drops a failed optional endpoint. The second is deliberate **and no longer silent** — the Integration Health sensor reports it as a degraded capability once it persists. |
+| **B** — silent auth timeouts | **None.** Session expiry is detected from typed exceptions and the `125002` / `125003` / `100003` codes, plus a time-based inactivity reset in `_ensure_client`. |
+| **C** — mock-masked tests | **Mitigated rather than removed.** The API tests still mock the client, but every method name they assert is now independently verified against the installed package by the contract test, which is the layer that was missing. |
+| **D** — suppressed directives | **3, all reviewed and allow-listed** with written reasons. Down from five, of which three were wrong. |
 
 **The audit found one new defect — in the contract test written earlier the same day.** Its pattern matched the receiver literally as `client.`, so `lambda c: c.dial_up.set_mobile_dataswitch(...)` was invisible to it: one real library call, unswept, by a test whose whole purpose is to sweep them. The rule now keys on the endpoint-group names taken from `Client` itself, so a receiver of any name is covered, and the previously-missed call is pinned by name. Coverage went 21 → 22 calls.
 
@@ -1582,11 +1603,11 @@ Phase 2 (second part) of the August 2026 update plan — the cheap ports and the
 
 - **`PARALLEL_UPDATES` decided per write path, and pinned.** The rule is that the constant is set deliberately, and that is not something a reader can verify: `0` from a considered decision and `0` from a copy-paste look identical. The decision is now a table in `tests/test_entity_hygiene.py` with its reasoning, and a second test fails if a new platform appears that the table does not cover.
 
-  | Platform                                    | Value | Why                                                                                                                                                                                                                                                          |
-  | :------------------------------------------ | ----: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `button`, `switch`, `select`                | **1** | Issue commands with a real-world effect. `api.py` already serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the actual safety mechanism and `1` states the same intent at the platform boundary. |
-  | `number`                                    | **0** | **Deliberately unlike `zte_router_5g`**, which sets `1` on every writable platform. The only number entity writes to `ConfigEntry.options`, which Home Assistant owns — no session to tear down, no command to duplicate.                                    |
-  | `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only and coordinator-driven; nothing to serialize.                                                                                                                                                                                                      |
+  | Platform | Value | Why |
+  | :-- | --: | :-- |
+  | `button`, `switch`, `select` | **1** | Issue commands with a real-world effect. `api.py` already serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the actual safety mechanism and `1` states the same intent at the platform boundary. |
+  | `number` | **0** | **Deliberately unlike `zte_router_5g`**, which sets `1` on every writable platform. The only number entity writes to `ConfigEntry.options`, which Home Assistant owns — no session to tear down, no command to duplicate. |
+  | `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only and coordinator-driven; nothing to serialize. |
 
 - **Secret pre-fill guards, ported from `zte_router_5g`.** `test_stored_secrets_are_never_pre_filled` and `test_no_field_leaks_the_stored_secret`, both parametrized over the user and edit schemas. **There is no defect here today** — the component has zero `suggested_value` uses — so these are a guard rather than a fix. They are worth having because the failure is silent: the screen looks correct and the stored password is exposed only when someone clicks the eye icon.
 
@@ -2011,36 +2032,36 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
   **Flags added** (HA applies these globally; the project previously lacked them):
 
-  | Flag                                                                                             | Why added                                                                                                                                                               |
-  | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `platform = "linux"`                                                                             | Matches HA's platform assumption; eliminates platform-specific type divergence                                                                                          |
-  | `local_partial_types = true`                                                                     | Prevents deferred variable typing (e.g. `x = []` with no annotation)                                                                                                    |
-  | `strict_bytes = true`                                                                            | Stricter bytes/str distinction                                                                                                                                          |
-  | `warn_incomplete_stub = true`                                                                    | Surfaces partially-typed stubs that could produce misleading "no error" results                                                                                         |
-  | `disallow_incomplete_defs = true`                                                                | Flags functions with only some arguments annotated                                                                                                                      |
-  | `disallow_untyped_calls = true`                                                                  | Flags calls into untyped functions (catches missing annotations in third-party wrappers)                                                                                |
+  | Flag | Why added |
+  | --- | --- |
+  | `platform = "linux"` | Matches HA's platform assumption; eliminates platform-specific type divergence |
+  | `local_partial_types = true` | Prevents deferred variable typing (e.g. `x = []` with no annotation) |
+  | `strict_bytes = true` | Stricter bytes/str distinction |
+  | `warn_incomplete_stub = true` | Surfaces partially-typed stubs that could produce misleading "no error" results |
+  | `disallow_incomplete_defs = true` | Flags functions with only some arguments annotated |
+  | `disallow_untyped_calls = true` | Flags calls into untyped functions (catches missing annotations in third-party wrappers) |
   | `enable_error_code = ["deprecated", "ignore-without-code", "redundant-self", "truthy-iterable"]` | HA's four enabled codes. Notably `ignore-without-code` requires every `# type: ignore` to carry a specific error code — bare `# type: ignore` comments are now an error |
 
   **Flag changed**:
 
-  | Before                          | After                                                                                 | Why                                                                                                                                                               |
-  | ------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Before | After | Why |
+  | --- | --- | --- |
   | `ignore_missing_imports = true` | `disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]` | HA's approach is targeted error-code suppression rather than a blanket flag. Effect is functionally similar for missing stubs but matches HA's convention exactly |
 
   **Flag removed**:
 
-  | Flag                                    | Why removed                                                                                                                                                                            |
-  | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Flag | Why removed |
+  | --- | --- |
   | `disallow_any_generics = true` (global) | HA only applies this to ~10 specific HA core modules (auth, core, helpers), not globally. Keeping it global made the project stricter than HA on generics without a matching rationale |
 
   **`homeassistant.*` override updated**:
 
-  | Change                              | Detail                                                                                                                                                                                                                                                                                                                                                                                                                |
-  | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | Removed `implicit_reexport = true`  | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*`                                                                                                                                                                                                              |
+  | Change | Detail |
+  | --- | --- |
+  | Removed `implicit_reexport = true` | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*` |
   | Added `no_implicit_reexport = true` | Matches HA's own `[mypy-homeassistant.*] no_implicit_reexport = true` exactly. HA explicitly enforces that its modules only export names declared in `__all__`. Setting this in the project's override causes both basic and strict mypy to apply the same rule when the project imports from HA — surfacing cases where HA's public API surface doesn't match its declared exports (such as the `ScannerEntity` gap) |
-  | Kept `ignore_errors = true`         | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness                                                                                                                                                                                                                                                                 |
-  | Kept `follow_imports = "silent"`    | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast                                                                                                                                                                                                                                                                                                                  |
+  | Kept `ignore_errors = true` | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness |
+  | Kept `follow_imports = "silent"` | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast |
 
   **Net result**: both `mypy custom_components/` (basic) and `mypy custom_components/ --strict` pass with zero errors. The pre-commit mypy hook (which runs basic mode) is now consistent with HA's own integration quality checks.
 
