@@ -54,18 +54,6 @@ def transport_fixture():
         yield RouterTransport(mocker)
 
 
-@pytest.fixture(name="short_fetch_timeout")
-def short_fetch_timeout_fixture(monkeypatch):
-    """Shorten the fetch deadline so the `timeout` fault can reach it.
-
-    The deadline is a **constant**, not behavior: the code path under test is
-    the coordinator's own `asyncio.timeout`, which still runs and still decides
-    what happens. Waiting the real 30 seconds ten times over would put a single
-    test at five minutes.
-    """
-    monkeypatch.setattr(coordinator_module, "FETCH_TIMEOUT", 0.1)
-
-
 def _coordinator(hass, entry) -> HuaweiRouter5GDataUpdateCoordinator:
     """Build a coordinator over a real API client.
 
@@ -182,7 +170,7 @@ async def test_the_fetch_strike_budget_holds_then_releases(
 
 
 async def test_the_conn_error_repair_is_raised_only_once_the_budget_is_spent(
-    hass, mock_config_entry, transport, short_fetch_timeout
+    hass, mock_config_entry, transport, monkeypatch
 ):
     """`conn_error` waits for `REPAIR_CONN_STRIKE_LIMIT` consecutive failures.
 
@@ -201,10 +189,23 @@ async def test_the_conn_error_repair_is_raised_only_once_the_budget_is_spent(
     coordinator = _coordinator(hass, mock_config_entry)
     await _poll(coordinator)
 
+    # The clean poll above runs against the real deadline, and must — it makes
+    # 27 requests and takes 55-65 ms idle, against a tenth of a second. That is
+    # 40 ms of headroom, which a loaded machine or coverage instrumentation
+    # spends easily. When it does, the setup poll fails, `consecutive_failures`
+    # starts at 1 instead of 0, and the assertion below reports `10 == 9` — a
+    # budget defect that is not there. Reproduced deterministically 2026-08-24
+    # by running this test on a busy CPU: the counter read 1 before the loop
+    # began, every time. Same reasoning, and the same fix, as
+    # `test_a_recovered_router_clears_the_repair_in_the_same_cycle` below.
+    monkeypatch.setattr(coordinator_module, "FETCH_TIMEOUT", 0.1)
+
     transport.arm("timeout")
     for _ in range(REPAIR_CONN_STRIKE_LIMIT - 1):
         await _poll(coordinator, transport)
 
+    # Fails loudly if the setup poll was counted, rather than surfacing as an
+    # off-by-one in the budget assertion that follows.
     assert coordinator.consecutive_failures == REPAIR_CONN_STRIKE_LIMIT - 1
     assert registry.async_get_issue(DOMAIN, issue_id) is None
 

@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.1-dev17\] - 2026-08-24 - Intermittent Seam-Test Failure Fixed: A Setup Poll Racing a Shortened Deadline](#121-dev17---2026-08-24---intermittent-seam-test-failure-fixed-a-setup-poll-racing-a-shortened-deadline)
   - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via via_device_id Defined](#121-dev16---2026-08-24---device-tracker-naming-architecture-client-devices-via-via_device_id-defined)
   - [\[1.2.1-dev15\] - 2026-08-24 - Write-Refusal Sweep Added; Rate Sensors Disabled by Default](#121-dev15---2026-08-24---write-refusal-sweep-added-rate-sensors-disabled-by-default)
   - [\[1.2.1-dev14\] - 2026-08-24 - sub_devices_and_trackers.md Reconciled; Six False Statements](#121-dev14---2026-08-24---sub_devices_and_trackersmd-reconciled-six-false-statements)
@@ -167,6 +168,25 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.1-dev17] - 2026-08-24 - Intermittent Seam-Test Failure Fixed: A Setup Poll Racing a Shortened Deadline
+
+Test-only. No product code changed, and none was at fault.
+
+### Fixed
+
+- **`test_the_conn_error_repair_is_raised_only_once_the_budget_is_spent` failed intermittently with `assert 10 == (10 - 1)`.** The `short_fetch_timeout` fixture patched `FETCH_TIMEOUT` to 0.1 s for the whole test, including the clean setup poll that runs **before** the fault is armed. That poll makes 27 requests and takes 55-65 ms on an idle machine — roughly 40 ms of headroom. A loaded machine or coverage instrumentation spends it, the setup poll times out, `consecutive_failures` starts at 1 instead of 0, and nine armed polls total ten.
+- **The strike budget was never wrong.** The assertion reported a `REPAIR_CONN_STRIKE_LIMIT` defect that did not exist, which is why the failure read as a product problem rather than a test one.
+- **The shortened deadline now starts after the setup poll**, set inline through `monkeypatch` rather than by a fixture that covers the whole test. The clean poll runs against the real deadline, which is what it always needed.
+- **The now-unused `short_fetch_timeout` fixture was removed.** It had exactly one caller.
+
+### Notes
+
+- **The fix already existed one test away.** `test_a_recovered_router_clears_the_repair_in_the_same_cycle` patches `FETCH_TIMEOUT` inline after its own clean poll and carries a comment naming this precise cause — "under coverage instrumentation a healthy poll can take longer than a tenth of a second". The same reasoning was never carried back to the test above it. Both now use one pattern.
+- **Reproduced deterministically before being fixed**, rather than inferred from a rare failure. Running the test with eight busy CPU loops on a two-core container produced `consecutive_failures == 1` after the setup poll and `10` at the assertion on **six runs out of six**. An earlier attempt to reproduce it by shrinking the deadline alone did not, which is why the load reproduction was worth doing.
+- **Verified against the same load.** Six runs after the fix, all pass. Full project command: 920 passed, 100% line and branch coverage. `ruff format` and `ruff check` clean.
+- **The measured headroom is recorded in the test itself**, with the reproduction method, so the next reader does not re-derive it from a one-line assertion failure.
+- **Why it surfaced now.** Nothing changed in this test or in the coordinator. It is timing-sensitive and always was; a slower run is all it takes. A run of the full suite at 143 s hit it where one at 104 s did not.
 
 ## [1.2.1-dev16] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via `via_device_id` Defined
 
