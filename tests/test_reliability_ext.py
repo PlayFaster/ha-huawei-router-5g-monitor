@@ -190,6 +190,11 @@ async def test_coordinator_log_exception_on_critical_failure():
     mock_entry.options = {"scan_interval": 30}
     mock_api = MagicMock()
     mock_api.get_data = AsyncMock(side_effect=Exception("Unexpected"))
+    # The general failure branch diagnoses which end is at fault before it
+    # gives up, so the probe has to be awaitable here. It was not reached from
+    # this branch until 2026-08-23.
+    mock_api.probe_liveness = AsyncMock(return_value=False)
+    mock_api.invalidate = AsyncMock()
 
     coordinator = HuaweiRouter5GDataUpdateCoordinator(MagicMock(), mock_entry, mock_api)
     coordinator.data = {"old": "data"}

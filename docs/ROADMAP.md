@@ -30,7 +30,7 @@ Items that were on this roadmap and were then built. **Membership is by provenan
 
 The coordinator holds a single failure counter for the whole fetch. `api.get_data()` already tolerates individual endpoint failures by omitting them, and the Integration Health sensor now reports that — but there is no per-endpoint backoff, so a permanently dead endpoint is retried on every poll forever.
 
-Strengthened 2026-08-16 by the ecosystem review in `.notes/info/other_huawei_projects/analysis_and_learnings.md`, which reports ISP-customised firmwares (Three UK, Vodafone) locking whole endpoint families behind `100003: No rights`. Two things make this concrete rather than theoretical:
+Strengthened 2026-08-16 by the ecosystem review in `.notes/info/other_huawei_projects/analysis_and_learnings.md`, which reports ISP-customized firmwares (Three UK, Vodafone) locking whole endpoint families behind `100003: No rights`. Two things make this concrete rather than theoretical:
 
 - The reference H165 already returns a permanent `100002: No support` for `monitoring.daily_data_limit`, and the fix was to **hand-remove it from the fetch list** — a manual, per-device answer to what is really a per-firmware problem. `api.py` says so in a comment.
 - `100002` and `100003` are distinguishable from a transient failure, so suppression can key off the response code rather than guessing from a strike count. `_endpoint_strikes` in `coordinator.py` already counts consecutive per-endpoint misses; the counter exists, nothing consumes it for backoff.
@@ -43,7 +43,7 @@ Any suppression must re-probe periodically — `100003` can change with a firmwa
 
 ### New device alert
 
-Notify the user when a client that has never been seen before joins the router — an unrecognised device on the network is the security event a router integration is best placed to report.
+Notify the user when a client that has never been seen before joins the router — an unrecognized device on the network is the security event a router integration is best placed to report.
 
 The inputs already exist: `lan_host_info` and `wlan_host_list` are polled every cycle and `device_tracker` entities are created dynamically from them, so "first appearance of this MAC" is a question the coordinator can already answer. What is missing is the notion of **known**: without persisted state every restart is a cold start and every device looks new.
 
@@ -164,9 +164,22 @@ SSID write operations for guest network configurations where multi-SSID setups a
 
 ### Renaming entities that repeat their sub-device word
 
-Four entities restate their group in their name — `total_data` in Data, `signal_bars` and `signal_bars_nr` in Signal, and `sms_storage_full` in SMS — so their entity IDs read `..._data_total_data` and so on.
+**Eight** entities restate their group in their name, so their entity IDs read `..._data_total_data` and so on. The list below is the complete scan, taken on 2026-08-24 across all 159 entity descriptions by matching each `strings.json` name against its group's `SUB_DEVICE_LABELS` label — the earlier count of four was a partial reading and named only the first, third, fourth and sixth rows.
 
-**Deliberately not renamed.** Home Assistant never renames an existing `entity_id`, so the only beneficiary would be a new install, while anyone referencing the current friendly name in an automation or dashboard gets a silent break. `zte_router_5g` kept two doubled IDs for the same reason. The convention applies to **new** entities from here on.
+| Entity key          | Platform      | Group  | Name              |
+| :------------------ | :------------ | :----- | :---------------- |
+| `total_data`        | Sensor        | Data   | Total Data        |
+| `data_allowance`    | Sensor        | Data   | Data Allowance    |
+| `data_plan_enabled` | Binary sensor | Data   | Data Plan Enabled |
+| `signal_bars`       | Sensor        | Signal | Signal Bars       |
+| `signal_bars_nr`    | Sensor        | Signal | 5G Signal Bars    |
+| `poor_signal`       | Binary sensor | Signal | Poor Signal       |
+| `sms_storage_full`  | Binary sensor | SMS    | SMS Storage Full  |
+| `wifi`              | Switch        | WiFi   | WiFi              |
+
+**Deliberately not renamed — all eight are keeps.** Home Assistant never renames an existing `entity_id`, so the only beneficiary would be a new install, while anyone referencing the current friendly name in an automation or dashboard gets a silent break. `zte_router_5g` kept two doubled IDs for the same reason. The convention applies to **new** entities from here on.
+
+Recorded against cross-project chore `C-030`, whose requirement is the scan and the recorded keeps rather than any rename.
 
 ---
 
@@ -188,6 +201,7 @@ Four entities restate their group in their name — `total_data` in Data, `signa
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v3.3.0 | 2026-08-24 | **The _Renaming entities that repeat their sub-device word_ entry corrected from four entities to eight**, and the keeps recorded as a table. The entry had named `total_data`, `signal_bars`, `signal_bars_nr` and `sms_storage_full` since v2.0.0. A full scan on 2026-08-24 — every one of the 159 entity descriptions, matching its `strings.json` name against its group's `SUB_DEVICE_LABELS` label rather than against the description key — found four more: `data_allowance`, `data_plan_enabled`, `poor_signal` and the `wifi` switch, whose name is the label itself. **The decision is unchanged**; all eight are keeps for the same reason, and nothing is renamed. This is the deliverable of cross-project chore `C-030`, which asks for the scan and the recorded keeps rather than a rename, and it is what let that chore's Huawei cell settle. |
 | v3.2.0 | 2026-08-19 | **Added _5G Mode select, and a sensor to read it back_** under Maybe, at the owner's request. The router GUI offers SA+NSA / NSA / SA and exposes it whether Preferred Network Mode is Auto or 5G Only. **The write path was validated before the entry was written and does not exist**: `huawei-lte-api` 2.0.1 has no method for it anywhere in the package, and the polled `net/net-mode` block returns only `NetworkMode`, `NetworkBand`, `LTEBand`, `networkOption` and `LTEBandOption` — so there is no read path either, and no sensor could be populated from the current poll. The entry therefore leads with discovery: capture what the router's own web interface posts, the method that established `dialup/dial` and `wlan/status-switch-settings` once the library proved insufficient. **One correction to the request as made**: it asked for read-back sensors for both Preferred Network Mode and 5G Mode, and the first already exists — a diagnostic reading `net_mode.NetworkMode` whose `about` note already covers the control-versus-state disagreement. Only the 5G Mode sensor is new. |
 | v3.1.0 | 2026-08-17 | **Added _Opt out of client tracking at setup_** under Maybe, from the `setup_cleanup_options.md` assessment. That guide predicted Huawei was "likely most applicable" for sensor-group toggles; on inspection only one group qualifies. SMS and WiFi fail the tax-on-every-installer test — Home Assistant's own per-device disable already hides them, and the saving is two endpoints out of twenty-six on a poll measured at about one second. Clients passes on two counts a toggle can serve and disabling cannot: it is the integration's privacy surface (MAC, hostname and IP per client) and the only group whose entity count is unbounded. The entry records its dependency on _Retire long-unseen device trackers_, since both address the same sprawl from opposite ends. |
 | v3.0.0 | 2026-08-16 | **Scope corrected to features only, and the file cleared of everything else.** Two rules were wrong here and both are fixed: this is not a chore register, and there **is** a **Done** group — a roadmap item that ships moves into it, by provenance. `roadmap_format.md` was not the source of either error; it defines Done as the first of six groups and sets membership by provenance. The misreadings were local to this file. **Four entries deleted as chores, not features:** _Mutation testing_ (complete; belongs in `x_proj_chores.md`), _The `manifest.json` / changelog version convention_ (no convention needed — the manifest is pegged to the working version with no dev tracking), _The eight `FREQUENCY` entities and the unit selector_ (fixed; `state_class` removal is recorded in `changelog_local.md`, and a ZTE chore was raised for the same class of problem) and _Real-time SMS notifications via webhooks_ (the router pushes nothing, and the integration already fires an event — the entry was noise). **Done** holds only _Dynamic Polling Interval Slider_; the three chores briefly restored earlier the same day were removed again under the features-only rule. **To Be Done** is omitted, having no members. **Three feature entries added under Maybe** from `.notes/todo.md`: _New device alert_, _Retire long-unseen device trackers_ and _Separate 2.4GHz and 5GHz WiFi switches_ — the first two share a persistence requirement and are marked to be designed together, and the tracker entry records that away clients are retained by the router for four months or more, which is outside what `cleanup_unused_entities` can reach. **_Per-endpoint strike budgets_ strengthened** with ISP-lockout evidence and a widened trigger. |

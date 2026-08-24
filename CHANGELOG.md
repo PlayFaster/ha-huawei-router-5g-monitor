@@ -1,6 +1,16 @@
 # Changelog
 
-## [1.2.0] - 2026-08-16 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health
+## [1.2.1] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults
+
+### Summary
+
+- **Connection Loss Repairs**: The "router is not responding" Repair now triggers reliably across all failure modes, including refused connections when the router is powered off or relocated.
+
+### Fixed
+
+- **Connection Error Repair on Refused Connections**: The `conn_error` Repair ("Huawei router is not responding") now triggers on refused socket connections (e.g. router powered off, cable unplugged, or changed IP address) after the strike budget is spent, rather than only on timeouts.
+
+## [1.2.0] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health
 
 ### Highlights
 
@@ -144,7 +154,8 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
-  - [\[1.2.0\] - 2026-08-16 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health](#120---2026-08-16---release---new-entities-projected-data-use-wifi-switch-reconnect-button-integration-health)
+  - [\[1.2.1\] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults](#121---2026-08-24---release---connection-repair-triggering-signal-parsing-resilience-disabled-rate-sensor-defaults)
+  - [\[1.2.0\] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health](#120---2026-08-20---release---new-entities-projected-data-use-wifi-switch-reconnect-button-integration-health)
   - [\[1.1.2\] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening](#112---2026-07-03---release---refresh-now-button-display-units-config-flow-hardening)
   - [\[1.1.1\] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes](#111---2026-06-07---release---startup-race-session-and-timestamp-fixes)
   - [\[1.1.0\] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up](#110---2026-05-07---release---mac-based-unique-id-code-clean-up)

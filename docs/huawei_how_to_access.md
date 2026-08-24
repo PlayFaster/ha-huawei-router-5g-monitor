@@ -18,7 +18,7 @@ The three sibling projects reach their devices in three different ways, and the 
 | `zte_router_5g` | Two `goform` endpoints, resource named in a `cmd=` parameter | `cmd` / `goformId` name |
 | **`huawei_router_5g`** | **A third-party library over a documented-by-reverse-engineering XML API** | **Library endpoint** |
 
-**This integration does not speak HTTP to the router at all.** Every call goes through [`huawei-lte-api`](https://pypi.org/project/huawei-lte-api/), pinned at **1.11.0**, which owns the URL construction, the XML parsing, the CSRF token handling and the session cookie. So the unit that corresponds to "an endpoint" here is **a library method** — `client.monitoring.status()`, `client.device.signal()` — and this document is organized that way.
+**This integration does not speak HTTP to the router at all.** Every call goes through [`huawei-lte-api`](https://pypi.org/project/huawei-lte-api/), pinned at **2.0.1** in `manifest.json`, which owns the URL construction, the XML parsing, the CSRF token handling and the session cookie. So the unit that corresponds to "an endpoint" here is **a library method** — `client.monitoring.status()`, `client.device.signal()` — and this document is organized that way.
 
 Three consequences worth knowing before debugging:
 
@@ -49,6 +49,17 @@ The router accepts a single username and password — **there is no separate `ad
 Some reads _do_ answer anonymously — `device.basic_information`, `device.vendorname` and `system.deviceinfoex` all did on the same probe. That is what made the wrong claim plausible. It does not generalize, and `device.information` is the counter-example that matters.
 
 Roughly **90 of the library's ~240 read methods answer `100003: No rights (needs login)`** — the configuration surface: WiFi security settings, MAC filters, VPN, USB storage, voice/SIP account details, firmware update controls. Supplying the stored password as `admin` was tested and made **no difference to any of them**, so they are not a credential problem — they need a session this API grants differently, or the model does not permit them at all.
+
+**Four that were probed individually and stayed refused**, so they are not artefacts of the bulk-sweep problem described below:
+
+| Endpoint | What is behind it | Consequence |
+| :-- | :-- | :-- |
+| `device.antenna_status` | The **configured** antenna mode — Auto / Internal / External / Mix | Only the resulting state is readable, from `device.antenna_type`. See the antenna note in Field formats |
+| `dial_up.auto_apn` | Automatic APN selection | The APN itself is readable from `dial_up.profiles`, which is polled |
+| `led.nightmode` | LED night-mode schedule | No route to LED state at all |
+| `monitoring.wifi_month_setting` | Per-WiFi monthly data plan | The WAN-side plan is readable from `monitoring.start_date` |
+
+Re-verify any of these on a fresh session before treating a refusal as permanent — that is the rule the next section exists for. These four have been.
 
 ### Error codes worth recognizing
 
@@ -174,17 +185,17 @@ The router's web interface states both ceilings: **612 ASCII characters, 268 UCS
 
 ### The master WiFi switch works at the RADIO level, not the SSID level
 
-`set_wifi` reads `wlan/status-switch-settings`, flips `wifienable` on **every** radio, and writes the block back whole. It does **not** touch the per-SSID flags in `wlan/multi-basic-settings`.
+**The per-SSID flags in `wlan/multi-basic-settings` are gated by the radio.** Writing them while the radio is off changes nothing observable, which is why an earlier attempt at this control could not be made to work. The radio state lives in `wlan/status-switch-settings`, as `wifienable` per radio, and turning WiFi on or off means writing that block back whole. Verified `0,0 → 1,1 → 0,0` on a live B535.
 
-That distinction is why an earlier attempt at this control could not be made to work: **the SSID flags are gated by the radio**, so writing them while the radio is off changes nothing observable. The library's own `wlan.wifi_network_switch()` answers `100005: Request format error` on this hardware. Verified `0,0 → 1,1 → 0,0` on a live B535.
+**The library's own `wlan.wifi_network_switch()` answers `100005: Request format error`** on this hardware, so it is not an alternative.
 
-The switch reads its state from `monitoring_status.WifiStatus`, which is already polled — the radio block would be a second round trip for the same fact.
+Current WiFi state is readable from `monitoring_status.WifiStatus`, which is already polled — reading the radio block for it would be a second round trip for the same fact.
 
 ### Guest WiFi deliberately bypasses the public setter
 
-`set_guest_wifi` posts to `wlan/multi-basic-settings` through `client.wlan._session.post_set` under a reasoned `# noqa: SLF001`, **not** through `client.wlan.set_multi_basic_settings()`.
+**The library's public setter is unusable for this write.** `client.wlan.set_multi_basic_settings()` builds its own payload — `{'Ssids': {...}, 'WifiRestart': 1}` — and **discards every other top-level key**. Probed on a live B535, `multi_basic_settings()` returns three: `Ssids`, `DbhoEnable` and `modify_guest_ssid`. Using the public setter would therefore drop band-steering and guest-SSID state on every guest toggle, silently, because the router accepts the truncated block without complaint.
 
-The public setter builds its own payload — `{'Ssids': {...}, 'WifiRestart': 1}` — and **discards every other top-level key**. Probed on a live B535, `multi_basic_settings()` returns `Ssids`, `DbhoEnable` and `modify_guest_ssid`, so the public setter would silently drop band-steering and guest-SSID state on every toggle. Full reasoning in `docs/DEVELOPMENT.md`.
+The guest write goes to `wlan/multi-basic-settings` through `client.wlan._session.post_set` instead, preserving the keys it did not set. The code-side decision and its test guard are in [`DEVELOPMENT.md`](DEVELOPMENT.md).
 
 ---
 
@@ -272,7 +283,19 @@ Returned `100002: No support`. **Do not add, do not retry.**
 
 There is **no brand field anywhere on this hardware**. Probed 2026-08-16: `device.information` has none, `device.basic_information` gives only `classify: cpe` and `devicename`, and `system.deviceinfoex` carries `devcap.Vendor` — the one field actually named for it — as an **empty string**. Brovi and SoyeaLink units will therefore also show as "Huawei"; the README says so under Compatibility. Anything better would have to be asked of the user in the config flow, not sniffed from the payload.
 
-**`ImeiSvn` is the IMEI Software Version Number**, a two-digit manufacturer revision counter (`01`). There is no public table to decode it further, and `SoftwareVersion` already says the same thing readably.
+**`antenna1type` / `antenna2type` report the antenna in use, not the setting.** Decoded 2026-08-15 by a controlled change: `0` = Internal, `1` = External, both antennas moving together with the GUI. Under **Auto** they read `1` — the router had _chosen_ External — so the field answers "which antenna is the radio on right now", which is the more useful half and the only half available, since the configured mode sits behind `device.antenna_status` and is refused. **Mix needs no third code**: the value is reported per antenna, so Mix is simply the two disagreeing.
+
+**`antenna1insertstatus` / `antenna2insertstatus` carry no information on this hardware.** Both stayed `1` across every antenna setting, so the field is **not** "an external antenna is plugged in". An earlier proposal to expose `insertstatus` and drop `type` was exactly backwards.
+
+**`ImeiSvn` is not part of the IMEI, and is not redacted.** It is the IMEI **Software Version** Number — a two-digit manufacturer revision counter, `01` on this unit. There is no public table to decode it further, and `SoftwareVersion` already says the same thing readably, so no entity exposes it.
+
+A 2026-08-15 review listed it for `diagnostics.py`'s `TO_REDACT` as "the one identifier of the seven not redacted". **That is withdrawn.** It was grouped with the identifiers on the strength of `Imei` appearing in its name; on inspection it carries no subscriber or device identity, and `SoftwareVersion` and `iniversion` — both published in full — are strictly more revealing about the same build. Redacting `01` would hide nothing while adding another `**REDACTED**` to a document whose usefulness depends on not being full of them.
+
+**`maxsignal` is the bar-scale denominator.** It reads `5` alongside `SignalIcon = 4`, so the pair means four bars of five. It is constant, which is why it is not exposed on its own — but it is what makes `SignalIcon` interpretable.
+
+**`WifiMacAddrWl0` / `WifiMacAddrWl1` are the 2.4 GHz and 5 GHz radio MACs**, and they are already present as `WifiMac` inside the SSID list. Static, and a second source for a fact the polled block already carries.
+
+**`scc_pci` is a secondary carrier's physical cell ID.** Under carrier aggregation the modem holds a primary cell plus secondaries; `pci` identifies the primary and `scc_pci` one of the secondaries, which is why it is populated on a link showing four aggregated carriers. Useful for explaining a throughput change when the primary cell has not moved.
 
 **Identifiers are digits that are not quantities.** `Imei`, `Imsi`, `Iccid`, `Msisdn`, `SerialNumber`, `Mccmnc`, `scc_pci` must carry no `state_class`, no `device_class`, no unit and no display precision — set any of them and Home Assistant coerces the value, turning `01` into `1` and a 15-digit IMEI into scientific notation.
 
@@ -353,6 +376,11 @@ Only `voice.codec()` refuses.
 - `ha-unifi-network-monitor/docs/api_endpoints.md` — the UniFi companion, organized by URL.
 - `.notes/info/extra_fields/extra_fields_decide_202608.md` — the field-by-field review this document's verdicts are drawn from, with sub-device, category and default decisions.
 - `.notes/info/extra_fields/extra_fields_202608.md` — the raw working notes and evidence trail behind it.
+
+> [!NOTE]
+>
+> **This document wins over both `extra_fields` files where they disagree**, and they disagree in two places. That review was written before the endpoints were exercised, and two of its conclusions were later reversed by measurement: **`net.reconnect()`** is refused by this hardware and Reconnect is implemented as `dialup/dial` (see _Three spellings that matter_), and the **voice group is readable** (see _A correction the scan forced_). Those files remain the record of the entity-level decisions — sub-device, category, enabled-by-default, long-term statistics — which this document does not repeat.
+
 - `docs/all_sensors.md` — which entity each polled field becomes.
 - `docs/DEVELOPMENT.md` — architecture, and the reasoning behind the guest-WiFi write path.
 - `docs/ha_compatibility.md` — Home Assistant deprecations this integration absorbs.

@@ -16,22 +16,6 @@
 #                     async wrapper around it, so nearly every mutation lands
 #                     on an argument to a mock and is unkillable by
 #                     construction.
-#   sensor.py         **Excluded reluctantly and this should be revisited.**
-#                     It is otherwise the highest-value module here — the
-#                     guard bands and every `value_fn` live in it. But since
-#                     `[1.2.0-dev18]` it also carries 158 `about` notes, each
-#                     written as four to six implicitly concatenated string
-#                     literals, and mutmut emits **two mutants per string
-#                     literal**. That is well over a thousand survivors of
-#                     pure note text — structural noise by the triage prompt's
-#                     own table — swamping the few hundred that would be worth
-#                     reading. `only_mutate` matches file paths with `fnmatch`
-#                     and cannot express "this half of the file"
-#                     (`mutation_testing_setup.md` §8). The two ways out are
-#                     to move the notes to a data module of their own, or a
-#                     project-scoped `do_not_mutate_patterns` — and
-#                     `setup.cfg` is a synced file, so the second is not a
-#                     local decision.
 #   config_flow.py    Tests mock `_validate_credentials`; the surviving real
 #                     logic is `_clean_host` and `_merge_credentials`, both of
 #                     which are a handful of statements.
@@ -43,6 +27,14 @@
 #                     Thin platform modules whose write paths call a mocked
 #                     API. `zte_router_5g` reached the same conclusion.
 #   scripts/          Unreachable — setup.cfg sets `source_paths=custom_components`.
+#
+# `sensor.py` was excluded on the morning of 2026-08-15 and added the same
+# afternoon. The exclusion projected over a thousand survivors of `about` note
+# text from the 124 notes it carries; measured, it produced 53 survivors and
+# not one was a note, because mutmut mutates function bodies and the notes sit
+# in a module-level tuple. No note-splitting or `do_not_mutate_patterns` change
+# was needed. Full record in
+# `.notes/test_pytest_issues/mutation_covered_not_covered.md` §2.
 #
 # `coordinator.py` is a deliberate departure from `zte_router_5g`, which
 # excludes it as a mocked boundary. The API is mocked here too, but the

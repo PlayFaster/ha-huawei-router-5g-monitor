@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import math
 from calendar import monthrange
 from collections.abc import Callable
 from datetime import datetime
@@ -104,6 +105,11 @@ precision.
 """
 
 
+def _finite(val: float) -> float | None:
+    """Return the value, or None if it is infinity or NaN."""
+    return val if math.isfinite(val) else None
+
+
 def parse_signal_value(val: Any) -> float | None:
     """Parse a signal value string to float, stripping unit suffixes.
 
@@ -118,11 +124,19 @@ def parse_signal_value(val: Any) -> float | None:
     dashboard renders: the unrounded value is what reaches the recorder and
     long-term statistics, so without this the stored history carries precision
     the screen never shows and nothing ever looks wrong.
+
+    **Non-finite values are unparsable, not values.** `float()` accepts
+    `"inf"` and `"nan"`, so without the finite check they would leave here as
+    numbers: `_safe_int` would then raise `OverflowError` on the first and
+    `ValueError` on the second, from inside a `value_fn` that nothing catches,
+    and `_safe_float` would publish infinity as a sensor state and carry it
+    into long-term statistics, where it cannot be taken back. Returning None
+    routes both to *unknown*, which is what the caller already handles.
     """
     if val in (None, "", "N/A", "--"):
         return None
     if isinstance(val, (int, float)):
-        return round(float(val), PARSE_PRECISION)
+        return _finite(round(float(val), PARSE_PRECISION))
     s = str(val).strip()
     s_lower = s.lower()
     for suffix in ("dbm", "db", "mhz", "khz", "ghz", "mbps", "bps", "s", "b"):
@@ -130,7 +144,7 @@ def parse_signal_value(val: Any) -> float | None:
             s = s[: -len(suffix)].strip()
             break
     try:
-        return round(float(s), PARSE_PRECISION)
+        return _finite(round(float(s), PARSE_PRECISION))
     except (ValueError, TypeError):
         return None
 
@@ -147,19 +161,22 @@ def _safe_float(val: Any) -> float | None:
 
 
 def _parse_complex_int(val: Any) -> Any:
-    """Parse as int if simple number, otherwise return raw string."""
+    """Parse as int if simple number, otherwise return raw string.
+
+    **No `try` around `int()`, deliberately.** `parse_signal_value` returns a
+    finite float or None, so the conversion cannot raise — the guard that used
+    to sit here existed for `"inf"` and `"nan"`, which are now rejected at the
+    parser instead of caught at every caller.
+    """
     if val in (None, "", "N/A", "--"):
         return None
     s_val = str(val).strip()
     # If it contains colons or multiple numbers, it's complex - return raw
     if ":" in s_val or len(s_val.split()) > 1:
         return s_val
-    try:
-        f_val = parse_signal_value(s_val)
-        if f_val is not None:
-            return int(f_val)
-    except (ValueError, TypeError):
-        pass
+    f_val = parse_signal_value(s_val)
+    if f_val is not None:
+        return int(f_val)
     return s_val
 
 
@@ -280,7 +297,7 @@ Module level rather than local so a test can reconcile it against the groups
 the entity descriptions actually use. That reconciliation is necessary because
 `build_device_info` falls back to `group.capitalize()`, which produces **the
 identical string** for `system`, `signal`, `data` and `clients` — so a mistyped
-key in this map is invisible to every behavioural test, and four mutations of
+key in this map is invisible to every behavioral test, and four mutations of
 it survive mutation testing by construction.
 
 The fallback is kept deliberately: a `KeyError` here would fail entity setup

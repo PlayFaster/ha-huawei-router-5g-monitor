@@ -976,3 +976,95 @@ def test_no_field_leaks_the_stored_secret(build) -> None:
         repr(_resolved_default(m)) for m in _markers(schema)
     )
     assert _STORED_SECRET not in rendered
+
+
+# ---------------------------------------------------------------------------
+# The seam, driven for real
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_validate_credentials_derives_the_identity_from_the_router(
+    router_transport,
+):
+    """Every field the entry is built from is derived, not supplied.
+
+    The rest of this file patches `_validate_credentials` and asserts the
+    dictionary it was told to return, so the mock sits exactly where the
+    defect would be: the MAC normalization, the model lookup and the fallback
+    chain across three possible MAC keys are all untested by those tests. Here
+    the payload is the only input and `api.py` runs for real over the fake
+    transport.
+
+    The normalized MAC matters beyond this function: it becomes the entry's
+    unique id, and every entity's `unique_id` derives from it.
+    """
+    info = await _validate_credentials(
+        {
+            CONF_HOST: "192.168.8.1",
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "password",
+        }
+    )
+
+    assert info["mac"] == "001122aabbcc"
+    assert info["model"] == "B535-232"
+    assert info["sw_version"] == "11.0.1.1"
+    assert info["hw_version"] == "WL1B535FM"
+
+
+@pytest.mark.asyncio
+async def test_a_full_user_flow_reaches_the_router_and_creates_the_entry(
+    router_transport,
+):
+    """One flow with nothing patched, proving the seam is reachable.
+
+    A helper driven for real in isolation still leaves the question of
+    whether the flow calls it. This answers that: the entry's unique id is the
+    MAC the fake router reported, so the value travelled the whole way.
+    """
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = MagicMock()
+
+    result = await flow.async_step_user(
+        {
+            CONF_HOST: "http://192.168.8.1",
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "password",
+        }
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"]["mac"] == "001122aabbcc"
+    flow.async_set_unique_id.assert_awaited_once_with("001122aabbcc")
+
+
+@pytest.mark.asyncio
+async def test_a_router_that_refuses_the_login_is_reported_as_cannot_connect(
+    router_transport,
+):
+    """The error path, also driven through the transport.
+
+    `unreachable` is served by the fake router rather than raised into
+    `_validate_credentials`, so what is under test is `api.py` classifying a
+    refused connection and the flow turning that into the form error the user
+    sees.
+    """
+    router_transport.arm("unreachable")
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+
+    result = await flow.async_step_user(
+        {
+            CONF_HOST: "192.168.8.1",
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "password",
+        }
+    )
+
+    assert result["type"] == FlowResultType.FORM
+    assert result["errors"] == {"base": "cannot_connect"}

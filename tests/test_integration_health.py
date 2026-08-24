@@ -326,3 +326,124 @@ def test_the_sensor_copies_the_snapshot_rather_than_exposing_it(mock_config_entr
     attrs["issues"].append("injected")
 
     assert coordinator.health_snapshot["issues"] == ["SMS messages is not responding."]
+
+
+# ---------------------------------------------------------------------------
+# Section 19 — the repair and severity contract sweeps (chore C-022, step 8)
+# ---------------------------------------------------------------------------
+
+# The §19 vocabulary, written as the literal strings that reach the user.
+# Deliberately not imported from the component: comparing a published value
+# against the constant that produced it compares the code with itself, and a
+# rename would pass here while every automation matching on `severity` broke.
+SEVERITY_VOCABULARY = frozenset({"ok", "degraded", "warning", "error", "unknown"})
+
+
+def _raised_repair_keys() -> set[str]:
+    """Return every repair key the source can actually raise.
+
+    Read from `coordinator.py` rather than from a list, because a
+    hand-maintained inventory of raise sites is one more thing to forget.
+    """
+    import re
+    from pathlib import Path
+
+    from custom_components.huawei_router_5g import coordinator as coordinator_module
+
+    source = Path(coordinator_module.__file__).read_text(encoding="utf-8")
+    return set(re.findall(r'f"\{(REPAIR_[A-Z_]+)\}_\{self\.entry\.entry_id\}"', source))
+
+
+def test_every_repair_the_code_raises_is_registered_for_removal() -> None:
+    """A repair the removal list omits outlives the integration.
+
+    `async_remove_entry` deletes exactly the list it is given. `conn_error` is
+    `is_fixable=False`, so a card left behind by an entry that no longer
+    exists has no route out of the Repairs panel at all, and `auth_failed`
+    would offer a repair flow for an integration that has been deleted.
+
+    Chore `C-022` step 8c, the one that has recurred twice in this family.
+    """
+    from custom_components.huawei_router_5g import const
+
+    raised = {getattr(const, name) for name in _raised_repair_keys()}
+    registered = set(const.REPAIR_NAMES)
+
+    assert raised, "no repair raise sites found — the sweep is reading nothing"
+    assert raised <= registered, (
+        f"raised but never deleted on removal: {sorted(raised - registered)}"
+    )
+
+
+@pytest.mark.parametrize(
+    ("data", "failed", "cold_start"),
+    [
+        ({"device_information": {"DeviceName": "B535"}}, False, False),
+        (None, True, False),
+        (None, True, True),
+        ({}, True, False),
+    ],
+)
+def test_every_published_severity_is_in_the_section_19_vocabulary(
+    data, failed, cold_start, coordinator
+):
+    """No path may publish a severity outside the five, and never `None`.
+
+    Each test elsewhere asserts the severity of the case it was written for,
+    so nothing notices when one path stops setting one — which is how a
+    `severity=None` mutation survived a run on `wifi_ssid_monitor`. This
+    sweeps the paths instead of the values.
+
+    Chore `C-022` step 8d.
+    """
+
+    coordinator.update_health(data, failed=failed, cold_start=cold_start)
+
+    published = coordinator.health_snapshot["severity"]
+    assert published in SEVERITY_VOCABULARY
+    assert isinstance(published, str) and published
+
+
+def test_every_finding_is_classified_exactly_once(coordinator) -> None:
+    """A finding is drift or a lost capability, never both and never neither.
+
+    The two mean different things to the user — a block that is missing is a
+    capability that has gone, a block that arrives carrying none of its
+    contract keys means the readings cannot be trusted — and `issues` is the
+    union of the two lists. A finding in both would be reported twice; one in
+    neither would be reported without ever being named.
+
+    Chore `C-022` step 8e.
+    """
+
+    data = {
+        "device_information": {"DeviceName": "B535"},
+        "device_signal": {"unexpected": "value"},
+    }
+
+    for _ in range(HEALTH_DRIFT_STRIKE_LIMIT):
+        coordinator.update_health(data, failed=False, cold_start=False)
+
+    snapshot = coordinator.health_snapshot
+    degraded = set(snapshot["degraded_capabilities"])
+    drift = set(snapshot["drift"])
+
+    assert degraded, "the fixture should have lost capabilities"
+    assert drift, "the fixture should have produced drift"
+    assert not (degraded & drift), "a finding is classified twice"
+    assert len(snapshot["issues"]) == len(degraded) + len(drift)
+
+
+def test_the_severity_sweep_still_sweeps_something() -> None:
+    """The guard cannot quietly shrink to a set of one.
+
+    A sweep that inspects almost nothing passes for the same reason a correct
+    one does, so the count is asserted alongside the property.
+
+    Chore `C-022` step 8f.
+    """
+    from custom_components.huawei_router_5g.const import ENDPOINT_NAMES
+
+    assert len(SEVERITY_VOCABULARY) == 5
+    assert len(ENDPOINT_NAMES) >= 20
+    assert len(_raised_repair_keys()) >= 2

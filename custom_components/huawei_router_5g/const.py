@@ -41,7 +41,7 @@ LOCK_TIMEOUT = 60
 # `FETCH_TIMEOUT` is imposed from **outside** the work by `asyncio.timeout`, so
 # it can only ever abandon a poll — never stop it, never salvage it — and
 # abandoning orphans the worker thread, because `asyncio.to_thread` cannot be
-# cancelled. Three endpoints each hitting their own `REQUEST_TIMEOUT` reach the
+# canceled. Three endpoints each hitting their own `REQUEST_TIMEOUT` reach the
 # batch budget on a router that is otherwise healthy.
 #
 # So the fetch enforces its own budget from the inside and returns what it has.
@@ -60,9 +60,9 @@ FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT
 # Longest a write may run before the caller stops waiting for it.
 #
 # No write path had an outer timeout, and a write's `asyncio.to_thread` cannot
-# be cancelled — so a hung write held the API lock with nothing able to release
+# be canceled — so a hung write held the API lock with nothing able to release
 # it. Every other caller would then fail loudly at `LOCK_TIMEOUT` while the
-# integration stayed unusable until a reload. Cancelling the *await* unwinds
+# integration stayed unusable until a reload. Canceling the *await* unwinds
 # through `_locked`, whose `finally` releases the lock, so one write fails
 # instead of the session.
 #

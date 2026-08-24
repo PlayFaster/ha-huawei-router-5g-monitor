@@ -234,7 +234,7 @@ def _month_used_bytes(data: dict[str, Any] | None) -> int | None:
 def _projection(coordinator: Any) -> _Projection | None:
     """Return this entry's projection, computing it at most once per poll.
 
-    Memoised on the **coordinator**, not on this module. Both consumers — the
+    Memoized on the **coordinator**, not on this module. Both consumers — the
     sensor's value and its `confidence` attribute — run on the same state
     write, so an uncached call does the whole calculation twice to produce two
     halves of one answer.
@@ -313,7 +313,7 @@ def _projected_bytes(data: dict[str, Any] | None) -> int | None:
     """Return the projected end-of-cycle byte count, or None.
 
     Uncached, and **not** the path the entity uses — `native_value` reads the
-    memoised projection off the coordinator, because a `value_fn` receives
+    memoized projection off the coordinator, because a `value_fn` receives
     only the payload and cannot reach it. Kept as the description's `value_fn`
     so the sweeps that require one still see it, and so the calculation stays
     testable from a bare payload.
@@ -1414,9 +1414,16 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         about=(
             "Instantaneous download rate as the router reports it at the moment "
             "of the poll. It is a sample, not an average, so between polls it "
-            "sees nothing - short bursts of traffic can pass entirely unrecorded."
+            "sees nothing - short bursts of traffic can pass entirely unrecorded. "
+            "Disabled by default for that reason; enable it on the device page "
+            "if you want it."
         ),
         translation_key="current_download_rate",
+        # A reading every few minutes is not a rate anybody can act on, so this
+        # is off unless asked for. Existing installations are unaffected: Home
+        # Assistant consults this flag only when it creates a registry entry,
+        # so an entity already registered keeps whatever state it has.
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
         suggested_display_precision=2,
@@ -1434,9 +1441,12 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         key="current_upload_rate",
         about=(
             "Instantaneous upload rate sampled at the moment of the poll. As with "
-            "the download rate, traffic between polls is not seen."
+            "the download rate, traffic between polls is not seen. Disabled by "
+            "default for that reason; enable it on the device page if you want it."
         ),
         translation_key="current_upload_rate",
+        # See `current_download_rate` above for why this ships disabled.
+        entity_registry_enabled_default=False,
         native_unit_of_measurement=UnitOfDataRate.BYTES_PER_SECOND,
         suggested_unit_of_measurement=UnitOfDataRate.MEGABITS_PER_SECOND,
         suggested_display_precision=2,
@@ -2499,7 +2509,7 @@ class HuaweiRouterSensor(
             return messages[0]["content"] if messages else None
 
         if self.entity_description.key == "projected_usage":
-            # Read the memoised projection rather than calling the `value_fn`,
+            # Read the memoized projection rather than calling the `value_fn`,
             # which takes only the payload and so cannot reach the cache. This
             # is the half that makes the memo pay: without it the value and
             # the `confidence` attribute each compute the projection in full,

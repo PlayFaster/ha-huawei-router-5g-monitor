@@ -37,8 +37,8 @@ A complete list of the static entities and service actions provided by the integ
 | Connection Download | `current_connection_download` | Sensor | B | - | - |
 | Connection Upload | `current_connection_upload` | Sensor | B | - | - |
 | Day Used | `current_day_used` | Sensor | B | - | LTS: `total_increasing` |
-| Download Rate | `current_download_rate` | Sensor | B/s | - | - |
-| Upload Rate | `current_upload_rate` | Sensor | B/s | - | - |
+| Download Rate | `current_download_rate` | Sensor | B/s | - | **Disabled by default.** |
+| Upload Rate | `current_upload_rate` | Sensor | B/s | - | **Disabled by default.** |
 | Data Allowance | `data_allowance` | Sensor | B | Diagnostic | - |
 | Day Connected Time | `day_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** |

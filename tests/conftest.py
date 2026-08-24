@@ -205,3 +205,19 @@ def without_about(attrs: dict | None) -> dict:
     about the *data* attributes use this.
     """
     return {k: v for k, v in (attrs or {}).items() if k != "about"}
+
+
+@pytest.fixture(name="router_transport")
+def router_transport_fixture():
+    """Serve a working router over the `requests` transport.
+
+    The fake and the faults it can be armed with are in
+    [`transport.py`](transport.py). Shared from here so the config flow and
+    the coordinator tests drive the same router.
+    """
+    import requests_mock
+
+    from tests.transport import RouterTransport
+
+    with requests_mock.Mocker() as mocker:
+        yield RouterTransport(mocker)

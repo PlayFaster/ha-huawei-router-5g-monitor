@@ -109,10 +109,10 @@ class HuaweiRouter5GAPI:
         """Stop waiting for a write that will not finish, and free the lock.
 
         The gap this closes: no write path had an outer timeout, and
-        `asyncio.to_thread` cannot be cancelled, so a write whose worker never
+        `asyncio.to_thread` cannot be canceled, so a write whose worker never
         returned held `_lock` with nothing able to release it. Polls and other
         writes then failed at `LOCK_TIMEOUT` one after another while the
-        integration stayed unusable until a reload. Cancelling the *await*
+        integration stayed unusable until a reload. Canceling the *await*
         unwinds through `_locked`, whose `finally` releases the lock, so the
         cost is one write rather than the session.
 
@@ -702,7 +702,7 @@ class HuaweiRouter5GAPI:
         supported mask, and a `NetworkBand` matching neither the value sent nor
         anything in its published list.
 
-        **That is one device's behaviour, not a guarantee.** A model that took
+        **That is one device's behavior, not a guarantee.** A model that took
         the value literally would have every mode change silently widen or reset
         whatever band selection the user had made. So the router's *current*
         bands are read and sent back unchanged, which asks it to keep what it

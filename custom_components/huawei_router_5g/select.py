@@ -172,7 +172,7 @@ class HuaweiRouterSelect(
         accepts three invites writes it will refuse.
 
         A router that will not publish a list keeps the full set, which is the
-        pre-2026-08 behaviour and no worse than it was.
+        pre-2026-08 behavior and no worse than it was.
         """
         codes = self.coordinator.supported_net_modes
         if self.entity_description.key != "network_mode" or not codes:

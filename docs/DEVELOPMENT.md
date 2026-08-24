@@ -63,17 +63,14 @@ The project was built from the ground up using the latest "PlayFaster" standards
 ### Guest WiFi Writes Bypass the Library's Public Setter (v1.2.0)
 
 - **Decision**: `set_guest_wifi` posts to `wlan/multi-basic-settings` through `client.wlan._session.post_set` rather than the public `client.wlan.set_multi_basic_settings()`, under a reasoned `# noqa: SLF001`.
-- **Why the public setter is wrong here**: it builds its own payload — `{'Ssids': {'Ssid': clients}, 'WifiRestart': 1}` — and therefore **discards every other top-level key the router returned**.
-- **Evidence**: probed against a live B535 on 2026-08-14, `multi_basic_settings()` returns three top-level keys: `Ssids`, `DbhoEnable` and `modify_guest_ssid`. Using the public setter would silently drop band-steering and guest-SSID state on every guest-WiFi toggle.
+- **Why**: the public setter discards every top-level key it did not build. The payload it constructs and the keys that would be lost are in [`huawei_how_to_access.md`](huawei_how_to_access.md) → _Guest WiFi deliberately bypasses the public setter_, which owns that measurement.
 - **Correction to an earlier note**: a previous comment claimed the library exposed no public setter. That was false — `set_multi_basic_settings` exists, and existed in 1.11.0. The reason to avoid it is what it does, not its absence.
 - **Guarded by**: `tests/test_api.py::test_set_guest_wifi_*`, which asserts `post_set` is called. A swap to the public setter fails that test **by design**; the failure is the guard working, not a test needing an update.
 
 ### The Master WiFi Switch Works at the Radio Level, Not the SSID Level (v1.2.0)
 
 - **Decision**: `set_wifi` reads `wlan/status-switch-settings`, flips `wifienable` on **every** radio, and writes the block back whole. It does not touch the per-SSID flags in `wlan/multi-basic-settings`.
-- **Why an earlier attempt failed**: that attempt wrote the SSID flags. **The SSID flags are gated by the radio**, so writing them while the radio is off changes nothing observable — which is also why the Guest switch works while a WiFi switch built the same way did not.
-- **The library's own setter is unusable here**: `wlan.wifi_network_switch()` answers `100005: Request format error` on this hardware.
-- **Evidence**: verified `0,0 → 1,1 → 0,0` against a live B535.
+- **Why an earlier attempt failed**: it wrote the SSID flags, which the radio gates — so with the radio off nothing observable changed. That is also why the Guest switch works while a WiFi switch built the same way did not: the guest SSID sits under a radio that is already on. The router-side behavior, the refusal from the library's own setter and the live verification are in [`huawei_how_to_access.md`](huawei_how_to_access.md) → _The master WiFi switch works at the RADIO level_.
 - **State source**: `monitoring_status.WifiStatus`, which is already polled. Reading the radio block would be a second round trip for the same fact.
 
 ### Write Confirmation Keeps Three Outcomes Apart (v1.2.0, Section 22)
@@ -85,8 +82,17 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **The retry is not optional**: these routers commonly answer the first read after a write with the _old_ value, so a single read would report accepted-then-applied writes as refusals.
 - **Exclusions**: anything that re-establishes the connection answers abnormally _while succeeding_. **Reconnect** therefore has **no reader** in the map, held by a test.
 - **Network mode was excluded for that reason and no longer is (2026-08-16).** The reasoning was right but drawn too widely: re-registering the radio makes the router's answers unreliable **for a while**, not permanently. Where the resulting state is readable once things settle — the mode is, a dial is not — the answer is to wait and read, not to give up on confirming. `set_net_mode` now settles for `NET_MODE_SETTLE` and re-reads `net_mode`.
-- **The router sometimes answers the write itself with `-1: Unknown` while applying it.** Verified live 2026-08-16, writing `00` from `03`. So the POST response is no more trustworthy than an immediate read-back, and treating it as authoritative produced the opposite defect to the one this section fixed: an error reported for a change that worked. A genuine refusal answers `-1` too — only the read-back separates them.
-- **It does not do this every time, and this entry said it did until 2026-08-19.** The hardware check wrote `03` from `00` and the router accepted it outright, with no `-1` at all. Direction, starting mode and radio state are all candidates for what decides it and none has been isolated. Two consequences: the code must handle both, which it does; and **a run that never sees `-1` has not exercised the read-back path**, so the confirmation outcome is reported per run rather than assumed.
+- **The router's `-1: Unknown` cannot be treated as an answer.** It is returned both for a refusal and for a command the router applied but could not answer for, it does not happen every time, and nothing has isolated what decides it. The observations and dates are in [`huawei_how_to_access.md`](huawei_how_to_access.md) → _Error codes worth recognizing_. What follows for this codebase: the POST response is no more trustworthy than an immediate read-back, so only the settled re-read separates the two cases — and **a run that never saw `-1` has not exercised that path**, which is why the confirmation outcome is reported per run rather than assumed.
+
+### The Repair And The Fault Probe Belong To The Failure Count, Not To One Exception Type (v1.2.1-dev7)
+
+- **Decision**: `conn_error` and `_async_diagnose_fault()` are reached from **both** failure branches, through `_async_report_unreachable()`, keyed on `consecutive_failures` alone.
+- **What was wrong**: both sat inside `except (TimeoutError, HuaweiAuthError)`. A router that is powered off, unplugged or moved to a new address answers with a **refused connection**, which arrives as `HuaweiConnectionError` and takes the general branch — so the most ordinary failure this integration has could recur every poll indefinitely and never raise the card whose own text asks the user to check that the router is powered on and reachable.
+- **Why the probe matters more there, not less**: it opens a fresh connection to separate "the router is down" from "our pooled session is wedged". On a refused connection it confirms the first, which is the line that took an hour to establish by hand during the 2026-08-17 lockup.
+- **Family parity**: `zte_router_5g` has always keyed its equivalent on the failure count and is deliberately blind to which branch incremented it. This now matches.
+- **The strike limit is unchanged** — `REPAIR_CONN_STRIKE_LIMIT`, about half an hour at the default interval, long after the user has seen every entity go unavailable.
+- **Guarded by**: `tests/test_transport_seam.py::test_a_router_that_refuses_the_connection_raises_the_repair`, which asserts absence at nine consecutive failures and presence at ten. Verified by reverting the general branch: that test failed alone.
+- **User-visible.** A Repairs card now appears in cases where none did. It needs a `CHANGELOG.md` line when 1.2.1 is cut.
 
 ### Options Changes Reload; Tuning Changes Do Not (v1.2.0, Section 9)
 
@@ -98,7 +104,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 ### The Network Mode List Comes From the Router, and the Order It Is Read In Matters (v1.2.0)
 
 - **Decision**: the select's options are read from `net.net_mode_list()` once after login, stored on the coordinator, and exposed through an `options` **property** on the entity. The entity description's list is only a fallback.
-- **Why not a hardcoded list**: the original was copied from `huawei-lte-api`'s `NetworkModeEnum`, which ends at `MODE_4G_3G_AUTO` and **has no 5G member at all** — it predates 5G. The result on a 5G router was an eight-option list containing five modes the hardware rejects and missing `08`, the mode it was actually in. The library never forced this: `set_net_mode` takes `networkmode` as a plain `str` and passes it through unvalidated.
+- **Why not a hardcoded list**: the original was copied from the library's `NetworkModeEnum`, which predates 5G — see [`huawei_how_to_access.md`](huawei_how_to_access.md) → _`08` is 5G Only_. The result on a 5G router was an eight-option list containing five modes the hardware rejects and missing the mode it was actually in.
 - **Why a property and not a value fixed at setup**: platforms are forwarded **before** the router is logged in (Section 1, non-blocking startup). Reading the list during `async_setup_entry` finds no client, fails, and falls back — on every startup, silently.
 - **Why it is read before `coordinator.async_refresh()`**: `async_refresh` is what makes every entity write its state. Setting the list after it leaves the first state write carrying the fallback options, and nothing writes again until the next scheduled poll — **three minutes of wrong options by default**. This shipped briefly and was invisible: the log said initialization completed, the router answered correctly when queried by hand, and two restarts reproduced it exactly.
 - **Why it is nonetheless guarded**: the list is a cosmetic label; the data fetch is not. An intermediate revision read it first with no guard of its own, and a failure took the whole initialization down. Both constraints hold at once — read it first, and never let it stop what follows.
@@ -247,6 +253,9 @@ The project was built from the ground up using the latest "PlayFaster" standards
   - _Fix_: Normalized all MAC identifiers to a consistent lowercase, colon-less format for use in `unique_id`.
 - **Numeric vs. Multi-Carrier Ambiguity (v1.0.1-dev16)**: Standard numeric parsers like `parse_signal_value` are designed to extract the _first_ number found. This is dangerous for multi-carrier strings (e.g., `DL:500 UL:18500`) as it causes "partial-parsing" where only the first value is captured and the rest is discarded.
   - _Fix_: Implemented complexity detection in `helpers.py`. If a string contains colons or multiple segments, the parser bypasses numeric conversion entirely and returns the full raw string, preserving technical fidelity.
+- **Non-Finite Values Are Not Numbers (v1.2.1-dev7)**: `float()` accepts `"inf"` and `"nan"`, so `parse_signal_value` returned them as numbers. `_safe_int` then raised `OverflowError` or `ValueError` from inside a `value_fn` that nothing catches, and `_safe_float` would have published infinity as a sensor state — which reaches long-term statistics and cannot be taken back.
+  - _Fix_: Rejected at the parser, which is the single point every numeric value in the component passes through, so one guard covers all ten call sites. Returns `None`, so the entity goes _unknown_ — what an unreadable value is.
+  - _Consequence_: the `try`/`except` around `int()` in `_parse_complex_int` existed **only** for this case and is now unreachable, so it was deleted rather than left as dead code behind a pragma. Never seen from a router; found while replacing a test that patched the parser to reach the branch.
 - **Background Task Mocking**: Standard tests can fail if background tasks aren't properly awaited.
   - _Fix_: Ensured all tests use `hass.async_block_till_done()` after setup to catch initialization tasks.
 - **SMS Inbox Browsing**: The integration provides the last received message content and unread counts. Browsing the full inbox or replying to specific messages requires the router's web interface.
