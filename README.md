@@ -416,7 +416,7 @@ This integration provides **159 entities** (depending on your firmware) organize
 | :-- | --: | :-- | :-- | :-- |
 | ⚙️ **System** | 48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
 | 📶 **Signal** | 58 | 48 Sensors, 10 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation | 4 |
-| 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, near-real-time rates, connection usage, daily usage, data plan | 6, incl. Max Download/Upload Rate and the GB duplicates |
+| 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, data rates, connection usage, daily usage, data plan | 8, incl. Download/Upload Rate, Max Download/Upload Rate and the GB duplicates |
 | 💬 **SMS** | 18 | 17 Sensors, 1 Binary Sensor | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
 | 🛜 **WiFi** | 7 | 4 Binary Sensors, 2 Switches, 1 Sensor | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles | 1 |
 | 👥 **Clients** | 4 | 3 Sensors, 1 Button | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client** | 1 |
@@ -517,7 +517,7 @@ The following sensors have **no LTS** to avoid unnecessary database growth:
 
 | Sensor | Reason |
 | :-- | :-- |
-| Download / Upload Rate | Instantaneous readings — history at poll intervals has limited analytical value |
+| Download / Upload Rate | Instantaneous readings — history at poll intervals has limited analytical value. Also **disabled by default** for the same reason |
 | Max Download / Upload Rate | Session maximum, resets; not useful for long-term trends |
 | Connection Upload / Download | Resets on every reconnect — session-scoped |
 | Connection / Total Connection Duration | Connection time counters; not insightful for LTS |
@@ -534,6 +534,8 @@ The following sensors have **no LTS** to avoid unnecessary database growth:
 > **Want to add a sensor to Long Term Statistics?**
 >
 > Add a `state_class` override via [Manual Customization](https://www.home-assistant.io/integrations/homeassistant/#manual-customization) in your `configuration.yaml`. For example, to track Download Rate in LTS:
+>
+> Download Rate ships **disabled**, so enable it on the device page first — an override on a disabled entity does nothing.
 >
 > ```yaml
 > homeassistant:
@@ -1355,6 +1357,7 @@ triggers:
   - trigger: state
     entity_id: binary_sensor.huawei_5g_system_integration_health
     to: "on"
+    from: "off"
     for:
       minutes: 10
     note: |
@@ -1583,6 +1586,7 @@ triggers:
   - trigger: state
     entity_id: switch.huawei_5g_system_pause_polling
     to: "on"
+    from: "off"
     for: "01:00:00"
     note: |
       Pausing frees router session limits while using the web UI.

@@ -5,6 +5,12 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.1-dev15\] - 2026-08-24 - Write-Refusal Sweep Added; Rate Sensors Disabled by Default](#121-dev15---2026-08-24---write-refusal-sweep-added-rate-sensors-disabled-by-default)
+  - [\[1.2.1-dev14\] - 2026-08-24 - sub_devices_and_trackers.md Reconciled; Six False Statements](#121-dev14---2026-08-24---sub_devices_and_trackersmd-reconciled-six-false-statements)
+  - [\[1.2.1-dev13\] - 2026-08-24 - Device-Tracker Naming: Two Contradicting Tasks Merged Into One](#121-dev13---2026-08-24---device-tracker-naming-two-contradicting-tasks-merged-into-one)
+  - [\[1.2.1-dev12\] - 2026-08-24 - US Spelling Sweep Over the Component; Chore C-028 Closed](#121-dev12---2026-08-24---us-spelling-sweep-over-the-component-chore-c-028-closed)
+  - [\[1.2.1-dev11\] - 2026-08-24 - Notes: todo.md Reconciled; Two Open Questions Became Tasks](#121-dev11---2026-08-24---notes-todomd-reconciled-two-open-questions-became-tasks)
+  - [\[1.2.1-dev10\] - 2026-08-23 - Notes Queue: `.notes/tasks/` Populated From `issues/`](#121-dev10---2026-08-23---notes-queue-notestasks-populated-from-issues)
   - [\[1.2.1-dev9\] - 2026-08-23 - README Repairs Table Corrected; DEVELOPMENT Entries For The dev7 Fixes](#121-dev9---2026-08-23---readme-repairs-table-corrected-development-entries-for-the-dev7-fixes)
   - [\[1.2.1-dev8\] - 2026-08-23 - Superseded About-Note Drift Test Removed](#121-dev8---2026-08-23---superseded-about-note-drift-test-removed)
   - [\[1.2.1-dev7\] - 2026-08-23 - Not-Responding Repair Reaches a Refused Connection; Non-Finite Readings Rejected at the Parser](#121-dev7---2026-08-23---not-responding-repair-reaches-a-refused-connection-non-finite-readings-rejected-at-the-parser)
@@ -160,6 +166,139 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.1-dev15] - 2026-08-24 - Write-Refusal Sweep Added; Rate Sensors Disabled by Default
+
+Closes cross-project chore `C-026` and two local tasks. One behavior change, visible on new installs only.
+
+### Added
+
+- **`tests/test_write_refusal.py` — the write-refusal property, pinned.** `C-026`: a method either does the thing or raises, never a success-shaped result having done nothing. The property already held in source; the assertion is what was missing.
+  - A behavioral sweep over all nine writes, driven through the `endpoint_error` fault in `tests/transport.py` so the refusal is served by the fake router rather than patched in.
+  - An AST check that every write is annotated `-> None` **and** returns no value under it — the half a behavioral test cannot reach, since a method annotated `-> bool` invites a caller to branch on it.
+  - A registry guard, so a write added later cannot skip the sweep.
+  - **Only the refusal half of ZTE's `test_dead_session_sweep.py` was ported, deliberately.** That sweep exists because the ZTE router answers `200 OK` with every value blank on a dead session, so a call reads it as "no data" and reports success. `huawei-lte-api` maps an error body onto an exception, so this project has no such failure mode and is owed no dead-session sweep.
+  - **`endpoint_error` is `100002`, and the choice is load-bearing.** `_execute_with_retry` treats `125002`, `125003` and `100003` as session expiry and re-logs in, so a refusal served with any of those exercises the retry rather than the refusal.
+  - **Three carve-outs named and held closed:** `logout` swallows by design during teardown, `_write_deadline` expiry does not raise because the command was sent and may have applied, and `set_net_mode` treats `-1` as unverified pending a read-back. A fourth now has to be argued for rather than added.
+- **`_DISABLED_BY_DECISION` in `tests/test_entity_hygiene.py`**, with three tests, plus an `ALLOWED_SUPPRESSIONS` entry for the new file's `BLE001`. A default held in one keyword argument is one edit away from being reversed with nothing failing; this register makes that fail.
+
+### Changed
+
+- **`current_download_rate` and `current_upload_rate` now ship disabled by default.** Both are instantaneous samples taken once per poll — at the default interval, a reading every three minutes that nobody can act on, and a transfer that starts and finishes between two polls does not appear at all.
+  - **No installed system is affected.** Home Assistant consults `entity_registry_enabled_default` only when it creates a registry entry, so an entity already registered keeps its state. New installs get them off; existing installs are untouched. The task that raised this had recorded the opposite, and the correction is in its closure stamp.
+  - **Out of scope:** `max_download_rate` and `max_upload_rate` are session maxima rather than instantaneous samples, so the argument does not reach them. They were already disabled, for a different reason.
+  - No sibling exposes an equivalent sensor — `sensor.py` in all three was searched — so this stayed a local decision rather than becoming a cross-project item.
+- **`docs/all_sensors.md`, `docs/about_attribute_list.md` and the manifest baseline regenerated** by `.workbench/check_sensor_manifest.py --sync-docs`, which then reports in sync.
+- **`README.md` in two places.** The Data group's disabled count from 6 to 8, and the Long Term Statistics tip, which told a user to add a `state_class` override to Download Rate without saying the entity must be enabled first for the override to do anything.
+
+### Notes
+
+- **`tasks/sms_sensor_categories.md` closed as already done, and its premise was false.** It claimed all seventeen SMS sensors carried no `entity_category`. Fourteen are `DIAGNOSTIC`, plus `sms_storage_full` in `binary_sensor.py`, and have been since before the task was raised. Three sit in the main list: `sms_unread`, `sms_total_msg`, `last_sms`.
+- **The reason every SMS sensor ships enabled is now recorded**, in that task's closure stamp: parity with the Home Assistant core `huawei_lte` integration, so a user running both sees the same entities. It had never been written down, and was the only thing the task turned out to be missing.
+- **No existing test needed changing for the rate-sensor default.** Nothing asserted the enabled state — `test_recorder_runtime.py` forces every entity on, and `test_sensor.py` covers units and value extraction.
+- **Verification — full suite run in the devcontainer.** 920 passed, **100% coverage** with `--cov-branch` (the `fail_under = 100` gate holds), Test Depth PASSED, Assertion Audit PASSED, sensor manifest in sync, `ruff check` and `ruff format` clean.
+- **The refusal sweep was mutation-checked rather than trusted.** Making `send_sms` swallow its refusal turned `test_a_refused_write_raises[send_sms]` red; making `reboot` swallow turned `[reboot]` red. `api.py` was restored from a backup and verified byte-identical by checksum both times. A sweep that has never been seen to fail is not evidence.
+- **It is also not passing vacuously.** A probe confirmed the fault is genuinely served (`faults_served=1`), the login exchange still succeeds, and each write raises `ResponseErrorNotSupportedException: 100002` — the router declining the command, not a connection that never opened.
+- **Two findings from the suite, both fixed.** The `# noqa: BLE001` in the new file needed an `ALLOWED_SUPPRESSIONS` entry, since the suppression sweep covers tests as well as source. And `test_a_refused_write_raises` originally used `pytest.fail` with no `assert`, which the Assertion Audit correctly flagged as a test that cannot fail; it was restructured to assert, rather than allow-listed.
+
+## [1.2.1-dev14] - 2026-08-24 - sub_devices_and_trackers.md Reconciled; Six False Statements
+
+Documentation only. No code change. `.notes/info/sub_devices_and_trackers.md` was flagged stale in `dev13` on one point; reconciling it against source, the entity registry and `dev_standards.md` found six.
+
+### Fixed
+
+- **"The Implemented Pattern" described the reverted attempt.** It showed `_attr_has_entity_name = False` with the router title prepended in `name`, and claimed the resulting ID was `device_tracker.huawei_5g_npg3_hub`. None of that is the current code. Replaced with the real `name` property, the real entity IDs from the registry, and the reverted attempt recorded separately as history.
+- **"Why Device Trackers Omit the Sub-Device Name" described something that does not happen.** Trackers carry `huawei_5g_clients_` today. Retitled to present it as the argument that was made, which is what it is.
+- **All three rows of the "Where This Is Documented" table were wrong.** It cited `.notes/sub_devices_and_trackers.md`, which moved to `info/` on 2026-08-23; `.notes/dev_standards.md` §13 for tracker naming, but that file is at `shared/SharedNotes/dev_std/` and its §13 is Poll Control, with no section covering tracker naming anywhere; and the `device_tracker.py` class docstring for inline `has_entity_name` rationale, which does not exist — the docstring is one line.
+- **"Warning for Future Changes" said the integration was unreleased** and that the breaking-change concern therefore did not apply. It shipped as `[1.2.0]` on 2026-08-20 and `manifest.json` reads `1.2.1`, so it does apply.
+- **The claim that HA's own integrations use the short form is marked unverified.** It was carried as supporting fact; nothing had checked it against HA core, and it is question 1 of the open task.
+
+### Added
+
+- **A standards tension not previously recorded.** `dev_standards.md` §12 requires `_attr_has_entity_name = True` on every entity base class and writes no device-tracker exemption. `device_tracker.py` does not set it, so the current code already departs from §12 and the short form would depart further. Noted in both the reference file and §7 of `tasks/device_tracker_naming.md`.
+- **Multi-router disambiguation reworked into its own section.** The previous text asserted the reverted scheme preserved it. The current scheme does preserve it, by a different route, and the short form would trade it for an HA-assigned `_2` suffix — recorded as a live part of question 1 rather than a settled downside.
+- **Evidence for every retained claim.** The sensor rationale now cites the six platform line numbers, `SUB_DEVICE_LABELS` at `helpers.py:286`, and three registry rows confirming `has_entity_name: true`.
+
+## [1.2.1-dev13] - 2026-08-24 - Device-Tracker Naming: Two Contradicting Tasks Merged Into One
+
+Documentation only. No code change. One subject was being carried as two open tasks that never linked to each other and disagreed on the facts.
+
+### Changed
+
+- **`tracker_entity_id_problem.md` merged into `tasks/device_tracker_naming.md`**, retitled _Create short device tracker names_. The merged file carries the back-story, the reverted attempt and its research, then states the two questions that are actually open: whether the long-form entity ID conflicts with Home Assistant guidance, and how a short form would be done if wanted. The second is recorded as having reference value either way.
+- **The old file moved to `tasks/closed/`** with a stamp saying it was superseded rather than resolved, its status corrected from `OPEN`, and its relative links re-based for the deeper folder.
+
+### Fixed
+
+- **The two files contradicted each other on the current state.** `device_tracker_naming.md` asserted the entity ID as `device_tracker.huawei_5g_clients_<name>`; `tracker_entity_id_problem.md` said the post-revert state was undetermined. Settled against source and the registry.
+- **`device_tracker.py` is the only one of the seven platforms not setting `_attr_has_entity_name`.** The other six set it `True`. With no entity description either, `Entity.has_entity_name` falls through to `False` — checked against the resolution order in the `homeassistant` package on the host, 2026.5.0b2.
+- **Both recorded hypotheses are refuted.** All three tracker rows in `.devcontainer/.devconfig/.storage/core.entity_registry` store `has_entity_name: false` with a bare `original_name`, against a long-form `entity_id`. Hypothesis A blamed a stale stored `True`; there is none. Hypothesis B blamed an update path that never rewrote the flag; it evidently did.
+- **The first of the two reverted changes was a no-op.** Adding `_attr_has_entity_name = False` set it to what it already resolved to. Only the `name` change had an effect, which is what produced the doubled ID.
+- **`info/sub_devices_and_trackers.md` flagged as stale**, in both that file's header and the merged task. Its "as implemented" section describes the reverted attempt as current.
+
+### Notes
+
+- **Two candidates remain and the files cannot separate them:** the IDs are historical and HA has simply never regenerated them, or `ScannerEntity` with `device_info` set takes the device prefix regardless of `has_entity_name`. The deciding experiment — delete the registry rows, reload, read the IDs without Recreate Entity IDs — is recorded in §4 of the merged file and is not worth running until the first question is answered.
+- Task count is unchanged at five open, since two became one and none closed.
+
+## [1.2.1-dev12] - 2026-08-24 - US Spelling Sweep Over the Component; Chore C-028 Closed
+
+Comments and docstrings only. No executable code, no user-facing string and no identifier changed. Closes cross-project chore `C-028`, which asked for existing component text to be brought in line with `doc_style.md` §2 (US spelling), v1.1.0.
+
+### Changed
+
+- **Eleven British spellings corrected across five modules.** `cancelled` / `Cancelling` at `api.py:112`, `:115` and `const.py:44`, `:63`, `:65`; `behaviour` at `api.py:705` and `select.py:175`; `behavioural` at `helpers.py:300`; `memoised` at `sensor.py:237`, `:316` and `:2502`.
+- **`canceled` was already this project's spelling**, which is why the five `cancel` corrections are alignment rather than a preference. `number.py:163`, `DEVELOPMENT.md:20` and two `changelog_local.md` entries all used the single-`l` form; `api.py` and `const.py` were the inconsistency. `asyncio.CancelledError` is an identifier and is untouched.
+
+### Notes
+
+- **User-facing text was already clean.** `strings.json`, `translations/`, `services.yaml`, `icons.json` and every `about` note were searched and returned no hits, so nothing a user reads changes.
+- **`optimistic` is correct US English** and was deliberately left at `api.py:651`, `helpers.py:548`, `switch.py:237` and `:267`. A naive `optimis` pattern flags it; it is not a UK spelling.
+- **The wordlist used was wider than `doc_style.md` §2's table**, which lists nine pairs. The sweep also covered `-ise`/`-ize` verbs, `memoise`, `cancel`, `favour`, `labour`, `honour`, `whilst`, `amongst`, `labelled`, `modelled`, `fulfil`, `licence`, `metre`, `catalogue` and `dialogue`. `custom_components/` re-scans clean against that list.
+- **`docs/` and `README.md` are outside this chore's scope**, which names component text, and were not swept. They are not clean: a scan on the same wordlist returns hits including `honour`, `favour`, `licence`, `initialis`, `grey`, `colour`, `centre`, `customis`, `summaris`, `recognis` and `modelled`. Recorded here rather than fixed silently, so the scope question is visible if a documentation sweep is raised later.
+- **Verification was a source re-scan and an `ast.parse` of each edited module.** The test suite was not run; no executable line changed, and every replacement is the same length or shorter, so no line-length limit can have been crossed.
+
+## [1.2.1-dev11] - 2026-08-24 - Notes: todo.md Reconciled; Two Open Questions Became Tasks
+
+Documentation only. A second sweep over the `.notes/` folders the first migration run never enumerated. Every folder here is prompt-owned except `errors/`, which is empty — so the sweep came down to the root `todo.md`, which was not.
+
+### Changed
+
+- **`todo.md` reconciled and now empty of open items.** Seven entries were carried as open. One had shipped — the Delete All SMS **action** exists at `__init__.py:177`. One had been declined and recorded as such in `docs/ROADMAP.md`. Four duplicated roadmap entries and were ticked with a pointer to the entry that owns each. **A ticked box means gone from the list** — delivered, declined, or owned somewhere that is actually read.
+- **Two became tasks**, because neither is a roadmap feature and neither had anywhere else to live:
+  - `tasks/rate_sensors_default.md` — `current_download_rate` and `current_upload_rate` ship enabled and carry no `entity_registry_enabled_default`. Whether they should is undecided, and disabling them on an installed system is user-visible.
+  - `tasks/delete_all_sms_button.md` — the action is delivered; the open question is whether to add a button as well, for an operation that is irreversible and has no undo on the router side.
+- **One half-item is recorded as carried nowhere:** the "non logged in mode" part of the config-flow entry. The roadmap covers opting out of client tracking; it does not mention that.
+- **`.notes/proj_structure.md` corrected** — `tasks/` added, and `issues/` re-described as the ad-hoc bucket rather than the bug tracker.
+
+## [1.2.1-dev10] - 2026-08-23 - Notes Queue: `.notes/tasks/` Populated From `issues/`
+
+Documentation only. `tasks_folder_migrate` run against this project — the first project to adopt the per-project work queue, and the template the other three copy.
+
+### Changed
+
+- **Fourteen entries classified out of `.notes/issues/`:** 2 to `tasks/`, 6 to `tasks/closed/`, 5 to `info/`, and 3 left where they are because a shared prompt writes to their folders (`issues/masked_errors/` and `issues/testing_deeper/`). Every moved file carries a note at the top saying where it came from, where it went and why. `check_queue_format.py --project ha-huawei-router-5g-monitor` reports `PASSED`.
+- **One task is open:** `tracker_entity_id_problem.md`, where the attempted change was reverted and the proper fix is written up but not done.
+- **`login_lockup_202608/` closed on the same pass.** Its only outstanding item was the restructured `set_net_mode` read-back, which `[1.2.0-dev56]` recorded as still unverified on hardware. The attended run of 2026-08-20 had already exercised it — `hardware_check_20260820_180931.md`, 25 passed and 0 failed, with four rows covering it: the `net_mode.NetworkMode` read-back, `set_net_mode` itself (before `00`, target `03`, after `03`), the confirmation path accepting outright rather than answering `-1`, and the restore. The task was open for the length of one report read.
+
+### Closed by verification rather than by record
+
+Four documents were archived on evidence read from the source, not on anything the documents said:
+
+- **`ha_entity_naming_plan.md`** — implemented past its own recommendation. It proposed Option B and called Option C overkill; Option C shipped. No `name=` fields remain in `sensor.py`, `switch.py` or `binary_sensor.py`, and `translation_key` is set on 124 sensors, 24 binary sensors and the `network_mode` select.
+- **`uptime_timestamp_strategy_20260523.md`** — **its own status line was wrong.** It says the Huawei coordinator was not yet updated; `uptime_timestamp` is at `sensor.py:419` and the reboot-margin latch at `coordinator.py:717`, `:744` and `:770`. The stamp records the correction rather than overwriting the claim.
+- **`sub_device_review.md`** — its one Moderate recommendation, removing `preferred_network_mode` as redundant with the `network_mode` select, was rejected, and the reasoning is in the code: `sensor.py:691` records that the control writes the value and the sensor reads it back, so a disagreement means the router refused or altered the request.
+- **`best_connection_options.md`** — superseded by `docs/best_connection_logic.md`, which replaced the "is 5G NR active?" stub the options paper was written against.
+
+`new_device_alert_options.md` went to `info/` rather than `tasks/`: the feature is a `docs/ROADMAP.md` entry, and a roadmap item is not a task.
+
+### Second pass — `info/`
+
+`issues/` is where tasks were expected to be; `info/` turned out to hold three task-shaped documents, so the migration prompt now runs over both folders in that order.
+
+- **`info/updates_202608/` moved to `tasks/closed/`** — the August scoping prompt and its 182 KB execution record, titled "Huawei outstanding work". It delivered the `[1.2.0]` release of 2026-08-20. Verified against this changelog: every plan-step row carries a commit hash or dev tag, and 34 of the 35 tags it cites resolve to entries here; the 35th is a `unifi_network_monitor` tag in a cross-project comparison. Its §H baseline — 11 partial branches, 4 zero-assertion tests, 4 ruff errors — was closed the same day it was taken.
+- **Both items it listed as open were already discharged**, and neither had been written back. The attended `set_net_mode` read-back passed on 2026-08-20 (`hardware_check_20260820_180931.md`, four rows). The `FREQUENCY` unit-selector item was fixed, and `[1.2.0-dev32]` records `AGENTS.md` as still carrying the claim two days later.
+- **`info/extra_fields/extra_fields_decide_202608.md` stays in `info/`.** Its entity set shipped at `[1.2.0-dev11]`; its endpoint half is superseded by `docs/huawei_how_to_access.md`, and its entity-level decisions — sub-device, category, `enabled_default`, entity ID, display name — are recorded nowhere else. Two pointers describing the build as the next step were corrected to past tense.
 
 ## [1.2.1-dev9] - 2026-08-23 - README Repairs Table Corrected; DEVELOPMENT Entries For The dev7 Fixes
 
@@ -1317,12 +1456,12 @@ Section §S of the August 2026 update plan — work raised by the `huawei-lte-ap
 
 Run after every other change in this batch, per §S-13 of the tracking notes: the queued work changes the surface the prompt audits, and the prompt is also the check on that work.
 
-| Class | Result |
-| :-- | :-- |
-| **A** — swallowed exceptions | **1 accepted.** Every broad `except` in `api.py` re-raises, bar two: the logout teardown (best-effort by design, and the connection is discarded regardless) and the per-endpoint handler in `get_data`, which drops a failed optional endpoint. The second is deliberate **and no longer silent** — the Integration Health sensor reports it as a degraded capability once it persists. |
-| **B** — silent auth timeouts | **None.** Session expiry is detected from typed exceptions and the `125002` / `125003` / `100003` codes, plus a time-based inactivity reset in `_ensure_client`. |
-| **C** — mock-masked tests | **Mitigated rather than removed.** The API tests still mock the client, but every method name they assert is now independently verified against the installed package by the contract test, which is the layer that was missing. |
-| **D** — suppressed directives | **3, all reviewed and allow-listed** with written reasons. Down from five, of which three were wrong. |
+| Class                         | Result                                                                                                                                                                                                                                                                                                                                                                                   |
+| :---------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **A** — swallowed exceptions  | **1 accepted.** Every broad `except` in `api.py` re-raises, bar two: the logout teardown (best-effort by design, and the connection is discarded regardless) and the per-endpoint handler in `get_data`, which drops a failed optional endpoint. The second is deliberate **and no longer silent** — the Integration Health sensor reports it as a degraded capability once it persists. |
+| **B** — silent auth timeouts  | **None.** Session expiry is detected from typed exceptions and the `125002` / `125003` / `100003` codes, plus a time-based inactivity reset in `_ensure_client`.                                                                                                                                                                                                                         |
+| **C** — mock-masked tests     | **Mitigated rather than removed.** The API tests still mock the client, but every method name they assert is now independently verified against the installed package by the contract test, which is the layer that was missing.                                                                                                                                                         |
+| **D** — suppressed directives | **3, all reviewed and allow-listed** with written reasons. Down from five, of which three were wrong.                                                                                                                                                                                                                                                                                    |
 
 **The audit found one new defect — in the contract test written earlier the same day.** Its pattern matched the receiver literally as `client.`, so `lambda c: c.dial_up.set_mobile_dataswitch(...)` was invisible to it: one real library call, unswept, by a test whose whole purpose is to sweep them. The rule now keys on the endpoint-group names taken from `Client` itself, so a receiver of any name is covered, and the previously-missed call is pinned by name. Coverage went 21 → 22 calls.
 
@@ -1443,11 +1582,11 @@ Phase 2 (second part) of the August 2026 update plan — the cheap ports and the
 
 - **`PARALLEL_UPDATES` decided per write path, and pinned.** The rule is that the constant is set deliberately, and that is not something a reader can verify: `0` from a considered decision and `0` from a copy-paste look identical. The decision is now a table in `tests/test_entity_hygiene.py` with its reasoning, and a second test fails if a new platform appears that the table does not cover.
 
-  | Platform | Value | Why |
-  | :-- | --: | :-- |
-  | `button`, `switch`, `select` | **1** | Issue commands with a real-world effect. `api.py` already serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the actual safety mechanism and `1` states the same intent at the platform boundary. |
-  | `number` | **0** | **Deliberately unlike `zte_router_5g`**, which sets `1` on every writable platform. The only number entity writes to `ConfigEntry.options`, which Home Assistant owns — no session to tear down, no command to duplicate. |
-  | `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only and coordinator-driven; nothing to serialize. |
+  | Platform                                    | Value | Why                                                                                                                                                                                                                                                          |
+  | :------------------------------------------ | ----: | :----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `button`, `switch`, `select`                | **1** | Issue commands with a real-world effect. `api.py` already serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the actual safety mechanism and `1` states the same intent at the platform boundary. |
+  | `number`                                    | **0** | **Deliberately unlike `zte_router_5g`**, which sets `1` on every writable platform. The only number entity writes to `ConfigEntry.options`, which Home Assistant owns — no session to tear down, no command to duplicate.                                    |
+  | `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only and coordinator-driven; nothing to serialize.                                                                                                                                                                                                      |
 
 - **Secret pre-fill guards, ported from `zte_router_5g`.** `test_stored_secrets_are_never_pre_filled` and `test_no_field_leaks_the_stored_secret`, both parametrized over the user and edit schemas. **There is no defect here today** — the component has zero `suggested_value` uses — so these are a guard rather than a fix. They are worth having because the failure is silent: the screen looks correct and the stored password is exposed only when someone clicks the eye icon.
 
@@ -1872,36 +2011,36 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
   **Flags added** (HA applies these globally; the project previously lacked them):
 
-  | Flag | Why added |
-  | --- | --- |
-  | `platform = "linux"` | Matches HA's platform assumption; eliminates platform-specific type divergence |
-  | `local_partial_types = true` | Prevents deferred variable typing (e.g. `x = []` with no annotation) |
-  | `strict_bytes = true` | Stricter bytes/str distinction |
-  | `warn_incomplete_stub = true` | Surfaces partially-typed stubs that could produce misleading "no error" results |
-  | `disallow_incomplete_defs = true` | Flags functions with only some arguments annotated |
-  | `disallow_untyped_calls = true` | Flags calls into untyped functions (catches missing annotations in third-party wrappers) |
+  | Flag                                                                                             | Why added                                                                                                                                                               |
+  | ------------------------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `platform = "linux"`                                                                             | Matches HA's platform assumption; eliminates platform-specific type divergence                                                                                          |
+  | `local_partial_types = true`                                                                     | Prevents deferred variable typing (e.g. `x = []` with no annotation)                                                                                                    |
+  | `strict_bytes = true`                                                                            | Stricter bytes/str distinction                                                                                                                                          |
+  | `warn_incomplete_stub = true`                                                                    | Surfaces partially-typed stubs that could produce misleading "no error" results                                                                                         |
+  | `disallow_incomplete_defs = true`                                                                | Flags functions with only some arguments annotated                                                                                                                      |
+  | `disallow_untyped_calls = true`                                                                  | Flags calls into untyped functions (catches missing annotations in third-party wrappers)                                                                                |
   | `enable_error_code = ["deprecated", "ignore-without-code", "redundant-self", "truthy-iterable"]` | HA's four enabled codes. Notably `ignore-without-code` requires every `# type: ignore` to carry a specific error code — bare `# type: ignore` comments are now an error |
 
   **Flag changed**:
 
-  | Before | After | Why |
-  | --- | --- | --- |
+  | Before                          | After                                                                                 | Why                                                                                                                                                               |
+  | ------------------------------- | ------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | `ignore_missing_imports = true` | `disable_error_code = ["annotation-unchecked", "import-not-found", "import-untyped"]` | HA's approach is targeted error-code suppression rather than a blanket flag. Effect is functionally similar for missing stubs but matches HA's convention exactly |
 
   **Flag removed**:
 
-  | Flag | Why removed |
-  | --- | --- |
+  | Flag                                    | Why removed                                                                                                                                                                            |
+  | --------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
   | `disallow_any_generics = true` (global) | HA only applies this to ~10 specific HA core modules (auth, core, helpers), not globally. Keeping it global made the project stricter than HA on generics without a matching rationale |
 
   **`homeassistant.*` override updated**:
 
-  | Change | Detail |
-  | --- | --- |
-  | Removed `implicit_reexport = true` | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*` |
+  | Change                              | Detail                                                                                                                                                                                                                                                                                                                                                                                                                |
+  | ----------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | Removed `implicit_reexport = true`  | This was an incorrect addition from a prior fix attempt. It contradicted HA's own `no_implicit_reexport = true` policy for HA modules and masked potential import errors across all of `homeassistant.*`                                                                                                                                                                                                              |
   | Added `no_implicit_reexport = true` | Matches HA's own `[mypy-homeassistant.*] no_implicit_reexport = true` exactly. HA explicitly enforces that its modules only export names declared in `__all__`. Setting this in the project's override causes both basic and strict mypy to apply the same rule when the project imports from HA — surfacing cases where HA's public API surface doesn't match its declared exports (such as the `ScannerEntity` gap) |
-  | Kept `ignore_errors = true` | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness |
-  | Kept `follow_imports = "silent"` | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast |
+  | Kept `ignore_errors = true`         | Project-specific necessity: prevents HA's internal type errors from surfacing in the project's checks. HA is responsible for its own type correctness                                                                                                                                                                                                                                                                 |
+  | Kept `follow_imports = "silent"`    | Project-specific: avoids walking all of HA's source tree on every type check, keeping mypy runs fast                                                                                                                                                                                                                                                                                                                  |
 
   **Net result**: both `mypy custom_components/` (basic) and `mypy custom_components/ --strict` pass with zero errors. The pre-commit mypy hook (which runs basic mode) is now consistent with HA's own integration quality checks.
 

@@ -297,7 +297,7 @@ Module level rather than local so a test can reconcile it against the groups
 the entity descriptions actually use. That reconciliation is necessary because
 `build_device_info` falls back to `group.capitalize()`, which produces **the
 identical string** for `system`, `signal`, `data` and `clients` — so a mistyped
-key in this map is invisible to every behavioural test, and four mutations of
+key in this map is invisible to every behavioral test, and four mutations of
 it survive mutation testing by construction.
 
 The fallback is kept deliberately: a `KeyError` here would fail entity setup

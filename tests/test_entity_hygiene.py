@@ -679,6 +679,14 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "File-level rather than per-line because every print in the file is the "
         "same deliberate choice."
     ),
+    ("test_write_refusal.py", "noqa: BLE001"): (
+        "The property under test is that a refused write raises — *any* "
+        "exception, deliberately. Naming a type would test the library's "
+        "error mapping instead, and would go green the day a write started "
+        "raising the wrong thing. Nothing is swallowed: the exception is "
+        "bound and logged, reaching the handler is what leaves the assertion "
+        "satisfied, and the `else` branch records what the caller got back."
+    ),
     ("hardware_check.py", "noqa: BLE001"): (
         "Each of these wraps one hardware interaction whose failure IS the "
         "result being reported. A narrower except would let an unanticipated "
@@ -1179,6 +1187,62 @@ def test_no_translation_entry_is_dead() -> None:
         declared = {key for platform in entity.values() for key in platform}
         dead = sorted(declared - keys)
         assert not dead, f"{name} defines entity strings nothing produces: {dead}"
+
+
+# ---------------------------------------------------------------------------
+# Recorded defaults — decisions that live in one keyword argument
+# ---------------------------------------------------------------------------
+
+# Sensors that ship disabled, with the reason. A default is a decision, and a
+# decision held in a single keyword argument is one edit away from being
+# silently reversed with nothing failing.
+#
+# Deliberately not the whole disabled set: this pins the ones whose default was
+# argued rather than obvious. The identity sensors are disabled because they
+# are identifiers, which needs no register to stay true.
+_DISABLED_BY_DECISION: dict[str, str] = {
+    "current_download_rate": (
+        "An instantaneous sample taken once per poll — at the default interval, "
+        "a reading every three minutes that no user can act on. A download that "
+        "starts and finishes between two polls does not appear at all. Decided "
+        "2026-08-24 in `.notes/tasks/closed/rate_sensors_default.md`."
+    ),
+    "current_upload_rate": (
+        "The same reasoning as `current_download_rate`; the two were decided "
+        "together and must not drift apart."
+    ),
+}
+
+
+def test_sensors_disabled_by_decision_are_still_disabled() -> None:
+    """A recorded default must not be reverted without the register changing."""
+    by_key = {d.key: d for d in SENSOR_TYPES}
+
+    wrong = [
+        key
+        for key in _DISABLED_BY_DECISION
+        if by_key[key].entity_registry_enabled_default is not False
+    ]
+
+    assert not wrong, (
+        f"these ship disabled by a recorded decision and no longer do: {wrong}. "
+        "If the decision changed, remove the entry and say so in the changelog."
+    )
+
+
+def test_the_disabled_by_decision_register_has_no_dead_entries() -> None:
+    """A register naming a sensor that no longer exists checks nothing."""
+    keys = {d.key for d in SENSOR_TYPES}
+    dead = sorted(set(_DISABLED_BY_DECISION) - keys)
+
+    assert not dead, f"register names sensors that do not exist: {dead}"
+
+
+def test_every_disabled_by_decision_entry_carries_a_reason() -> None:
+    """A register entry with no reason is indistinguishable from a guess."""
+    thin = sorted(k for k, v in _DISABLED_BY_DECISION.items() if len(v) < 60)
+
+    assert not thin, f"these entries need a real reason, not a label: {thin}"
 
 
 # ---------------------------------------------------------------------------
