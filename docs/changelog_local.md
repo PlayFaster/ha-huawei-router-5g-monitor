@@ -5,8 +5,9 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.1\] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults](#121---2026-08-24---release---connection-repair-triggering-signal-parsing-resilience-disabled-rate-sensor-defaults)
   - [\[1.2.1-dev17\] - 2026-08-24 - Intermittent Seam-Test Failure Fixed: A Setup Poll Racing a Shortened Deadline](#121-dev17---2026-08-24---intermittent-seam-test-failure-fixed-a-setup-poll-racing-a-shortened-deadline)
-  - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via via_device_id Defined](#121-dev16---2026-08-24---device-tracker-naming-architecture-client-devices-via-via_device_id-defined)
+  - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via `via_device_id` Defined](#121-dev16---2026-08-24---device-tracker-naming-architecture-client-devices-via-via_device_id-defined)
   - [\[1.2.1-dev15\] - 2026-08-24 - Write-Refusal Sweep Added; Rate Sensors Disabled by Default](#121-dev15---2026-08-24---write-refusal-sweep-added-rate-sensors-disabled-by-default)
   - [\[1.2.1-dev14\] - 2026-08-24 - sub_devices_and_trackers.md Reconciled; Six False Statements](#121-dev14---2026-08-24---sub_devices_and_trackersmd-reconciled-six-false-statements)
   - [\[1.2.1-dev13\] - 2026-08-24 - Device-Tracker Naming: Two Contradicting Tasks Merged Into One](#121-dev13---2026-08-24---device-tracker-naming-two-contradicting-tasks-merged-into-one)
@@ -168,6 +169,27 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
 
 ---
+
+## [1.2.1] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults
+
+### Summary
+
+- **Connection Loss Repairs**: The "router is not responding" Repair now triggers reliably across all failure modes, including refused connections when the router is powered off or relocated.
+- **Signal Parsing Resilience**: Numeric signal parsing now filters out invalid non-finite readings before they reach entities or long-term statistics.
+- **Default Sensor Tuning**: Instantaneous rate sensors now ship disabled by default on new installations to prevent clutter, leaving existing installations untouched.
+
+### Changed
+
+- **Disabled Rate Sensors on New Setups**: `current_download_rate` and `current_upload_rate` now ship disabled by default for new installations. Existing configured systems retain their current enabled state.
+
+### Fixed
+
+- **Connection Error Repair on Refused Connections**: The `conn_error` Repair ("Huawei router is not responding") now triggers on refused socket connections (e.g. router powered off, cable unplugged, or changed IP address) after the strike budget is spent, rather than only on timeouts.
+- **Non-Finite Signal Value Rejection**: The signal parser now rejects `"inf"` and `"nan"` strings, returning `None` (unavailable/unknown state) to protect entities and long-term statistics database tables from invalid numeric data.
+
+### Under the hood
+
+- Enforced 100% line and branch test coverage with a comprehensive HTTP-level simulated transport seam, write-refusal verification across all actions, and expanded repair contract sweeps.
 
 ## [1.2.1-dev17] - 2026-08-24 - Intermittent Seam-Test Failure Fixed: A Setup Poll Racing a Shortened Deadline
 
