@@ -1,6 +1,6 @@
 # Changelog
 
-## [1.2.1] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults
+## [1.2.1] - 2026-08-24 - Release: Connection Loss Repair Triggering
 
 ### Summary
 
@@ -10,7 +10,7 @@
 
 - **Connection Error Repair on Refused Connections**: The `conn_error` Repair ("Huawei router is not responding") now triggers on refused socket connections (e.g. router powered off, cable unplugged, or changed IP address) after the strike budget is spent, rather than only on timeouts.
 
-## [1.2.0] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health
+## [1.2.0] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring
 
 ### Highlights
 
@@ -56,7 +56,7 @@
 - **SMS Parsing Resilience**: Hardened inbox parsing to handle empty message indices without dropping remaining inbox items.
 - **Repair Issue Titles**: Added vendor-prefixed translation strings for authentication failure and connection loss repairs in the Home Assistant Repairs dashboard.
 
-## [1.1.2] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening
+## [1.1.2] - 2026-07-03 - Release: Manual Refresh Controls, Display Precision Units, and Configuration Hardening
 
 ### Added
 
@@ -73,7 +73,7 @@
 - **Edit screen credential security**: Configured the password field on configuration screens to be masked and blank by default, preventing the stored password from being pre-filled or exposed.
 - **Host URL sanitization**: Host input is now automatically sanitized to strip redundant prefixes or trailing slashes, preventing malformed device links.
 
-## [1.1.1] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes
+## [1.1.1] - 2026-06-07 - Release: Startup Timing Resilience, Session Lifecycle, and Uptime Timestamp Drift
 
 ### Summary
 
@@ -95,7 +95,7 @@
 - **Dynamic entity icons**: All entity icons migrated to HA's `icons.json` translation system. Signal bars (1–3), battery (10–100%), and SMS unread sensors now display context-aware icons that change automatically based on sensor value or state.
 - **Long-term statistics cleanup**: Removed `state_class` from 32 sensors (frequency, bandwidth, SMS counts, connection durations, and data rates) that report instantaneous values not suited for long-term statistics.
 
-## [1.1.0] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up
+## [1.1.0] - 2026-05-07 - Release: MAC-Based Unique Identifier Migration and Code Hygiene
 
 ### Changed
 
@@ -103,7 +103,7 @@
 - **MAC-Based Unique IDs**: Migrated entity unique IDs from IP address to MAC address to ensure stable entity identity across network reconfigurations.
 - **Automation Examples**: Updated and modernized example automations.
 
-## [1.0.2] - 2026-05-05 - Release - SMS Management, WiFi Sub-Device and Client Counts
+## [1.0.2] - 2026-05-05 - Release: SMS Management Actions, WiFi Sub-Device Hierarchy, and Client Tracking
 
 ### Added
 
@@ -124,7 +124,7 @@
 - **WiFi status reporting**: Resolved edge cases where the 2.4GHz and 5GHz WiFi status sensors could report out-of-sync states.
 - **Guest WiFi control toggling**: Improved communication reliability when toggling the Guest WiFi Network switch.
 
-## [1.0.1] - 2026-05-03 - GitHub Release - Best Connection Sensor; `send_sms` Action
+## [1.0.1] - 2026-05-03 - Release: Connection Quality Telemetry and SMS Messaging Actions
 
 ### Added
 
@@ -154,12 +154,12 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
-  - [\[1.2.1\] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults](#121---2026-08-24---release---connection-repair-triggering-signal-parsing-resilience-disabled-rate-sensor-defaults)
-  - [\[1.2.0\] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health](#120---2026-08-20---release---new-entities-projected-data-use-wifi-switch-reconnect-button-integration-health)
-  - [\[1.1.2\] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening](#112---2026-07-03---release---refresh-now-button-display-units-config-flow-hardening)
-  - [\[1.1.1\] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes](#111---2026-06-07---release---startup-race-session-and-timestamp-fixes)
-  - [\[1.1.0\] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up](#110---2026-05-07---release---mac-based-unique-id-code-clean-up)
-  - [\[1.0.2\] - 2026-05-05 - Release - SMS Management, WiFi Sub-Device and Client Counts](#102---2026-05-05---release---sms-management-wifi-sub-device-and-client-counts)
-  - [\[1.0.1\] - 2026-05-03 - GitHub Release - Best Connection Sensor; `send_sms` Action](#101---2026-05-03---github-release---best-connection-sensor-send_sms-action)
+  - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering](#121---2026-08-24---release-connection-loss-repair-triggering)
+  - [\[1.2.0\] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-telemetry-entities-data-projections-control-switches-and-health-monitoring)
+  - [\[1.1.2\] - 2026-07-03 - Release: Manual Refresh Controls, Display Precision Units, and Configuration Hardening](#112---2026-07-03---release-manual-refresh-controls-display-precision-units-and-configuration-hardening)
+  - [\[1.1.1\] - 2026-06-07 - Release: Startup Timing Resilience, Session Lifecycle, and Uptime Timestamp Drift](#111---2026-06-07---release-startup-timing-resilience-session-lifecycle-and-uptime-timestamp-drift)
+  - [\[1.1.0\] - 2026-05-07 - Release: MAC-Based Unique Identifier Migration and Code Hygiene](#110---2026-05-07---release-mac-based-unique-identifier-migration-and-code-hygiene)
+  - [\[1.0.2\] - 2026-05-05 - Release: SMS Management Actions, WiFi Sub-Device Hierarchy, and Client Tracking](#102---2026-05-05---release-sms-management-actions-wifi-sub-device-hierarchy-and-client-tracking)
+  - [\[1.0.1\] - 2026-05-03 - Release: Connection Quality Telemetry and SMS Messaging Actions](#101---2026-05-03---release-connection-quality-telemetry-and-sms-messaging-actions)
 
 ---
