@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.2-dev4\] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default](#122-dev4---2026-08-26---reauth-repair-flow-sms-storage-full-enabled-by-default)
   - [\[1.2.2-dev3\] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization](#122-dev3---2026-08-26---documentation-comprehensive-changelog-readability-and-header-standardization)
   - [\[1.2.2-dev2\] - 2026-08-26 - README Repairs Section Rewritten](#122-dev2---2026-08-26---readme-repairs-section-rewritten)
   - [\[1.2.2-dev1\] - 2026-08-26 - Repairs Documentation: Condition Scope and Rationale Clarifications](#122-dev1---2026-08-26---repairs-documentation-condition-scope-and-rationale-clarifications)
@@ -173,21 +174,7 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
-## [1.2.2-dev3] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization
-
-### Summary
-
-Documentation pass across `docs/changelog_local.md`. Standardized section headers into scannable 3–10 word noun phrases, added opening `### Summary` orientation blocks across all historical entries, and synchronized Table of Contents anchor links.
-
-Documentation only. No code, no tests, no entity changes.
-
-### Changed
-
-- **Standardized Section Headers**: Replaced narrative and sentence titles across historical entries with factual noun phrases aligned with `changelog_format.md` v1.2.0.
-- **Added Lead-In Summaries**: Added 1–2 sentence `### Summary` blocks under every historical entry heading to provide immediate orientation.
-- **Synchronized Table of Contents**: Fully rebuilt and verified all TOC navigation anchors.
-
-## [1.2.2-dev3] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default
+## [1.2.2-dev4] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default
 
 ### Summary
 
@@ -222,6 +209,20 @@ Documentation only. No code, no tests, no entity changes.
 ### Records
 
 - `x_project/repair_set_alignment.md` — this project's cell moves from `PENDING` (re-opened 2026-08-25) to `DONE`.
+
+## [1.2.2-dev3] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization
+
+### Summary
+
+Documentation pass across `docs/changelog_local.md`. Standardized section headers into scannable 3–10 word noun phrases, added opening `### Summary` orientation blocks across all historical entries, and synchronized Table of Contents anchor links.
+
+Documentation only. No code, no tests, no entity changes.
+
+### Changed
+
+- **Standardized Section Headers**: Replaced narrative and sentence titles across historical entries with factual noun phrases aligned with `changelog_format.md` v1.2.0.
+- **Added Lead-In Summaries**: Added 1–2 sentence `### Summary` blocks under every historical entry heading to provide immediate orientation.
+- **Synchronized Table of Contents**: Fully rebuilt and verified all TOC navigation anchors.
 
 ## [1.2.2-dev2] - 2026-08-26 - README Repairs Section Rewritten
 
