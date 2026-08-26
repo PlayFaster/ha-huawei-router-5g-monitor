@@ -69,12 +69,8 @@ SMS_STORAGE_FULL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     translation_key="sms_storage_full",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
-    # Enabled by default, unlike the other diagnostics here. Nothing else
-    # reports this: a full store makes the network stop delivering, and
-    # Integration Health deliberately does not cover it — Section 19 is about
-    # whether the integration's data can be trusted, and this is the device's
-    # state, reported correctly. If the entity is off, the condition is
-    # invisible. Matches `zte_router_5g`.
+    # Enabled by default a full store makes the network stop delivering
+    # Matches `zte_router_5g`.
     entity_registry_enabled_default=True,
     group="sms",
 )

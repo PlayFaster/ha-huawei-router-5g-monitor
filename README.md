@@ -170,12 +170,12 @@ RSRP, RSRQ and RSSI are negative — **closer to zero is stronger**.
 
 ---
 
-| Acronym  | Means                                   | Think Of                    | Answers                                     |
-| :------- | :-------------------------------------- | :-------------------------- | :------------------------------------------ |
-| **SINR** | Signal-to-Interference-plus-Noise Ratio | **"Signal Quality"**        | _How fast will this actually go?_           |
-| **RSRP** | Reference Signal Received Power         | **"Signal Strength"**       | _Do I have coverage at all?_                |
-| **RSRQ** | Reference Signal Received Quality       | **"Connection Congestion"** | _Is the channel congested/busy?_            |
-| **RSSI** | Received Signal Strength Indicator      | **"Total Power"**           | _How much raw RF energy reaches the modem?_ |
+| Acronym | Means | Think Of | Answers |
+| :-- | :-- | :-- | :-- |
+| **SINR** | Signal-to-Interference-plus-Noise Ratio | **"Signal Quality"** | _How fast will this actually go?_ |
+| **RSRP** | Reference Signal Received Power | **"Signal Strength"** | _Do I have coverage at all?_ |
+| **RSRQ** | Reference Signal Received Quality | **"Connection Congestion"** | _Is the channel congested/busy?_ |
+| **RSSI** | Received Signal Strength Indicator | **"Total Power"** | _How much raw RF energy reaches the modem?_ |
 
 ---
 
@@ -241,8 +241,8 @@ Monitor daily and monthly data consumption, active session totals, and upload/do
 - **Allowance & Threshold Info**: Visibility to the allowance limits and warning thresholds you set in the router web UI.
 - **Projected Cycle Usage** (`sensor.huawei_5g_data_projected_usage`): An estimate of where you will finish the cycle at your current rate. See [Data Usage Projection](#-data-usage-projection) below.
 
-|                         Data Sensors                         |                       Data Diagnostics                       |
-| :----------------------------------------------------------: | :----------------------------------------------------------: |
+| Data Sensors | Data Diagnostics |
+| :-: | :-: |
 | ![Data Sensors](.github/images/huawei_5g_data_info_mini.png) | ![Data Diagnostics](.github/images/huawei_5g_data_diags.png) |
 
 ---
@@ -267,13 +267,13 @@ The forecast projects end-of-month usage by applying your daily run-rate across 
 
 ![Use vs Projected Use](.github/images/huawei_5g_data_project.png)
 
-| Attribute      | Meaning                                                                                                                                                            |
-| :------------- | :----------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `confidence`   | `low`, `medium`, or `high` — how much of the figure rests on observed usage rather than extrapolation. Reaches `high` around a quarter of the way through a cycle. |
-| `basis`        | How the estimate was calculated (e.g. `run_rate_only`).                                                                                                            |
-| `cycle_day`    | Where you are in the cycle, e.g. `12 of 31`.                                                                                                                       |
-| `cycle_start`  | The date the current cycle began.                                                                                                                                  |
-| `cycle_source` | `router` when resolved from `Billing Cycle Day`, or `calendar_assumed` when defaulting to the 1st of the month.                                                    |
+| Attribute | Meaning |
+| :-- | :-- |
+| `confidence` | `low`, `medium`, or `high` — how much of the figure rests on observed usage rather than extrapolation. Reaches `high` around a quarter of the way through a cycle. |
+| `basis` | How the estimate was calculated (e.g. `run_rate_only`). |
+| `cycle_day` | Where you are in the cycle, e.g. `12 of 31`. |
+| `cycle_start` | The date the current cycle began. |
+| `cycle_source` | `router` when resolved from `Billing Cycle Day`, or `calendar_assumed` when defaulting to the 1st of the month. |
 
 **It is not recorded in long-term statistics** by design. It is an end-of-cycle estimate useful for live alerting rather than historical tracking (historical data volume is already tracked by **Month Total**).
 
@@ -363,8 +363,8 @@ Reboot router hardware directly from Home Assistant and monitor data integrity w
 - **Preferred Network Mode**: Select between Auto, 4G Only, 5G Only, and other available modes.
 - **Self-Diagnosis**: An **Integration Health** binary sensor reports if the integration is experiencing issues, including data fetches that _succeeded_ but return nothing usable. See [Self-Diagnosis](#-self-diagnosis) and the [Integration Health Problem Alert](#-integration-health-problem-alert) example.
 
-|                         System Control                          |                              System Diagnostics                               |
-| :-------------------------------------------------------------: | :---------------------------------------------------------------------------: |
+| System Control | System Diagnostics |
+| :-: | :-: |
 | ![System Control](.github/images/huawei_5g_system_controls.png) | ![System Diagnostics](.github/images/huawei_5g_system_integration_health.png) |
 
 ---
@@ -412,15 +412,15 @@ This integration provides **159 entities** (depending on your firmware) organize
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-| Sub-Device     | Entities | Entity Types                                                            | Key Metrics                                                                                                                                                                      | Disabled by Default                                                           |
-| :------------- | -------: | :---------------------------------------------------------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | :---------------------------------------------------------------------------- |
-| ⚙️ **System**  |       48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters              |
-| 📶 **Signal**  |       58 | 48 Sensors, 10 Binary Sensors                                           | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation                                                                          | 4                                                                             |
-| 📈 **Data**    |       24 | 22 Sensors, 1 Binary Sensor, 1 Button                                   | Monthly usage, projected usage, data rates, connection usage, daily usage, data plan                                                                                             | 8, incl. Download/Upload Rate, Max Download/Upload Rate and the GB duplicates |
-| 💬 **SMS**     |       18 | 17 Sensors, 1 Binary Sensor                                             | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes                                                                                          | 1                                                                             |
-| 🛜 **WiFi**    |        7 | 4 Binary Sensors, 2 Switches, 1 Sensor                                  | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles                                                                                    | 1                                                                             |
-| 👥 **Clients** |        4 | 3 Sensors, 1 Button                                                     | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client**                                                           | 1                                                                             |
-| 🛠️ **Actions** |        5 | —                                                                       | Send, delete, bulk-delete and list SMS; clean up unused tracker entities                                                                                                         | —                                                                             |
+| Sub-Device | Entities | Entity Types | Key Metrics | Disabled by Default |
+| :-- | --: | :-- | :-- | :-- |
+| ⚙️ **System** | 48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
+| 📶 **Signal** | 58 | 48 Sensors, 10 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation | 4 |
+| 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, data rates, connection usage, daily usage, data plan | 8, incl. Download/Upload Rate, Max Download/Upload Rate and the GB duplicates |
+| 💬 **SMS** | 18 | 17 Sensors, 1 Binary Sensor | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
+| 🛜 **WiFi** | 7 | 4 Binary Sensors, 2 Switches, 1 Sensor | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles | 1 |
+| 👥 **Clients** | 4 | 3 Sensors, 1 Button | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client** | 1 |
+| 🛠️ **Actions** | 5 | — | Send, delete, bulk-delete and list SMS; clean up unused tracker entities | — |
 
 ---
 
@@ -500,34 +500,34 @@ Home Assistant stores Long Term Statistics for numeric sensors that have a `stat
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-| Sensors with LTS enabled                         | Why                                       |
-| :----------------------------------------------- | :---------------------------------------- |
+| Sensors with LTS enabled | Why |
+| :-- | :-- |
 | LTE & 5G signal metrics (RSRP, RSRQ, RSSI, SINR) | Track connection quality trends over time |
-| Signal Bars (LTE & 5G)                           | Coarse signal summary over time           |
-| Monthly data usage (Download, Upload, Total)     | Monitor data consumption month-over-month |
-| Lifetime totals (Total Download, Upload, Data)   | Cumulative lifetime traffic               |
-| Day Used                                         | Daily usage accumulation                  |
-| Connected clients (WiFi, Wired, Total)           | Track client count trends over time       |
-| LTE & 5G CQI                                     | Channel quality indicator trends          |
-| 5G Rank                                          | MIMO rank over time                       |
-| SMS Unread / Total Msg                           | Aggregate message volume                  |
-| SMS Total (Device) / Unread (Device)             | Per-device storage tracking               |
+| Signal Bars (LTE & 5G) | Coarse signal summary over time |
+| Monthly data usage (Download, Upload, Total) | Monitor data consumption month-over-month |
+| Lifetime totals (Total Download, Upload, Data) | Cumulative lifetime traffic |
+| Day Used | Daily usage accumulation |
+| Connected clients (WiFi, Wired, Total) | Track client count trends over time |
+| LTE & 5G CQI | Channel quality indicator trends |
+| 5G Rank | MIMO rank over time |
+| SMS Unread / Total Msg | Aggregate message volume |
+| SMS Total (Device) / Unread (Device) | Per-device storage tracking |
 
 The following sensors have **no LTS** to avoid unnecessary database growth:
 
-| Sensor                                                    | Reason                                                                                                                            |
-| :-------------------------------------------------------- | :-------------------------------------------------------------------------------------------------------------------------------- |
-| Download / Upload Rate                                    | Instantaneous readings — history at poll intervals has limited analytical value. Also **disabled by default** for the same reason |
-| Max Download / Upload Rate                                | Session maximum, resets; not useful for long-term trends                                                                          |
-| Connection Upload / Download                              | Resets on every reconnect — session-scoped                                                                                        |
-| Connection / Total Connection Duration                    | Connection time counters; not insightful for LTS                                                                                  |
-| Month Download / Upload (GB)                              | Redundant with the Bytes versions for LTS; HA can display bytes in any unit                                                       |
-| LTE & 5G Frequencies                                      | Static carrier frequencies — rarely change                                                                                        |
-| LTE & 5G Bandwidths                                       | Static channel bandwidths                                                                                                         |
-| Battery                                                   | Always ~100% when plugged in                                                                                                      |
-| SMS diagnostic sub-counters (inbox, outbox, drafts, etc.) | Per-bank storage counts — no trend value                                                                                          |
-| Projected Usage                                           | End-of-cycle estimate useful now for alerting rather than historical tracking                                                     |
-| Billing Cycle Day                                         | A billing-cycle setting that changes infrequently                                                                                 |
+| Sensor | Reason |
+| :-- | :-- |
+| Download / Upload Rate | Instantaneous readings — history at poll intervals has limited analytical value. Also **disabled by default** for the same reason |
+| Max Download / Upload Rate | Session maximum, resets; not useful for long-term trends |
+| Connection Upload / Download | Resets on every reconnect — session-scoped |
+| Connection / Total Connection Duration | Connection time counters; not insightful for LTS |
+| Month Download / Upload (GB) | Redundant with the Bytes versions for LTS; HA can display bytes in any unit |
+| LTE & 5G Frequencies | Static carrier frequencies — rarely change |
+| LTE & 5G Bandwidths | Static channel bandwidths |
+| Battery | Always ~100% when plugged in |
+| SMS diagnostic sub-counters (inbox, outbox, drafts, etc.) | Per-bank storage counts — no trend value |
+| Projected Usage | End-of-cycle estimate useful now for alerting rather than historical tracking |
+| Billing Cycle Day | A billing-cycle setting that changes infrequently |
 
 > [!TIP]
 >
@@ -587,8 +587,8 @@ Several settings are exposed as control entities so you can drive them from dash
 >
 > If the router refuses a control change — mobile data, guest WiFi or network mode — Home Assistant reports an **error** on the action rather than silently reverting.
 
-|                        System Configuration                         |                         System Control                          |
-| :-----------------------------------------------------------------: | :-------------------------------------------------------------: |
+| System Configuration | System Control |
+| :-: | :-: |
 | ![System Configuration](.github/images/huawei_5g_system_config.png) | ![System Control](.github/images/huawei_5g_system_controls.png) |
 
 ---
@@ -609,11 +609,11 @@ Several settings are exposed as control entities so you can drive them from dash
 
 ![System Config with Dropdown](.github/images/huawei_5g_system_config_dropdown.png)
 
-| Selector value | Router web page | Meaning                                               |
-| :------------- | :-------------- | :---------------------------------------------------- |
-| `Auto`         | **Auto**        | Let the router choose, falling back as signal changes |
-| `4G Only`      | **4G Only**     | Lock modem to LTE only, 5G disabled                   |
-| `5G Only`      | **5G Only**     | Lock modem to 5G only                                 |
+| Selector value | Router web page | Meaning |
+| :-- | :-- | :-- |
+| `Auto` | **Auto** | Let the router choose, falling back as signal changes |
+| `4G Only` | **4G Only** | Lock modem to LTE only, 5G disabled |
+| `5G Only` | **5G Only** | Lock modem to 5G only |
 
 > [!WARNING]
 >
@@ -663,10 +663,10 @@ Several settings are exposed as control entities so you can drive them from dash
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Parameter Detail & YAML Example:
 </summary><br>
 
-| Parameter  | Required | Default | Description                                                                                  |
-| :--------- | :------- | :------ | :------------------------------------------------------------------------------------------- |
-| `entry_id` | No       | —       | The router to use. Defaults to your only router; required if more than one is configured.    |
-| `dry_run`  | No       | `true`  | When `true`, returns a preview list of entities that would be removed without deleting them. |
+| Parameter | Required | Default | Description |
+| :-- | :-- | :-- | :-- |
+| `entry_id` | No | — | The router to use. Defaults to your only router; required if more than one is configured. |
+| `dry_run` | No | `true` | When `true`, returns a preview list of entities that would be removed without deleting them. |
 
 ```yaml
 action: huawei_router_5g.cleanup_unused_entities
@@ -720,20 +720,20 @@ There is also an SMS received event and four SMS actions to **send, read and del
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Parameter Detail & YAML Example:
 </summary><br>
 
-| Parameter  | Required | Description                                                               |
-| :--------- | :------- | :------------------------------------------------------------------------ |
-| `entry_id` | No       | The router to use. Optional if only one router is configured.             |
-| `target`   | **Yes**  | Recipient phone number(s) (e.g. `+1234567878`).                           |
-| `message`  | **Yes**  | Message content. Length limit depends on the characters used - see below. |
+| Parameter | Required | Description |
+| :-- | :-- | :-- |
+| `entry_id` | No | The router to use. Optional if only one router is configured. |
+| `target` | **Yes** | Recipient phone number(s) (e.g. `+1234567878`). |
+| `message` | **Yes** | Message content. Length limit depends on the characters used - see below. |
 
 > [!NOTE]
 >
 > **How long can a message be?**
 >
-> | Message contains                                               | Fits in one SMS | Maximum accepted |
-> | :------------------------------------------------------------- | :-------------- | :--------------- |
-> | Only standard characters (letters, digits, common punctuation) | **160**         | **612**          |
-> | Any emoji, curly quote, or other special character             | **70**          | **268**          |
+> | Message contains | Fits in one SMS | Maximum accepted |
+> | :-- | :-- | :-- |
+> | Only standard characters (letters, digits, common punctuation) | **160** | **612** |
+> | Any emoji, curly quote, or other special character | **70** | **268** |
 >
 > A single special character changes the encoding for the **whole** message, which is why the second row is so much shorter. Longer messages are split into parts by the router and reassembled by the receiving phone, so they arrive as one message - but **your carrier charges for each part**. A 200-character plain-text alert is 2 parts; the same text with one emoji is 3.
 >
@@ -764,12 +764,12 @@ data:
 
 Fetch a list of SMS messages. Supports **Action Responses** — use the output directly in automations and scripts.
 
-| Parameter  | Required | Default | Range     | Description                                                                               |
-| :--------- | :------- | :------ | :-------- | :---------------------------------------------------------------------------------------- |
-| `entry_id` | No       | —       | —         | The router to use. Defaults to your only router; required if more than one is configured. |
-| `page`     | No       | `1`     | 1–100     | Page number for pagination.                                                               |
-| `count`    | No       | `20`    | 1–50      | Messages per page.                                                                        |
-| `box_type` | No       | `1`     | See below | Mailbox to read from.                                                                     |
+| Parameter | Required | Default | Range | Description |
+| :-- | :-- | :-- | :-- | :-- |
+| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
+| `page` | No | `1` | 1–100 | Page number for pagination. |
+| `count` | No | `20` | 1–50 | Messages per page. |
+| `box_type` | No | `1` | See below | Mailbox to read from. |
 
 **`box_type` values:** `1` Local Inbox · `2` Local Sent · `3` Local Draft · `4` Local Trash · `5` SIM Inbox · `6` SIM Sent · `7` SIM Draft · `8` Mix Inbox · `9` Mix Sent · `10` Mix Draft
 
@@ -809,10 +809,10 @@ response_variable: inbox
 
 Delete a single SMS by its storage index. Use the `index` field from `get_sms_list` or from the `huawei_router_5g_sms_received` event.
 
-| Parameter  | Required | Description                                                                               |
-| :--------- | :------- | :---------------------------------------------------------------------------------------- |
-| `entry_id` | No       | The router to use. Defaults to your only router; required if more than one is configured. |
-| `index`    | **Yes**  | Storage index of the message to delete (integer ≥ 0).                                     |
+| Parameter | Required | Description |
+| :-- | :-- | :-- |
+| `entry_id` | No | The router to use. Defaults to your only router; required if more than one is configured. |
+| `index` | **Yes** | Storage index of the message to delete (integer ≥ 0). |
 
 ```yaml
 action: huawei_router_5g.delete_sms
@@ -838,10 +838,10 @@ data:
 
 > The `delete_all_sms` service action below provides programmatic cleanup of your inbox, and accepts a `keep_last` parameter to preserve recent messages.
 
-| Parameter   | Required | Default | Range | Description                                                                               |
-| :---------- | :------- | :------ | :---- | :---------------------------------------------------------------------------------------- |
-| `entry_id`  | No       | —       | —     | The router to use. Defaults to your only router; required if more than one is configured. |
-| `keep_last` | No       | `0`     | 0–50  | Number of most recent messages to preserve. `0` deletes all.                              |
+| Parameter | Required | Default | Range | Description |
+| :-- | :-- | :-- | :-- | :-- |
+| `entry_id` | No | — | — | The router to use. Defaults to your only router; required if more than one is configured. |
+| `keep_last` | No | `0` | 0–50 | Number of most recent messages to preserve. `0` deletes all. |
 
 ```yaml
 action: huawei_router_5g.delete_all_sms
@@ -867,13 +867,13 @@ data:
 
 Fires automatically when a new incoming SMS is detected. Use as an automation trigger.
 
-| Field      | Type    | Description                                                               |
-| :--------- | :------ | :------------------------------------------------------------------------ |
-| `entry_id` | Text    | Config entry ID of the router that received the message.                  |
-| `phone`    | Text    | Sender's phone number.                                                    |
-| `content`  | Text    | Message body.                                                             |
-| `date`     | Text    | Date/time of the message.                                                 |
-| `index`    | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
+| Field | Type | Description |
+| :-- | :-- | :-- |
+| `entry_id` | Text | Config entry ID of the router that received the message. |
+| `phone` | Text | Sender's phone number. |
+| `content` | Text | Message body. |
+| `date` | Text | Date/time of the message. |
+| `index` | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
 
 See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
 
@@ -1874,14 +1874,14 @@ Two conditions raise a card in Home Assistant's **Repairs** panel, and both need
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-| Repair                              | Raised when                                                                | Why it is a Repair                                                                                                                                                                                                                                   |
-| :---------------------------------- | :------------------------------------------------------------------------- | :--------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| **Huawei router sign-in failed**    | The router refuses the stored credentials, and a retry does not recover it | The only one you can act on from the panel — it opens a **reauthentication dialog** so you can re-enter the password. Until you do, no data arrives at all. It can mean the password was changed on the router, or that it is refusing new sessions. |
-| **Huawei router is not responding** | 10 consecutive failed fetches                                              | Ten failures in a row means the problem is not clearing on its own. The text lists what to check — power-cycle, whether the IP changed, whether the password changed, the network path. Clears itself once communication is restored.                |
+| Repair | Raised when | Why it is a Repair |
+| :-- | :-- | :-- |
+| **Huawei router sign-in failed** | The router refuses the stored credentials, and a retry does not recover it | The only one you can act on from the panel — it opens a **reauthentication dialog** so you can re-enter the password. Until you do, no data arrives at all. It can mean the password was changed on the router, or that it is refusing new sessions. |
+| **Huawei router is not responding** | 10 consecutive failed fetches | Ten failures in a row means the problem is not clearing on its own. The text lists what to check — power-cycle, whether the IP changed, whether the password changed, the network path. Clears itself once communication is restored. |
 
 **What earns a Repair.** Two things together: the condition has stopped resolving itself, **and** there is something you can do about it. A reading you cannot influence fails the second test however persistent it is.
 
-**What does not, and where to find it instead.** A firmware update that renames the router's data fields shows as `severity: warning`, with the detail in the `drift` attribute. A part of the router the integration could not reach shows in `degraded_capabilities`. A full message store is the **SMS Storage Full** binary sensor on the SMS device. All three are real and worth automating on — none of them is something the Repairs panel can resolve.
+**What does not, and where to find it instead.** A firmware update that renames the router's data fields shows as `severity: warning`, with the detail in the `drift` attribute. A part of the router the integration could not reach shows in `degraded_capabilities`. A full message store is the **SMS Storage Full** binary sensor on the SMS device, which is enabled by default because nothing else reports it. All three are real and worth automating on — none of them is something the Repairs panel can resolve.
 
 **A Repair also turns the Integration Health sensor on**, so an automation watching that sensor sees these two as well, without watching the panel. See [Self-Diagnosis](#-self-diagnosis).
 
@@ -1988,13 +1988,13 @@ The **Integration Health** sensor (`binary_sensor.huawei_5g_system_integration_h
 
 It exists because the router can answer a poll _successfully_ while a whole capability is missing — SMS, WiFi clients, monthly usage — in which case the affected sensors just go blank with no explanation anywhere. It reports:
 
-| Attribute               | What it tells you                                                                                                                                                    |
-| :---------------------- | :------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `severity`              | `ok` · `degraded` (a capability was lost) · `warning` (the data may be wrong) · `error` (unreachable) · `unknown` (nothing fetched yet). **Never blank** — see below |
-| `issues`                | Plain-language descriptions of what is wrong; empty when healthy                                                                                                     |
-| `degraded_capabilities` | Which parts of the router stopped answering, by name                                                                                                                 |
-| `drift`                 | Set when the router's firmware appears to have renamed the fields this integration reads                                                                             |
-| `last_good_update`      | When the last fully successful poll completed                                                                                                                        |
+| Attribute | What it tells you |
+| :-- | :-- |
+| `severity` | `ok` · `degraded` (a capability was lost) · `warning` (the data may be wrong) · `error` (unreachable) · `unknown` (nothing fetched yet). **Never blank** — see below |
+| `issues` | Plain-language descriptions of what is wrong; empty when healthy |
+| `degraded_capabilities` | Which parts of the router stopped answering, by name |
+| `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
+| `last_good_update` | When the last fully successful poll completed |
 
 - **`severity` always has a value.** The list attributes are legitimately empty when everything is fine.
 - **Always Available**: Unlike hardware entities that drop during an outage, this sensor stays active to report the cause.
@@ -2119,12 +2119,12 @@ Logs are then visible under **Settings > System > Logs** (click **Load Full Logs
 
 Because Home Assistant keeps most of it on purpose. This is **Home Assistant behavior, not something this integration controls**, and for most people it's the desirable outcome: re-add the same router and things carry on where they left off.
 
-| What                                                           | How long Home Assistant keeps it                  | On re-add                               |
-| :------------------------------------------------------------- | :------------------------------------------------ | :-------------------------------------- |
-| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely — never deleted                      | Continue unbroken                       |
-| **Recent detailed history**                                    | Recorder retention (10 days by default)           | Continues                               |
-| **Entity IDs** (`sensor.…`)                                    | Reused as long as nothing else has taken the name | Dashboards and automations keep working |
-| Renames, icons, areas, labels, enabled/disabled state          | **30 days**, in Home Assistant's entity registry  | Restored                                |
+| What | How long Home Assistant keeps it | On re-add |
+| :-- | :-- | :-- |
+| **Long-term statistics** (long-range graphs, Energy dashboard) | Indefinitely — never deleted | Continue unbroken |
+| **Recent detailed history** | Recorder retention (10 days by default) | Continues |
+| **Entity IDs** (`sensor.…`) | Reused as long as nothing else has taken the name | Dashboards and automations keep working |
+| Renames, icons, areas, labels, enabled/disabled state | **30 days**, in Home Assistant's entity registry | Restored |
 
 The **30 days** applies only to that fourth row — the entity-registry customizations. Statistics aren't on a timer at all, and your entity IDs come back either way. So re-adding after a year still reconnects your graphs; you would just need to redo any renames. Restarting Home Assistant in between makes no difference to any of this.
 

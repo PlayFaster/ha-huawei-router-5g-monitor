@@ -84,6 +84,16 @@ The project was built from the ground up using the latest "PlayFaster" standards
 - **Network mode was excluded for that reason and no longer is (2026-08-16).** The reasoning was right but drawn too widely: re-registering the radio makes the router's answers unreliable **for a while**, not permanently. Where the resulting state is readable once things settle — the mode is, a dial is not — the answer is to wait and read, not to give up on confirming. `set_net_mode` now settles for `NET_MODE_SETTLE` and re-reads `net_mode`.
 - **The router's `-1: Unknown` cannot be treated as an answer.** It is returned both for a refusal and for a command the router applied but could not answer for, it does not happen every time, and nothing has isolated what decides it. The observations and dates are in [`huawei_how_to_access.md`](huawei_how_to_access.md) → _Error codes worth recognizing_. What follows for this codebase: the POST response is no more trustworthy than an immediate read-back, so only the settled re-read separates the two cases — and **a run that never saw `-1` has not exercised that path**, which is why the confirmation outcome is reported per run rather than assumed.
 
+### A Fixable Repair Needs `repairs.py`, And Only One Text Field (v1.2.2-dev3)
+
+`auth_failed` is the one `is_fixable=True` repair here, and two things about that are easy to get wrong because neither fails loudly.
+
+**Home Assistant substitutes `ConfirmRepairFlow` when an integration ships no `repairs` platform.** That flow shows an empty confirm form and deletes the issue on submit, so the Fix button appears, is clickable, and dismisses the card without touching the credentials — a user presses it, watches the problem vanish, and is still signed out. `repairs.py` returns a flow whose confirm step calls `entry.async_start_reauth`, and `tests/test_repairs.py::test_the_fix_flow_is_ours_not_the_confirm_fallback` asserts the concrete type, so deleting the module fails rather than silently downgrading.
+
+**`description` and `fix_flow` are mutually exclusive.** `hassfest`'s issues schema declares them `vol.Exclusive` under a `fixable` group, so an issue takes a `title` and then exactly one of the two: a fixable issue renders its prose in the flow's step, a plain one on the card. Supplying both fails validation with _"two or more values in the same group of exclusion 'fixable'"_. `conn_error` is the other shape — `title` plus `description`, no flow — and the step-8 sweeps guard the pair against each other.
+
+**The entry is read from the issue's `data`**, not parsed out of `issue_id`. The id format is `{name}_{entry_id}` here and `{entry_id}_{name}` on `zte_router_5g`, and an entry id containing an underscore makes either parse ambiguous.
+
 ### The Repair And The Fault Probe Belong To The Failure Count, Not To One Exception Type (v1.2.1-dev7)
 
 - **Decision**: `conn_error` and `_async_diagnose_fault()` are reached from **both** failure branches, through `_async_report_unreachable()`, keyed on `consecutive_failures` alone.
