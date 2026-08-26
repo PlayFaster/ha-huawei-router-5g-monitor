@@ -7,7 +7,6 @@ empty confirm box and deletes the card — dismissing the problem while leaving
 the credentials wrong. `test_the_fix_flow_is_ours_not_the_confirm_fallback` is
 the test that fails if `repairs.py` is deleted or renamed.
 
-Raised by `x_project/repair_set_alignment.md` §3.1.
 """
 
 from unittest.mock import patch

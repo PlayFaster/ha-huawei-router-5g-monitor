@@ -5,7 +5,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.2-dev4\] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default](#122-dev4---2026-08-26---reauth-repair-flow-sms-storage-full-enabled-by-default)
+  - [\[1.2.2-dev5\] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default](#122-dev5---2026-08-26---reauth-repair-flow-sms-storage-full-enabled-by-default)
+  - [\[1.2.2-dev4\] - 2026-08-26 - Queue Reference Removed From `repairs.py`](#122-dev4---2026-08-26---queue-reference-removed-from-repairspy)
   - [\[1.2.2-dev3\] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization](#122-dev3---2026-08-26---documentation-comprehensive-changelog-readability-and-header-standardization)
   - [\[1.2.2-dev2\] - 2026-08-26 - README Repairs Section Rewritten](#122-dev2---2026-08-26---readme-repairs-section-rewritten)
   - [\[1.2.2-dev1\] - 2026-08-26 - Repairs Documentation: Condition Scope and Rationale Clarifications](#122-dev1---2026-08-26---repairs-documentation-condition-scope-and-rationale-clarifications)
@@ -174,7 +175,7 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
-## [1.2.2-dev4] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default
+## [1.2.2-dev5] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default
 
 ### Summary
 
@@ -209,6 +210,20 @@ All changes to this project will be documented in this file. This is the detaile
 ### Records
 
 - `x_project/repair_set_alignment.md` — this project's cell moves from `PENDING` (re-opened 2026-08-25) to `DONE`.
+
+## [1.2.2-dev4] - 2026-08-26 - Queue Reference Removed From `repairs.py`
+
+### Summary
+
+`repairs.py` cited a cross-project issue file in its module docstring. The citation is removed; the reasoning it introduced is unchanged.
+
+### Removed
+
+- **The `x_project/repair_set_alignment.md` reference in `repairs.py`.** A queue identifier is a transient tracking artefact and has no place in shipped code: it points at a register the reader has no reason to hold, and it outlives the item it names. The docstring still explains why the module exists — Home Assistant substitutes `ConfirmRepairFlow` for a fixable issue whose integration ships no repairs platform, and that flow's Fix button dismisses the card without acting.
+
+### Notes
+
+- **Not verified in this pass.** The devcontainer was not running; the change is a docstring edit with no executable content. `zte_router_5g` carried the identical line and was removed in the same sweep, recorded there as `[3.3.4-dev20]`.
 
 ## [1.2.2-dev3] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization
 

@@ -13,7 +13,7 @@ would press Fix, watch the problem disappear, and still have a broken
 integration until the next poll raised it again.
 
 The flow below starts the reauth flow instead, which is what the repair's own
-text promises and what `x_project/repair_set_alignment.md` §2 specifies.
+text promises.
 """
 
 import voluptuous as vol
