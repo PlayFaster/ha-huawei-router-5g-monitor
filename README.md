@@ -1379,7 +1379,7 @@ actions:
 
 > [!TIP]
 >
-> To alert only on the serious cases and ignore ordinary connectivity blips, add a condition on the `severity` attribute: `{{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'severity') == 'warning' }}` fires only for a suspected firmware API change, which is the condition that also raises a Repair.
+> To alert only on the serious cases and ignore ordinary connectivity blips, add a condition on the `severity` attribute: `{{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'severity') == 'warning' }}` fires only for a suspected firmware API change. That condition does **not** raise a Repair — nothing in the Repairs panel can resolve a firmware change — so this attribute is how you catch it.
 
 ---
 
@@ -1874,14 +1874,14 @@ Two conditions raise a card in Home Assistant's **Repairs** panel, and both need
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-| Repair | Raised when | Why it is a Repair |
-| :-- | :-- | :-- |
-| **Huawei router sign-in failed** | The router refuses the stored credentials, and a retry does not recover it | The only one you can act on from the panel — it opens a **reauthentication dialog** so you can re-enter the password. Until you do, no data arrives at all. It can mean the password was changed on the router, or that it is refusing new sessions. |
-| **Huawei router is not responding** | 10 consecutive failed fetches | Ten failures in a row means the problem is not clearing on its own. The text lists what to check — power-cycle, whether the IP changed, whether the password changed, the network path. Clears itself once communication is restored. |
+| Condition | Detected State | Surface Reported | Actionable User Step |
+| :-- | :-- | :-- | :-- |
+| **Authentication Failed** | Router rejects stored credentials | **Repairs card** (`auth_failed`) & Integration Health (`error`) | Click **Fix** to re-enter username/password |
+| **Sustained Outage** | 10 consecutive failed polls | **Repairs card** (`conn_error`) & Integration Health (`error`) | Check power, network path, or configured IP address |
+| **Transient Glitch / Reboot** | 1–3 failed poll cycles | Integration Health (`error` during outage) | None (auto-clears on next successful poll) |
+| **Firmware Schema Change** | Unrecognized or missing API fields | Integration Health (`severity: warning`, `drift` attr) | Check for integration updates or report issue |
 
 **What earns a Repair.** Two things together: the condition has stopped resolving itself, **and** there is something you can do about it. A reading you cannot influence fails the second test however persistent it is.
-
-**What does not, and where to find it instead.** A firmware update that renames the router's data fields shows as `severity: warning`, with the detail in the `drift` attribute. A part of the router the integration could not reach shows in `degraded_capabilities`. A full message store is the **SMS Storage Full** binary sensor on the SMS device, which is enabled by default because nothing else reports it. All three are real and worth automating on — none of them is something the Repairs panel can resolve.
 
 **A Repair also turns the Integration Health sensor on**, so an automation watching that sensor sees these two as well, without watching the panel. See [Self-Diagnosis](#-self-diagnosis).
 

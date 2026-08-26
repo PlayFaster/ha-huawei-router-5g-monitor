@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.2-dev6\] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment](#122-dev6---2026-08-26---documentation-readme-repairs-and-health-section-alignment)
   - [\[1.2.2-dev5\] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default](#122-dev5---2026-08-26---reauth-repair-flow-sms-storage-full-enabled-by-default)
   - [\[1.2.2-dev4\] - 2026-08-26 - Queue Reference Removed From `repairs.py`](#122-dev4---2026-08-26---queue-reference-removed-from-repairspy)
   - [\[1.2.2-dev3\] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization](#122-dev3---2026-08-26---documentation-comprehensive-changelog-readability-and-header-standardization)
@@ -174,6 +175,18 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.2-dev6] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment
+
+### Summary
+
+Standardized the Repairs section in `README.md` into a 4-condition classification matrix, corrected the Integration Health automation note regarding firmware drift, and removed legacy references to SMS storage from the Repairs narrative.
+
+### Changed
+
+- **Standardized Repairs Classification Matrix**: Replaced the Repairs table with a structured 4-condition matrix detailing the detected condition, reporting surface, and actionable user steps across `auth_failed`, `conn_error`, transient glitches, and firmware schema drift.
+- **Corrected Integration Health Automation Note**: Fixed line 1382 in `README.md` to remove the stale claim that firmware drift raises a Repair, aligning with ZTE.
+- **Decoupled SMS Storage from Repairs Context**: Removed legacy narrative mentions of SMS Storage Full from the Repairs section.
 
 ## [1.2.2-dev5] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default
 
