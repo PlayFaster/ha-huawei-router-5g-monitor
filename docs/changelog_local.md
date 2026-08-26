@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.2-dev7\] - 2026-08-26 - Linting: Test Import Exclusions](#122-dev7---2026-08-26---linting-test-import-exclusions)
   - [\[1.2.2-dev6\] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment](#122-dev6---2026-08-26---documentation-readme-repairs-and-health-section-alignment)
   - [\[1.2.2-dev5\] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default](#122-dev5---2026-08-26---reauth-repair-flow-sms-storage-full-enabled-by-default)
   - [\[1.2.2-dev4\] - 2026-08-26 - Queue Reference Removed From `repairs.py`](#122-dev4---2026-08-26---queue-reference-removed-from-repairspy)
@@ -175,6 +176,16 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.2-dev7] - 2026-08-26 - Linting: Test Import Exclusions
+
+### Summary
+
+Reconciled test suite import conventions against newly adopted Home Assistant Core Ruff lint rules (`ICN001` and `TID251`).
+
+### Changed
+
+- **Test Internal Import Exclusion (`TID251`)**: Added `TID251` to `per-file-ignores` for `tests/**` in synced `pyproject.toml`, allowing test suites to import shared fixtures and helpers (`from .conftest import MockResponse`, `from tests.conftest import MockConfigEntry`) while maintaining the strict ban on production code (`custom_components/`) importing test packages.
 
 ## [1.2.2-dev6] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment
 
