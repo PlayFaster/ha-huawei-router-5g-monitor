@@ -69,7 +69,9 @@ SMS_STORAGE_FULL_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     translation_key="sms_storage_full",
     device_class=BinarySensorDeviceClass.PROBLEM,
     entity_category=EntityCategory.DIAGNOSTIC,
-    entity_registry_enabled_default=False,
+    # Enabled by default a full store makes the network stop delivering
+    # Matches `zte_router_5g`.
+    entity_registry_enabled_default=True,
     group="sms",
 )
 

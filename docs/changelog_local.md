@@ -5,172 +5,333 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.1\] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults](#121---2026-08-24---release---connection-repair-triggering-signal-parsing-resilience-disabled-rate-sensor-defaults)
-  - [\[1.2.1-dev17\] - 2026-08-24 - Intermittent Seam-Test Failure Fixed: A Setup Poll Racing a Shortened Deadline](#121-dev17---2026-08-24---intermittent-seam-test-failure-fixed-a-setup-poll-racing-a-shortened-deadline)
-  - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via `via_device_id` Defined](#121-dev16---2026-08-24---device-tracker-naming-architecture-client-devices-via-via_device_id-defined)
-  - [\[1.2.1-dev15\] - 2026-08-24 - Write-Refusal Sweep Added; Rate Sensors Disabled by Default](#121-dev15---2026-08-24---write-refusal-sweep-added-rate-sensors-disabled-by-default)
-  - [\[1.2.1-dev14\] - 2026-08-24 - sub_devices_and_trackers.md Reconciled; Six False Statements](#121-dev14---2026-08-24---sub_devices_and_trackersmd-reconciled-six-false-statements)
-  - [\[1.2.1-dev13\] - 2026-08-24 - Device-Tracker Naming: Two Contradicting Tasks Merged Into One](#121-dev13---2026-08-24---device-tracker-naming-two-contradicting-tasks-merged-into-one)
-  - [\[1.2.1-dev12\] - 2026-08-24 - US Spelling Sweep Over the Component; Chore C-028 Closed](#121-dev12---2026-08-24---us-spelling-sweep-over-the-component-chore-c-028-closed)
-  - [\[1.2.1-dev11\] - 2026-08-24 - Notes: todo.md Reconciled; Two Open Questions Became Tasks](#121-dev11---2026-08-24---notes-todomd-reconciled-two-open-questions-became-tasks)
-  - [\[1.2.1-dev10\] - 2026-08-23 - Notes Queue: `.notes/tasks/` Populated From `issues/`](#121-dev10---2026-08-23---notes-queue-notestasks-populated-from-issues)
-  - [\[1.2.1-dev9\] - 2026-08-23 - README Repairs Table Corrected; DEVELOPMENT Entries For The dev7 Fixes](#121-dev9---2026-08-23---readme-repairs-table-corrected-development-entries-for-the-dev7-fixes)
-  - [\[1.2.1-dev8\] - 2026-08-23 - Superseded About-Note Drift Test Removed](#121-dev8---2026-08-23---superseded-about-note-drift-test-removed)
-  - [\[1.2.1-dev7\] - 2026-08-23 - Not-Responding Repair Reaches a Refused Connection; Non-Finite Readings Rejected at the Parser](#121-dev7---2026-08-23---not-responding-repair-reaches-a-refused-connection-non-finite-readings-rejected-at-the-parser)
-  - [\[1.2.1-dev6\] - 2026-08-23 - Transport Seam Added; Depth Findings Closed; Repair Contract Sweeps](#121-dev6---2026-08-23---transport-seam-added-depth-findings-closed-repair-contract-sweeps)
-  - [\[1.2.1-dev5\] - 2026-08-23 - Update huawei_how_to_access.md and development.md](#121-dev5---2026-08-23---update-huawei_how_to_accessmd-and-developmentmd)
-  - [\[1.2.1-dev4\] - 2026-08-23 - Bump mypy PHACC; .gitignore; Changelog](#121-dev4---2026-08-23---bump-mypy-phacc-gitignore-changelog)
-  - [\[1.2.1-dev2\] - 2026-08-22 - CI Bump .github PHACC; HA Compatibility; tasks.json](#121-dev2---2026-08-22---ci-bump-github-phacc-ha-compatibility-tasksjson)
-  - [\[1.2.1-dev1\] - 2026-08-20 - CI Bump Ruff](#121-dev1---2026-08-20---ci-bump-ruff)
-  - [\[1.2.0\] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health](#120---2026-08-20---release---new-entities-projected-data-use-wifi-switch-reconnect-button-integration-health)
-  - [\[1.2.0-dev77\] - 2026-08-20 - Hardware Check Entity Matching Fixed; SIM Number Masked](#120-dev77---2026-08-20---hardware-check-entity-matching-fixed-sim-number-masked)
-  - [\[1.2.0-dev73\] - 2026-08-19 - Send-SMS Length Limits Made Encoding-Aware](#120-dev73---2026-08-19---send-sms-length-limits-made-encoding-aware)
-  - [\[1.2.0-dev71\] - 2026-08-19 - SMS Payload and Sender Number Removed From Logs](#120-dev71---2026-08-19---sms-payload-and-sender-number-removed-from-logs)
-  - [\[1.2.0-dev70\] - 2026-08-19 - Switch State Latch; Stale Published Position Fixed](#120-dev70---2026-08-19---switch-state-latch-stale-published-position-fixed)
-  - [\[1.2.0-dev65\] - 2026-08-19 - Connection Repair Strike Threshold Raised to Ten](#120-dev65---2026-08-19---connection-repair-strike-threshold-raised-to-ten)
-  - [\[1.2.0-dev61\] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document](#120-dev61---2026-08-19---guard-bands-on-a-text-sensor-added-to-match-a-document)
-  - [\[1.2.0-dev59\] - 2026-08-19 - Hardware Check Report Output Added](#120-dev59---2026-08-19---hardware-check-report-output-added)
-  - [\[1.2.0-dev58\] - 2026-08-18 - Coverage Threshold Enforced; `fail_under = 100`](#120-dev58---2026-08-18---coverage-threshold-enforced-fail_under--100)
-  - [\[1.2.0-dev57\] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap](#120-dev57---2026-08-18---lockup-sweep-bounded-writes-salvaged-polls-and-the-standards-that-set-the-trap)
-  - [\[1.2.0-dev56\] - 2026-08-18 - Network-Mode Write Deadlock Fixed; API Recovery Added](#120-dev56---2026-08-18---network-mode-write-deadlock-fixed-api-recovery-added)
-  - [\[1.2.0-dev54\] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family](#120-dev54---2026-08-17---health-severity-and-strike-constants-aligned-with-the-family)
-  - [\[1.2.0-dev53\] - 2026-08-17 - Documentation Reconciliation: Four False Statements](#120-dev53---2026-08-17---documentation-reconciliation-four-false-statements)
-  - [\[1.2.0-dev52\] - 2026-08-17 - Assertion Audit: Two Hollow Tests Given Real Assertions](#120-dev52---2026-08-17---assertion-audit-two-hollow-tests-given-real-assertions)
+  - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
+  - [\[1.2.2-dev7\] - 2026-08-26 - Linting: Test Import Exclusions](#122-dev7---2026-08-26---linting-test-import-exclusions)
+  - [\[1.2.2-dev6\] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment](#122-dev6---2026-08-26---documentation-readme-repairs-and-health-section-alignment)
+  - [\[1.2.2-dev5\] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default](#122-dev5---2026-08-26---reauth-repair-flow-sms-storage-full-enabled-by-default)
+  - [\[1.2.2-dev4\] - 2026-08-26 - Queue Reference Removed From `repairs.py`](#122-dev4---2026-08-26---queue-reference-removed-from-repairspy)
+  - [\[1.2.2-dev3\] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization](#122-dev3---2026-08-26---documentation-comprehensive-changelog-readability-and-header-standardization)
+  - [\[1.2.2-dev2\] - 2026-08-26 - README Repairs Section Rewritten](#122-dev2---2026-08-26---readme-repairs-section-rewritten)
+  - [\[1.2.2-dev1\] - 2026-08-26 - Repairs Documentation: Condition Scope and Rationale Clarifications](#122-dev1---2026-08-26---repairs-documentation-condition-scope-and-rationale-clarifications)
+  - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering, Signal Parsing Resilience, and Default Sensor Tuning](#121---2026-08-24---release-connection-loss-repair-triggering-signal-parsing-resilience-and-default-sensor-tuning)
+  - [\[1.2.1-dev17\] - 2026-08-24 - Test Suite: Polling Deadline Seam-Test Concurrency Fix](#121-dev17---2026-08-24---test-suite-polling-deadline-seam-test-concurrency-fix)
+  - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Architecture: Client Devices via `via_device_id` Defined](#121-dev16---2026-08-24---device-tracker-architecture-client-devices-via-via_device_id-defined)
+  - [\[1.2.1-dev15\] - 2026-08-24 - Telemetry Configuration: Write-Refusal Sweeps and Rate Sensor Defaults](#121-dev15---2026-08-24---telemetry-configuration-write-refusal-sweeps-and-rate-sensor-defaults)
+  - [\[1.2.1-dev14\] - 2026-08-24 - Documentation Reconciliation: Sub-Devices and Tracker Architecture Records](#121-dev14---2026-08-24---documentation-reconciliation-sub-devices-and-tracker-architecture-records)
+  - [\[1.2.1-dev13\] - 2026-08-24 - Work Queue: Device-Tracker Naming Task Consolidation](#121-dev13---2026-08-24---work-queue-device-tracker-naming-task-consolidation)
+  - [\[1.2.1-dev12\] - 2026-08-24 - Code Quality: US Spelling Standardization](#121-dev12---2026-08-24---code-quality-us-spelling-standardization)
+  - [\[1.2.1-dev11\] - 2026-08-24 - Work Queue: Tasks Reconciliation and Todo Cleanup](#121-dev11---2026-08-24---work-queue-tasks-reconciliation-and-todo-cleanup)
+  - [\[1.2.1-dev10\] - 2026-08-23 - Work Queue: Notes Directory Restructuring and Migration](#121-dev10---2026-08-23---work-queue-notes-directory-restructuring-and-migration)
+  - [\[1.2.1-dev9\] - 2026-08-23 - Documentation: README Repairs Table and Architecture Sync](#121-dev9---2026-08-23---documentation-readme-repairs-table-and-architecture-sync)
+  - [\[1.2.1-dev8\] - 2026-08-23 - Test Suite: Redundant About-Note Drift Test Removal](#121-dev8---2026-08-23---test-suite-redundant-about-note-drift-test-removal)
+  - [\[1.2.1-dev7\] - 2026-08-23 - Connection Resilience: Refused Connection Repair and Signal Parsing Rejection](#121-dev7---2026-08-23---connection-resilience-refused-connection-repair-and-signal-parsing-rejection)
+  - [\[1.2.1-dev6\] - 2026-08-23 - Test Infrastructure: Transport Seam, Depth Checks, and Repair Contracts](#121-dev6---2026-08-23---test-infrastructure-transport-seam-depth-checks-and-repair-contracts)
+  - [\[1.2.1-dev5\] - 2026-08-23 - Documentation: Access Methods and Development Guides Synchronized](#121-dev5---2026-08-23---documentation-access-methods-and-development-guides-synchronized)
+  - [\[1.2.1-dev4\] - 2026-08-23 - CI and Tooling: Dependency Bumps and Git Ignore Rules](#121-dev4---2026-08-23---ci-and-tooling-dependency-bumps-and-git-ignore-rules)
+  - [\[1.2.1-dev2\] - 2026-08-22 - CI and Compatibility: Workflow Bumps and Platform Compatibility Matrix](#121-dev2---2026-08-22---ci-and-compatibility-workflow-bumps-and-platform-compatibility-matrix)
+  - [\[1.2.1-dev1\] - 2026-08-20 - Tooling: Ruff Version Bump](#121-dev1---2026-08-20---tooling-ruff-version-bump)
+  - [\[1.2.0\] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-telemetry-entities-data-projections-control-switches-and-health-monitoring)
+  - [\[1.2.0-dev77\] - 2026-08-20 - Hardware Verification: Switch Matching and SIM Masking](#120-dev77---2026-08-20---hardware-verification-switch-matching-and-sim-masking)
+  - [\[1.2.0-dev73\] - 2026-08-19 - Actions: Encoding-Aware SMS Length Limits](#120-dev73---2026-08-19---actions-encoding-aware-sms-length-limits)
+  - [\[1.2.0-dev71\] - 2026-08-19 - Logging: SMS Payload and Phone Number Privacy](#120-dev71---2026-08-19---logging-sms-payload-and-phone-number-privacy)
+  - [\[1.2.0-dev70\] - 2026-08-19 - Controls: Switch Write Latching and State Retention](#120-dev70---2026-08-19---controls-switch-write-latching-and-state-retention)
+  - [\[1.2.0-dev65\] - 2026-08-19 - Connection Resilience: Connection Repair Strike Limit Alignment](#120-dev65---2026-08-19---connection-resilience-connection-repair-strike-limit-alignment)
+  - [\[1.2.0-dev61\] - 2026-08-19 - Telemetry Configuration: Transmit Power Guard Band Removal](#120-dev61---2026-08-19---telemetry-configuration-transmit-power-guard-band-removal)
+  - [\[1.2.0-dev59\] - 2026-08-19 - Hardware Verification: Script Reporting and Contention Coverage](#120-dev59---2026-08-19---hardware-verification-script-reporting-and-contention-coverage)
+  - [\[1.2.0-dev58\] - 2026-08-18 - CI and Test Infrastructure: 100% Coverage Threshold Enforcement](#120-dev58---2026-08-18---ci-and-test-infrastructure-100-coverage-threshold-enforcement)
+  - [\[1.2.0-dev57\] - 2026-08-18 - Concurrency and Resilience: Bounded Writes and Salvaged Polls](#120-dev57---2026-08-18---concurrency-and-resilience-bounded-writes-and-salvaged-polls)
+  - [\[1.2.0-dev56\] - 2026-08-18 - Concurrency and Resilience: Network-Mode Deadlock Fix and Session Recovery](#120-dev56---2026-08-18---concurrency-and-resilience-network-mode-deadlock-fix-and-session-recovery)
+  - [\[1.2.0-dev54\] - 2026-08-17 - Diagnostic Health: Severity Enum and Strike Constant Alignment](#120-dev54---2026-08-17---diagnostic-health-severity-enum-and-strike-constant-alignment)
+  - [\[1.2.0-dev53\] - 2026-08-17 - Documentation: Accuracy Reconciliation and Stale Guidance Cleanup](#120-dev53---2026-08-17---documentation-accuracy-reconciliation-and-stale-guidance-cleanup)
+  - [\[1.2.0-dev52\] - 2026-08-17 - Test Quality: Assertion Audit and Concrete Verification](#120-dev52---2026-08-17---test-quality-assertion-audit-and-concrete-verification)
   - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
-  - [\[1.2.0-dev50\] - 2026-08-17 - Client-Tracking Opt-Out Assessment; Poll Cost Measured](#120-dev50---2026-08-17---client-tracking-opt-out-assessment-poll-cost-measured)
-  - [\[1.2.0-dev47\] - 2026-08-17 - Coverage Restored to 100%; dev43 and dev46 Gaps Covered](#120-dev47---2026-08-17---coverage-restored-to-100-dev43-and-dev46-gaps-covered)
-  - [\[1.2.0-dev46\] - 2026-08-17 - Network Mode Option List Publication Ordering Fixed](#120-dev46---2026-08-17---network-mode-option-list-publication-ordering-fixed)
-  - [\[1.2.0-dev45\] - 2026-08-17 - README Review Findings Applied](#120-dev45---2026-08-17---readme-review-findings-applied)
-  - [\[1.2.0-dev43\] - 2026-08-17 - 5G Only Mode `08` Added to Network Mode Labels](#120-dev43---2026-08-17---5g-only-mode-08-added-to-network-mode-labels)
-  - [\[1.2.0-dev42\] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked](#120-dev42---2026-08-16---network-mode-reported-failure-for-a-write-that-worked)
-  - [\[1.2.0-dev40\] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12](#120-dev40---2026-08-16---bump-shared-ci-from-v2010-to-v2012)
-  - [\[1.2.0-dev39\] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes](#120-dev39---2026-08-16---four-broken-hyphens-shipped-in-entity-notes)
-  - [\[1.2.0-dev38\] - 2026-08-16 - About Notes Reviewed; US Spelling Swept](#120-dev38---2026-08-16---about-notes-reviewed-us-spelling-swept)
-  - [\[1.2.0-dev37\] - 2026-08-16 - Roadmap Scoped to Features; Cleanup Limitation Documented](#120-dev37---2026-08-16---roadmap-scoped-to-features-cleanup-limitation-documented)
-  - [\[1.2.0-dev36\] - 2026-08-16 - API Access Reference Corrected; `vendorname` Trap Recorded](#120-dev36---2026-08-16---api-access-reference-corrected-vendorname-trap-recorded)
-  - [\[1.2.0-dev35\] - 2026-08-16 - README: Reading Your Signal Data, Automations, Tailoring](#120-dev35---2026-08-16---readme-reading-your-signal-data-automations-tailoring)
-  - [\[1.2.0-dev34\] - 2026-08-16 - README: Entities, Controls and Actions; 1.2.0 Release Notes](#120-dev34---2026-08-16---readme-entities-controls-and-actions-120-release-notes)
-  - [\[1.2.0-dev33\] - 2026-08-16 - README: Compatibility and Other Options](#120-dev33---2026-08-16---readme-compatibility-and-other-options)
-  - [\[1.2.0-dev32\] - 2026-08-16 - Sensor Review and Masked-Errors Audit](#120-dev32---2026-08-16---sensor-review-and-masked-errors-audit)
-  - [\[1.2.0-dev31\] - 2026-08-15 - Mutation Testing Complete: 80 Tests, One Defect](#120-dev31---2026-08-15---mutation-testing-complete-80-tests-one-defect)
-  - [\[1.2.0-dev30\] - 2026-08-15 - Verification Pass: Live Read-Back, Timer Callbacks, Stale Documents](#120-dev30---2026-08-15---verification-pass-live-read-back-timer-callbacks-stale-documents)
-  - [\[1.2.0-dev29\] - 2026-08-15 - CI Bump Ruff](#120-dev29---2026-08-15---ci-bump-ruff)
-  - [\[1.2.0-dev28\] - 2026-08-15 - Projection Memo Per Entry; Placeholder and Source-Read Fixes](#120-dev28---2026-08-15---projection-memo-per-entry-placeholder-and-source-read-fixes)
-  - [\[1.2.0-dev27\] - 2026-08-15 - Drop `url-normalize`](#120-dev27---2026-08-15---drop-url-normalize)
-  - [\[1.2.0-dev25\] - 2026-08-15 - Tighten Two Sweeps; Drop the Redundant Refresh](#120-dev25---2026-08-15---tighten-two-sweeps-drop-the-redundant-refresh)
-  - [\[1.2.0-dev24\] - 2026-08-15 - Section 6 and Section 12 Tests Verified Against Real Regressions](#120-dev24---2026-08-15---section-6-and-section-12-tests-verified-against-real-regressions)
-  - [\[1.2.0-dev23\] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router](#120-dev23---2026-08-15---review-findings-implemented-options-changes-now-reach-the-router)
-  - [\[1.2.0-dev22\] - 2026-08-15 - Code Review](#120-dev22---2026-08-15---code-review)
-  - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS De-duplication and the Event Payload Contract](#120-dev21---2026-08-15---depth-review-sms-de-duplication-and-the-event-payload-contract)
-  - [\[1.2.0-dev20\] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Token Fixed](#120-dev20---2026-08-15---mutation-findings-implemented-firmware-version-token-fixed)
-  - [\[1.2.0-dev19\] - 2026-08-15 - Mutation Testing Configured and First Run Triaged](#120-dev19---2026-08-15---mutation-testing-configured-and-first-run-triaged)
-  - [\[1.2.0-dev18\] - 2026-08-15 - `about` Attribute Notes on Every Entity](#120-dev18---2026-08-15---about-attribute-notes-on-every-entity)
-  - [\[1.2.0-dev17\] - 2026-08-15 - Router Diagnostics Sensor](#120-dev17---2026-08-15---router-diagnostics-sensor)
-  - [\[1.2.0-dev16\] - 2026-08-15 - WiFi Switch; Voice Entities](#120-dev16---2026-08-15---wifi-switch-voice-entities)
-  - [\[1.2.0-dev15\] - 2026-08-15 - Follow-Up Refresh Fires While Paused](#120-dev15---2026-08-15---follow-up-refresh-fires-while-paused)
-  - [\[1.2.0-dev14\] - 2026-08-15 - Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---follow-up-refresh-after-reboot-and-reconnect)
-  - [\[1.2.0-dev13\] - 2026-08-15 - Reconnect Button Fixed](#120-dev13---2026-08-15---reconnect-button-fixed)
-  - [\[1.2.0-dev12\] - 2026-08-15 - huawei-lte-api 2.0.1](#120-dev12---2026-08-15---huawei-lte-api-201)
-  - [\[1.2.0-dev11\] - 2026-08-15 - New Entity Set and Data-Usage Projection](#120-dev11---2026-08-15---new-entity-set-and-data-usage-projection)
-  - [\[1.2.0-dev10\] - 2026-08-15 - Huawei API Access Reference](#120-dev10---2026-08-15---huawei-api-access-reference)
-  - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap Reconciled](#120-dev9---2026-08-14---roadmap-reconciled)
-  - [\[1.2.0-dev8\] - 2026-08-14 - Two Dead Entity Strings Removed](#120-dev8---2026-08-14---two-dead-entity-strings-removed)
-  - [\[1.2.0-dev7\] - 2026-08-14 - quality_scale.yaml Completeness](#120-dev7---2026-08-14---quality_scaleyaml-completeness)
-  - [\[1.2.0-dev6\] - 2026-08-14 - Write-Classification Register and Hardware Check](#120-dev6---2026-08-14---write-classification-register-and-hardware-check)
-  - [\[1.2.0-dev5\] - 2026-08-14 - Four Diagnostics Leaks Closed](#120-dev5---2026-08-14---four-diagnostics-leaks-closed)
-  - [\[1.2.0-dev4\] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts](#120-dev4---2026-08-14---guest-wifi-write-decision-structured-exempts)
-  - [\[1.2.0-dev3\] - 2026-08-14 - masked_errors_check Audit](#120-dev3---2026-08-14---masked_errors_check-audit)
-  - [\[1.2.0-dev2\] - 2026-08-14 - Changelog Backfill](#120-dev2---2026-08-14---changelog-backfill)
-  - [\[1.2.0-dev1\] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action](#120-dev1---2026-08-14---two-dead-library-calls-tracker-unique-ids-entity-cleanup-action)
+  - [\[1.2.0-dev50\] - 2026-08-17 - Architecture and Roadmap: Client Tracking Opt-Out and Poll Timings](#120-dev50---2026-08-17---architecture-and-roadmap-client-tracking-opt-out-and-poll-timings)
+  - [\[1.2.0-dev47\] - 2026-08-17 - Test Coverage: Full Line and Branch Coverage Restoration](#120-dev47---2026-08-17---test-coverage-full-line-and-branch-coverage-restoration)
+  - [\[1.2.0-dev46\] - 2026-08-17 - Controls: Network Mode Option List Startup Ordering](#120-dev46---2026-08-17---controls-network-mode-option-list-startup-ordering)
+  - [\[1.2.0-dev45\] - 2026-08-17 - Documentation: README Accuracy and Entity Count Reconciliation](#120-dev45---2026-08-17---documentation-readme-accuracy-and-entity-count-reconciliation)
+  - [\[1.2.0-dev43\] - 2026-08-17 - Controls: 5G-Only Network Mode and Dynamic Option Discovery](#120-dev43---2026-08-17---controls-5g-only-network-mode-and-dynamic-option-discovery)
+  - [\[1.2.0-dev42\] - 2026-08-16 - Controls: Network Mode Write Confirmation and Settling Readbacks](#120-dev42---2026-08-16---controls-network-mode-write-confirmation-and-settling-readbacks)
+  - [\[1.2.0-dev40\] - 2026-08-16 - CI and Workflows: Shared CI Workflow Bump](#120-dev40---2026-08-16---ci-and-workflows-shared-ci-workflow-bump)
+  - [\[1.2.0-dev39\] - 2026-08-16 - Documentation: Entity Note Hyphenation Fixes](#120-dev39---2026-08-16---documentation-entity-note-hyphenation-fixes)
+  - [\[1.2.0-dev38\] - 2026-08-16 - Documentation: Entity Descriptions and Spelling Review](#120-dev38---2026-08-16---documentation-entity-descriptions-and-spelling-review)
+  - [\[1.2.0-dev37\] - 2026-08-16 - Roadmap and Documentation: Feature Scoping and Cleanup Limitations](#120-dev37---2026-08-16---roadmap-and-documentation-feature-scoping-and-cleanup-limitations)
+  - [\[1.2.0-dev36\] - 2026-08-16 - Documentation: API Access Reference and ODM Metadata Warnings](#120-dev36---2026-08-16---documentation-api-access-reference-and-odm-metadata-warnings)
+  - [\[1.2.0-dev35\] - 2026-08-16 - Documentation: Signal Analysis, Automations, and Monitoring Guide](#120-dev35---2026-08-16---documentation-signal-analysis-automations-and-monitoring-guide)
+  - [\[1.2.0-dev34\] - 2026-08-16 - Documentation: Entity Reference and 1.2.0 Release Notes](#120-dev34---2026-08-16---documentation-entity-reference-and-120-release-notes)
+  - [\[1.2.0-dev33\] - 2026-08-16 - Documentation: Hardware Compatibility and Integration Comparison](#120-dev33---2026-08-16---documentation-hardware-compatibility-and-integration-comparison)
+  - [\[1.2.0-dev32\] - 2026-08-16 - Diagnostic Health: Health Error Logging and Entity Reconciliations](#120-dev32---2026-08-16---diagnostic-health-health-error-logging-and-entity-reconciliations)
+  - [\[1.2.0-dev31\] - 2026-08-15 - Test Suite: Mutation Testing Triage and SMS Parser Fixes](#120-dev31---2026-08-15---test-suite-mutation-testing-triage-and-sms-parser-fixes)
+  - [\[1.2.0-dev30\] - 2026-08-15 - Verification Pass: Live Readback Validation and Timer Callback Tests](#120-dev30---2026-08-15---verification-pass-live-readback-validation-and-timer-callback-tests)
+  - [\[1.2.0-dev29\] - 2026-08-15 - Tooling: Ruff Version Bump](#120-dev29---2026-08-15---tooling-ruff-version-bump)
+  - [\[1.2.0-dev28\] - 2026-08-15 - Telemetry Configuration: Per-Entry Projection Caching and Source Root Resolvers](#120-dev28---2026-08-15---telemetry-configuration-per-entry-projection-caching-and-source-root-resolvers)
+  - [\[1.2.0-dev27\] - 2026-08-15 - Dependencies: URL Normalization Dependency Removal](#120-dev27---2026-08-15---dependencies-url-normalization-dependency-removal)
+  - [\[1.2.0-dev25\] - 2026-08-15 - Test Infrastructure: Entity Hygiene Sweeps and Unverified Write Refresh](#120-dev25---2026-08-15---test-infrastructure-entity-hygiene-sweeps-and-unverified-write-refresh)
+  - [\[1.2.0-dev24\] - 2026-08-15 - Test Quality: Regression Proofs for Rounding and Translation Sweeps](#120-dev24---2026-08-15---test-quality-regression-proofs-for-rounding-and-translation-sweeps)
+  - [\[1.2.0-dev23\] - 2026-08-15 - Options Flow: Live Updates, Write Confirmations, and Cleanup Button](#120-dev23---2026-08-15---options-flow-live-updates-write-confirmations-and-cleanup-button)
+  - [\[1.2.0-dev22\] - 2026-08-15 - Code Quality: Code Review Findings and Action Label Precision](#120-dev22---2026-08-15---code-quality-code-review-findings-and-action-label-precision)
+  - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS Deduplication and Event Payload Contracts](#120-dev21---2026-08-15---depth-review-sms-deduplication-and-event-payload-contracts)
+  - [\[1.2.0-dev20\] - 2026-08-15 - Diagnostics and Data Sanitization: Diagnostic Tokens and Address Redaction](#120-dev20---2026-08-15---diagnostics-and-data-sanitization-diagnostic-tokens-and-address-redaction)
+  - [\[1.2.0-dev19\] - 2026-08-15 - Test Infrastructure: Mutation Testing Setup and Test Root Resolvers](#120-dev19---2026-08-15---test-infrastructure-mutation-testing-setup-and-test-root-resolvers)
+  - [\[1.2.0-dev18\] - 2026-08-15 - Telemetry: Explanatory About Attribute Notes on Every Entity](#120-dev18---2026-08-15---telemetry-explanatory-about-attribute-notes-on-every-entity)
+  - [\[1.2.0-dev17\] - 2026-08-15 - Diagnostics: Router Diagnostics Binary Sensor](#120-dev17---2026-08-15---diagnostics-router-diagnostics-binary-sensor)
+  - [\[1.2.0-dev16\] - 2026-08-15 - Controls and Telemetry: Master WiFi Radio Switch and Voice Entities](#120-dev16---2026-08-15---controls-and-telemetry-master-wifi-radio-switch-and-voice-entities)
+  - [\[1.2.0-dev15\] - 2026-08-15 - Polling Engine: Follow-Up Refresh Execution During Polling Pauses](#120-dev15---2026-08-15---polling-engine-follow-up-refresh-execution-during-polling-pauses)
+  - [\[1.2.0-dev14\] - 2026-08-15 - Polling Engine: Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---polling-engine-follow-up-refresh-after-reboot-and-reconnect)
+  - [\[1.2.0-dev13\] - 2026-08-15 - Controls: Reconnect Button Fix Using Dual Dial Actions](#120-dev13---2026-08-15---controls-reconnect-button-fix-using-dual-dial-actions)
+  - [\[1.2.0-dev12\] - 2026-08-15 - Dependencies: Upstream Library Pin Bump to 2.0.1](#120-dev12---2026-08-15---dependencies-upstream-library-pin-bump-to-201)
+  - [\[1.2.0-dev11\] - 2026-08-15 - Telemetry: Expanded Entity Set and Monthly Data-Usage Projections](#120-dev11---2026-08-15---telemetry-expanded-entity-set-and-monthly-data-usage-projections)
+  - [\[1.2.0-dev10\] - 2026-08-15 - Documentation: Huawei API Access Reference](#120-dev10---2026-08-15---documentation-huawei-api-access-reference)
+  - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap: Roadmap Task Alignment](#120-dev9---2026-08-14---roadmap-roadmap-task-alignment)
+  - [\[1.2.0-dev8\] - 2026-08-14 - Localization: Stale Translation String Removal](#120-dev8---2026-08-14---localization-stale-translation-string-removal)
+  - [\[1.2.0-dev7\] - 2026-08-14 - Quality Scale: Rule Completeness and Structured Exemptions](#120-dev7---2026-08-14---quality-scale-rule-completeness-and-structured-exemptions)
+  - [\[1.2.0-dev6\] - 2026-08-14 - Hardware Verification: Write Classification Register and Hardware Test Scripts](#120-dev6---2026-08-14---hardware-verification-write-classification-register-and-hardware-test-scripts)
+  - [\[1.2.0-dev5\] - 2026-08-14 - Diagnostics: Sanitizer Leak Fixes for Network and WiFi Secrets](#120-dev5---2026-08-14---diagnostics-sanitizer-leak-fixes-for-network-and-wifi-secrets)
+  - [\[1.2.0-dev4\] - 2026-08-14 - Controls: Guest-WiFi Parameter Preservation and Structured Exemptions](#120-dev4---2026-08-14---controls-guest-wifi-parameter-preservation-and-structured-exemptions)
+  - [\[1.2.0-dev3\] - 2026-08-14 - Code Quality: Masked-Errors Suppression Audit](#120-dev3---2026-08-14---code-quality-masked-errors-suppression-audit)
+  - [\[1.2.0-dev2\] - 2026-08-14 - Documentation: Historical Changelog Sequence Backfill](#120-dev2---2026-08-14---documentation-historical-changelog-sequence-backfill)
+  - [\[1.2.0-dev1\] - 2026-08-14 - Architecture and Resilience: Dead Library Calls, Unique ID Scoping, and Entity Cleanup](#120-dev1---2026-08-14---architecture-and-resilience-dead-library-calls-unique-id-scoping-and-entity-cleanup)
   - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
   - [\[1.1.3-dev16\] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC](#113-dev16---2026-08-14---ci-bumps-zizmor-mypy-jsonschema-phacc)
   - [\[1.1.3-dev15\] - 2026-08-14 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table](#113-dev15---2026-08-14---documentation-phase-repair-titles-roadmap-spelling-sweep-table)
-  - [\[1.1.3-dev14\] - 2026-08-14 - Integration Health and Drift Detection; Guard Bands Reconciled](#113-dev14---2026-08-14---integration-health-and-drift-detection-guard-bands-reconciled)
-  - [\[1.1.3-dev13\] - 2026-08-14 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards](#113-dev13---2026-08-14---action-icons-icon-and-parallel_updates-sweeps-secret-pre-fill-guards)
-  - [\[1.1.3-dev12\] - 2026-08-14 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten](#113-dev12---2026-08-14---silent-write-failures-orphaned-repairs-lost-debounced-writes-diagnostics-rewritten)
-  - [\[1.1.3-dev11\] - 2026-08-14 - Zero Partial Branches; Zero-Assertion Tests Closed](#113-dev11---2026-08-14---zero-partial-branches-zero-assertion-tests-closed)
-  - [\[1.1.3-dev10\] - 2026-08-14 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused](#113-dev10---2026-08-14---four-statistics-corrupting-counters-via_device-deprecation-recorder-hygiene-refresh-while-paused)
-  - [\[1.1.3-dev9\] - 2026-08-08 - CI Bumps; Github Zipfile; PyTest Branch \& Mutation Testing](#113-dev9---2026-08-08---ci-bumps-github-zipfile-pytest-branch--mutation-testing)
-  - [\[1.1.3-dev8\] - 2026-07-28 - Automation Example Glitch Guards \& Float Rounding in README](#113-dev8---2026-07-28---automation-example-glitch-guards--float-rounding-in-readme)
-  - [\[1.1.3-dev7\] - 2026-07-12 - PHACC Bump; README Alignment and Codespell](#113-dev7---2026-07-12---phacc-bump-readme-alignment-and-codespell)
-  - [\[1.1.3-dev6\] - 2026-07-06 - Shared CI Bump v2.0.5 → v2.0.6](#113-dev6---2026-07-06---shared-ci-bump-v205--v206)
-  - [\[1.1.3-dev5\] - 2026-07-06 - Test Suite Repaired After the Ruff Extension](#113-dev5---2026-07-06---test-suite-repaired-after-the-ruff-extension)
-  - [\[1.1.3-dev4\] - 2026-07-06 - Ruff Checks Extended to Match Home Assistant](#113-dev4---2026-07-06---ruff-checks-extended-to-match-home-assistant)
-  - [\[1.1.3-dev3\] - 2026-07-06 - IQS Static Check Added; Check-Drift Fixed](#113-dev3---2026-07-06---iqs-static-check-added-check-drift-fixed)
-  - [\[1.1.3-dev2\] - 2026-07-03 - SMS Actions Default to the Sole Router](#113-dev2---2026-07-03---sms-actions-default-to-the-sole-router)
-  - [\[1.1.3-dev1\] - 2026-07-03 - Docs Aligned With the ZTE Project](#113-dev1---2026-07-03---docs-aligned-with-the-zte-project)
-  - [\[1.1.2\] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening](#112---2026-07-03---release---refresh-now-button-display-units-config-flow-hardening)
-  - [\[1.1.2-dev10\] - 2026-07-03 - README Screenshots and Sensor Counts](#112-dev10---2026-07-03---readme-screenshots-and-sensor-counts)
-  - [\[1.1.2-dev9\] - 2026-07-03 - Ruff Bump 0.15.19 → 0.15.20](#112-dev9---2026-07-03---ruff-bump-01519--01520)
+  - [\[1.1.3-dev14\] - 2026-08-14 - Diagnostic Health: Integration Health Sensor and Signal Guard Bands](#113-dev14---2026-08-14---diagnostic-health-integration-health-sensor-and-signal-guard-bands)
+  - [\[1.1.3-dev13\] - 2026-08-14 - UI and Concurrency: Action Icons and Platform Parallel Updates Policy](#113-dev13---2026-08-14---ui-and-concurrency-action-icons-and-platform-parallel-updates-policy)
+  - [\[1.1.3-dev12\] - 2026-08-14 - Error Handling and Privacy: Write Failures, Repair Cleanup, and Diagnostics Scrubber](#113-dev12---2026-08-14---error-handling-and-privacy-write-failures-repair-cleanup-and-diagnostics-scrubber)
+  - [\[1.1.3-dev11\] - 2026-08-14 - Test Suite: 100% Branch Coverage and Concrete Assertions](#113-dev11---2026-08-14---test-suite-100-branch-coverage-and-concrete-assertions)
+  - [\[1.1.3-dev10\] - 2026-08-14 - Architecture and Data Integrity: Increasing State Classes, Modern Sub-Device Links, and Forced Refresh](#113-dev10---2026-08-14---architecture-and-data-integrity-increasing-state-classes-modern-sub-device-links-and-forced-refresh)
+  - [\[1.1.3-dev9\] - 2026-08-08 - CI and Test Tooling: Test Branch Coverage and Mutation Testing Setup](#113-dev9---2026-08-08---ci-and-test-tooling-test-branch-coverage-and-mutation-testing-setup)
+  - [\[1.1.3-dev8\] - 2026-07-28 - Documentation: Automation Example Glitch Guards and Float Rounding](#113-dev8---2026-07-28---documentation-automation-example-glitch-guards-and-float-rounding)
+  - [\[1.1.3-dev7\] - 2026-07-12 - Dependencies and Formatting: PHACC Dependency Bump and Spelling Alignment](#113-dev7---2026-07-12---dependencies-and-formatting-phacc-dependency-bump-and-spelling-alignment)
+  - [\[1.1.3-dev6\] - 2026-07-06 - CI and Workflows: Shared CI Workflow Bump](#113-dev6---2026-07-06---ci-and-workflows-shared-ci-workflow-bump)
+  - [\[1.1.3-dev5\] - 2026-07-06 - Test Suite: 100% Test Coverage Restoration](#113-dev5---2026-07-06---test-suite-100-test-coverage-restoration)
+  - [\[1.1.3-dev4\] - 2026-07-06 - Code Quality: Core Ruff Lint Rule Alignment](#113-dev4---2026-07-06---code-quality-core-ruff-lint-rule-alignment)
+  - [\[1.1.3-dev3\] - 2026-07-06 - Quality Scale: IQS Static Check Addition and Tool Drift Auditor Update](#113-dev3---2026-07-06---quality-scale-iqs-static-check-addition-and-tool-drift-auditor-update)
+  - [\[1.1.3-dev2\] - 2026-07-03 - Actions: Default SMS Target Selection for Single-Router Setups](#113-dev2---2026-07-03---actions-default-sms-target-selection-for-single-router-setups)
+  - [\[1.1.3-dev1\] - 2026-07-03 - Documentation: Alignment with ZTE Integration Standards](#113-dev1---2026-07-03---documentation-alignment-with-zte-integration-standards)
+  - [\[1.1.2\] - 2026-07-03 - Release: Refresh Now Button, Display Units, and Config Flow Hardening](#112---2026-07-03---release-refresh-now-button-display-units-and-config-flow-hardening)
+  - [\[1.1.2-dev10\] - 2026-07-03 - Documentation: UI Screenshots and Sensor Counts](#112-dev10---2026-07-03---documentation-ui-screenshots-and-sensor-counts)
+  - [\[1.1.2-dev9\] - 2026-07-03 - Tooling: Ruff Version Bump](#112-dev9---2026-07-03---tooling-ruff-version-bump)
   - [\[1.1.2-dev8\] - 2026-07-03 - Three Sensors Disabled by Default](#112-dev8---2026-07-03---three-sensors-disabled-by-default)
   - [\[1.1.2-dev7\] - 2026-07-02 - Explicit `config_entry` on the Coordinator](#112-dev7---2026-07-02---explicit-config_entry-on-the-coordinator)
   - [\[1.1.2-dev6\] - 2026-07-02 - Suggested Display Units and Precision on 23 Sensors](#112-dev6---2026-07-02---suggested-display-units-and-precision-on-23-sensors)
-  - [\[1.1.2-dev5\] - 2026-07-02 - Config-Flow Hardening \& Refresh Now Button](#112-dev5---2026-07-02---config-flow-hardening--refresh-now-button)
-  - [\[1.1.2-dev4\] - 2026-06-18 - CI Validation Overhaul](#112-dev4---2026-06-18---ci-validation-overhaul)
-  - [\[1.1.2-dev2\] - 2026-06-11 - Validation Tooling Sync System](#112-dev2---2026-06-11---validation-tooling-sync-system)
-  - [\[1.1.1\] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes](#111---2026-06-07---release---startup-race-session-and-timestamp-fixes)
-  - [\[1.1.1-dev24\] - 2026-06-07 - Project-Wide Test Coverage to 100%](#111-dev24---2026-06-07---project-wide-test-coverage-to-100)
-  - [\[1.1.1-dev23\] - 2026-06-07 - `ScannerEntity` Import; mypy Config Realigned With HA](#111-dev23---2026-06-07---scannerentity-import-mypy-config-realigned-with-ha)
-  - [\[1.1.1-dev22\] - 2026-06-07 - `url_normalize` Startup Race Eliminated](#111-dev22---2026-06-07---url_normalize-startup-race-eliminated)
-  - [\[1.1.1-dev21\] - 2026-06-02 - Proactive Session Reset; Exception Syntax Fixes](#111-dev21---2026-06-02---proactive-session-reset-exception-syntax-fixes)
-  - [\[1.1.1-dev20\] - 2026-05-25 - `state_class` Removed From 32 Sensors](#111-dev20---2026-05-25---state_class-removed-from-32-sensors)
-  - [\[1.1.1-dev19\] - 2026-05-25 - Button Handlers Raise `HomeAssistantError`](#111-dev19---2026-05-25---button-handlers-raise-homeassistanterror)
-  - [\[1.1.1-dev18\] - 2026-05-25 - Six Entities Documented; IQS Matrix Corrected](#111-dev18---2026-05-25---six-entities-documented-iqs-matrix-corrected)
-  - [\[1.1.1-dev17\] - 2026-05-24 - README Automation Examples and Icons](#111-dev17---2026-05-24---readme-automation-examples-and-icons)
-  - [\[1.1.1-dev16\] - 2026-05-24 - Coordinator Coverage to 100%](#111-dev16---2026-05-24---coordinator-coverage-to-100)
-  - [\[1.1.1-dev15\] - 2026-05-24 - Uptime Timestamp Drift; GB/GiB Mismatch Fixed](#111-dev15---2026-05-24---uptime-timestamp-drift-gbgib-mismatch-fixed)
-  - [\[1.1.1-dev14\] - 2026-05-24 - Dependabot Bumps](#111-dev14---2026-05-24---dependabot-bumps)
-  - [\[1.1.1-dev12\] - 2026-05-11 - Code Review; `FETCH_TIMEOUT` Constant Extracted](#111-dev12---2026-05-11---code-review-fetch_timeout-constant-extracted)
-  - [\[1.1.1-dev11\] - 2026-05-11 - Final `icons.json` Cleanup](#111-dev11---2026-05-11---final-iconsjson-cleanup)
-  - [\[1.1.1-dev10\] - 2026-05-11 - IQS Near-Platinum Recorded](#111-dev10---2026-05-11---iqs-near-platinum-recorded)
-  - [\[1.1.1-dev9\] - 2026-05-11 - `icons.json` Implemented; Dynamic and Range Icons](#111-dev9---2026-05-11---iconsjson-implemented-dynamic-and-range-icons)
-  - [\[1.1.1-dev8\] - 2026-05-11 - Devcontainer Mounts and mypy Path Setup](#111-dev8---2026-05-11---devcontainer-mounts-and-mypy-path-setup)
-  - [\[1.1.1-dev7\] - 2026-05-11 - 33 Strict mypy Errors Resolved](#111-dev7---2026-05-11---33-strict-mypy-errors-resolved)
-  - [\[1.1.1-dev6\] - 2026-05-11 - 21 mypy Errors Resolved in Two Batches](#111-dev6---2026-05-11---21-mypy-errors-resolved-in-two-batches)
-  - [\[1.1.1-dev5\] - 2026-05-10 - `CONFIG_SCHEMA` Added; Duplicate Sensor IDs Removed](#111-dev5---2026-05-10---config_schema-added-duplicate-sensor-ids-removed)
-  - [\[1.1.1-dev4\] - 2026-05-10 - 71 mypy Errors Resolved](#111-dev4---2026-05-10---71-mypy-errors-resolved)
-  - [\[1.1.1-dev3\] - 2026-05-10 - Shared Reusable CI Workflow Created](#111-dev3---2026-05-10---shared-reusable-ci-workflow-created)
-  - [\[1.1.1-dev1\] - 2026-05-07 - README Top-Level Info Aligned](#111-dev1---2026-05-07---readme-top-level-info-aligned)
-  - [\[1.1.0\] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up](#110---2026-05-07---release---mac-based-unique-id-code-clean-up)
-  - [\[1.1.0-rc2\] - 2026-05-07 - Automation Examples Modernized](#110-rc2---2026-05-07---automation-examples-modernized)
-  - [\[1.1.0-rc1\] - 2026-05-07 - Linting, Tests and `quality_scale.yaml` Format](#110-rc1---2026-05-07---linting-tests-and-quality_scaleyaml-format)
-  - [\[1.1.0-dev2\] - 2026-05-07 - Diagnostics Test Coverage](#110-dev2---2026-05-07---diagnostics-test-coverage)
-  - [\[1.1.0-dev1\] - 2026-05-07 - `device_id` → `entry_id`; MAC-Based Config Entry ID](#110-dev1---2026-05-07---device_id--entry_id-mac-based-config-entry-id)
-  - [\[1.0.3-dev3\] - 2026-05-07 - Python 3.14 Syntax; Eleven Code-Review Fixes](#103-dev3---2026-05-07---python-314-syntax-eleven-code-review-fixes)
-  - [\[1.0.3-dev2\] - 2026-05-07 - IQS Gold: Diagnostics, Reauth and Repairs](#103-dev2---2026-05-07---iqs-gold-diagnostics-reauth-and-repairs)
-  - [\[1.0.3-dev1\] - 2026-05-07 - `quality_scale.yaml` Added](#103-dev1---2026-05-07---quality_scaleyaml-added)
-  - [\[1.0.2\] - 2026-05-05 - Release - SMS Management, WiFi Sub-Device and Client Counts](#102---2026-05-05---release---sms-management-wifi-sub-device-and-client-counts)
-  - [\[1.0.2-dev4\] - 2026-05-05 - WiFi Sub-Device; H165-383 Fixes; Client Counts](#102-dev4---2026-05-05---wifi-sub-device-h165-383-fixes-client-counts)
-  - [\[1.0.2-dev3\] - 2026-05-04 - SMS Service Suite Expanded; API Concurrency Lock](#102-dev3---2026-05-04---sms-service-suite-expanded-api-concurrency-lock)
-  - [\[1.0.2-dev1\] - 2026-05-04 - Test Coverage to 99.8% Across Seven Modules](#102-dev1---2026-05-04---test-coverage-to-998-across-seven-modules)
-  - [\[1.0.1\] - 2026-05-03 - `helpers.py` Coverage to 100%; Project Coverage to 90%](#101---2026-05-03---helperspy-coverage-to-100-project-coverage-to-90)
-  - [\[1.0.1-rc5\] - 2026-05-03 - Guard Bands on Eight Frequency Sensors; Translation Gap](#101-rc5---2026-05-03---guard-bands-on-eight-frequency-sensors-translation-gap)
-  - [\[1.0.1-rc4\] - 2026-05-03 - Documentation Sync Against 106 Entities](#101-rc4---2026-05-03---documentation-sync-against-106-entities)
-  - [\[1.0.1-rc3\] - 2026-05-03 - CI Requirements and Coverage Path Fixed](#101-rc3---2026-05-03---ci-requirements-and-coverage-path-fixed)
-  - [\[1.0.1-dev22\] - 2026-05-03 - IPv6 DNS and 5G Frequency Sensors; Unit Selector Fixed](#101-dev22---2026-05-03---ipv6-dns-and-5g-frequency-sensors-unit-selector-fixed)
-  - [\[1.0.1-dev21\] - 2026-05-03 - Test Warnings and `SIM117` Resolved](#101-dev21---2026-05-03---test-warnings-and-sim117-resolved)
-  - [\[1.0.1-dev19\] - 2026-05-03 - Best Connection Sensor Overhauled; 11 Entities Enabled](#101-dev19---2026-05-03---best-connection-sensor-overhauled-11-entities-enabled)
-  - [\[1.0.1-dev18\] - 2026-05-03 - LTE Frequency and Bandwidth Fields Corrected](#101-dev18---2026-05-03---lte-frequency-and-bandwidth-fields-corrected)
-  - [\[1.0.1-dev16\] - 2026-05-03 - Complex Signal Metric Parsing](#101-dev16---2026-05-03---complex-signal-metric-parsing)
-  - [\[1.0.1-dev15\] - 2026-05-03 - Dynamic SMS Box Selection; SMS Entities Renamed](#101-dev15---2026-05-03---dynamic-sms-box-selection-sms-entities-renamed)
-  - [\[1.0.1-dev14\] - 2026-05-03 - `runtime_data` Migration; Domain-Level Service Registration](#101-dev14---2026-05-03---runtime_data-migration-domain-level-service-registration)
-  - [\[1.0.1-dev13\] - 2026-05-02 - Full Translation Coverage; Entity Naming Refactor](#101-dev13---2026-05-02---full-translation-coverage-entity-naming-refactor)
-  - [\[1.0.1-dev12\] - 2026-05-02 - Signal and SMS Entity Category Refinement](#101-dev12---2026-05-02---signal-and-sms-entity-category-refinement)
-  - [\[1.0.1-dev10\] - 2026-05-02 - Windows Test-Suite Resilience](#101-dev10---2026-05-02---windows-test-suite-resilience)
-  - [\[1.0.1-dev9\] - 2026-05-02 - Long-Term Statistics; Human-Readable Network Mode](#101-dev9---2026-05-02---long-term-statistics-human-readable-network-mode)
-  - [\[1.0.1-dev8\] - 2026-05-02 - Immediate Session Retry; Icons for 35 Entities](#101-dev8---2026-05-02---immediate-session-retry-icons-for-35-entities)
-  - [\[1.0.1-dev7\] - 2026-05-02 - Typed Session Exceptions; Fast-Fail on Critical Data](#101-dev7---2026-05-02---typed-session-exceptions-fast-fail-on-critical-data)
-  - [\[1.0.1-dev6\] - 2026-05-02 - Shared `build_device_info`; Auth and PII Fixes](#101-dev6---2026-05-02---shared-build_device_info-auth-and-pii-fixes)
-  - [\[1.0.1-dev5\] - 2026-05-02 - Reliability Test Suite](#101-dev5---2026-05-02---reliability-test-suite)
-  - [\[1.0.1-dev4\] - 2026-05-02 - Logging Strategy; Critical Data Guard](#101-dev4---2026-05-02---logging-strategy-critical-data-guard)
-  - [\[1.0.1-dev3\] - 2026-05-02 - Guard Bands on 80 Sensors; SMS Parsing and Events](#101-dev3---2026-05-02---guard-bands-on-80-sensors-sms-parsing-and-events)
-  - [\[1.0.1-dev2\] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms](#101-dev2---2026-05-02---entity-engine-80-sensors-and-six-platforms)
-  - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow](#101-dev1---2026-05-02---core-architecture-coordinator-api-and-config-flow)
-  - [\[1.0.0\] - 2026-05-02 - Baseline Project Structure](#100---2026-05-02---baseline-project-structure)
+  - [\[1.1.2-dev5\] - 2026-07-02 - Controls and Security: Config-Flow Hardening and Refresh Now Button](#112-dev5---2026-07-02---controls-and-security-config-flow-hardening-and-refresh-now-button)
+  - [\[1.1.2-dev4\] - 2026-06-18 - CI Infrastructure: Validation Tooling Overhaul and Dev-Workbench Migration](#112-dev4---2026-06-18---ci-infrastructure-validation-tooling-overhaul-and-dev-workbench-migration)
+  - [\[1.1.2-dev2\] - 2026-06-11 - Validation Framework: Tooling Sync System and Environment Matrix](#112-dev2---2026-06-11---validation-framework-tooling-sync-system-and-environment-matrix)
+  - [\[1.1.1\] - 2026-06-07 - Release: Startup Race Fixes, Session Management, and Timestamp Precision](#111---2026-06-07---release-startup-race-fixes-session-management-and-timestamp-precision)
+  - [\[1.1.1-dev24\] - 2026-06-07 - Test Coverage: 100% Project Statement Coverage](#111-dev24---2026-06-07---test-coverage-100-project-statement-coverage)
+  - [\[1.1.1-dev23\] - 2026-06-07 - Type System: ScannerEntity Import Placement and Core MyPy Alignment](#111-dev23---2026-06-07---type-system-scannerentity-import-placement-and-core-mypy-alignment)
+  - [\[1.1.1-dev22\] - 2026-06-07 - Stability and Compatibility: Stdlib URL Normalization and Deprecation Update](#111-dev22---2026-06-07---stability-and-compatibility-stdlib-url-normalization-and-deprecation-update)
+  - [\[1.1.1-dev21\] - 2026-06-02 - Session Management: Inactivity Reset and Exception Syntax Compatibility](#111-dev21---2026-06-02---session-management-inactivity-reset-and-exception-syntax-compatibility)
+  - [\[1.1.1-dev20\] - 2026-05-25 - Entity Configuration: Long-Term Statistics Cleanup Across 32 Sensors](#111-dev20---2026-05-25---entity-configuration-long-term-statistics-cleanup-across-32-sensors)
+  - [\[1.1.1-dev19\] - 2026-05-25 - Error Handling: Button Action Exception Raising](#111-dev19---2026-05-25---error-handling-button-action-exception-raising)
+  - [\[1.1.1-dev18\] - 2026-05-25 - Documentation: Entity Documentation and IQS Matrix Alignment](#111-dev18---2026-05-25---documentation-entity-documentation-and-iqs-matrix-alignment)
+  - [\[1.1.1-dev17\] - 2026-05-24 - Documentation: README Automations and Icons Alignment](#111-dev17---2026-05-24---documentation-readme-automations-and-icons-alignment)
+  - [\[1.1.1-dev16\] - 2026-05-24 - Test Suite: 100% Coordinator Test Coverage](#111-dev16---2026-05-24---test-suite-100-coordinator-test-coverage)
+  - [\[1.1.1-dev15\] - 2026-05-24 - Sensor Accuracy: Reboot Timestamp Latches and Divisor Correction](#111-dev15---2026-05-24---sensor-accuracy-reboot-timestamp-latches-and-divisor-correction)
+  - [\[1.1.1-dev14\] - 2026-05-24 - Dependencies: Validation Toolchain Bumps](#111-dev14---2026-05-24---dependencies-validation-toolchain-bumps)
+  - [\[1.1.1-dev12\] - 2026-05-11 - Code Quality: Fetch Timeout Constant and Platform Guard Hardening](#111-dev12---2026-05-11---code-quality-fetch-timeout-constant-and-platform-guard-hardening)
+  - [\[1.1.1-dev11\] - 2026-05-11 - UI and Icons: Centralized icons.json Migration](#111-dev11---2026-05-11---ui-and-icons-centralized-iconsjson-migration)
+  - [\[1.1.1-dev10\] - 2026-05-11 - Standards: Near-Platinum Quality Scale Tracking](#111-dev10---2026-05-11---standards-near-platinum-quality-scale-tracking)
+  - [\[1.1.1-dev9\] - 2026-05-11 - UI and Icons: Dynamic and Range-Based Translation Icons](#111-dev9---2026-05-11---ui-and-icons-dynamic-and-range-based-translation-icons)
+  - [\[1.1.1-dev8\] - 2026-05-02 - Tooling and Configuration: Devcontainer Mount Consolidation and MyPy Overrides](#111-dev8---2026-05-02---tooling-and-configuration-devcontainer-mount-consolidation-and-mypy-overrides)
+  - [\[1.1.1-dev7\] - 2026-05-11 - Static Analysis: 33 Strict MyPy Errors and Platform Type Annotations](#111-dev7---2026-05-11---static-analysis-33-strict-mypy-errors-and-platform-type-annotations)
+  - [\[1.1.1-dev6\] - 2026-05-11 - Static Analysis: Type Narrowing and Generic Annotation Fixes](#111-dev6---2026-05-11---static-analysis-type-narrowing-and-generic-annotation-fixes)
+  - [\[1.1.1-dev5\] - 2026-05-10 - Configuration: Config Schema Declaration and Duplicate Unique ID Cleanup](#111-dev5---2026-05-10---configuration-config-schema-declaration-and-duplicate-unique-id-cleanup)
+  - [\[1.1.1-dev4\] - 2026-05-10 - Static Analysis: 71 MyPy Type Annotation Corrections](#111-dev4---2026-05-10---static-analysis-71-mypy-type-annotation-corrections)
+  - [\[1.1.1-dev3\] - 2026-05-10 - CI Workflows: Shared Reusable Validation Workflow Deployment](#111-dev3---2026-05-10---ci-workflows-shared-reusable-validation-workflow-deployment)
+  - [\[1.1.1-dev1\] - 2026-05-07 - Documentation: README Description Alignment](#111-dev1---2026-05-07---documentation-readme-description-alignment)
+  - [\[1.1.0\] - 2026-05-07 - Release: MAC-Based Unique IDs and Code Cleanup](#110---2026-05-07---release-mac-based-unique-ids-and-code-cleanup)
+  - [\[1.1.0-rc2\] - 2026-05-07 - Documentation: Modern Action Syntax in Automations](#110-rc2---2026-05-07---documentation-modern-action-syntax-in-automations)
+  - [\[1.1.0-rc1\] - 2026-05-07 - Quality Scale: Linting, Unit Tests, and Quality Scale Format](#110-rc1---2026-05-07---quality-scale-linting-unit-tests-and-quality-scale-format)
+  - [\[1.1.0-dev2\] - 2026-05-07 - Test Suite: Diagnostics Platform Test Coverage](#110-dev2---2026-05-07---test-suite-diagnostics-platform-test-coverage)
+  - [\[1.1.0-dev1\] - 2026-05-07 - Architecture: Entry ID Service Targeting and MAC Unique ID](#110-dev1---2026-05-07---architecture-entry-id-service-targeting-and-mac-unique-id)
+  - [\[1.0.3-dev3\] - 2026-05-07 - Stability and Compatibility: Python 3.14 Syntax and Eleven Code-Review Fixes](#103-dev3---2026-05-07---stability-and-compatibility-python-314-syntax-and-eleven-code-review-fixes)
+  - [\[1.0.3-dev2\] - 2026-05-07 - Integration Quality: Diagnostics, Reconfiguration, and Repairs](#103-dev2---2026-05-07---integration-quality-diagnostics-reconfiguration-and-repairs)
+  - [\[1.0.3-dev1\] - 2026-05-07 - Standards: Quality Scale Tracking Baseline](#103-dev1---2026-05-07---standards-quality-scale-tracking-baseline)
+  - [\[1.0.2\] - 2026-05-05 - Release: SMS Management Suite, WiFi Sub-Device, and Client Sensors](#102---2026-05-05---release-sms-management-suite-wifi-sub-device-and-client-sensors)
+  - [\[1.0.2-dev4\] - 2026-05-05 - Device Organization: WiFi Sub-Device and H165-383 Hardware Fixes](#102-dev4---2026-05-05---device-organization-wifi-sub-device-and-h165-383-hardware-fixes)
+  - [\[1.0.2-dev3\] - 2026-05-04 - Actions and Concurrency: SMS Service Expansion and API Lock](#102-dev3---2026-05-04---actions-and-concurrency-sms-service-expansion-and-api-lock)
+  - [\[1.0.2-dev1\] - 2026-05-04 - Test Suite: 99.8% Comprehensive Statement Coverage](#102-dev1---2026-05-04---test-suite-998-comprehensive-statement-coverage)
+  - [\[1.0.1\] - 2026-05-03 - Release: Helper Suite Test Coverage and Signal Parsing](#101---2026-05-03---release-helper-suite-test-coverage-and-signal-parsing)
+  - [\[1.0.1-rc5\] - 2026-05-03 - Signal Diagnostics: Guard Bands on Frequency and Bandwidth Sensors](#101-rc5---2026-05-03---signal-diagnostics-guard-bands-on-frequency-and-bandwidth-sensors)
+  - [\[1.0.1-rc4\] - 2026-05-03 - Documentation: Comprehensive Entity Manifest and Unit Synchronization](#101-rc4---2026-05-03---documentation-comprehensive-entity-manifest-and-unit-synchronization)
+  - [\[1.0.1-rc3\] - 2026-05-03 - CI Configuration: Missing Dependencies and Coverage Scope Correction](#101-rc3---2026-05-03---ci-configuration-missing-dependencies-and-coverage-scope-correction)
+  - [\[1.0.1-dev22\] - 2026-05-03 - Sensor Engine: IPv6 DNS and 5G Frequency Sensors](#101-dev22---2026-05-03---sensor-engine-ipv6-dns-and-5g-frequency-sensors)
+  - [\[1.0.1-dev21\] - 2026-05-03 - Test Suite: Async Test Warnings and Context Manager Cleanup](#101-dev21---2026-05-03---test-suite-async-test-warnings-and-context-manager-cleanup)
+  - [\[1.0.1-dev19\] - 2026-05-03 - Diagnostics: Three-Stage Best Connection Gate and Default Entities](#101-dev19---2026-05-03---diagnostics-three-stage-best-connection-gate-and-default-entities)
+  - [\[1.0.1-dev18\] - 2026-05-03 - Signal Diagnostics: LTE Frequency Scaling and Bandwidth Parsing Corrections](#101-dev18---2026-05-03---signal-diagnostics-lte-frequency-scaling-and-bandwidth-parsing-corrections)
+  - [\[1.0.1-dev16\] - 2026-05-03 - Signal Diagnostics: Multi-Valued String Metric Parsing](#101-dev16---2026-05-03---signal-diagnostics-multi-valued-string-metric-parsing)
+  - [\[1.0.1-dev15\] - 2026-05-03 - SMS Management: Dynamic Box Selection and Entity Namespace Optimization](#101-dev15---2026-05-03---sms-management-dynamic-box-selection-and-entity-namespace-optimization)
+  - [\[1.0.1-dev14\] - 2026-05-03 - Architecture: Runtime Data Migration and Singleton Action Registration](#101-dev14---2026-05-03---architecture-runtime-data-migration-and-singleton-action-registration)
+  - [\[1.0.1-dev13\] - 2026-05-02 - Localization: Full Translation Coverage and Dynamic Translation Keys](#101-dev13---2026-05-02---localization-full-translation-coverage-and-dynamic-translation-keys)
+  - [\[1.0.1-dev12\] - 2026-05-02 - Entity Hierarchy: Signal and SMS Category Optimization](#101-dev12---2026-05-02---entity-hierarchy-signal-and-sms-category-optimization)
+  - [\[1.0.1-dev10\] - 2026-05-02 - Test Infrastructure: Windows Environment Event Loop Compatibility](#101-dev10---2026-05-02---test-infrastructure-windows-environment-event-loop-compatibility)
+  - [\[1.0.1-dev9\] - 2026-05-02 - Entity Configuration: Long-Term Statistics State Classes and Network Mode Text](#101-dev9---2026-05-02---entity-configuration-long-term-statistics-state-classes-and-network-mode-text)
+  - [\[1.0.1-dev8\] - 2026-05-02 - Session Management: Seamless Mid-Fetch Retry and Entity Icons Update](#101-dev8---2026-05-02---session-management-seamless-mid-fetch-retry-and-entity-icons-update)
+  - [\[1.0.1-dev7\] - 2026-05-02 - Error Handling: Typed Session Exceptions and Critical Data Fast-Fail](#101-dev7---2026-05-02---error-handling-typed-session-exceptions-and-critical-data-fast-fail)
+  - [\[1.0.1-dev6\] - 2026-05-02 - Architecture: Shared Device Info Helper and Security Hardening](#101-dev6---2026-05-02---architecture-shared-device-info-helper-and-security-hardening)
+  - [\[1.0.1-dev5\] - 2026-05-02 - Test Suite: Reliability Test Suite and Diagnostic Traceback Validation](#101-dev5---2026-05-02---test-suite-reliability-test-suite-and-diagnostic-traceback-validation)
+  - [\[1.0.1-dev4\] - 2026-05-02 - Coordinator Architecture: Critical Data Guard and Traceback Logging](#101-dev4---2026-05-02---coordinator-architecture-critical-data-guard-and-traceback-logging)
+  - [\[1.0.1-dev3\] - 2026-05-02 - Entity Engine: Min/Max Guard Bands and SMS Parsing](#101-dev3---2026-05-02---entity-engine-minmax-guard-bands-and-sms-parsing)
+  - [\[1.0.1-dev2\] - 2026-05-02 - Multi-Platform Engine: Eighty Sensor Descriptions and Six Platforms](#101-dev2---2026-05-02---multi-platform-engine-eighty-sensor-descriptions-and-six-platforms)
+  - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: DataUpdateCoordinator, API Wrapper, and Non-Blocking Startup](#101-dev1---2026-05-02---core-architecture-dataupdatecoordinator-api-wrapper-and-non-blocking-startup)
+  - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
 
-## [1.2.1] - 2026-08-24 - Release - Connection Repair Triggering; Signal Parsing Resilience; Disabled Rate Sensor Defaults
+## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
+
+Routine maintenance update refining Repair notifications with no changes to daily operation; safe to skip until you are next updating integrations.
+
+### Summary
+
+- **Reauthentication Repair Flow**: Clicking the Fix button on an authentication failure Repair now directly opens the reauthentication dialog so you can update your router credentials immediately.
+- **SMS Storage Full Sensor Enabled by Default**: The SMS Storage Full binary sensor is now enabled by default on new setups, making inbox capacity issues immediately visible for dashboards and alerts.
+
+### Fixed
+
+- **Authentication Failure Repair Fix Flow**: Added an interactive fix flow to the `auth_failed` Repair card. Submitting the fix now launches the integration's reauthentication dialog directly, resolving an issue where the Fix button dismissed the notification card without updating the stored credentials.
+
+### Changed
+
+- **SMS Storage Full Entity Default**: Enabled `binary_sensor.*_sms_storage_full` by default on new setups so full router SMS storage states are automatically tracked without requiring manual entity activation.
+- **Repairs Reference Documentation**: Updated the Repairs documentation, separating persistent Repairs (`auth_failed`, `conn_error`) from transient errors.
+
+### Under the hood
+
+- Expanded test coverage across repair flows and validation schemas to maintain 100% line and branch coverage.
+
+## [1.2.2-dev7] - 2026-08-26 - Linting: Test Import Exclusions
+
+### Summary
+
+Reconciled test suite import conventions against newly adopted Home Assistant Core Ruff lint rules (`ICN001` and `TID251`).
+
+### Changed
+
+- **Test Internal Import Exclusion (`TID251`)**: Added `TID251` to `per-file-ignores` for `tests/**` in synced `pyproject.toml`, allowing test suites to import shared fixtures and helpers (`from .conftest import MockResponse`, `from tests.conftest import MockConfigEntry`) while maintaining the strict ban on production code (`custom_components/`) importing test packages.
+
+## [1.2.2-dev6] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment
+
+### Summary
+
+Standardized the Repairs section in `README.md` into a 4-condition classification matrix, corrected the Integration Health automation note regarding firmware drift, and removed legacy references to SMS storage from the Repairs narrative.
+
+### Changed
+
+- **Standardized Repairs Classification Matrix**: Replaced the Repairs table with a structured 4-condition matrix detailing the detected condition, reporting surface, and actionable user steps across `auth_failed`, `conn_error`, transient glitches, and firmware schema drift.
+- **Corrected Integration Health Automation Note**: Fixed line 1382 in `README.md` to remove the stale claim that firmware drift raises a Repair, aligning with ZTE.
+- **Decoupled SMS Storage from Repairs Context**: Removed legacy narrative mentions of SMS Storage Full from the Repairs section.
+
+## [1.2.2-dev5] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default
+
+### Summary
+
+`auth_failed` was raised as fixable while the project shipped no `repairs` platform, so its Fix button dismissed the card instead of reaching reauth. `repairs.py` closes that, and the SMS Storage Full sensor is now on by default.
+
+### Fixed
+
+- **The `auth_failed` Fix button did not reach the reauth flow.** Home Assistant resolves a fixable issue through the integration's `repairs` platform and substitutes `ConfirmRepairFlow` when there is none — an empty confirm form that deletes the issue on submit. The button appeared, worked, and left the credentials rejected; `README.md` described it as opening a reauthentication dialog, which it did not. `repairs.py` now returns a flow whose confirm step calls `entry.async_start_reauth`. The entry is read from the issue's `data` rather than parsed out of the id, because the id format differs across the family and an entry id containing an underscore makes either parse ambiguous.
+
+- **`auth_failed` carried both a `description` and, once the flow was added, a `fix_flow`.** `hassfest` declares the two `vol.Exclusive` under a `fixable` group, so an issue takes a `title` and exactly one of them; a fixable issue renders its prose in the flow's step. The description moved to `fix_flow.step.confirm.description`.
+
+- **`test_every_repair_issue_has_title_and_description` required the shape `hassfest` rejects**, asserting both fields for every key. A sweep demanding that cannot pass alongside validation. Replaced by `test_every_repair_issue_has_title_and_rendered_text`, which asserts a `title`, then exactly one of the two, then a description on every `fix_flow` step.
+
+### Changed
+
+- **`binary_sensor.*_sms_storage_full` is enabled by default.** Closes the local task raised on 2026-08-26. The condition is reported by nothing else: `coordinator.py` never adds it to the health `issues` list, which is correct under `dev_standards` §19 — Section 19 reports whether the integration's data can be trusted, and a full store is the device's state, published accurately. With the entity disabled the condition was invisible. The argument against was that most diagnostics here are opt-in; it does not hold for the sole reporter of a condition. Matches `zte_router_5g` as of `[3.3.4-dev18]`.
+
+### Added
+
+- **`tests/test_repairs.py`**, three tests. `test_the_fix_flow_is_ours_not_the_confirm_fallback` asserts the concrete flow type, so removing the module fails rather than silently downgrading; the others cover the reauth hand-off and an entry deleted while the card is open — reachable because the repair is `is_persistent`.
+- **`test_the_fixable_repair_is_the_one_with_a_fix_flow`**, pairing the translation shapes against what the code raises. A `fix_flow` on a non-fixable issue is unreachable text; a fixable issue without one gets the substituted flow.
+
+### Tests
+
+- 919 → **924**. 100% line and branch, `repairs.py` included.
+
+### Verified
+
+- **Four mutations**, each restored by checksum: a `description` added beside the `fix_flow`, a `fix_flow` step stripped of its description, the `fix_flow` removed from the fixable repair, and `async_start_reauth` replaced with `pass`. All four failed the guards.
+- `hassfest`: **Invalid integrations: 0**. `mypy` and `ruff` clean. Sensor manifest re-synced for the enabled-default change.
+
+### Records
+
+- `x_project/repair_set_alignment.md` — this project's cell moves from `PENDING` (re-opened 2026-08-25) to `DONE`.
+
+## [1.2.2-dev4] - 2026-08-26 - Queue Reference Removed From `repairs.py`
+
+### Summary
+
+`repairs.py` cited a cross-project issue file in its module docstring. The citation is removed; the reasoning it introduced is unchanged.
+
+### Removed
+
+- **The `x_project/repair_set_alignment.md` reference in `repairs.py`.** A queue identifier is a transient tracking artefact and has no place in shipped code: it points at a register the reader has no reason to hold, and it outlives the item it names. The docstring still explains why the module exists — Home Assistant substitutes `ConfirmRepairFlow` for a fixable issue whose integration ships no repairs platform, and that flow's Fix button dismisses the card without acting.
+
+### Notes
+
+- **Not verified in this pass.** The devcontainer was not running; the change is a docstring edit with no executable content. `zte_router_5g` carried the identical line and was removed in the same sweep, recorded there as `[3.3.4-dev20]`.
+
+## [1.2.2-dev3] - 2026-08-26 - Documentation: Comprehensive Changelog Readability and Header Standardization
+
+### Summary
+
+Documentation pass across `docs/changelog_local.md`. Standardized section headers into scannable 3–10 word noun phrases, added opening `### Summary` orientation blocks across all historical entries, and synchronized Table of Contents anchor links.
+
+Documentation only. No code, no tests, no entity changes.
+
+### Changed
+
+- **Standardized Section Headers**: Replaced narrative and sentence titles across historical entries with factual noun phrases aligned with `changelog_format.md` v1.2.0.
+- **Added Lead-In Summaries**: Added 1–2 sentence `### Summary` blocks under every historical entry heading to provide immediate orientation.
+- **Synchronized Table of Contents**: Fully rebuilt and verified all TOC navigation anchors.
+
+## [1.2.2-dev2] - 2026-08-26 - README Repairs Section Rewritten
+
+### Summary
+
+The Repairs section opened by explaining the boundary between Repairs and Integration Health rather than saying what the two Repairs are, and told readers to automate on a Repair, which is not something Home Assistant supports.
+
+### Changed
+
+- **The summary above the fold now names the two conditions and nothing else**: credentials refused, and the router not responding. It previously opened with the rule Home Assistant applies to its Repairs panel and a paragraph on what does not qualify — an explanation of a boundary, given to a reader who had not yet been told what was on either side of it.
+
+- **"Automate on those the same way you would on a Repair" is removed.** You do not automate on a Repair: it is a card in a panel, with no entity and no state. The sentence was trying to say the non-Repair conditions are still actionable, and said something false to get there.
+
+- **What does and does not earn a Repair moved into the fold**, as prose rather than a callout: the two-part test, then where each non-Repair condition reports instead — `drift`, `degraded_capabilities`, and the **SMS Storage Full** entity.
+
+- **The Integration Health relationship is stated once and linked, not repeated.** A Repair also turns that sensor on, which is the practical point for someone writing an automation; what the sensor does is described in `README.md`'s **Self-Diagnosis** section and is not restated here.
+
+### Notes
+
+- **`zte_router_5g` carried the same wording and received the same rewrite**, recorded there as `[3.3.4-dev19]`. The two sections now read identically apart from the entity names.
+
+---
+
+## [1.2.2-dev1] - 2026-08-26 - Repairs Documentation: Condition Scope and Rationale Clarifications
+
+### Summary
+
+Documented the distinction between Home Assistant Repairs and Integration Health diagnostic alerts, and corrected unit selector root cause explanations across project documentation.
+
+Documentation only. No code, no tests, no entity changes.
+
+### Changed
+
+- **`README.md` § Repairs now says why a condition is or is not a Repair.** The section listed which two conditions raise one and named where everything else is reported, but never said that this is Home Assistant's rule rather than a choice this integration made — so a reader could reasonably conclude the rest was being ignored.
+- **The identical rewrite was applied to `zte_router_5g`'s README** in the same pass, so the two do not diverge. That project's version carries an extra clause for `degraded_capabilities`, which is a surface it has and this one does not. Recorded there as `[3.3.4-dev13]`.
+
+### Fixed
+
+- **The `FREQUENCY` unit-selector root cause recorded in three documents here was wrong**, and is corrected in `AGENTS.md`, `docs/DEVELOPMENT.md` and two entries in this file. The selector is controlled by the `device_class`, not by `state_class` — verified against `homeassistant/components/sensor/websocket_api.py` in a running container: `sensor/device_class_convertible_units` supplies the selector's units and takes `device_class` as its only argument, `FREQUENCY` is in both `UNIT_CONVERTERS` and `DEVICE_CLASS_UNITS`, and `DEVICE_CLASS_STATE_CLASSES[FREQUENCY]` is `{MEASUREMENT}`.
+
+  **The fix itself is unaffected** — the eight entities show the selector. What was wrong was the explanation, and it had begun propagating to the sibling projects through chore `C-012`, which is also corrected.
+
+  `docs/DEVELOPMENT.md` additionally read "This is NOT fixed", which was stale.
+
+---
+
+## [1.2.1] - 2026-08-24 - Release: Connection Loss Repair Triggering, Signal Parsing Resilience, and Default Sensor Tuning
 
 ### Summary
 
@@ -191,7 +352,11 @@ All changes to this project will be documented in this file. This is the detaile
 
 - Enforced 100% line and branch test coverage with a comprehensive HTTP-level simulated transport seam, write-refusal verification across all actions, and expanded repair contract sweeps.
 
-## [1.2.1-dev17] - 2026-08-24 - Intermittent Seam-Test Failure Fixed: A Setup Poll Racing a Shortened Deadline
+## [1.2.1-dev17] - 2026-08-24 - Test Suite: Polling Deadline Seam-Test Concurrency Fix
+
+### Summary
+
+Addressed an intermittent timing failure in transport-seam repair tests by scoping the shortened timeout strictly after the initial baseline setup poll.
 
 Test-only. No product code changed, and none was at fault.
 
@@ -210,7 +375,11 @@ Test-only. No product code changed, and none was at fault.
 - **The measured headroom is recorded in the test itself**, with the reproduction method, so the next reader does not re-derive it from a one-line assertion failure.
 - **Why it surfaced now.** Nothing changed in this test or in the coordinator. It is timing-sensitive and always was; a slower run is all it takes. A run of the full suite at 143 s hit it where one at 104 s did not.
 
-## [1.2.1-dev16] - 2026-08-24 - Device-Tracker Naming Architecture: Client Devices via `via_device_id` Defined
+## [1.2.1-dev16] - 2026-08-24 - Device-Tracker Architecture: Client Devices via `via_device_id` Defined
+
+### Summary
+
+Aligned tracker entity architecture with Home Assistant core recommendations for client devices parented via `via_device_id`.
 
 Documentation only. No source code changes. Aligns the tracker naming architecture and implementation task with Home Assistant Core router standards (Developer Blog 2026/07/21 and Architecture Discussion #1414).
 
@@ -230,7 +399,11 @@ Documentation only. No source code changes. Aligns the tracker naming architectu
 
 ---
 
-## [1.2.1-dev15] - 2026-08-24 - Write-Refusal Sweep Added; Rate Sensors Disabled by Default
+## [1.2.1-dev15] - 2026-08-24 - Telemetry Configuration: Write-Refusal Sweeps and Rate Sensor Defaults
+
+### Summary
+
+Added write-refusal property test suite and set instantaneous download/upload rate sensors disabled by default on new setups.
 
 Closes cross-project chore `C-026` and two local tasks. One behavior change, visible on new installs only.
 
@@ -264,7 +437,11 @@ Closes cross-project chore `C-026` and two local tasks. One behavior change, vis
 - **It is also not passing vacuously.** A probe confirmed the fault is genuinely served (`faults_served=1`), the login exchange still succeeds, and each write raises `ResponseErrorNotSupportedException: 100002` — the router declining the command, not a connection that never opened.
 - **Two findings from the suite, both fixed.** The `# noqa: BLE001` in the new file needed an `ALLOWED_SUPPRESSIONS` entry, since the suppression sweep covers tests as well as source. And `test_a_refused_write_raises` originally used `pytest.fail` with no `assert`, which the Assertion Audit correctly flagged as a test that cannot fail; it was restructured to assert, rather than allow-listed.
 
-## [1.2.1-dev14] - 2026-08-24 - sub_devices_and_trackers.md Reconciled; Six False Statements
+## [1.2.1-dev14] - 2026-08-24 - Documentation Reconciliation: Sub-Devices and Tracker Architecture Records
+
+### Summary
+
+Reconciled notes on tracker entity IDs, sub-device mappings, and standards alignment across repository documentation.
 
 Documentation only. No code change. `.notes/info/sub_devices_and_trackers.md` was flagged stale in `dev13` on one point; reconciling it against source, the entity registry and `dev_standards.md` found six.
 
@@ -282,9 +459,11 @@ Documentation only. No code change. `.notes/info/sub_devices_and_trackers.md` wa
 - **Multi-router disambiguation reworked into its own section.** The previous text asserted the reverted scheme preserved it. The current scheme does preserve it, by a different route, and the short form would trade it for an HA-assigned `_2` suffix — recorded as a live part of question 1 rather than a settled downside.
 - **Evidence for every retained claim.** The sensor rationale now cites the six platform line numbers, `SUB_DEVICE_LABELS` at `helpers.py:286`, and three registry rows confirming `has_entity_name: true`.
 
-## [1.2.1-dev13] - 2026-08-24 - Device-Tracker Naming: Two Contradicting Tasks Merged Into One
+## [1.2.1-dev13] - 2026-08-24 - Work Queue: Device-Tracker Naming Task Consolidation
 
-Documentation only. No code change. One subject was being carried as two open tasks that never linked to each other and disagreed on the facts.
+### Summary
+
+Merged duplicate task descriptions regarding tracker naming and documented unresolved questions.
 
 ### Changed
 
@@ -304,7 +483,11 @@ Documentation only. No code change. One subject was being carried as two open ta
 - **Two candidates remain and the files cannot separate them:** the IDs are historical and HA has simply never regenerated them, or `ScannerEntity` with `device_info` set takes the device prefix regardless of `has_entity_name`. The deciding experiment — delete the registry rows, reload, read the IDs without Recreate Entity IDs — is recorded in §4 of the merged file and is not worth running until the first question is answered.
 - Task count is unchanged at five open, since two became one and none closed.
 
-## [1.2.1-dev12] - 2026-08-24 - US Spelling Sweep Over the Component; Chore C-028 Closed
+## [1.2.1-dev12] - 2026-08-24 - Code Quality: US Spelling Standardization
+
+### Summary
+
+Applied US English spelling sweep across internal comments and docstrings in adherence with project style guidelines.
 
 Comments and docstrings only. No executable code, no user-facing string and no identifier changed. Closes cross-project chore `C-028`, which asked for existing component text to be brought in line with `doc_style.md` §2 (US spelling), v1.1.0.
 
@@ -321,7 +504,11 @@ Comments and docstrings only. No executable code, no user-facing string and no i
 - **`docs/` and `README.md` are outside this chore's scope**, which names component text, and were not swept. They are not clean: a scan on the same wordlist returns hits including `honour`, `favour`, `licence`, `initialis`, `grey`, `colour`, `centre`, `customis`, `summaris`, `recognis` and `modelled`. Recorded here rather than fixed silently, so the scope question is visible if a documentation sweep is raised later.
 - **Verification was a source re-scan and an `ast.parse` of each edited module.** The test suite was not run; no executable line changed, and every replacement is the same length or shorter, so no line-length limit can have been crossed.
 
-## [1.2.1-dev11] - 2026-08-24 - Notes: todo.md Reconciled; Two Open Questions Became Tasks
+## [1.2.1-dev11] - 2026-08-24 - Work Queue: Tasks Reconciliation and Todo Cleanup
+
+### Summary
+
+Reconciled root work queue notes, archived superseded tasks, and converted remaining items into concrete tasks.
 
 Documentation only. A second sweep over the `.notes/` folders the first migration run never enumerated. Every folder here is prompt-owned except `errors/`, which is empty — so the sweep came down to the root `todo.md`, which was not.
 
@@ -334,7 +521,11 @@ Documentation only. A second sweep over the `.notes/` folders the first migratio
 - **One half-item is recorded as carried nowhere:** the "non logged in mode" part of the config-flow entry. The roadmap covers opting out of client tracking; it does not mention that.
 - **`.notes/proj_structure.md` corrected** — `tasks/` added, and `issues/` re-described as the ad-hoc bucket rather than the bug tracker.
 
-## [1.2.1-dev10] - 2026-08-23 - Notes Queue: `.notes/tasks/` Populated From `issues/`
+## [1.2.1-dev10] - 2026-08-23 - Work Queue: Notes Directory Restructuring and Migration
+
+### Summary
+
+Migrated historical issue records into structured task directories and verified queue compliance.
 
 Documentation only. `tasks_folder_migrate` run against this project — the first project to adopt the per-project work queue, and the template the other three copy.
 
@@ -363,7 +554,11 @@ Four documents were archived on evidence read from the source, not on anything t
 - **Both items it listed as open were already discharged**, and neither had been written back. The attended `set_net_mode` read-back passed on 2026-08-20 (`hardware_check_20260820_180931.md`, four rows). The `FREQUENCY` unit-selector item was fixed, and `[1.2.0-dev32]` records `AGENTS.md` as still carrying the claim two days later.
 - **`info/extra_fields/extra_fields_decide_202608.md` stays in `info/`.** Its entity set shipped at `[1.2.0-dev11]`; its endpoint half is superseded by `docs/huawei_how_to_access.md`, and its entity-level decisions — sub-device, category, `enabled_default`, entity ID, display name — are recorded nowhere else. Two pointers describing the build as the next step were corrected to past tense.
 
-## [1.2.1-dev9] - 2026-08-23 - README Repairs Table Corrected; DEVELOPMENT Entries For The dev7 Fixes
+## [1.2.1-dev9] - 2026-08-23 - Documentation: README Repairs Table and Architecture Sync
+
+### Summary
+
+Corrected Repairs documentation table and added development notes regarding transport exceptions and numeric parsing pitfalls.
 
 Documentation only. No source or test change.
 
@@ -383,7 +578,11 @@ Documentation only. No source or test change.
 - **The divergence the copy exposed is now a cross-project item**: `x_project/repair_set_alignment.md`. All four projects detect the same conditions and surface them four different ways, with three different keys for "cannot reach the device". One decision comes first — which conditions warrant a card — and no per-project work should start before it.
 - **Not linted, at the owner's instruction.** `prettier` has not been run over `README.md` or `docs/DEVELOPMENT.md`.
 
-## [1.2.1-dev8] - 2026-08-23 - Superseded About-Note Drift Test Removed
+## [1.2.1-dev8] - 2026-08-23 - Test Suite: Redundant About-Note Drift Test Removal
+
+### Summary
+
+Removed duplicate about-note doc drift test in favor of the centralized sensor manifest checker.
 
 No source change. Completes R7 of the `about_list_generator` spec, and with it chore `C-013` and that spec's last open cell.
 
@@ -398,7 +597,11 @@ No source change. Completes R7 of the `about_list_generator` spec, and with it c
 - Test count 904 → **903**, coverage unchanged at 100% line and branch. `Sensor: Check Manifest` reports in sync across 160 entities, which is now the only guard on that document and runs inside `Validate All`.
 - `AGENTS.md`'s "Tests that will stop you" table lists the task in the removed test's place, flagged as a task rather than a pytest test so the distinction is not lost.
 
-## [1.2.1-dev7] - 2026-08-23 - Not-Responding Repair Reaches a Refused Connection; Non-Finite Readings Rejected at the Parser
+## [1.2.1-dev7] - 2026-08-23 - Connection Resilience: Refused Connection Repair and Signal Parsing Rejection
+
+### Summary
+
+Extended connection error repair triggers to handle refused socket connections and hardened signal parser against non-finite float strings.
 
 Two defects found by the transport-seam work of `[1.2.1-dev6]` and recorded there rather than fixed. Both are source changes, with each test verified to fail against the pre-fix code.
 
@@ -419,7 +622,11 @@ Two defects found by the transport-seam work of `[1.2.1-dev6]` and recorded ther
 - **`tests/test_reliability_ext.py` needed an awaitable probe.** Its API stub was a bare `MagicMock`, which was sufficient while the general branch never awaited anything; it does now.
 - **User-visible, and it needs a `CHANGELOG.md` line when 1.2.1 is cut**: a Repairs card now appears after sustained failure in cases where none appeared before.
 
-## [1.2.1-dev6] - 2026-08-23 - Transport Seam Added; Depth Findings Closed; Repair Contract Sweeps
+## [1.2.1-dev6] - 2026-08-23 - Test Infrastructure: Transport Seam, Depth Checks, and Repair Contracts
+
+### Summary
+
+Added simulated transport router seam with requests_mock, closed depth check findings, and expanded repair contract sweeps.
 
 No shipped code changed. Tests, test tooling and documentation. Closes chores **C-021**, **C-022** and **C-023**; `Tests: Depth Check` now reports **PASSED** here.
 
@@ -452,13 +659,21 @@ No shipped code changed. Tests, test tooling and documentation. Closes chores **
 - **A 125002 body proves nothing about this project.** `huawei-lte-api` catches `ResponseErrorLoginCsrfException` internally, reloads the session and retries once, so a test serving that code passes whatever `api.py` does with it. `session_expired` therefore serves **125003**, which the library does not retry. Found by a mutation that survived.
 - **`requests_mock` lowercases `request.path`**, so `lan/HostInfo` arrives as `lan/hostinfo` and a case-sensitive fixture answers "no support" — indistinguishable from a router that does not implement the endpoint. Every comparison in `transport.py` is normalized.
 
-## [1.2.1-dev5] - 2026-08-23 - Update huawei_how_to_access.md and development.md
+## [1.2.1-dev5] - 2026-08-23 - Documentation: Access Methods and Development Guides Synchronized
+
+### Summary
+
+Synchronized access method documentation with development reference guide.
 
 ### Changed
 
 - **Development Docs**: Brought `huawei_how_to_access.md` up-to-date and also updated `DEVELOPMENT.md` to minimize overlap with it.
 
-## [1.2.1-dev4] - 2026-08-23 - Bump mypy PHACC; .gitignore; Changelog
+## [1.2.1-dev4] - 2026-08-23 - CI and Tooling: Dependency Bumps and Git Ignore Rules
+
+### Summary
+
+Bumped typing and test dependencies, updated git ignore rules, and corrected changelog release date.
 
 ### Bumps
 
@@ -467,10 +682,14 @@ No shipped code changed. Tests, test tooling and documentation. Closes chores **
 
 ### Changed
 
-- **gitignore**: Updated `.gitignore`to add `.mdbase/`an Obsidian folder.
+- **gitignore**: Updated `.gitignore`to add `.mdbase/` an Obsidian folder.
 - **Changelog**: Updated `CHANGELOG.md`to correct last release date.
 
-## [1.2.1-dev2] - 2026-08-22 - CI Bump .github PHACC; HA Compatibility; tasks.json
+## [1.2.1-dev2] - 2026-08-22 - CI and Compatibility: Workflow Bumps and Platform Compatibility Matrix
+
+### Summary
+
+Bumped shared validation CI workflow and documented Home Assistant platform version compatibility.
 
 ### Bumps
 
@@ -482,13 +701,17 @@ No shipped code changed. Tests, test tooling and documentation. Closes chores **
 - **HA COmpatibility**: Updated `ha_compatibility.md`to list the Home Assistant version/API compatibility of the project.
 - **tasks.json**: Updated `tasks.json` with in-line comments to say edit source not the clone.
 
-## [1.2.1-dev1] - 2026-08-20 - CI Bump Ruff
+## [1.2.1-dev1] - 2026-08-20 - Tooling: Ruff Version Bump
+
+### Summary
+
+Bumped Ruff linter dependency.
 
 ### Bumps
 
 - **Validate Bump**: Update `ruff` from 0.16.2 to 0.16.2
 
-## [1.2.0] - 2026-08-20 - Release - New Entities; Projected Data Use; WiFi Switch; Reconnect Button; Integration Health
+## [1.2.0] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring
 
 ### Highlights
 
@@ -534,7 +757,11 @@ No shipped code changed. Tests, test tooling and documentation. Closes chores **
 - **SMS Parsing Resilience**: Hardened inbox parsing to handle empty message indices without dropping remaining inbox items.
 - **Repair Issue Titles**: Added vendor-prefixed translation strings for authentication failure and connection loss repairs in the Home Assistant Repairs dashboard.
 
-## [1.2.0-dev77] - 2026-08-20 - Hardware Check Entity Matching Fixed; SIM Number Masked
+## [1.2.0-dev77] - 2026-08-20 - Hardware Verification: Switch Matching and SIM Masking
+
+### Summary
+
+Fixed friendly-name switch matching in hardware verification scripts and masked SIM telephone numbers in console output.
 
 Both findings come from the owner's attended hardware run on 2026-08-20. The run itself was clean — 25 passed, 3 declined — and every published-state row matched its device row. Neither fault is in the integration; both are in the script that checks it.
 
@@ -550,7 +777,11 @@ Both findings come from the owner's attended hardware run on 2026-08-20. The run
 - **The next attended run is the one that matters.** `set_guest_wifi published` should appear as a real row rather than a skip. Until it does, that switch has never had its published state verified on hardware.
 - Suite **868 passing**, ruff clean, CLI parses. No integration code changed.
 
-## [1.2.0-dev73] - 2026-08-19 - Send-SMS Length Limits Made Encoding-Aware
+## [1.2.0-dev73] - 2026-08-19 - Actions: Encoding-Aware SMS Length Limits
+
+### Summary
+
+Implemented encoding-aware length limits for SMS messages supporting up to 612 GSM-7 characters and 268 UCS-2 characters.
 
 Raised by comparing the router's own interface against `zte_router_5g`. The expectation was that Huawei's ceilings were slightly tighter; the finding was that the integration's ceiling had nothing to do with the router at all.
 
@@ -573,7 +804,11 @@ Raised by comparing the router's own interface against `zte_router_5g`. The expe
 - **The ceilings come from the router's web interface, not from the API.** `sms.config` is the block most likely to publish them and has not been probed; noted in `huawei_how_to_access.md` for whoever does. Behavior past four segments is untested — the integration refuses rather than finding out.
 - Suite **868 passing**, coverage **100% line and branch**, ruff and mypy strict clean, assertion audit 0 of 720.
 
-## [1.2.0-dev71] - 2026-08-19 - SMS Payload and Sender Number Removed From Logs
+## [1.2.0-dev71] - 2026-08-19 - Logging: SMS Payload and Phone Number Privacy
+
+### Summary
+
+Redacted personal SMS message contents and sender phone numbers from debug and info log records.
 
 Raised by an external review of the README's privacy claim, and the claim was the thing that was wrong.
 
@@ -591,7 +826,11 @@ Raised by an external review of the README's privacy claim, and the claim was th
 - Shared: `dev_standards` **1.30.0** extends §20 from the diagnostics download to `_LOGGER` — never log a device payload verbatim, log its shape, and keep identifiers in the bus event rather than the line announcing it. The section's reasoning always applied; its scope had stopped at the surface that already had redaction.
 - Suite **863 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
 
-## [1.2.0-dev70] - 2026-08-19 - Switch State Latch; Stale Published Position Fixed
+## [1.2.0-dev70] - 2026-08-19 - Controls: Switch Write Latching and State Retention
+
+### Summary
+
+Added state latching to switch entities to prevent state flicker and preserve confirmed positions across polls.
 
 Reported from live use: pressing **WiFi**, **Guest Network** or **Mobile Data** toggled, sprang back to the old position, and stayed wrong until a refresh. In both directions, on every press.
 
@@ -611,7 +850,11 @@ The write always worked. The router always changed. The confirmation always succ
 - Shared: `dev_standards` **1.29.0** gives the latch bullet a `**Test:**` clause and its own coverage row, plus a hardware-script rule to verify what was published. Cross-project audit is chore **C-019** with `stubbed_publish_tests.md`; the static check that would ban stubbing the publish is **parked**, with reasons, in that file.
 - Suite **861 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
 
-## [1.2.0-dev65] - 2026-08-19 - Connection Repair Strike Threshold Raised to Ten
+## [1.2.0-dev65] - 2026-08-19 - Connection Resilience: Connection Repair Strike Limit Alignment
+
+### Summary
+
+Increased connection error repair threshold to ten consecutive poll failures to avoid transient false alarms.
 
 Found while aligning the **Under the Hood** sections of this README against `zte_router_5g`'s. The two documents described the same Repair at different thresholds, and checking which was right showed the code was the one out of step.
 
@@ -633,7 +876,11 @@ Found while aligning the **Under the Hood** sections of this README against `zte
 - **Not run for this change**: mypy, and the assertion audit.
 - Two `README.md` items found in the same review are **not** fixed here: the Session Handling intro repeats its own first detail sentence verbatim, and Huawei has no counterpart to ZTE's "Polling Loop" bullet.
 
-## [1.2.0-dev61] - 2026-08-19 - Guard Bands on a Text Sensor, Added to Match a Document
+## [1.2.0-dev61] - 2026-08-19 - Telemetry Configuration: Transmit Power Guard Band Removal
+
+### Summary
+
+Removed invalid numeric guard bands from compound string transmit power sensors.
 
 The sensor manifest check flagged `sensor.huawei_5g_signal_lte_transmit_power` and `sensor.huawei_5g_signal_5g_transmit_power` as declaring limits (`min=-30`, `max=40`) against a non-numeric live state — `PPusch:10dBm PPucch:11dBm PSrs:18dBm PPrach:21dBm`. The flag was correct, and the limits should never have existed.
 
@@ -651,7 +898,11 @@ The sensor manifest check flagged `sensor.huawei_5g_signal_lte_transmit_power` a
 - `sinr` and `nr_sinr` also carry `min_limit=-30` and are untouched — both are genuinely numeric.
 - **No tests, linting or coverage run for this change**, by instruction. The sensor manifest check should stop flagging both entities, since the declaration it objected to no longer exists.
 
-## [1.2.0-dev59] - 2026-08-19 - Hardware Check Report Output Added
+## [1.2.0-dev59] - 2026-08-19 - Hardware Verification: Script Reporting and Contention Coverage
+
+### Summary
+
+Added markdown report generation and concurrency contention verification to the hardware check script.
 
 The owner said plainly that he had no confidence in `scripts/hardware_check.py`, in either tier, **because it did not report out**. That was correct: it printed results to stdout and kept them in a list, and wrote nothing anywhere. No run could be examined afterwards, so every result it produced was a claim rather than evidence.
 
@@ -683,7 +934,11 @@ Two checks also turned out not to be running, and one long-standing statement ab
 - Six rules went into `dev_standards` §22 (**1.27.0**) and cross-project chore **C-018** was raised for `zte_router_5g` and `unifi_network_monitor`, both of which have the same script. `wifi_ssid_monitor` has none. **Recorded only — no work was done on any other project.**
 - Suite **848 passing**, coverage 100% line and branch, ruff and mypy strict clean.
 
-## [1.2.0-dev58] - 2026-08-18 - Coverage Threshold Enforced; `fail_under = 100`
+## [1.2.0-dev58] - 2026-08-18 - CI and Test Infrastructure: 100% Coverage Threshold Enforcement
+
+### Summary
+
+Enforced strict 100% test line and branch coverage threshold in pytest configuration.
 
 Closes cross-project chore **C-007**, which had sat outstanding in every column.
 
@@ -699,7 +954,11 @@ Closes cross-project chore **C-007**, which had sat outstanding in every column.
 - `setup.cfg` is rewritten by the sync with the same content and LF endings; there is no content change in it.
 - Suite **848 passing**, coverage **100% line and branch** — now enforced.
 
-## [1.2.0-dev57] - 2026-08-18 - Lockup Sweep: Bounded Writes, Salvaged Polls, and the Standards That Set the Trap
+## [1.2.0-dev57] - 2026-08-18 - Concurrency and Resilience: Bounded Writes and Salvaged Polls
+
+### Summary
+
+Bounded API write operations, added inter-endpoint poll deadlines to salvage partial data, and improved probe diagnostics.
 
 The follow-on sweep from the `[1.2.0-dev56]` network-mode deadlock. `dev56` fixed the defect and the recovery gap it exposed; this closes the residual hole, corrects one thing `dev56` got wrong, and writes the findings into the shared standards — where two of them turned out to originate.
 
@@ -724,7 +983,11 @@ Plan and evidence: `.notes/issues/login_lockup_202608/`, §13.
 - Suite **848 passing**, coverage **100% line and branch** (measured), ruff lint and format clean, mypy standard and strict clean, assertion audit 0 of 712, prettier and markdownlint clean.
 - **Still unverified on hardware**: the restructured `set_net_mode` read-back has not been exercised against the router since `dev56`. It is the top item for the next attended run, with `--debug`.
 
-## [1.2.0-dev56] - 2026-08-18 - Network-Mode Write Deadlock Fixed; API Recovery Added
+## [1.2.0-dev56] - 2026-08-18 - Concurrency and Resilience: Network-Mode Deadlock Fix and Session Recovery
+
+### Summary
+
+Resolved non-reentrant async lock deadlock during network mode write-confirmation readbacks and added session socket teardown.
 
 **Changing Preferred Network Mode took the integration fully offline until Home Assistant was restarted, every time.** The router remained reachable throughout — from its own web GUI, from the host, and from inside the container. Measured while wedged: TCP connect 20 ms, a fresh login 0.04 s, a fresh full poll 1.09 s across 26 blocks, container up 24 hours with no restarts. Nothing was wrong with the router, the network or the container.
 
@@ -758,7 +1021,11 @@ Plan and evidence: `.notes/issues/login_lockup_202608/`, §13.
 - Suite **844 passing**, coverage back to **100% line and branch** (measured, not assumed), ruff lint and format clean, mypy standard and strict clean, assertion audit 0 of 708.
 - Plan and evidence: `.notes/issues/fix_lockup_improve_robustness_20260818.md`.
 
-## [1.2.0-dev54] - 2026-08-17 - Health Severity and Strike Constants Aligned With the Family
+## [1.2.0-dev54] - 2026-08-17 - Diagnostic Health: Severity Enum and Strike Constant Alignment
+
+### Summary
+
+Aligned diagnostic severity values (`ok`, `degraded`, `warning`, `error`, `unknown`) and split strike limit constants with sibling integrations.
 
 From `sync_check_projects` 2026-08-17, items B.1 and B.2. Both are cross-project alignment rather than defects here — nothing was wrong, and two integrations in one family were naming the same things differently.
 
@@ -776,13 +1043,20 @@ From `sync_check_projects` 2026-08-17, items B.1 and B.2. Both are cross-project
 - **B.3 from the same report is fixed too**: the public `CHANGELOG.md` `[1.2.0]` header carried no descriptive title, which `changelog_format.md` §2 requires. Done by the owner.
 - Suite **830 passing**, ruff and prettier clean, assertion audit 0 of 694. Three shared `x_project` records were settled alongside this — `about_list_generator.md` gained its mandatory status table, `device_registry_2026_08.md` left the queue with Huawei's cell normalized to `DONE`, and chore `C-008` closed. Those are outside this repository.
 
-## [1.2.0-dev53] - 2026-08-17 - Documentation Reconciliation: Four False Statements
+## [1.2.0-dev53] - 2026-08-17 - Documentation: Accuracy Reconciliation and Stale Guidance Cleanup
+
+### Summary
+
+Reconciled documentation against actual implementation details and cleaned up obsolete guidance notes.
 
 `doc_update` run after twelve changelog entries in one session. No new code. The valuable half was the staleness sweep — documents that were correct when written and had since become false, which purely additive checking never finds.
 
 ### Fixed
 
 - **`AGENTS.md` carried a "Known Open Issue" that was fixed two days earlier.** It stated the eight `FREQUENCY` entities could not show the HA unit selector and that investigation had "ruled out … presence of `state_class` as root causes". **`state_class` was the cause** — `device_class=FREQUENCY` plus `state_class=MEASUREMENT` routes an entity through long-term statistics, and that path does not surface the selector. Removing it from all eight fixed them. The section now records the resolution and points at chore `C-012`, which carries the same finding for the siblings with the warning that ZTE needs the **opposite** fix.
+
+  > **Correction, 2026-08-26.** The `state_class` root cause asserted here is wrong; the selector is controlled by the `device_class`. See `AGENTS.md` and chore `C-012`.
+
 - **`AGENTS.md` pointed at that issue as a live roadmap item**, and it had been deleted from `ROADMAP.md` as a completed chore. The pointer now states the features-only rule and names where chores live instead.
 - **`docs/DEVELOPMENT.md` still said network mode has no read-back reader.** True when written; it gained one at `[1.2.0-dev43]`. The bullet now records why the original exclusion was right but drawn too widely — re-registering the radio makes answers unreliable **for a while**, not permanently — and that the router answers the write itself with `-1` while applying it.
 - **`docs/huawei_how_to_access.md` listed `net.net_mode_list` under "Readable, never reviewed"** with the note "could validate the Network Mode select". It is adopted: read once after login, and its `AccessList` is the select's option list. Moved to the polled section as the one endpoint read but **not** polled, with the observation that acting on that note is what surfaced `08`.
@@ -798,7 +1072,11 @@ From `sync_check_projects` 2026-08-17, items B.1 and B.2. Both are cross-project
 - **`README.md`, `ROADMAP.md` and `proj_structure.md` needed no changes.** `proj_structure.md` was reconciled against the filesystem in both directions — nothing listed that does not exist, nothing on disk missing from it. README entity counts verified at both mentions.
 - **`DEVELOPMENT.md` was thinner than the session warranted**, which is what prompted the extra pass: fourteen entries, none covering the three pitfalls above. The success patterns had been kept current; the pitfalls had not.
 
-## [1.2.0-dev52] - 2026-08-17 - Assertion Audit: Two Hollow Tests Given Real Assertions
+## [1.2.0-dev52] - 2026-08-17 - Test Quality: Assertion Audit and Concrete Verification
+
+### Summary
+
+Added concrete assertions to hollow tests in network mode suite to eliminate zero-assertion test passes.
 
 Caught by **Validate All → Tests: Assertion Audit**, which failed with two tests not on the allow-list. Both were added at `[1.2.0-dev47]`, in the commit whose entry says coverage was restored to 100%.
 
@@ -813,6 +1091,10 @@ Caught by **Validate All → Tests: Assertion Audit**, which failed with two tes
 
 ## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor
 
+### Summary
+
+Dropped python-typing-update tool and added upstream source citations to tool drift checker.
+
 ### Removed
 
 - **`python-typing-update`**: Completely dropped across the toolchain (`version_matrix.json`, `version_matrix.md`, `Dockerfile`, `.pre-commit-config.yaml`, `tasks.json`, `check_tool_drift.py`, documentation, and tests). All typing modernizations (`list[]`, `dict[]`, `X | Y`, `from __future__ import annotations`, type-checking imports) are natively enforced by Ruff (`UP`, `PYI`, `TC`, `FURB` rules in `pyproject_common.toml`).
@@ -826,7 +1108,11 @@ Caught by **Validate All → Tests: Assertion Audit**, which failed with two tes
 
 - **`sync_projects.ps1`**: Deployed updated matrices, tasks, and pre-commit configurations across all workspace integration projects.
 
-## [1.2.0-dev50] - 2026-08-17 - Client-Tracking Opt-Out Assessment; Poll Cost Measured
+## [1.2.0-dev50] - 2026-08-17 - Architecture and Roadmap: Client Tracking Opt-Out and Poll Timings
+
+### Summary
+
+Assessed setup options for client tracking opt-out and measured live endpoint polling costs.
 
 Documentation only — no code change. The `setup_cleanup_options.md` porting guide had never been assessed for this project; its three capabilities all read "Not assessed". Assessed against source, and the result is two `N/A` with reasons and one live candidate.
 
@@ -847,7 +1133,11 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 - Three shared documents were corrected alongside this, outside this repository: `setup_cleanup_options.md` carries the Huawei assessment and the same measurements, worded to travel — an assessment that stops at the endpoint count will reach the wrong answer on any of the four projects. `device_registry_2026_08.md` still listed Huawei as **EXPOSED** with no `_compat.py` and predicted sub-devices detaching at HA 2027.8, closed by plan item 2 four days ago. `test_quality_metrics.md` still showed 11 partial branches and 4 zero-assertion tests outstanding, both closed by plan items 9 and 10.
 - **`1.2.0-dev48` has no entry here.** It was committed before `[1.2.0-dev47]` despite the higher number, and its own changelog edit did not include one.
 
-## [1.2.0-dev47] - 2026-08-17 - Coverage Restored to 100%; dev43 and dev46 Gaps Covered
+## [1.2.0-dev47] - 2026-08-17 - Test Coverage: Full Line and Branch Coverage Restoration
+
+### Summary
+
+Added unit tests covering network mode methods in api and select modules to restore 100% line and branch test coverage.
 
 **Found while checking something else.** Verifying the `x_proj_checks` branch-coverage row meant running coverage, which reported **99%** — a standard this project had held all week. Both gaps were introduced by `[1.2.0-dev43]` and `[1.2.0-dev46]`, and neither of those entries mentions coverage, because it was never run before claiming them clean.
 
@@ -865,7 +1155,11 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 - **Suite 818 → 830. Coverage 100% line and branch, 0 partial branches**, measured rather than assumed.
 - The lesson is narrow and worth keeping: two changelog entries this week asserted "ruff and mypy clean" as though that were the standard. It is not — this project's bar is 100% line and branch, and neither entry had checked it.
 
-## [1.2.0-dev46] - 2026-08-17 - Network Mode Option List Publication Ordering Fixed
+## [1.2.0-dev46] - 2026-08-17 - Controls: Network Mode Option List Startup Ordering
+
+### Summary
+
+Ordered supported network mode discovery prior to initial coordinator state publication to prevent dropdown option lag.
 
 `[1.2.0-dev43]` made the network-mode options come from the router. They did not reach the user: the dropdown still showed nine entries through two restarts and a reload. **The list was correct in memory the whole time and was written to state before it existed.**
 
@@ -887,7 +1181,11 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 - A failed read self-corrects on the next restart or reload — the fetch lives in `async_setup_entry`'s background task, and a reload builds a fresh coordinator. It does **not** self-correct on a poll.
 - Suite **816 → 818**, ruff and mypy clean.
 
-## [1.2.0-dev45] - 2026-08-17 - README Review Findings Applied
+## [1.2.0-dev45] - 2026-08-17 - Documentation: README Accuracy and Entity Count Reconciliation
+
+### Summary
+
+Reconciled README entity totals, strike timing details, and diagnostic limitation statements with current release state.
 
 `readme_review` run in Full mode against the 1445-line README. Twelve findings actioned, two rejected. Structure was sound throughout — all 20 internal anchors resolved, no two-codepoint emoji in any heading, all 19 code fences balanced and correctly tagged — so every finding was a stale factual claim rather than a formatting fault.
 
@@ -905,7 +1203,11 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 - Two further findings needed no change: the `about` section already carries a table of worked examples, and the device-tracker limitation was covered by the rewrite above.
 - `1.2.0-dev44` was never committed — the version number was skipped, not a missing entry.
 
-## [1.2.0-dev43] - 2026-08-17 - 5G Only Mode `08` Added to Network Mode Labels
+## [1.2.0-dev43] - 2026-08-17 - Controls: 5G-Only Network Mode and Dynamic Option Discovery
+
+### Summary
+
+Added 5G Only mode mapping, queried supported network modes dynamically from hardware, and preserved cellular band selections.
 
 Found by the owner setting **5G Only** in the router's web interface and watching the Home Assistant select go `unknown`. One symptom, four causes.
 
@@ -926,7 +1228,11 @@ Found by the owner setting **5G Only** in the router's web interface and watchin
 - **`08` = 5G Only is inference, and the record should say so.** `AccessList` publishes codes without names. The identification rests on three agreeing facts: the web interface offers exactly three modes, the router accepts exactly three codes, and `00`/`03` were already known. The code list is authoritative; the name is not.
 - Suite **812 → 816**, ruff and mypy clean. Four new tests: the router's bands are sent back, the fallback when they cannot be read, options derived from `AccessList`, and the `Unknown (nn)` round trip.
 
-## [1.2.0-dev42] - 2026-08-16 - Network Mode Reported Failure for a Write That Worked
+## [1.2.0-dev42] - 2026-08-16 - Controls: Network Mode Write Confirmation and Settling Readbacks
+
+### Summary
+
+Handled transient `-1: Unknown` response on network mode changes via settling readback verification.
 
 The attended hardware tier was run against the live router by the owner — every scripted write passed except `clear_traffic_statistics`, which was deliberately not run. It found one real defect, and three defects in the script itself. **This is the case the script exists for: nothing in the unit suite could have found it, because the router's own answer is the thing that was wrong.**
 
@@ -944,13 +1250,21 @@ The attended hardware tier was run against the live router by the owner — ever
 - `scripts/write_classification.py` and the script's module docstring both carried the "deliberately unscripted" reasoning for SMS; both now record why it no longer holds.
 - Suite **812 passing**, ruff and mypy clean.
 
-## [1.2.0-dev40] - 2026-08-16 - Bump Shared CI from v2.0.10 to v2.0.12
+## [1.2.0-dev40] - 2026-08-16 - CI and Workflows: Shared CI Workflow Bump
+
+### Summary
+
+Bumped shared GitHub Actions validation workflow to v2.0.12.
 
 ### Bumps
 
 - **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.10 to v2.0.12
 
-## [1.2.0-dev39] - 2026-08-16 - Four Broken Hyphens Shipped in Entity Notes
+## [1.2.0-dev39] - 2026-08-16 - Documentation: Entity Note Hyphenation Fixes
+
+### Summary
+
+Fixed word wrapping and hyphenation defects in entity attribute descriptions.
 
 Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38]`. Report at `.notes/sensors_states/about_notes_review_20260816_2204.md`. 156 clean, 4 flagged, all valid.
 
@@ -964,7 +1278,11 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 
 - `tests/test_entity_hygiene.py` 29 passing; ruff check and format clean.
 
-## [1.2.0-dev38] - 2026-08-16 - About Notes Reviewed; US Spelling Swept
+## [1.2.0-dev38] - 2026-08-16 - Documentation: Entity Descriptions and Spelling Review
+
+### Summary
+
+Reviewed operational descriptions across all 160 entities and applied US English spelling standardization.
 
 `about_notes_review` run across all 160 entity notes. Report at `.notes/sensors_states/about_notes_review_20260816_2129.md`. 139 clean, 21 flagged.
 
@@ -982,7 +1300,11 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 - `tests/test_entity_hygiene.py` — 29 passing. That is the two-way reconciliation between `docs/about_attribute_list.md` and the descriptions, so doc and code are confirmed in step.
 - The shared prompt, `dev_standards` §14 and `doc_style.md` were all changed by what this run exposed — principally a contradiction between §14 asking for a one-line note and requiring good/fair/poor guidance in the same sentence. Those changes are outside this repository.
 
-## [1.2.0-dev37] - 2026-08-16 - Roadmap Scoped to Features; Cleanup Limitation Documented
+## [1.2.0-dev37] - 2026-08-16 - Roadmap and Documentation: Feature Scoping and Cleanup Limitations
+
+### Summary
+
+Refocused roadmap strictly on user-facing features and documented hardware client retention constraints.
 
 ### Changed
 
@@ -993,7 +1315,11 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 
 - **`README.md`**: the cleanup action cannot remove clients the router still lists, and Huawei routers retain away devices for months — they must be deleted in the router's own web interface.
 
-## [1.2.0-dev36] - 2026-08-16 - API Access Reference Corrected; `vendorname` Trap Recorded
+## [1.2.0-dev36] - 2026-08-16 - Documentation: API Access Reference and ODM Metadata Warnings
+
+### Summary
+
+Corrected authentication requirement records in access documentation and noted ODM vendor naming traps.
 
 ### Fixed
 
@@ -1001,7 +1327,11 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 - **Recorded that `device.vendorname` is a trap.** It answers `{"version_name": "ZOWEE"}` — the ODM, not the brand — so adopting it as the device-registry `manufacturer` would relabel a Huawei-badged router with a name its owner has never seen. No brand field exists anywhere on this hardware: `device.basic_information` gives only `classify`/`devicename`, and `system.deviceinfoex` carries `devcap.Vendor` as an empty string. The hardcoded `"Huawei"` is deliberate and now documented as such.
 - `system.deviceinfoex`, `device.basic_information` and `device.vendorname` moved out of "readable, never reviewed" — they have now been reviewed, with reasons, so the next person does not re-run the probe.
 
-## [1.2.0-dev35] - 2026-08-16 - README: Reading Your Signal Data, Automations, Tailoring
+## [1.2.0-dev35] - 2026-08-16 - Documentation: Signal Analysis, Automations, and Monitoring Guide
+
+### Summary
+
+Added operational signal analysis guides, eleven worked automation blueprints, and configuration tailoring documentation.
 
 ### Added
 
@@ -1009,14 +1339,22 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 - **Tailoring What's Monitored**, and eleven worked automations: data-usage and projected-overage alerts, signal quality, cell-tower change, integration health, router reboot, auto-reconnect on a prolonged outage, polling auto-resume, a dynamic polling schedule and a morning status report.
 - Signal chart image at `.github/images/huawei_5g_snr_rsrp.png`.
 
-## [1.2.0-dev34] - 2026-08-16 - README: Entities, Controls and Actions; 1.2.0 Release Notes
+## [1.2.0-dev34] - 2026-08-16 - Documentation: Entity Reference and 1.2.0 Release Notes
+
+### Summary
+
+Documented entity inventory, sub-device control groups, and SMS actions in README and draft release notes.
 
 ### Added
 
 - **What You Get**, including how to read the `about` attribute and which entities enter long-term statistics; **Controls & Settings** split by sub-device; and every SMS action documented with parameters — `send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`, `cleanup_unused_entities` and the `huawei_router_5g_sms_received` event.
 - **`CHANGELOG.md`**: user-facing `[1.2.0]` release notes.
 
-## [1.2.0-dev33] - 2026-08-16 - README: Compatibility and Other Options
+## [1.2.0-dev33] - 2026-08-16 - Documentation: Hardware Compatibility and Integration Comparison
+
+### Summary
+
+Added tested hardware compatibility list and architectural comparison against alternative integrations.
 
 ### Added
 
@@ -1027,7 +1365,11 @@ Second `about_notes_review` run, against the notes as corrected at `[1.2.0-dev38
 
 - Two stale `.gitignore` comments describing a 2026-08-15 incident that no longer needs restating.
 
-## [1.2.0-dev32] - 2026-08-16 - Sensor Review and Masked-Errors Audit
+## [1.2.0-dev32] - 2026-08-16 - Diagnostic Health: Health Error Logging and Entity Reconciliations
+
+### Summary
+
+Promoted failed health computation diagnostics from debug to warning and reconciled sensor inventory documents.
 
 Two shared prompts run against the live integration: `sensor_review` (SCOPE=Full, Via_HAB) and `masked_errors_check`. Reports at `.notes/sensors_states/ha_sensor_review_20260816_1437.md` and `.notes/issues/masked_errors/masked_errors_20260816_1525.md`.
 
@@ -1044,7 +1386,11 @@ Two shared prompts run against the live integration: `sensor_review` (SCOPE=Full
 - **One "obvious fix" was tried and rejected.** Importing `ScannerEntity` from `homeassistant.components.device_tracker.entity` removes the `attr-defined` error entirely — and would be backwards: HA deprecated that submodule path in 2026.6 with removal in 2027.6, and `DEVELOPMENT.md` records the fix as moving _to_ the top-level import. The suppression covers a re-export gap, not a missing attribute.
 - Suite **812 passing**, 100% line and branch coverage. Both shared prompts were updated from what the runs exposed; those changes are outside this repository.
 
-## [1.2.0-dev31] - 2026-08-15 - Mutation Testing Complete: 80 Tests, One Defect
+## [1.2.0-dev31] - 2026-08-15 - Test Suite: Mutation Testing Triage and SMS Parser Fixes
+
+### Summary
+
+Killed 1400 mutants in mutation test runs, fixed empty SMS index handling, and enforced write-confirmation exclusions.
 
 Two runs and a triage — the documented cadence. **1633 mutants; survivors 356 → 231, killed 1277 → 1400**, zero timeouts. `coordinator.py` alone went 237 → 126. Suite **730 → 810**, 100% line and branch throughout.
 
@@ -1067,7 +1413,11 @@ Two runs and a triage — the documented cadence. **1633 mutants; survivors 356 
 - **The 231 remaining survivors are triaged, not unknown**, and are predominantly equivalent mutants — falsy-default swaps, `cast()` annotation strings with no runtime effect, and the four `SUB_DEVICE_LABELS` keys above. The cadence is two runs and chasing a mutation score is explicitly warned against, so this is the end state.
 - **A triage error, recorded rather than smoothed over.** The first `helpers.py` / `sensor.py` batch killed 9 mutants against `coordinator.py`'s 111, because those tests were aimed at mutants that cannot be killed — classified from the _shape_ of the diff instead of from what the mutation would actually produce. A third batch closed the genuinely killable remainder in `device_tracker`, `_tracked_macs` and `build_device_info`.
 
-## [1.2.0-dev30] - 2026-08-15 - Verification Pass: Live Read-Back, Timer Callbacks, Stale Documents
+## [1.2.0-dev30] - 2026-08-15 - Verification Pass: Live Readback Validation and Timer Callback Tests
+
+### Summary
+
+Validated live readbacks against hardware and added tests executing scheduled follow-up refresh timer callbacks.
 
 A pass over work that had been **verified and then invalidated by later changes**, rather than over claims made without checking. Three of the items turned out to be assertions that were wrong rather than defects, and those are recorded as such.
 
@@ -1088,13 +1438,21 @@ A pass over work that had been **verified and then invalidated by later changes*
 - **Two `dev_std_review` conformance cells were wrong and are corrected to PARTIAL.** §22, because no entity description declares the read-back exclusion the section asks for — it is enforced by the absence of a reader plus a test, which is enforcement rather than declaration. §9, because it is covered only against mocks and the live check is unresolved. Both were first recorded DONE in the same pass that wrote the code they assess.
 - Suite **728 → 730**, 100% line and branch coverage.
 
-## [1.2.0-dev29] - 2026-08-15 - CI Bump Ruff
+## [1.2.0-dev29] - 2026-08-15 - Tooling: Ruff Version Bump
+
+### Summary
+
+Bumped Ruff linter dependency.
 
 ### Bumps
 
 - **Validate Bump**: Update `ruff` from 0.16.1 to 0.16.2
 
-## [1.2.0-dev28] - 2026-08-15 - Projection Memo Per Entry; Placeholder and Source-Read Fixes
+## [1.2.0-dev28] - 2026-08-15 - Telemetry Configuration: Per-Entry Projection Caching and Source Root Resolvers
+
+### Summary
+
+Scoped projection memoization cache per config entry and fixed source root resolution during mutation runs.
 
 ### Fixed
 
@@ -1111,7 +1469,11 @@ A pass over work that had been **verified and then invalidated by later changes*
 - Suite **726 → 728**, 100% line and branch coverage, 0 partial branches. `ruff` and `mypy custom_components/ --strict` clean.
 - **The Section 9 reload was verified live on 2026-08-15** and the `dev_standards` cell is now DONE. Renaming the entry through Configure renamed the entry **and all six sub-devices** and triggered a fetch — both are the reload seen from its effects, since sub-device names are written into the registry from `entry.title` at setup and only a rebuild rewrites them. Entity names correctly did not change. **An earlier attempt on the same build showed the title changing alone**; the probable cause is that the running Home Assistant still held the code loaded before the listener existed, which is plausible rather than confirmed and cannot be established after the fact.
 
-## [1.2.0-dev27] - 2026-08-15 - Drop `url-normalize`
+## [1.2.0-dev27] - 2026-08-15 - Dependencies: URL Normalization Dependency Removal
+
+### Summary
+
+Removed unused url-normalize dependency in favor of native in-tree URL cleaning routines.
 
 ### Removed
 
@@ -1125,7 +1487,11 @@ A pass over work that had been **verified and then invalidated by later changes*
 
 - A spelling and formatting pass over `requirements_test.txt`, `docs/huawei_how_to_access.md` and three test files was committed separately as `e38709e`, **tagged `[1.2.0-dev24]` in error** — that tag already belonged to `a24a38a`. `dev26` is unused.
 
-## [1.2.0-dev25] - 2026-08-15 - Tighten Two Sweeps; Drop the Redundant Refresh
+## [1.2.0-dev25] - 2026-08-15 - Test Infrastructure: Entity Hygiene Sweeps and Unverified Write Refresh
+
+### Summary
+
+Tightened entity count thresholds in attribute sweeps and removed redundant full refreshes on unverified writes.
 
 ### Fixed
 
@@ -1142,7 +1508,11 @@ A pass over work that had been **verified and then invalidated by later changes*
 - Suite **726 passing**, 100% line and branch coverage, 0 partial branches. Coverage held without new tests: the removed branch took its own partial with it.
 - **A third behavior change was added to the `[1.2.0-dev23]` entry rather than left unstated** — a _refused_ write now takes about two seconds to report, because `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice. A confirmed write is a single read and remains faster than what it replaced.
 
-## [1.2.0-dev24] - 2026-08-15 - Section 6 and Section 12 Tests Verified Against Real Regressions
+## [1.2.0-dev24] - 2026-08-15 - Test Quality: Regression Proofs for Rounding and Translation Sweeps
+
+### Summary
+
+Verified rounding and per-platform translation resolution tests against real injected regressions.
 
 `dev_standards` §11 requires that a test claimed against a `**Test:**` tag has been **shown to fail** when the thing it guards is broken. Verifying the tests added in `[1.2.0-dev23]` changed two of the claims.
 
@@ -1157,7 +1527,11 @@ A pass over work that had been **verified and then invalidated by later changes*
 - Every regression was applied to a byte copy and restored with an `md5sum` comparison, per `agent_conventions.md` §2. Nothing was restored from git.
 - Suite **720 → 726**, 100% line and branch coverage, 0 partial branches.
 
-## [1.2.0-dev23] - 2026-08-15 - Review Findings Implemented; Options Changes Now Reach the Router
+## [1.2.0-dev23] - 2026-08-15 - Options Flow: Live Updates, Write Confirmations, and Cleanup Button
+
+### Summary
+
+Added config options update listeners, targeted single-endpoint write confirmations, and client tracker cleanup button.
 
 Closes every finding from `dev_std_review` and `code_review` that the owner accepted, in one pass. §3 (`format_mac()`) was **explicitly declined** — see Notes.
 
@@ -1184,7 +1558,7 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 - `_stale_tracker_entities` and `_tracked_macs` moved from `__init__.py` to `helpers.py`. They now have two callers, and a platform module importing from the package `__init__` would be a circular import.
 - Suite **683 → 720**, 100% line and branch coverage, 0 partial branches. `ruff`, `mypy custom_components/ --strict`, IQS static all clean.
 
-## [1.2.0-dev22] - 2026-08-15 - Code Review
+## [1.2.0-dev22] - 2026-08-15 - Code Quality: Code Review Findings and Action Label Precision
 
 ### Fixed
 
@@ -1200,7 +1574,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev21] - 2026-08-15 - Depth Review: SMS De-duplication and the Event Payload Contract
+## [1.2.0-dev21] - 2026-08-15 - Depth Review: SMS Deduplication and Event Payload Contracts
+
+### Summary
+
+Added repeated-poll unit tests verifying SMS deduplication and asserted complete event payload schemas.
 
 ### Added
 
@@ -1215,7 +1593,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev20] - 2026-08-15 - Mutation Findings Implemented; Firmware Version Token Fixed
+## [1.2.0-dev20] - 2026-08-15 - Diagnostics and Data Sanitization: Diagnostic Tokens and Address Redaction
+
+### Summary
+
+Fixed firmware version redaction in diagnostic dumps and expanded unit tests for diagnostic tokenization.
 
 ### Fixed
 
@@ -1237,7 +1619,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev19] - 2026-08-15 - Mutation Testing Configured and First Run Triaged
+## [1.2.0-dev19] - 2026-08-15 - Test Infrastructure: Mutation Testing Setup and Test Root Resolvers
+
+### Summary
+
+Configured mutation testing framework and fixed test suite source path resolution when executing in mutant workspace trees.
 
 ### Added
 
@@ -1259,7 +1645,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev18] - 2026-08-15 - `about` Attribute Notes on Every Entity
+## [1.2.0-dev18] - 2026-08-15 - Telemetry: Explanatory About Attribute Notes on Every Entity
+
+### Summary
+
+Added static descriptive about notes to all 158 entity descriptions and implemented unrecorded attribute sweeps.
 
 ### Added
 
@@ -1280,7 +1670,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev17] - 2026-08-15 - Router Diagnostics Sensor
+## [1.2.0-dev17] - 2026-08-15 - Diagnostics: Router Diagnostics Binary Sensor
+
+### Summary
+
+Added router diagnostics binary sensor surfacing router-reported connection health verdicts and error breakdown attributes.
 
 ### Added
 
@@ -1296,7 +1690,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev16] - 2026-08-15 - WiFi Switch; Voice Entities
+## [1.2.0-dev16] - 2026-08-15 - Controls and Telemetry: Master WiFi Radio Switch and Voice Entities
+
+### Summary
+
+Added hardware master WiFi switch and voice status entities.
 
 ### Added
 
@@ -1310,7 +1708,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev15] - 2026-08-15 - Follow-Up Refresh Fires While Paused
+## [1.2.0-dev15] - 2026-08-15 - Polling Engine: Follow-Up Refresh Execution During Polling Pauses
+
+### Summary
+
+Ensured follow-up refreshes execute even when periodic coordinator polling is paused.
 
 ### Changed
 
@@ -1323,7 +1725,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev14] - 2026-08-15 - Follow-Up Refresh After Reboot and Reconnect
+## [1.2.0-dev14] - 2026-08-15 - Polling Engine: Follow-Up Refresh After Reboot and Reconnect
+
+### Summary
+
+Scheduled deferred single refresh after router reboot and reconnect operations settle.
 
 ### Added
 
@@ -1337,7 +1743,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev13] - 2026-08-15 - Reconnect Button Fixed
+## [1.2.0-dev13] - 2026-08-15 - Controls: Reconnect Button Fix Using Dual Dial Actions
+
+### Summary
+
+Replaced unsupported `net/reconnect` endpoint call with consecutive disconnect and connect actions.
 
 ### Fixed
 
@@ -1351,7 +1761,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev12] - 2026-08-15 - huawei-lte-api 2.0.1
+## [1.2.0-dev12] - 2026-08-15 - Dependencies: Upstream Library Pin Bump to 2.0.1
+
+### Summary
+
+Pinned huawei-lte-api library dependency to version 2.0.1 and verified library contracts.
 
 ### Changed
 
@@ -1362,7 +1776,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev11] - 2026-08-15 - New Entity Set and Data-Usage Projection
+## [1.2.0-dev11] - 2026-08-15 - Telemetry: Expanded Entity Set and Monthly Data-Usage Projections
+
+### Summary
+
+Added 38 new entities across eight endpoints and ported monthly data-usage projection calculations.
 
 ### Added
 
@@ -1382,7 +1800,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev10] - 2026-08-15 - Huawei API Access Reference
+## [1.2.0-dev10] - 2026-08-15 - Documentation: Huawei API Access Reference
+
+### Summary
+
+Documented complete Huawei API endpoint behaviors, error handling codes, and session degradation traps.
 
 ### Added
 
@@ -1395,7 +1817,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev9] - 2026-08-14 - Roadmap Reconciled
+## [1.2.0-dev9] - 2026-08-14 - Roadmap: Roadmap Task Alignment
+
+### Summary
+
+Synchronized project roadmap with completed write-classification and diagnostics deliverables.
 
 ### Changed
 
@@ -1403,7 +1829,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev8] - 2026-08-14 - Two Dead Entity Strings Removed
+## [1.2.0-dev8] - 2026-08-14 - Localization: Stale Translation String Removal
+
+### Summary
+
+Removed orphan translation keys for removed hardware version and IMEI sensors.
 
 ### Fixed
 
@@ -1411,7 +1841,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev7] - 2026-08-14 - quality_scale.yaml Completeness
+## [1.2.0-dev7] - 2026-08-14 - Quality Scale: Rule Completeness and Structured Exemptions
+
+### Summary
+
+Added missing condition and trigger rules as structured exemptions in quality scale definition.
 
 ### Fixed
 
@@ -1419,7 +1853,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev6] - 2026-08-14 - Write-Classification Register and Hardware Check
+## [1.2.0-dev6] - 2026-08-14 - Hardware Verification: Write Classification Register and Hardware Test Scripts
+
+### Summary
+
+Added write classification register and unattended and attended hardware verification scripts.
 
 ### Added
 
@@ -1429,7 +1867,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev5] - 2026-08-14 - Four Diagnostics Leaks Closed
+## [1.2.0-dev5] - 2026-08-14 - Diagnostics: Sanitizer Leak Fixes for Network and WiFi Secrets
+
+### Summary
+
+Closed diagnostics scrubber leaks for network identifiers and WiFi credentials.
 
 ### Fixed
 
@@ -1438,7 +1880,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev4] - 2026-08-14 - Guest-WiFi Write Decision; Structured Exempts
+## [1.2.0-dev4] - 2026-08-14 - Controls: Guest-WiFi Parameter Preservation and Structured Exemptions
+
+### Summary
+
+Documented raw endpoint round-tripping for guest WiFi settings and updated quality scale comments.
 
 ### Changed
 
@@ -1447,7 +1893,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev3] - 2026-08-14 - masked_errors_check Audit
+## [1.2.0-dev3] - 2026-08-14 - Code Quality: Masked-Errors Suppression Audit
+
+### Summary
+
+Audited suppressions across the codebase and improved contract sweep parsing for lambda receivers.
 
 ### Fixed
 
@@ -1455,7 +1905,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev2] - 2026-08-14 - Changelog Backfill
+## [1.2.0-dev2] - 2026-08-14 - Documentation: Historical Changelog Sequence Backfill
+
+### Summary
+
+Backfilled changelog entries for unrecorded dev commits.
 
 ### Notes
 
@@ -1463,7 +1917,11 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 ---
 
-## [1.2.0-dev1] - 2026-08-14 - Two Dead Library Calls; Tracker Unique IDs; Entity Cleanup Action
+## [1.2.0-dev1] - 2026-08-14 - Architecture and Resilience: Dead Library Calls, Unique ID Scoping, and Entity Cleanup
+
+### Summary
+
+Fixed non-existent library method calls, entry-scoped device tracker unique IDs with live migrations, and added entity cleanup actions.
 
 Section §S of the August 2026 update plan — work raised by the `huawei-lte-api` 2.0.0 review and the Home Assistant device-tracker review. **Opens the `1.2.0` release line**, which also settles the long-standing divergence between `manifest.json` and this changelog.
 
@@ -1530,11 +1988,8 @@ Run after every other change in this batch, per §S-13 of the tracking notes: th
 
 That is the argument for running this prompt last rather than first, made concrete: it caught a hole in the very mechanism built to prevent the original bug.
 
-### Verification
-
-**540 tests passing** (was 515), 100% line and 100% branch coverage, 0 partial branches, assertion audit PASSED, `ruff` lint and format clean, mypy standard and strict clean.
-
-**Clear Traffic Statistics is fixed but not yet exercised against hardware** — deferred to month-end at the owner's request, since it resets counters. The Reboot change is likewise unexercised by choice.
+- Suite **540 tests passing** (was 515), 100% line and 100% branch coverage, 0 partial branches, assertion audit PASSED, `ruff` lint and format clean, mypy standard and strict clean.
+- **Clear Traffic Statistics is fixed but not yet exercised against hardware** — deferred to month-end at the owner's request, since it resets counters. The Reboot change is likewise unexercised by choice.
 
 ## [1.1.3-dev17] - 2026-08-14 - Add HA Compatibility Document
 
@@ -1585,9 +2040,11 @@ Phase 3 of the August 2026 update plan — all documentation and recorded decisi
 
 515 tests passing, 100% line and branch coverage, `ruff` clean, mypy standard and strict clean, `markdownlint` clean across every tracked Markdown file, `prettier` clean, `codespell` clean, 46 README links checked, all JSON schema-valid.
 
-## [1.1.3-dev14] - 2026-08-14 - Integration Health and Drift Detection; Guard Bands Reconciled
+## [1.1.3-dev14] - 2026-08-14 - Diagnostic Health: Integration Health Sensor and Signal Guard Bands
 
-Phase 2 (third part) of the August 2026 update plan. Huawei was the family's only outlier on `dev_standards` Section 19, and `docs/value_min_max.md` had never been checked against the code since it was written.
+### Summary
+
+Added Integration Health sensor with drift detection and reconciled value min/max guard band boundaries.
 
 ### Added
 
@@ -1627,7 +2084,11 @@ Phase 2 (third part) of the August 2026 update plan. Huawei was the family's onl
 
 **515 tests passing** (was 497), 100% line and branch coverage, 0 partials, assertion audit PASSED (0 of 453), mypy standard and strict clean, `ruff` clean.
 
-## [1.1.3-dev13] - 2026-08-14 - Action Icons; Icon and `PARALLEL_UPDATES` Sweeps; Secret Pre-Fill Guards
+## [1.1.3-dev13] - 2026-08-14 - UI and Concurrency: Action Icons and Platform Parallel Updates Policy
+
+### Summary
+
+Added action icons across services and codified parallel update limits per entity platform.
 
 Phase 2 (second part) of the August 2026 update plan — the cheap ports and the decisions that need recording.
 
@@ -1657,7 +2118,11 @@ Phase 2 (second part) of the August 2026 update plan — the cheap ports and the
 
 **497 tests passing** (was 487), 100% line and branch coverage, 0 partials, mypy standard and strict clean, `ruff` clean, `icons.json` and `manifest.json` schema-valid.
 
-## [1.1.3-dev12] - 2026-08-14 - Silent Write Failures; Orphaned Repairs; Lost Debounced Writes; Diagnostics Rewritten
+## [1.1.3-dev12] - 2026-08-14 - Error Handling and Privacy: Write Failures, Repair Cleanup, and Diagnostics Scrubber
+
+### Summary
+
+Raised explicit errors on write failures, cleared orphaned repairs on unload, and implemented recursive diagnostics sanitizer.
 
 Phase 2 (first part) of the August 2026 update plan — the standards defects that are not in the "confirmed four", plus the privacy rewrite. Tracked in `.notes/info/updates_202608/status_plan.md`.
 
@@ -1695,7 +2160,11 @@ Phase 2 (first part) of the August 2026 update plan — the standards defects th
 
 **Not yet verified against a real download.** The scrubber is unit-tested against a realistic payload, but confirming it against a regenerated diagnostics file **with real router data in it** needs a live instance and is parked — see §P-2 of `status_plan.md`. Reading the code is what produced UniFi's two false clean verdicts, so this is deliberately **not** claimed as closed.
 
-## [1.1.3-dev11] - 2026-08-14 - Zero Partial Branches; Zero-Assertion Tests Closed
+## [1.1.3-dev11] - 2026-08-14 - Test Suite: 100% Branch Coverage and Concrete Assertions
+
+### Summary
+
+Closed 11 partial branches with unit tests and eliminated zero-assertion test passes.
 
 Phase 1 of the August 2026 update plan — the test baseline. No source changes; this phase is entirely about what the suite can see.
 
@@ -1730,7 +2199,11 @@ Phase 1 of the August 2026 update plan — the test baseline. No source changes;
 
 **This closes the last blocker on a family-wide gate.** `fail_under = 100` in `dev-workbench/workbench/python/pyproject.toml` is synced into every project and is all-or-none by design; WiFi, ZTE and UniFi reached zero partials on 2026-08-05, -07 and -08 respectively, and Huawei was the remaining one. That workbench change is a separate, deliberate four-project edit and is **not** made here.
 
-## [1.1.3-dev10] - 2026-08-14 - Four Statistics-Corrupting Counters; `via_device` Deprecation; Recorder Hygiene; Refresh While Paused
+## [1.1.3-dev10] - 2026-08-14 - Architecture and Data Integrity: Increasing State Classes, Modern Sub-Device Links, and Forced Refresh
+
+### Summary
+
+Converted resetting counters to total_increasing state classes, updated device links via compat shim, and implemented unrecorded attributes.
 
 Phase 0 of the August 2026 update plan — the four confirmed defects that no sibling project has. Two were causing harm every day; one has an external Home Assistant deadline. Tracked in `.notes/info/updates_202608/status_plan.md`.
 
@@ -1765,7 +2238,11 @@ Phase 0 of the August 2026 update plan — the four confirmed defects that no si
 
 429 → **444 tests passing**, 100% line coverage, mypy standard and strict clean, `ruff check` clean (was 4 errors). Partial branches unchanged at **11** — none introduced by this work; closing them is the next phase.
 
-## [1.1.3-dev9] - 2026-08-08 - CI Bumps; Github Zipfile; PyTest Branch & Mutation Testing
+## [1.1.3-dev9] - 2026-08-08 - CI and Test Tooling: Test Branch Coverage and Mutation Testing Setup
+
+### Summary
+
+Added branch coverage and mutmut mutation testing infrastructure, updated shared CI validation workflows, and refreshed branding.
 
 ### Bumps
 
@@ -1790,7 +2267,11 @@ Phase 0 of the August 2026 update plan — the four confirmed defects that no si
 - **Documentation**: the README's example automations now ignore `unknown` and `unavailable` states, to avoid false alerts from a HA restart or router reboot.
 - **Icons and branding** refreshed.
 
-## [1.1.3-dev8] - 2026-07-28 - Automation Example Glitch Guards & Float Rounding in README
+## [1.1.3-dev8] - 2026-07-28 - Documentation: Automation Example Glitch Guards and Float Rounding
+
+### Summary
+
+Added glitch protection filters and template rounding to example automations in README.
 
 Reinforced example automations in `README.md` to prevent false triggers during router reboots, polling glitches, or entity unavailability, and rounded numeric outputs.
 
@@ -1802,7 +2283,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.1.3-dev7] - 2026-07-12 - PHACC Bump; README Alignment and Codespell
+## [1.1.3-dev7] - 2026-07-12 - Dependencies and Formatting: PHACC Dependency Bump and Spelling Alignment
+
+### Summary
+
+Bumped PHACC test framework and aligned documentation spelling with codespell standards.
 
 ### Bumps
 
@@ -1813,19 +2298,31 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Docs**: Minor fixes to README for alignment with other project READMEs (clarification on disabling devices and/vs. entities)
 - **Formats**: Codespell alignment, words like behavior and color etc.
 
-## [1.1.3-dev6] - 2026-07-06 - Shared CI Bump v2.0.5 → v2.0.6
+## [1.1.3-dev6] - 2026-07-06 - CI and Workflows: Shared CI Workflow Bump
+
+### Summary
+
+Bumped shared GitHub Actions validation workflow to v2.0.6.
 
 ### Bumps
 
 - **Shared .github CI Validation**: Bump .github Shared CI Validation via SHA from v2.0.5 to v2.0.6
 
-## [1.1.3-dev5] - 2026-07-06 - Test Suite Repaired After the Ruff Extension
+## [1.1.3-dev5] - 2026-07-06 - Test Suite: 100% Test Coverage Restoration
+
+### Summary
+
+Fixed unit test failures and added missing test cases to restore 100% test coverage.
 
 ### Changed
 
 - **PyTest Errors and Coverage**: The changes in dev4 below caused several of the existing PyTests to fail and also introduced new uncovered statements. Fixed and added tests to get to 100% coverage with all tests passing.
 
-## [1.1.3-dev4] - 2026-07-06 - Ruff Checks Extended to Match Home Assistant
+## [1.1.3-dev4] - 2026-07-06 - Code Quality: Core Ruff Lint Rule Alignment
+
+### Summary
+
+Aligned Ruff lint checks with Home Assistant Core rules, fixed exception flows, and added timezone awareness.
 
 ### Changed
 
@@ -1836,7 +2333,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
   - **Production Assertion Checks (`S101`)**: Replaced insecure assertions (`assert self.url is not None`) in `api.py` and `config_flow.py` with explicit check guards throwing `ValueError`.
   - **Defensive Error Handling (`BLE001` / `TRY401`)**: Converted generic exception catches on entity actions to traceback-preserving `_LOGGER.exception()` or explicit debug logs. Removed redundant exception variables from `_LOGGER.exception()` formatting signatures in `select.py`.
 
-## [1.1.3-dev3] - 2026-07-06 - IQS Static Check Added; Check-Drift Fixed
+## [1.1.3-dev3] - 2026-07-06 - Quality Scale: IQS Static Check Addition and Tool Drift Auditor Update
+
+### Summary
+
+Added IQS static validation task, fixed upstream version drift checking, and reordered README sections.
 
 ### Changed
 
@@ -1848,20 +2349,32 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **Validate Bump**: Bumped `pytest-homeassistant-custom-component` from 0.13.344 to 0.13.345
 
-## [1.1.3-dev2] - 2026-07-03 - SMS Actions Default to the Sole Router
+## [1.1.3-dev2] - 2026-07-03 - Actions: Default SMS Target Selection for Single-Router Setups
+
+### Summary
+
+Made entry_id parameter optional for SMS service actions when only a single router entry exists.
 
 ### Changed
 
 - **SMS Actions Default to the Sole Router**: The `delete_sms`, `delete_all_sms`, and `get_sms_list` actions no longer require `entry_id`. When exactly one router is configured it is selected automatically; with more than one configured, `entry_id` is required and omitting it now raises a clear "specify entry_id" error instead of silently acting on an arbitrary router (`send_sms` already behaved this way). Implemented by relaxing the three service schemas and `services.yaml` to optional, and tightening `_get_coordinator` to auto-select only when a single entry is loaded. Added a test for the multiple-entry guard (single-entry fallback was already covered).
 - **Documentation**: Updated the README to align as closely as possible with the ZTE 5G Monitor README.
 
-## [1.1.3-dev1] - 2026-07-03 - Docs Aligned With the ZTE Project
+## [1.1.3-dev1] - 2026-07-03 - Documentation: Alignment with ZTE Integration Standards
+
+### Summary
+
+Updated README and changelog documentation to match ZTE project structures.
 
 ### Changed
 
 - **Docs**: Minor updates to README and CHANGELOG to align with changes made in ZTE Project docs.
 
-## [1.1.2] - 2026-07-03 - Release - Refresh Now Button; Display Units; Config-Flow Hardening
+## [1.1.2] - 2026-07-03 - Release: Refresh Now Button, Display Units, and Config Flow Hardening
+
+### Summary
+
+Added Refresh Now button, added suggested units and precision to 23 sensors, hardened config flow forms, and updated polling controls.
 
 ### Added
 
@@ -1878,13 +2391,17 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Password No Longer Exposed on Edit Screens**: The password field is no longer pre-filled or revealable on the Reconfigure/Options/Reauth screens — leave it blank to keep the current password, or enter a new value to change it.
 - **Host Field Normalization**: A scheme (`http://`) or trailing slash entered in the Host field is now stripped before storage, preventing a malformed device link (e.g. `http://http://192.168.8.1`).
 
-## [1.1.2-dev10] - 2026-07-03 - README Screenshots and Sensor Counts
+## [1.1.2-dev10] - 2026-07-03 - Documentation: UI Screenshots and Sensor Counts
+
+### Summary
+
+Updated README screenshots and reconciled sensor counts in documentation tables.
 
 ### Changed
 
 - **Documentation**: Updated the README screenshots to include Refresh Now button and with higher resolution. Updated all_sensors.md and README.md to correctly reflect sensor counts and groups.
 
-## [1.1.2-dev9] - 2026-07-03 - Ruff Bump 0.15.19 → 0.15.20
+## [1.1.2-dev9] - 2026-07-03 - Tooling: Ruff Version Bump
 
 ### Bumps
 
@@ -1937,11 +2454,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - Added parametrized coverage asserting the suggested unit/precision on all 23 affected sensors.
 
-## [1.1.2-dev5] - 2026-07-02 - Config-Flow Hardening & Refresh Now Button
+## [1.1.2-dev5] - 2026-07-02 - Controls and Security: Config-Flow Hardening and Refresh Now Button
 
 ### Summary
 
-- **Config Flow Hardening & Refresh Button**: Normalized host input before storage, stopped exposing the stored password on edit screens, and added a "Refresh Now" button.
+Normalized host input before storage, stopped exposing stored passwords on edit screens, and added Refresh Now button.
 
 ### Added
 
@@ -1969,11 +2486,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Validate Bump**: Bumped `pytest-homeassistant-custom-component` from 0.13.326 to 0.13.344
 - **Validate Bump**: Bumped `check-jsonschema` from 0.37.2 to 0.37.4
 
-## [1.1.2-dev4] - 2026-06-18 - CI Validation Overhaul
+## [1.1.2-dev4] - 2026-06-18 - CI Infrastructure: Validation Tooling Overhaul and Dev-Workbench Migration
 
 ### Summary
 
-- **CI Validation Overhaul**: Major overhaul of the local (tasks.json) and online (github.com CI) Validation system
+Reorganized validation workflows to consume shared dev-workbench configs and improved CodeQL and task definitions.
 
 ### Changed
 
@@ -1990,7 +2507,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **.gitignore**: Multiple updates to .gitignore
 - **AGENTS.md**: Added AGENTS.md to repo root
 
-## [1.1.2-dev2] - 2026-06-11 - Validation Tooling Sync System
+## [1.1.2-dev2] - 2026-06-11 - Validation Framework: Tooling Sync System and Environment Matrix
+
+### Summary
+
+Implemented centralized validation version matrix and synchronized generic devcontainer configurations.
 
 ### Changed
 
@@ -2002,12 +2523,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
   - HA Manifest and HACS schema files updated.
 - **DependaBot**: Bumped Ruff from 0.15.12 to 0.15.16
 
-## [1.1.1] - 2026-06-07 - Release - Startup Race, Session and Timestamp Fixes
+## [1.1.1] - 2026-06-07 - Release: Startup Race Fixes, Session Management, and Timestamp Precision
 
 ### Summary
 
-- v1.1.1 is clean-up and bug-fixes, no new features.
-- Fixed a timestamp bug and removed several sensors from long term statistics.
+Fixed URL normalization startup race, added proactive session refresh for SMS services, latched reboot timestamps, and cleaned long-term statistics.
 
 ### Fixed
 
@@ -2025,7 +2545,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Dynamic entity icons**: All entity icons migrated to HA's `icons.json` translation system. Signal bars (1–3), battery (10–100%), and SMS unread sensors now display context-aware icons that change automatically based on sensor value or state.
 - **Long-term statistics cleanup**: Removed `state_class` from 32 sensors that were incorrectly generating Long Term Statistics entries — specifically frequency/bandwidth sensors, SMS count sensors, connection duration sensors, and data rate sensors. These sensors report instantaneous or cumulative values that are not suitable for HA's statistics pipeline.
 
-## [1.1.1-dev24] - 2026-06-07 - Project-Wide Test Coverage to 100%
+## [1.1.1-dev24] - 2026-06-07 - Test Coverage: 100% Project Statement Coverage
+
+### Summary
+
+Added edge-case test coverage across switch, number, binary_sensor, config_flow, and device_tracker platforms to reach 100% statement coverage.
 
 ### Added
 
@@ -2037,7 +2561,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
   - `device_tracker.py` (1): `_host_data` returns `None` when `coordinator.data` is `None`.
   - Total coverage: 99% → 100% (1420/1420 statements). All 383 tests passing.
 
-## [1.1.1-dev23] - 2026-06-07 - `ScannerEntity` Import; mypy Config Realigned With HA
+## [1.1.1-dev23] - 2026-06-07 - Type System: ScannerEntity Import Placement and Core MyPy Alignment
+
+### Summary
+
+Realigned project MyPy configuration with Home Assistant internal flags and resolved ScannerEntity import suppression formatting deadlock.
 
 ### Fixed
 
@@ -2109,7 +2637,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
   **Note**: `ScannerEntity` is re-exported in `homeassistant/components/device_tracker/__init__.py` via `from .config_entry import ScannerEntity  # noqa: F401` without `__all__`. HA's own mypy (`no_implicit_reexport = true` for `homeassistant.*`) would reject this if HA's internal code used the public path — which is why HA's own code imports `ScannerEntity` from `config_entry` directly. The `# type: ignore[attr-defined]` in `device_tracker.py` documents this HA inconsistency and should be removed once HA adds `ScannerEntity` to `device_tracker/__all__`.
 
-## [1.1.1-dev22] - 2026-06-07 - `url_normalize` Startup Race Eliminated
+## [1.1.1-dev22] - 2026-06-07 - Stability and Compatibility: Stdlib URL Normalization and Deprecation Update
+
+### Summary
+
+Replaced third-party url-normalize dependency with stdlib URL normalizer and updated ScannerEntity import path.
 
 ### Fixed
 
@@ -2125,7 +2657,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **README Emoji Consistency**: Replaced all VS16 compound emoji in headings and ToC links with always-color single-codepoint alternatives (`⚙️`→`🔧`, `🗑️`→`❌`, `⚠️`→`❗`, `⏱️`→`🔁`, `✉️`→`💬`, `⏯️`→`🔁`, `🛠️`→`🔩`, `🎛️`→`🔘`); moved License badge out of heading; standardized Use Cases icon to `🎯`.
 
-## [1.1.1-dev21] - 2026-06-02 - Proactive Session Reset; Exception Syntax Fixes
+## [1.1.1-dev21] - 2026-06-02 - Session Management: Inactivity Reset and Exception Syntax Compatibility
+
+### Summary
+
+Added proactive session reset thresholds and parenthesized exception tuples for Python 3.12+ compatibility.
 
 ### Fixed
 
@@ -2135,13 +2671,21 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Undefined Name `HuaweiRouter5GOptionsFlow`**: Resolved `F821` undefined name lint error in `config_flow.py` by adding `from __future__ import annotations`.
 - **Mypy Strict return type**: Resolved mypy strict type check error in `api.py` by casting the `get_sms_list` return value to `dict[str, Any]`.
 
-## [1.1.1-dev20] - 2026-05-25 - `state_class` Removed From 32 Sensors
+## [1.1.1-dev20] - 2026-05-25 - Entity Configuration: Long-Term Statistics Cleanup Across 32 Sensors
+
+### Summary
+
+Removed state_class from 32 non-cumulative and rate sensors to prevent recorder statistics clutter.
 
 ### Changed
 
 - **Sensors**: Removed `state_class` from 32 sensors to prevent non-critical sensors from generating Long Term Statistics entries. Removed from: `battery`, `current_connection_duration`, `total_connection_time` (system); `lte_uplink_frequency`, `lte_downlink_frequency`, `lte_uplink_bandwidth`, `lte_downlink_bandwidth`, `5g_uplink_frequency`, `5g_downlink_frequency`, `5g_uplink_bandwidth`, `5g_downlink_bandwidth` (signal); `current_download_rate`, `current_upload_rate`, `max_download_rate`, `max_upload_rate`, `current_connection_upload`, `current_connection_download`, `month_download_gb`, `month_upload_gb` (data); `sms_inbox_device`, `sms_outbox_device`, `sms_drafts_device`, `sms_deleted_device`, `sms_capacity_device`, `sms_unread_sim`, `sms_inbox_sim`, `sms_outbox_sim`, `sms_drafts_sim`, `sms_capacity_sim`, `sms_messages_sim`, `sms_new` (SMS).
 
-## [1.1.1-dev19] - 2026-05-25 - Button Handlers Raise `HomeAssistantError`
+## [1.1.1-dev19] - 2026-05-25 - Error Handling: Button Action Exception Raising
+
+### Summary
+
+Updated button press handlers to raise HomeAssistantError on failures for automation visibility.
 
 ### Fixed
 
@@ -2152,7 +2696,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **`action-exceptions` IQS compliance PARTIAL→DONE**: Closes the last Silver tier gap for `huawei_router_5g`. Scorecard updated (DONE 46→47, PARTIAL 1→0). `ha_quality_standard.md` v1.9.1 and `next_steps_20260525.md` updated accordingly.
 - **`test_button.py` error-path tests updated**: `test_reboot_button_press_error` and `test_clear_traffic_button_press_error` now assert `HomeAssistantError` is raised (with match strings) rather than asserting no exception propagates.
 
-## [1.1.1-dev18] - 2026-05-25 - Six Entities Documented; IQS Matrix Corrected
+## [1.1.1-dev18] - 2026-05-25 - Documentation: Entity Documentation and IQS Matrix Alignment
+
+### Summary
+
+Documented 6 uncataloged entities in all_sensors.md and reconciled quality_scale metadata.
 
 ### Added
 
@@ -2168,19 +2716,31 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **SMS key backtick formatting in all_sensors.md**: 4 rows in the SMS Device section had malformed Key fields (`key"` instead of `` `key` ``) causing incorrect markdown rendering.
 
-## [1.1.1-dev17] - 2026-05-24 - README Automation Examples and Icons
+## [1.1.1-dev17] - 2026-05-24 - Documentation: README Automations and Icons Alignment
+
+### Summary
+
+Added additional automation examples and aligned icon usage in README.
 
 ### Changed
 
 - **Documentation**: Additional updates to README, more automation examples, more icons. Consistency with ZTE project README.
 
-## [1.1.1-dev16] - 2026-05-24 - Coordinator Coverage to 100%
+## [1.1.1-dev16] - 2026-05-24 - Test Suite: 100% Coordinator Test Coverage
+
+### Summary
+
+Added unit tests for reboot detection latches and error handling in coordinator.py.
 
 ### Added
 
 - **Coordinator test coverage to 100%**: Added 8 new test functions for uptime latch blocks (system boot time, connection start time, total connection origin — each with first-latch and reboot-detection scenarios) and the timeout-after-max-failures `UpdateFailed` path. coordinator.py coverage raised from 79% to 100%, total project coverage to 99%.
 
-## [1.1.1-dev15] - 2026-05-24 - Uptime Timestamp Drift; GB/GiB Mismatch Fixed
+## [1.1.1-dev15] - 2026-05-24 - Sensor Accuracy: Reboot Timestamp Latches and Divisor Correction
+
+### Summary
+
+Replaced polling-based uptime calculations with frozen reboot latches and corrected gigabyte calculation divisors.
 
 ### Fixed
 
@@ -2188,7 +2748,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **`month_download_gb` / `month_upload_gb` GB/GiB mismatch**: Both sensors were dividing bytes by `1024³` (producing GiB) while declaring `native_unit_of_measurement=GIGABYTES` (GB). Corrected divisor to `1,000,000,000` — fixes ~7.4% under-reporting (e.g. actual 133 GB was displayed as 124 GB).
 - **`dict` → `dict[str, Any]` mypy `[type-arg]` error** in `coordinator.py` on the `entry_data_updates` local variable.
 
-## [1.1.1-dev14] - 2026-05-24 - Dependabot Bumps
+## [1.1.1-dev14] - 2026-05-24 - Dependencies: Validation Toolchain Bumps
+
+### Summary
+
+Bumped shared validation workflows, Zizmor, and python-typing dependencies.
 
 ### Changed
 
@@ -2196,7 +2760,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Dependabot**: Bump [zizmor](https://github.com/zizmorcore/zizmor-pre-commit) from v1.24.1 to 1.25.2
 - **Dependabot**: Bump [python-typing](https://github.com/cdce8p/python-typing-update) from v0.6.0 to 0.8.1
 
-## [1.1.1-dev12] - 2026-05-11 - Code Review; `FETCH_TIMEOUT` Constant Extracted
+## [1.1.1-dev12] - 2026-05-11 - Code Quality: Fetch Timeout Constant and Platform Guard Hardening
+
+### Summary
+
+Extracted FETCH_TIMEOUT constant and hardened null guards in diagnostics and device tracker.
 
 ### Added
 
@@ -2216,7 +2784,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **Updated `DEVELOPMENT.md`**: Clarified Python 3.14 `except A, B:` comma syntax behavior — it is now valid multi-catch per PEP 3111 on Python 3.14+, but ruff with `target-version = "py314"` will auto-format to it. Added guidance on pinning `target-version = "py313"` for backward compatibility.
 
-## [1.1.1-dev11] - 2026-05-11 - Final `icons.json` Cleanup
+## [1.1.1-dev11] - 2026-05-11 - UI and Icons: Centralized icons.json Migration
+
+### Summary
+
+Removed inline icon declarations from select and button platforms in favor of icons.json.
 
 ### Changed
 
@@ -2226,22 +2798,22 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **Test assertions aligned with icons.json approach**: Updated 4 icon assertions in `test_binary_sensor.py` and `test_coverage_ext.py` to expect `sensor.icon is None` — icons are now resolved by the HA frontend from `icons.json`, not via Python `@property icon`. The `HuaweiBestConnectionSensor` no longer declares an inline `icon` property.
 
-## [1.1.1-dev10] - 2026-05-11 - IQS Near-Platinum Recorded
+## [1.1.1-dev10] - 2026-05-11 - Standards: Near-Platinum Quality Scale Tracking
+
+### Summary
+
+Updated quality scale assessment records and incremented project structure documentation.
 
 ### Changed
 
 - **IQS Platinum**: With icons.json and strict typing the IQS scale is now "near-platinum", with the major caveats that (i) IQS does not apply to custom components and (ii) several standards are N/A but still a very positive indicator.
 - **Project Structure Document**: Updated the project structure document to v1.2.4.
 
-## [1.1.1-dev9] - 2026-05-11 - `icons.json` Implemented; Dynamic and Range Icons
+## [1.1.1-dev9] - 2026-05-11 - UI and Icons: Dynamic and Range-Based Translation Icons
 
-### Added
+### Summary
 
-- IQS Standards Review carried out. Added next steps document and implemented icons.json based on it.
-- **Full Implementation of `icons.json`**: Achieved IQS Gold compliance for `icon-translations` by moving all entity icons to a centralized translation-based system.
-- **Dynamic Icons**: Added dynamic state-based icons for 5G connectivity (`best_connection`), SMS storage status, and roaming.
-- **Range-Based Icons**: Added dynamic icons for battery (10-100%) and signal bars (1-3) that change automatically based on the sensor value.
-- **SMS Inbox-State Icons**: Added dynamic switching for `sms_unread` sensors, showing `mdi:message-badge` when unread messages are present.
+Implemented dynamic state and range icons in icons.json and migrated entity platforms to translation keys.
 
 ### Changed
 
@@ -2254,7 +2826,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **Initial Icon Mapping Gaps**: Resolved missing icon definitions for `sms_storage_full`, `endc_restricted`, `current_connection_duration`, and `total_connection_time` identified during implementation validation.
 
-## [1.1.1-dev8] - 2026-05-11 - Devcontainer Mounts and mypy Path Setup
+## [1.1.1-dev8] - 2026-05-02 - Tooling and Configuration: Devcontainer Mount Consolidation and MyPy Overrides
+
+### Summary
+
+Consolidated devcontainer volume mounts into docker-compose and scoped MyPy checking for Home Assistant core.
 
 ### Changed
 
@@ -2267,7 +2843,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **10 `[type-arg]` strict mypy errors**: Replaced bare `dict` annotations with `dict[str, Any]` across `helpers.py` (3), `sensor.py` (2), `config_flow.py` (2), `__init__.py` (3).
 
-## [1.1.1-dev7] - 2026-05-11 - 33 Strict mypy Errors Resolved
+## [1.1.1-dev7] - 2026-05-11 - Static Analysis: 33 Strict MyPy Errors and Platform Type Annotations
+
+### Summary
+
+Resolved 33 strict MyPy errors across 7 platform files after mounting core type stubs.
 
 ### Changed
 
@@ -2277,7 +2857,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **33 Strict Mypy Errors Resolved**: All remaining strict mypy errors fixed across 7 files (`coordinator.py`, `switch.py`, `sensor.py`, `select.py`, `number.py`, `device_tracker.py`, `config_flow.py`). Key fixes: removed 3 redundant `cast()` calls and annotated `last_update_success_time` as `datetime | None` in `coordinator.py`; corrected `EntityCategory` import path to `homeassistant.const` (4 files); used `NumberMode.SLIDER` enum instead of string `"slider"` in `number.py`; corrected `ScannerEntity` import to `device_tracker.config_entry` and added `# type: ignore[misc]` for `@final device_info` override in `device_tracker.py`; replaced `FlowResult` with `ConfigFlowResult` return type, added null-safety asserts, changed parameter type to `Mapping[str, Any]`, and moved `callback` import to `homeassistant.core` in `config_flow.py`.
 
-## [1.1.1-dev6] - 2026-05-11 - 21 mypy Errors Resolved in Two Batches
+## [1.1.1-dev6] - 2026-05-11 - Static Analysis: Type Narrowing and Generic Annotation Fixes
+
+### Summary
+
+Resolved 21 MyPy type checking errors with function casts, return wrappers, and generic dict annotations.
 
 ### Changed
 
@@ -2288,20 +2872,32 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **11 Mypy Errors Resolved (batch 1)**: Fixed `no-untyped-call` in `api.py` by extracting fetcher list to a typed `list[tuple[str, Callable[[], Any]]]` variable; fixed 3× `no-any-return` in `coordinator.py` via `cast("dict[str, Any]", self.data)`; fixed `no-any-return` in `switch.py` via `bool()` wrapper, `device_tracker.py` via `str(ip)` wrapper, and `binary_sensor.py` via `str(value)` wrapper; fixed `untyped-decorator` in `config_flow.py` via typed `_ha_callback` alias; fixed 3× `no-any-return` in `__init__.py` via `cast` for `entry.runtime_data` and `bool()` for `unload_ok`.
 - **10 Mypy Errors Resolved (batch 2)**: Fixed missing type arguments for bare `dict` annotations (`type-arg`) across `helpers.py` (3), `sensor.py` (2), `config_flow.py` (2), `__init__.py` (3) — added `[str, Any]` type parameters to all generic `dict` usages in function signatures.
 
-## [1.1.1-dev5] - 2026-05-10 - `CONFIG_SCHEMA` Added; Duplicate Sensor IDs Removed
+## [1.1.1-dev5] - 2026-05-10 - Configuration: Config Schema Declaration and Duplicate Unique ID Cleanup
+
+### Summary
+
+Added config_entry_only schema to pass hassfest validation and removed duplicate sensor definitions.
 
 ### Fixed
 
 - **`CONFIG_SCHEMA` hassfest warning**: Added `CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)` to `__init__.py`. Integrations that implement `async_setup` must declare one of `CONFIG_SCHEMA`, `PLATFORM_SCHEMA`, or `PLATFORM_SCHEMA_BASE`; using `config_entry_only_config_schema` is the correct choice for UI-only (config entry) integrations and surfaces a clear error if YAML setup is attempted.
 - **Duplicate sensor unique ID errors**: Removed duplicate `month_upload` and `month_upload_gb` entries from `SENSOR_TYPES` in `sensor.py`. Both descriptors were defined twice identically, causing HA to log `"ID already exists — ignoring"` warnings at startup and silently drop those two sensors. Likely introduced via accidental copy-paste during the mypy fix session (dev4).
 
-## [1.1.1-dev4] - 2026-05-10 - 71 mypy Errors Resolved
+## [1.1.1-dev4] - 2026-05-10 - Static Analysis: 71 MyPy Type Annotation Corrections
+
+### Summary
+
+Resolved 71 MyPy type errors across 11 source files and typed asynchronous tasks.
 
 ### Fixed
 
 - **71 Mypy Errors Resolved**: Comprehensive type annotation fixes across 11 source files (`api.py`, `config_flow.py`, `sensor.py`, `switch.py`, `number.py`, `select.py`, `helpers.py`, `coordinator.py`, `device_tracker.py`, `button.py`, `binary_sensor.py`). Key fixes: added missing parameter/return type annotations; narrowed `Client | None` union throughout `api.py` using assertion-driven pattern; corrected `set_net_mode` keyword arguments to match library API (`lteband`/`networkband`/`networkmode`); typed `_refresh_task` as `asyncio.Task[None] | None` to resolve unreachable code in `number.py`; added `or 0` guard for `_safe_int` division in `month_download_gb`/`month_upload_gb` sensors.
 
-## [1.1.1-dev3] - 2026-05-10 - Shared Reusable CI Workflow Created
+## [1.1.1-dev3] - 2026-05-10 - CI Workflows: Shared Reusable Validation Workflow Deployment
+
+### Summary
+
+Deployed reusable shared GitHub Actions validation workflow and optimized pre-commit and VS Code tasks.
 
 ### Changed — dev tooling
 
@@ -2312,13 +2908,21 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Pre-commit: Suppress Inapplicable Hooks**: Added `stages: [manual]` to the `no-commit-to-branch` hook — direct commits to `main`/`dev` are the working pattern for this project, so the hook is retained for explicit use but removed from the default commit flow. Added `exclude: \.yamllint$` to the `yamllint` hook to prevent it from linting its own config file (which lacks `---` and uses CRLF).
 - **VS Code Tasks**: Added `Zizmor: Fix (Safe Auto-Fix)` task (`zizmor --fix .github/`) for applying zizmor's safe auto-fixes on demand. Added `Pre-commit: Autoupdate Hooks` task (`pre-commit autoupdate`) for updating all hook `rev:` pins to their latest releases. Neither task is wired into `Fix All` or `Validate All`.
 
-## [1.1.1-dev1] - 2026-05-07 - README Top-Level Info Aligned
+## [1.1.1-dev1] - 2026-05-07 - Documentation: README Description Alignment
+
+### Summary
+
+Aligned README repository header and summary with GitHub project description.
 
 ### Changed
 
 - **Readme**: Changed the top level info in readme to line up with GitHub description.
 
-## [1.1.0] - 2026-05-07 - Release - MAC-Based Unique ID; Code Clean-Up
+## [1.1.0] - 2026-05-07 - Release: MAC-Based Unique IDs and Code Cleanup
+
+### Summary
+
+Migrated config entry unique ID generation from IP address to stable MAC address and cleaned codebase.
 
 ### Changed
 
@@ -2326,13 +2930,21 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Unique ID via MAC**: Changed to have the Unique IDs generated from MAC not IP.
 - **Automation Examples**: Updated the automation examples.
 
-## [1.1.0-rc2] - 2026-05-07 - Automation Examples Modernized
+## [1.1.0-rc2] - 2026-05-07 - Documentation: Modern Action Syntax in Automations
+
+### Summary
+
+Updated README automation examples to modern Home Assistant action syntax.
 
 ### Changed
 
 - **Automation Examples**: Updated the automation examples, modern syntax (action vs service).
 
-## [1.1.0-rc1] - 2026-05-07 - Linting, Tests and `quality_scale.yaml` Format
+## [1.1.0-rc1] - 2026-05-07 - Quality Scale: Linting, Unit Tests, and Quality Scale Format
+
+### Summary
+
+Fixed code formatting, added pytest unit tests, and corrected quality_scale.yaml structure.
 
 ### Changed
 
@@ -2340,13 +2952,21 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **Tests**: Added pytests, improved coverage.
 - **IQS**: Corrected format of quality_scale.yaml.
 
-## [1.1.0-dev2] - 2026-05-07 - Diagnostics Test Coverage
+## [1.1.0-dev2] - 2026-05-07 - Test Suite: Diagnostics Platform Test Coverage
+
+### Summary
+
+Added dedicated test suite for diagnostics data scrubbing.
 
 ### Changed
 
 - **Test Coverage**: Improved test coverage including new test file for diagnostics.py.
 
-## [1.1.0-dev1] - 2026-05-07 - `device_id` → `entry_id`; MAC-Based Config Entry ID
+## [1.1.0-dev1] - 2026-05-07 - Architecture: Entry ID Service Targeting and MAC Unique ID
+
+### Summary
+
+Renamed device_id parameter to entry_id across SMS services and migrated unique ID to hardware MAC.
 
 ### Changed
 
@@ -2358,7 +2978,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **Deferred Review Note**: Created `.notes/code_review/code_review_20260507_deferred.md` documenting the M9 (Config Entry → DeviceRegistry) deferral — issue, boot-sequence complexity, and recommended implementation path if revisited.
 
-## [1.0.3-dev3] - 2026-05-07 - Python 3.14 Syntax; Eleven Code-Review Fixes
+## [1.0.3-dev3] - 2026-05-07 - Stability and Compatibility: Python 3.14 Syntax and Eleven Code-Review Fixes
+
+### Summary
+
+Fixed Python 3.14 syntax compatibility and addressed 11 code review findings across device tracking, SMS, and reboot handling.
 
 ### Fixed
 
@@ -2379,7 +3003,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **SMS Message Helper**: Extracted `_get_messages()` in `sensor.py` to deduplicate `parse_sms_list` calls across `native_value` and `extra_state_attributes` of the `last_sms` sensor.
 - **Button Device Info**: Replaced a duplicated `device_info` property in `button.py` with the shared `build_device_info` helper.
 
-## [1.0.3-dev2] - 2026-05-07 - IQS Gold: Diagnostics, Reauth and Repairs
+## [1.0.3-dev2] - 2026-05-07 - Integration Quality: Diagnostics, Reconfiguration, and Repairs
+
+### Summary
+
+Implemented diagnostics dumping, reauth/reconfig flows, and Home Assistant Repairs issue integration.
 
 ### Added
 
@@ -2397,13 +3025,21 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 - **Import Error**: Resolved `AttributeError` for `Platform.DIAGNOSTICS` during integration setup.
 
-## [1.0.3-dev1] - 2026-05-07 - `quality_scale.yaml` Added
+## [1.0.3-dev1] - 2026-05-07 - Standards: Quality Scale Tracking Baseline
+
+### Summary
+
+Added quality_scale.yaml to track Home Assistant Integration Quality Scale standards.
 
 ### Added
 
 - **Quality Scale**: Added quality_scale.yaml into project folder to track compliance to Home Assistant Integration Quality Scale (IQS). As a custom component full compliance is not possible but this is a good mechanism to ensure alignment with Home Assistant best practice.
 
-## [1.0.2] - 2026-05-05 - Release - SMS Management, WiFi Sub-Device and Client Counts
+## [1.0.2] - 2026-05-05 - Release: SMS Management Suite, WiFi Sub-Device, and Client Sensors
+
+### Summary
+
+Added SMS management services, grouped WiFi entities under a dedicated sub-device, and added wired/wireless client sensors.
 
 ### Added
 
@@ -2424,7 +3060,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 - **WiFi Status**: Fixed an issue where 2.4GHz and 5GHz WiFi status sensors did not always report correct status.
 - **Guest WiFi Toggle**: Fixed an issue where the Guest WiFi Network toggle switch did not always work.
 
-## [1.0.2-dev4] - 2026-05-05 - WiFi Sub-Device; H165-383 Fixes; Client Counts
+## [1.0.2-dev4] - 2026-05-05 - Device Organization: WiFi Sub-Device and H165-383 Hardware Fixes
+
+### Summary
+
+Created dedicated WiFi sub-device, resolved H165-383 API format errors, and added client count sensors.
 
 ### Added
 
@@ -2463,7 +3103,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.2-dev3] - 2026-05-04 - SMS Service Suite Expanded; API Concurrency Lock
+## [1.0.2-dev3] - 2026-05-04 - Actions and Concurrency: SMS Service Expansion and API Lock
+
+### Summary
+
+Added SMS deletion and retrieval services with response support and serialized API calls behind asyncio lock.
 
 ### Added
 
@@ -2490,7 +3134,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.2-dev1] - 2026-05-04 - Test Coverage to 99.8% Across Seven Modules
+## [1.0.2-dev1] - 2026-05-04 - Test Suite: 99.8% Comprehensive Statement Coverage
+
+### Summary
+
+Expanded unit tests across all seven platforms and coordinator logic to reach 99.8% code coverage.
 
 ### Changed
 
@@ -2510,7 +3158,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1] - 2026-05-03 - `helpers.py` Coverage to 100%; Project Coverage to 90%
+## [1.0.1] - 2026-05-03 - Release: Helper Suite Test Coverage and Signal Parsing
+
+### Summary
+
+Achieved 100% test coverage for helper module, supported complex signal string parsing, and stabilized device registry logic.
 
 ### Added
 
@@ -2529,7 +3181,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-rc5] - 2026-05-03 - Guard Bands on Eight Frequency Sensors; Translation Gap
+## [1.0.1-rc5] - 2026-05-03 - Signal Diagnostics: Guard Bands on Frequency and Bandwidth Sensors
+
+### Summary
+
+Added 3GPP standards-based maximum limits to frequency and bandwidth sensors and resolved translation gaps.
 
 ### Added
 
@@ -2549,7 +3205,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-rc4] - 2026-05-03 - Documentation Sync Against 106 Entities
+## [1.0.1-rc4] - 2026-05-03 - Documentation: Comprehensive Entity Manifest and Unit Synchronization
+
+### Summary
+
+Synchronized documentation tables and entity counts across 106+ sensors with ground truth data.
 
 ### Changed
 
@@ -2561,7 +3221,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-rc3] - 2026-05-03 - CI Requirements and Coverage Path Fixed
+## [1.0.1-rc3] - 2026-05-03 - CI Configuration: Missing Dependencies and Coverage Scope Correction
+
+### Summary
+
+Added missing library requirements to test environment and corrected coverage directory arguments.
 
 ### Fixed
 
@@ -2570,7 +3234,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev22] - 2026-05-03 - IPv6 DNS and 5G Frequency Sensors; Unit Selector Fixed
+## [1.0.1-dev22] - 2026-05-03 - Sensor Engine: IPv6 DNS and 5G Frequency Sensors
+
+### Summary
+
+Added IPv6 DNS and 5G carrier frequency diagnostic sensors and resolved unit selector configuration.
 
 ### Added
 
@@ -2579,7 +3247,10 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ### Fixed
 
-- **"Unit of Measurement" selector absent on all 8 frequency/bandwidth sensors**: The `device_class=FREQUENCY` HA entity property pages showed no unit selector, preventing users from switching between MHz/kHz/GHz display units. Root cause: all 8 sensors had `state_class=SensorStateClass.MEASUREMENT` set, routing them through HA's long-term statistics path, which does not surface the unit selector for the `FREQUENCY` device class. Fixed by removing `state_class` from all 8 sensors (`lte_uplink_frequency`, `lte_downlink_frequency`, `lte_uplink_bandwidth`, `lte_downlink_bandwidth`, `5g_uplink_frequency`, `5g_downlink_frequency`, `5g_uplink_bandwidth`, `5g_downlink_bandwidth`), matching the pattern used by the HA core Huawei LTE project where frequency sensors carry only `device_class` and the unit selector is surfaced via HA's device-class auto-conversion path.
+- **"Unit of Measurement" selector absent on all 8 frequency/bandwidth sensors**: The `device_class=FREQUENCY` HA entity property pages showed no unit selector, preventing users from switching between MHz/kHz/GHz display units. Root cause: all 8 sensors had `state_class=SensorStateClass.MEASUREMENT` set, routing them through HA's long-term statistics path, which does not surface the unit selector
+
+  > **Correction, 2026-08-26.** The fix held; the stated root cause did not. The unit selector is controlled by the `device_class`, not by `state_class` — verified against `homeassistant/components/sensor/websocket_api.py`. See `AGENTS.md` and chore `C-012`.
+
 - **Preferred Network Mode sensor icon invalid**: `preferred_network_mode` was using `mdi:settings-transfer`, which does not resolve in current Material Design Icons. Replaced with `mdi:tune`.
 
 ### Changed
@@ -2588,7 +3259,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev21] - 2026-05-03 - Test Warnings and `SIM117` Resolved
+## [1.0.1-dev21] - 2026-05-03 - Test Suite: Async Test Warnings and Context Manager Cleanup
+
+### Summary
+
+Resolved unawaited coroutine runtime warnings and simplified nested test context managers.
 
 ### Fixed
 
@@ -2601,7 +3276,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev19] - 2026-05-03 - Best Connection Sensor Overhauled; 11 Entities Enabled
+## [1.0.1-dev19] - 2026-05-03 - Diagnostics: Three-Stage Best Connection Gate and Default Entities
+
+### Summary
+
+Overhauled Best Connection sensor using 3-stage quality gate algorithm and enabled 11 diagnostic entities.
 
 ### Added
 
@@ -2621,7 +3300,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev18] - 2026-05-03 - LTE Frequency and Bandwidth Fields Corrected
+## [1.0.1-dev18] - 2026-05-03 - Signal Diagnostics: LTE Frequency Scaling and Bandwidth Parsing Corrections
+
+### Summary
+
+Corrected carrier frequency divisor factors and extracted bandwidth from dedicated API fields.
 
 ### Added
 
@@ -2641,7 +3324,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev16] - 2026-05-03 - Complex Signal Metric Parsing
+## [1.0.1-dev16] - 2026-05-03 - Signal Diagnostics: Multi-Valued String Metric Parsing
+
+### Summary
+
+Added robust parsing for complex multi-carrier signal strings and relaxed limits on composite diagnostic metrics.
 
 ### Added
 
@@ -2659,7 +3346,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev15] - 2026-05-03 - Dynamic SMS Box Selection; SMS Entities Renamed
+## [1.0.1-dev15] - 2026-05-03 - SMS Management: Dynamic Box Selection and Entity Namespace Optimization
+
+### Summary
+
+Implemented automatic SMS storage target detection and stripped redundant entity prefixes in SMS sub-device.
 
 ### Added
 
@@ -2681,7 +3372,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev14] - 2026-05-03 - `runtime_data` Migration; Domain-Level Service Registration
+## [1.0.1-dev14] - 2026-05-03 - Architecture: Runtime Data Migration and Singleton Action Registration
+
+### Summary
+
+Migrated entry state to entry.runtime_data and registered domain-level SMS services.
 
 ### Added
 
@@ -2697,7 +3392,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev13] - 2026-05-02 - Full Translation Coverage; Entity Naming Refactor
+## [1.0.1-dev13] - 2026-05-02 - Localization: Full Translation Coverage and Dynamic Translation Keys
+
+### Summary
+
+Migrated all entity platforms from hardcoded names to translation keys matching IQS Gold standards.
 
 ### Added
 
@@ -2714,7 +3413,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev12] - 2026-05-02 - Signal and SMS Entity Category Refinement
+## [1.0.1-dev12] - 2026-05-02 - Entity Hierarchy: Signal and SMS Category Optimization
+
+### Summary
+
+Promoted Signal Bars and CQI to primary sensor category and relocated granular SMS storage metrics to diagnostics.
 
 ### Changed
 
@@ -2727,7 +3430,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev10] - 2026-05-02 - Windows Test-Suite Resilience
+## [1.0.1-dev10] - 2026-05-02 - Test Infrastructure: Windows Environment Event Loop Compatibility
+
+### Summary
+
+Configured WindowsSelectorEventLoopPolicy in test suite and standardized API exception fixtures.
 
 ### Changed
 
@@ -2746,7 +3453,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev9] - 2026-05-02 - Long-Term Statistics; Human-Readable Network Mode
+## [1.0.1-dev9] - 2026-05-02 - Entity Configuration: Long-Term Statistics State Classes and Network Mode Text
+
+### Summary
+
+Added state_class for total connection durations and mapped technical network mode PLMN codes to text.
 
 ### Added
 
@@ -2774,7 +3485,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev8] - 2026-05-02 - Immediate Session Retry; Icons for 35 Entities
+## [1.0.1-dev8] - 2026-05-02 - Session Management: Seamless Mid-Fetch Retry and Entity Icons Update
+
+### Summary
+
+Added automatic reauthentication on mid-fetch session timeouts and refreshed icons across 35 entities.
 
 ### Added
 
@@ -2794,7 +3509,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev7] - 2026-05-02 - Typed Session Exceptions; Fast-Fail on Critical Data
+## [1.0.1-dev7] - 2026-05-02 - Error Handling: Typed Session Exceptions and Critical Data Fast-Fail
+
+### Summary
+
+Implemented typed exception catching for session timeouts and added fast-fail validation on device info.
 
 ### Changed
 
@@ -2808,7 +3527,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev6] - 2026-05-02 - Shared `build_device_info`; Auth and PII Fixes
+## [1.0.1-dev6] - 2026-05-02 - Architecture: Shared Device Info Helper and Security Hardening
+
+### Summary
+
+Extracted shared build_device_info helper, sanitized SMS payloads from logs, and closed service unregistration leak.
 
 ### Added
 
@@ -2833,7 +3556,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev5] - 2026-05-02 - Reliability Test Suite
+## [1.0.1-dev5] - 2026-05-02 - Test Suite: Reliability Test Suite and Diagnostic Traceback Validation
+
+### Summary
+
+Implemented reliability tests for mid-fetch recovery and critical key rejection.
 
 ### Added
 
@@ -2848,7 +3575,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev4] - 2026-05-02 - Logging Strategy; Critical Data Guard
+## [1.0.1-dev4] - 2026-05-02 - Coordinator Architecture: Critical Data Guard and Traceback Logging
+
+### Summary
+
+Implemented coordinator critical data guard to prevent partial fetches from clearing sensor states.
 
 ### Added
 
@@ -2864,7 +3595,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
   - Added a **Critical Data Guard** in the coordinator to reject fetches missing essential keys like `device_information`, preventing "partial success" objects from clearing sensors.
   - Integrated authentication failures into the 3-strike resilience logic to hold last known good data during transient session drops.
 
-## [1.0.1-dev3] - 2026-05-02 - Guard Bands on 80 Sensors; SMS Parsing and Events
+## [1.0.1-dev3] - 2026-05-02 - Entity Engine: Min/Max Guard Bands and SMS Parsing
+
+### Summary
+
+Implemented declarative min/max guard bands across 80 numeric sensors and added SMS event triggers.
 
 ### Added
 
@@ -2888,7 +3623,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev2] - 2026-05-02 - Entity Engine: 80 Sensors and Six Platforms
+## [1.0.1-dev2] - 2026-05-02 - Multi-Platform Engine: Eighty Sensor Descriptions and Six Platforms
+
+### Summary
+
+Implemented declarative entity engine spanning 80 sensors across binary sensor, button, number, select, switch, and device tracker platforms.
 
 ### Added
 
@@ -2908,7 +3647,11 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.1-dev1] - 2026-05-02 - Core Architecture: Coordinator, API and Config Flow
+## [1.0.1-dev1] - 2026-05-02 - Core Architecture: DataUpdateCoordinator, API Wrapper, and Non-Blocking Startup
+
+### Summary
+
+Created async DataUpdateCoordinator with 3-strike failure resistance, async API wrapper, and non-blocking setup.
 
 ### Added
 
@@ -2920,9 +3663,13 @@ Reinforced example automations in `README.md` to prevent false triggers during r
 
 ---
 
-## [1.0.0] - 2026-05-02 - Baseline Project Structure
+## [1.0.0] - 2026-05-02 - Release: Initial Baseline Project Structure
 
-### Initial Release
+### Summary
+
+Initial project release establishing baseline repository structure adhering to PlayFaster architectural standards.
+
+### Added
 
 - Baseline project structure following "PlayFaster" v1.2 architectural standards.
 

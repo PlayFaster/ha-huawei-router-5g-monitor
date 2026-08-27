@@ -1379,7 +1379,7 @@ actions:
 
 > [!TIP]
 >
-> To alert only on the serious cases and ignore ordinary connectivity blips, add a condition on the `severity` attribute: `{{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'severity') == 'warning' }}` fires only for a suspected firmware API change, which is the condition that also raises a Repair.
+> To alert only on the serious cases and ignore ordinary connectivity blips, add a condition on the `severity` attribute: `{{ state_attr('binary_sensor.huawei_5g_system_integration_health', 'severity') == 'warning' }}` fires only for a suspected firmware API change. That condition does **not** raise a Repair — nothing in the Repairs panel can resolve a firmware change — so this attribute is how you catch it.
 
 ---
 
@@ -1866,9 +1866,7 @@ It is deliberately **available at all times**, including when every other entity
 
 ### 🔨 Repairs
 
-Some problems need you to do something, so they are also raised in Home Assistant's **Repairs** panel in addition to the Integration Health sensor.
-
-**Two conditions raise a Repair.** Everything else this integration detects is reported on the **Integration Health** sensor or as its own entity, and does not put a card in the panel — a firmware field change shows as `severity: warning` with the detail in the `drift` attribute, and a full message store is the **SMS Storage Full** binary sensor.
+Two conditions raise a card in Home Assistant's **Repairs** panel, and both need you to do something before they clear: the router **refusing the stored credentials**, and the router **not responding** over a sustained period.
 
 <details>
 
@@ -1876,10 +1874,16 @@ Some problems need you to do something, so they are also raised in Home Assistan
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-| Repair | Raised when | Why it is a Repair |
-| :-- | :-- | :-- |
-| **Huawei router sign-in failed** | The router refuses the stored credentials, and a retry does not recover it | The only one you can act on from the panel — it opens a **reauthentication dialog** so you can re-enter the password. Until you do, no data arrives at all. It can mean the password was changed on the router, or that it is refusing new sessions. |
-| **Huawei router is not responding** | 10 consecutive failed fetches | Ten failures in a row means the problem is not clearing on its own. The text lists what to check — power-cycle, whether the IP changed, whether the password changed, the network path. Clears itself once communication is restored. |
+| Condition | Detected State | Surface Reported | Actionable User Step |
+| :-- | :-- | :-- | :-- |
+| **Authentication Failed** | Router rejects stored credentials | **Repairs card** (`auth_failed`) & Integration Health (`error`) | Click **Fix** to re-enter username/password |
+| **Sustained Outage** | 10 consecutive failed polls | **Repairs card** (`conn_error`) & Integration Health (`error`) | Check power, network path, or configured IP address |
+| **Transient Glitch / Reboot** | 1–3 failed poll cycles | Integration Health (`error` during outage) | None (auto-clears on next successful poll) |
+| **Firmware Schema Change** | Unrecognized or missing API fields | Integration Health (`severity: warning`, `drift` attr) | Check for integration updates or report issue |
+
+- **Actionable Issues (Repairs)**: A Repair issue is raised only when a condition persists across multiple polls and requires user intervention to resolve (such as updating credentials or checking physical router power). Non-actionable anomalies (such as API drift) report on the Integration Health sensor attributes instead.
+
+**A Repair also turns the Integration Health sensor on**, so an automation watching that sensor sees these two as well, without watching the panel. See [Self-Diagnosis](#-self-diagnosis).
 
 > [!NOTE]
 >

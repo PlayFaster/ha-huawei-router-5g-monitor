@@ -1257,7 +1257,7 @@ def _declared_repair_keys() -> set[str]:
     return set(REPAIR_NAMES)
 
 
-def test_every_repair_issue_has_title_and_description() -> None:
+def test_every_repair_issue_has_title_and_rendered_text() -> None:
     """A repair with no text renders as a blank card the user cannot act on.
 
     Both files, because Home Assistant ships `strings.json` to translators and
@@ -1265,14 +1265,57 @@ def test_every_repair_issue_has_title_and_description() -> None:
     from the other renders the raw key for English users while every check on
     the other file passes.
 
+    **`description` and `fix_flow` are mutually exclusive**, and this sweep has
+    to allow for that or it contradicts `hassfest`. Its issues schema
+    (`script/hassfest/translations.py`) requires a `title`, then exactly one of
+    the two — `vol.Exclusive(..., "fixable")` — because a fixable issue renders
+    its prose in the flow's step rather than on the card. A sweep asserting
+    both demands a shape Home Assistant rejects, and would pass while
+    validation failed.
+
     Chore `C-022` step 8a.
     """
     for name in ("strings.json", "translations/en.json"):
         issues = _translation_file(name).get("issues", {})
         for key in sorted(_declared_repair_keys()):
             assert key in issues, f"{name} has no text for repair {key!r}"
-            assert issues[key].get("title"), f"{name}: {key} has no title"
-            assert issues[key].get("description"), f"{name}: {key} has no description"
+            entry = issues[key]
+            assert entry.get("title"), f"{name}: {key} has no title"
+
+            has_description = bool(entry.get("description"))
+            has_fix_flow = bool(entry.get("fix_flow"))
+            assert has_description != has_fix_flow, (
+                f"{name}: {key} must carry exactly one of 'description' or "
+                "'fix_flow' - hassfest rejects both, and neither leaves the "
+                "card with an empty body"
+            )
+
+            if has_fix_flow:
+                steps = entry["fix_flow"].get("step", {})
+                assert steps, f"{name}: {key} has a fix_flow with no steps"
+                for step_name, step in steps.items():
+                    assert step.get("description"), (
+                        f"{name}: {key} fix_flow step {step_name!r} has no "
+                        "description, so the dialog renders empty"
+                    )
+
+
+def test_the_fixable_repair_is_the_one_with_a_fix_flow() -> None:
+    """The two translation shapes must line up with what the code raises.
+
+    A `fix_flow` on an issue raised `is_fixable=False` is text nobody can
+    reach; a fixable issue without one gets `ConfirmRepairFlow`, whose Fix
+    button dismisses the card without acting on it. Both fail silently, which
+    is why the pairing is asserted rather than assumed.
+    """
+    from custom_components.huawei_router_5g.const import REPAIR_AUTH_FAILED
+
+    issues = _translation_file("strings.json")["issues"]
+    with_flow = {key for key, entry in issues.items() if entry.get("fix_flow")}
+
+    assert with_flow == {REPAIR_AUTH_FAILED}, (
+        f"expected only {REPAIR_AUTH_FAILED!r} to carry a fix_flow, got {with_flow}"
+    )
 
 
 def test_no_orphan_issue_translations() -> None:

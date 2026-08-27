@@ -58,7 +58,7 @@ A complete list of the static entities and service actions provided by the integ
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
-| SMS Storage Full | `sms_storage_full` | Binary Sensor | - | Diagnostic | **Disabled by default.** |
+| SMS Storage Full | `sms_storage_full` | Binary Sensor | - | Diagnostic | - |
 | Last Msg | `last_sms` | Sensor | - | - | - |
 | Capacity (Device) | `sms_capacity_device` | Sensor | - | Diagnostic | - |
 | Capacity (SIM) | `sms_capacity_sim` | Sensor | - | Diagnostic | - |

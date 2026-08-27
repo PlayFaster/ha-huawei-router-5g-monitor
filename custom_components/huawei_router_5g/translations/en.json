@@ -534,7 +534,14 @@
   "issues": {
     "auth_failed": {
       "title": "Huawei router sign-in failed",
-      "description": "Home Assistant could not sign in to {entry_title}. The stored username or password may no longer be accepted, or the router may be refusing new sessions. Re-enter the credentials to reconnect."
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Re-enter the router credentials",
+            "description": "Home Assistant could not sign in to {entry_title}. The stored username or password may no longer be accepted, or the router may be refusing new sessions.\n\nContinue to re-enter the credentials."
+          }
+        }
+      }
     },
     "conn_error": {
       "title": "Huawei router is not responding",
