@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.2-dev7\] - 2026-08-26 - Linting: Test Import Exclusions](#122-dev7---2026-08-26---linting-test-import-exclusions)
   - [\[1.2.2-dev6\] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment](#122-dev6---2026-08-26---documentation-readme-repairs-and-health-section-alignment)
   - [\[1.2.2-dev5\] - 2026-08-26 - Reauth Repair Flow; SMS Storage Full Enabled By Default](#122-dev5---2026-08-26---reauth-repair-flow-sms-storage-full-enabled-by-default)
@@ -176,6 +177,28 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
+
+Routine maintenance update refining Repair notifications with no changes to daily operation; safe to skip until you are next updating integrations.
+
+### Summary
+
+- **Reauthentication Repair Flow**: Clicking the Fix button on an authentication failure Repair now directly opens the reauthentication dialog so you can update your router credentials immediately.
+- **SMS Storage Full Sensor Enabled by Default**: The SMS Storage Full binary sensor is now enabled by default on new setups, making inbox capacity issues immediately visible for dashboards and alerts.
+
+### Fixed
+
+- **Authentication Failure Repair Fix Flow**: Added an interactive fix flow to the `auth_failed` Repair card. Submitting the fix now launches the integration's reauthentication dialog directly, resolving an issue where the Fix button dismissed the notification card without updating the stored credentials.
+
+### Changed
+
+- **SMS Storage Full Entity Default**: Enabled `binary_sensor.*_sms_storage_full` by default on new setups so full router SMS storage states are automatically tracked without requiring manual entity activation.
+- **Repairs Reference Documentation**: Updated the Repairs documentation, separating persistent Repairs (`auth_failed`, `conn_error`) from transient errors.
+
+### Under the hood
+
+- Expanded test coverage across repair flows and validation schemas to maintain 100% line and branch coverage.
 
 ## [1.2.2-dev7] - 2026-08-26 - Linting: Test Import Exclusions
 
@@ -659,7 +682,7 @@ Bumped typing and test dependencies, updated git ignore rules, and corrected cha
 
 ### Changed
 
-- **gitignore**: Updated `.gitignore`to add `.mdbase/`an Obsidian folder.
+- **gitignore**: Updated `.gitignore`to add `.mdbase/` an Obsidian folder.
 - **Changelog**: Updated `CHANGELOG.md`to correct last release date.
 
 ## [1.2.1-dev2] - 2026-08-22 - CI and Compatibility: Workflow Bumps and Platform Compatibility Matrix

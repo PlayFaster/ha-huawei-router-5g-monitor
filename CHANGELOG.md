@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
+
+Routine maintenance update refining Repair notifications with no changes to daily operation; safe to skip until you are next updating integrations.
+
+### Summary
+
+- **Reauthentication Repair Flow**: Clicking the Fix button on an authentication failure Repair now directly opens the reauthentication dialog so you can update your router credentials immediately.
+- **SMS Storage Full Sensor Enabled by Default**: The SMS Storage Full binary sensor is now enabled by default on new setups, making inbox capacity issues immediately visible for dashboards and alerts.
+
+### Fixed
+
+- **Authentication Failure Repair Fix Flow**: Added an interactive fix flow to the `auth_failed` Repair card. Submitting the fix now launches the integration's reauthentication dialog directly, resolving an issue where the Fix button dismissed the notification card without updating the stored credentials.
+
+### Changed
+
+- **SMS Storage Full Entity Default**: Enabled `binary_sensor.*_sms_storage_full` by default on new setups so full router SMS storage states are automatically tracked without requiring manual entity activation.
+- **Repairs Reference Documentation**: Updated the Repairs documentation, separating persistent Repairs (`auth_failed`, `conn_error`) from transient errors.
+
+### Under the hood
+
+- Expanded test coverage across repair flows and validation schemas to maintain 100% line and branch coverage.
+
 ## [1.2.1] - 2026-08-24 - Release: Connection Loss Repair Triggering
 
 ### Summary
@@ -154,6 +176,7 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
+  - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering](#121---2026-08-24---release-connection-loss-repair-triggering)
   - [\[1.2.0\] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-telemetry-entities-data-projections-control-switches-and-health-monitoring)
   - [\[1.1.2\] - 2026-07-03 - Release: Manual Refresh Controls, Display Precision Units, and Configuration Hardening](#112---2026-07-03---release-manual-refresh-controls-display-precision-units-and-configuration-hardening)
