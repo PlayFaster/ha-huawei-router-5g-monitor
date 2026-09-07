@@ -22,9 +22,10 @@ by the tests below, which require each published key to be present in the file.
 """
 
 import json
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 
 import pytest
+from homeassistant.components.sensor import SensorEntityDescription
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -250,3 +251,56 @@ async def test_a_capture_that_is_not_a_mapping_is_not_published(
     assert result["last_rejection"] is None
     assert result["login"] == {}
     assert result["endpoints"] == {}
+
+
+# ---------------------------------------------------------------------------
+# A description that throws — a defect in this integration, not in the firmware
+# ---------------------------------------------------------------------------
+
+
+async def test_a_description_that_raises_is_named_with_its_exception(
+    diagnostics_entry,
+) -> None:
+    """A `value_fn` that throws against a payload is recorded, not swallowed.
+
+    This is the one outcome in `entity_resolution` that is a defect on **our**
+    side. An entity whose description raises simply shows nothing, so without
+    this the failure is invisible in operation and invisible in the download —
+    and it is exactly the shape an unfamiliar firmware would provoke, by
+    answering a block with a type or a nesting this integration never expected.
+    """
+    exploding = SensorEntityDescription(key="explodes")
+    object.__setattr__(exploding, "value_fn", lambda _payload: 1 / 0)
+    diagnostics_entry.runtime_data.coordinator = None
+    diagnostics_entry.runtime_data.data = {"device_information": {"a": "1"}}
+
+    with patch("custom_components.huawei_router_5g.sensor.SENSOR_TYPES", (exploding,)):
+        result, _ = await _dump(diagnostics_entry)
+
+    sensor = result["entity_resolution"]["sensor"]
+    assert sensor["raised"] == {"explodes": "ZeroDivisionError"}
+    assert sensor["total"] == 1
+    assert sensor["resolved"] == 0
+
+
+async def test_a_raising_description_does_not_stop_the_others(
+    diagnostics_entry,
+) -> None:
+    """One bad description must not cost the whole resolution map."""
+    exploding = SensorEntityDescription(key="explodes")
+    object.__setattr__(exploding, "value_fn", lambda _payload: 1 / 0)
+    working = SensorEntityDescription(key="works")
+    object.__setattr__(working, "value_fn", lambda payload: payload.get("present"))
+
+    diagnostics_entry.runtime_data.data = {"present": "yes"}
+
+    with patch(
+        "custom_components.huawei_router_5g.sensor.SENSOR_TYPES",
+        (exploding, working),
+    ):
+        result, _ = await _dump(diagnostics_entry)
+
+    sensor = result["entity_resolution"]["sensor"]
+    assert sensor["raised"] == {"explodes": "ZeroDivisionError"}
+    assert sensor["resolved"] == 1
+    assert sensor["total"] == 2

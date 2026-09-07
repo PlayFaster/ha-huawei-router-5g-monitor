@@ -20,6 +20,15 @@ The integration follows the standard Home Assistant Custom Component pattern, op
 - **`number.py`**: Provides UI control over the refresh interval with persistent storage in `ConfigEntry` options. The write is debounced by two seconds and **flushed rather than canceled** on removal — a reload lands inside that window (an options change is enough), and canceling discarded the value silently.
 - **`config_flow.py`**: Manages initial setup and reconfiguration, implementing the "Flat Identity" pattern by persisting hardware metadata (Model, MAC, Version) at boot. Normalizes the host input (`_clean_host`) before storage, and on edit screens leaves credential fields blank (masked, never pre-filled) — restoring the stored password on a blank submit via `_merge_credentials`, so the password can be re-set without ever being displayed.
 - **`helpers.py`**: Contains robust parsers for SMS lists and technical metric sanitization (e.g., stripping 'dBm', 'MHz' suffixes).
+- **`diagnostics.py`**: Builds the config-entry diagnostics download. Sanitizes the payload by walking it — key-name matches for known identifier classes, a shape-based sweep for everything else — and publishes four evidence blocks beside it: `last_rejection` (the response behind the most recent failure, with the router's error code), `endpoints` (every polled endpoint's outcome, with key and populated counts), `entity_resolution` (which entity descriptions this payload populates, and which raise), and `probes` (46 endpoints the integration does not poll, called once per download). The three blocks after the first exist so a report from an unfamiliar Huawei model can be read: an endpoint absent from the payload now says whether it was refused, skipped or unreachable.
+
+### Scripts (`scripts/`)
+
+Neither runs in CI; both need the router.
+
+- **`hardware_check.py`**: Exercises the write path against the real device. Two tiers — a read-only safe tier, and `--attended` writes offered one at a time with their cost stated.
+- **`diag_check.py`**: Produces real diagnostics downloads and asserts over the produced file rather than the producer, then runs twice and diffs. `--sabotage` ends the session mid-poll to classify a real expiry.
+- **`write_classification.py`**: The register every write must appear in, enforced by `test_every_write_is_classified`.
 
 ## 3. Historical Architectural Shifts
 

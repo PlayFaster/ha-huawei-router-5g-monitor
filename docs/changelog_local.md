@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev5\] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered](#123-dev5---2026-09-07---coverage-shortfall-now-reported-by-the-summary-entity-resolution-failure-path-covered)
   - [\[1.2.3-dev4\] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46](#123-dev4---2026-09-07---endpoint-probe-session-churn-fixed-probe-set-widened-to-46)
   - [\[1.2.3-dev3\] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe](#123-dev3---2026-09-07---diagnostic-download-rejection-endpoint-and-entity-evidence-unpolled-endpoint-probe)
   - [\[1.2.3-dev2\] - 2026-09-07 - CI Bumps; Doc Updates](#123-dev2---2026-09-07---ci-bumps-doc-updates)
@@ -181,6 +182,38 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3-dev5] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered
+
+### Summary
+
+The shared `Show: Results Summary` task reported Pytest as green while coverage was failing at 99.90%. One report file carries both verdicts and only one row read it, so the row matched " passed", found it, and never inspected the coverage result two lines above. A second row now reads the same file for the coverage outcome, and the three statements that were uncovered — the branch recording an entity description that throws — are tested.
+
+### Fixed
+
+- **`Show: Results Summary` now reports a coverage shortfall.** A `Pytest Coverage` row reads `.reports/pytest_coverage.txt` for `% reached`, which appears only on success: a failure prints `100.0% not reached`, so the substring cannot match and the row goes red without hard-coding a percentage that `fail_under` might change. Added to both summary tasks — `Show: Results Summary` and `Show: Results Summary (Fix and Validate)` — since two rollups disagreeing about the same file is the defect in a different place. **Edited in `dev-workbench/workbench/tasks.json` and synced**, never in the project clone.
+- **The existing `Pytest` row is unchanged.** It answers whether the tests passed, which is a different question; removing it would let a coverage shortfall mask a genuine test failure.
+
+### Tests
+
+- **1035 passing, coverage 100.00%**, up from 1033 and 99.90%.
+- **`diagnostics.py` is at 100%**, from 98%. The uncovered statements were the `except` in `_entity_resolution` that records a description whose `value_fn` raises — the one outcome in that block reporting a defect on this integration's side rather than the firmware's, and the one an unfamiliar payload shape would provoke. Two tests cover it: the key is recorded with its exception class, and one raising description does not cost the rest of the map.
+
+### Documentation
+
+- **`AGENTS.md`** gains a section on `scripts/diag_check.py` beside the hardware-check one, carrying the rule that governs sweeps: never call through `_execute_with_retry`, with the measurement behind it. Also records that a probe publishes names and counts but never values, that an excluded endpoint must state its reason, and that widening the stability tolerance narrows what the check can catch.
+- **`docs/huawei_how_to_access.md`** — the `Readable, never reviewed` table now carries measured results for the five endpoints the probe added, and the not-supported section records that the list is measured on every download. **`sms.config` answers the question that table was carrying, in the negative**: 16 keys, 14 populated, and no character limit among them, so the outgoing SMS ceilings taken from the router's web interface stand. `smscharlang` and `smsisusepdu` bear on GSM-7 versus UCS-2 selection and are worth a separate look.
+- **`docs/DEVELOPMENT.md`** — `diagnostics.py` added to the core-file list, which had never named it, and a `Scripts (scripts/)` subsection covering all three scripts.
+- **`README.md`** — a compatibility-section note inviting owners of other models to share a diagnostics download, aligned to the `zte_router_5g` wording and corrected where the two projects differ: this integration probes a fixed set of endpoints rather than mining parameter names, and the download completes in under two seconds on the reference device, so the duration warning that entry needs was dropped rather than restated.
+
+### Verified
+
+- **The new row was verified failing before it was verified passing.** Against the 99.90% state it reported `✖ Pytest Coverage`; after the gap was closed, `✔ Required test coverage of 100.0% reached. Total coverage: 100.00%`. A check that has only ever passed is not evidence.
+- Run through `python3 .workbench/run_task.py`, not ad-hoc, so the `.reports/` artefact the row reads is the one the task produced.
+
+### Known
+
+- **A failing coverage row prints an unhelpful detail.** `chk` falls back to the file's last line, and the coverage task appends its `Coverage exclusions:` note after pytest's output, so a shortfall shows that line rather than `FAIL Required test coverage`. The red mark itself is correct and unambiguous. Not changed, because `chk`'s fallback is generic to every row in the summary.
 
 ## [1.2.3-dev4] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46
 

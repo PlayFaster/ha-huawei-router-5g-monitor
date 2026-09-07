@@ -241,16 +241,20 @@ They are listed here as the record of the decision and the live values it was ma
 
 Found by the endpoint sweep and **not** assessed. Recorded so the next person starts here rather than re-running the probe.
 
+> [!NOTE]
+>
+> **Five of these are now called on every diagnostics download**, and their live shape on this hardware is recorded in the rows below — measured 2026-09-07 by `api.DIAGNOSTIC_PROBES`. They are still unassessed as _entity candidates_; what has changed is that a download now says whether a given model serves them, so the next assessment starts from evidence rather than from a probe run by hand. `sms.config` is the one that answered the open question in this table.
+
 | Endpoint | Keys | Note |
 | :-- | :-- | :-- |
-| `global_.module_switch` | 94 | The largest capability block on the device |
-| `security.get_firewall_switch` | 11 | Firewall toggles |
+| `global_.module_switch` | 94 | The largest capability block on the device. **Probed:** answers 94 keys, all populated |
+| `security.get_firewall_switch` | 11 | Firewall toggles. **Probed:** answers 11 keys, all populated |
 | `security.nat`, `.dmz`, `.virtual_servers`, `.mac_filter`, `.url_filter` | 1–3 each | Firewall and forwarding configuration |
 | `diagnosis.diagnose_ping`, `.diagnose_traceroute` | 11, 6 | **The router will run a ping or traceroute on request.** Interesting and unexplored |
-| `diagnosis.time_reboot` | 4 | **Scheduled reboot, and it is ENABLED on the reference unit.** `enable='1'`, `dayinterval='7'`, `begintime='60'`, `endtime='300'` — a reboot every 7 days in a window that reads as 01:00–05:00 if the times are minutes past midnight, which is **inference from the values fitting, not measurement**. Worth knowing even if never exposed: it explains a weekly uptime reset, and it interacts with reboot detection. `zte_router_5g` exposes an equivalent |
-| `online_update.status`, `.configuration`, `.autoupdate_config` | 8, 4, 2 | Firmware update state — may decode `monitoring_status.OnlineUpdateStatus`, which was rejected as an unknown code |
-| `sms.config` | 16 | SMS behavior settings. **Worth a look for the outgoing length ceilings** — those are currently taken from the router's web interface rather than from the API, and this is the block most likely to carry them |
-| `led.appctrlled` | 3 | LED control |
+| `diagnosis.time_reboot` | 4 | **Scheduled reboot, and it is ENABLED on the reference unit.** `enable='1'`, `dayinterval='7'`, `begintime='60'`, `endtime='300'` — a reboot every 7 days in a window that reads as 01:00–05:00 if the times are minutes past midnight, which is **inference from the values fitting, not measurement**. Worth knowing even if never exposed: it explains a weekly uptime reset, and it interacts with reboot detection. `zte_router_5g` exposes an equivalent. **Probed:** answers `enable`, `dayinterval`, `begintime`, `endtime` — the four keys, all populated |
+| `online_update.status`, `.configuration`, `.autoupdate_config` | 8, 4, 2 | Firmware update state — may decode `monitoring_status.OnlineUpdateStatus`, which was rejected as an unknown code. **Probed:** `status` answers 8 keys, all populated |
+| `sms.config` | 16 | SMS behavior settings. **Probed 2026-09-07: 16 keys, 14 populated, and the length ceilings are not among them.** The keys are `SaveMode`, `Sca`, `SendType`, `UseSReport`, `Validity`, `country_number`, `import_enabled`, `maxphone`, `pagesize`, `phone_number`, `sms_center_number_editabled`, `sms_forward_enable`, `smscharlang`, `smsisusepdu`, `switch_enable`, `url_enabled`. `smscharlang` and `smsisusepdu` bear on GSM-7 versus UCS-2 selection and are worth a look; nothing here supplies a character limit, so the web-interface figures stand |
+| `led.appctrlled` | 3 | LED control. **Probed:** answers 3 keys, all populated |
 | `redirection.homepage`, `staticroute.wanpath`, `dhcp.static_addr_info` | 1–2 | Minor configuration |
 
 ---
@@ -258,6 +262,10 @@ Found by the endpoint sweep and **not** assessed. Recorded so the next person st
 ## ❌ Not supported on this hardware
 
 Returned `100002: No support`. **Do not add, do not retry.**
+
+> [!NOTE]
+>
+> **This list is now measured on every diagnostics download.** `api.DIAGNOSTIC_PROBES` calls 46 unpolled endpoints once per download and records each as answered, refused with the router's own code, or unavailable. On this hardware, 2026-09-07: **31 answered, 15 refused, none unavailable** — eleven `100002` and four `100003`. The point is not this device, which is already understood, but a report from a model nobody here has seen: an endpoint missing from the payload now says which of those it was.
 
 `monitoring.daily_data_limit` · `monitoring.month_statistics_wlan` · `wlan.station_information` · `wlan.basic_settings` · `ntwk.celllock` · `system.deviceinfo` · `statistic.feature_roam_statistic` · `user.remember_pwd`
 

@@ -64,6 +64,14 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - _(Note: While protocol support for these models is built into `huawei-lte-api`, they remain unverified on live hardware for this custom integration)._
   - _(Note: Rebranded Brovi/SoyeaLink models report as manufacturer "Huawei" in Home Assistant)_
 
+> [!TIP] **Help verify your router model**
+>
+> If you are using a model other than the CPE Pro 6 [H165] (or a different firmware version), sharing a **Diagnostic Download** is extremely valuable — even when everything is working. The download records which endpoints your router's firmware serves, refuses, or answers empty, and which of this integration's entities it can populate.
+>
+> 🔒 **Privacy**: Passwords, credentials, subscriber identifiers (IMSI/ICCID), carrier names, and SMS messages are automatically redacted or pseudonymized before saving.
+>
+> 📖 See [How do I download diagnostics?](#-how-do-i-download-diagnostics) for the full step-by-step guide, and attach your file to a new [GitHub Issue](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/issues) with your router model and firmware version.
+
 - **Not Compatible (Incompatible Router Families)**:
   - ❌ **Huawei Landline & Mesh Wi-Fi Routers (WS5200, AX3, AX3 Pro, WiFi Mesh 3/7)** — These landline mesh routers do not run the cellular HiLink modem API. Use **[`vmakeev/huawei_mesh_router`](https://github.com/vmakeev/huawei_mesh_router)** instead.
   - ❌ **Legacy VDSL/Fiber Gateways (e.g. Huawei HG659)** — These use gateway-specific presence detection APIs. Use **[`JohnPaton/huawei-hg659`](https://github.com/JohnPaton/huawei-hg659)** instead.

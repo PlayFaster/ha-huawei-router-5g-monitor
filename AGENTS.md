@@ -137,6 +137,20 @@ Four things to know before editing it:
 
 New checks must record evidence, not just a verdict, and must restore what they changed with the restore itself recorded as a row.
 
+### The diagnostics check, and the one rule that governs sweeps
+
+`scripts/diag_check.py` is the second script that needs the router and never runs in CI. It builds a real coordinator, calls the real `async_get_config_entry_diagnostics`, asserts over the **produced file** rather than the producer, and runs twice to diff. `--sabotage` ends the session mid-poll so a real expiry is classified by real firmware. It writes `.reports/diag_check.txt` and is wired into the shared `tasks.json` as **Hardware: Check Diagnostics Download**.
+
+It exists because the unit suite asserts on what the API client holds while the user receives what `diagnostics.py` publishes. `zte_router_5g` shipped a field that five green tests asserted and no download ever carried.
+
+Three things to know before editing it or anything it exercises:
+
+- **Never sweep endpoints through `_execute_with_retry`.** `huawei-lte-api` raises `ResponseErrorLoginRequiredException` for `100003` and for no other code, and `100003` is a refusal on this firmware rather than an expiry — so that wrapper re-logs in on every refusal. Measured 2026-09-07: two logins per `100003` against one for any other outcome, and a 46-endpoint sweep through it left the router answering `LoginErrorAlreadyLoginException` and then refusing connections, turning the rest of the run into artefacts. `api.probe_diagnostic_endpoints` calls directly on one established session for this reason. `docs/huawei_how_to_access.md` carries the mechanism and had already warned that bulk sweeps produce false `100003` results — twice before this.
+- **A probe publishes key names and counts, never values.** A value from an endpoint nobody here has seen has no entry in `diagnostics.py`'s key lists and would be published intact by a sanitizer that matches on exact key names.
+- **An endpoint left out of the probe set says why**, in `api.PROBES_EXCLUDED`, so nobody adds it back blind. `system.onlinestate` is there because the endpoint returns a list and the library calls `.get()` on it; the two `diagnosis` calls are there because they make the router _perform_ a network operation rather than report one.
+
+The stability comparison in the script tolerates values the device changes on its own — radio measurements, counters, timings, populated counts. **Widening that tolerance is a change to what the check can still catch**, so a new entry needs its reason beside it.
+
 ## Before you write a test for new behavior
 
 Four questions, because the first six of the ten analysis categories are each scoped to one function and the defects that survive 100% branch coverage are not.
