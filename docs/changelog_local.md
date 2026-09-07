@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev1\] - 2026-09-07 - CI Bumps; SShared Local CI Improvements; Doc Updates](#123-dev1---2026-09-07---ci-bumps-sshared-local-ci-improvements-doc-updates)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.2-dev7\] - 2026-08-26 - Linting: Test Import Exclusions](#122-dev7---2026-08-26---linting-test-import-exclusions)
   - [\[1.2.2-dev6\] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment](#122-dev6---2026-08-26---documentation-readme-repairs-and-health-section-alignment)
@@ -16,7 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering, Signal Parsing Resilience, and Default Sensor Tuning](#121---2026-08-24---release-connection-loss-repair-triggering-signal-parsing-resilience-and-default-sensor-tuning)
   - [\[1.2.1-dev17\] - 2026-08-24 - Test Suite: Polling Deadline Seam-Test Concurrency Fix](#121-dev17---2026-08-24---test-suite-polling-deadline-seam-test-concurrency-fix)
   - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Architecture: Client Devices via `via_device_id` Defined](#121-dev16---2026-08-24---device-tracker-architecture-client-devices-via-via_device_id-defined)
-  - [\[1.2.1-dev15\] - 2026-08-24 - Telemetry Configuration: Write-Refusal Sweeps and Rate Sensor Defaults](#121-dev15---2026-08-24---telemetry-configuration-write-refusal-sweeps-and-rate-sensor-defaults)
+  - [\[1.2.1-dev15\] - 2026-08-24 - Sensor Configuration: Write-Refusal Sweeps and Rate Sensor Defaults](#121-dev15---2026-08-24---sensor-configuration-write-refusal-sweeps-and-rate-sensor-defaults)
   - [\[1.2.1-dev14\] - 2026-08-24 - Documentation Reconciliation: Sub-Devices and Tracker Architecture Records](#121-dev14---2026-08-24---documentation-reconciliation-sub-devices-and-tracker-architecture-records)
   - [\[1.2.1-dev13\] - 2026-08-24 - Work Queue: Device-Tracker Naming Task Consolidation](#121-dev13---2026-08-24---work-queue-device-tracker-naming-task-consolidation)
   - [\[1.2.1-dev12\] - 2026-08-24 - Code Quality: US Spelling Standardization](#121-dev12---2026-08-24---code-quality-us-spelling-standardization)
@@ -30,13 +31,13 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.1-dev4\] - 2026-08-23 - CI and Tooling: Dependency Bumps and Git Ignore Rules](#121-dev4---2026-08-23---ci-and-tooling-dependency-bumps-and-git-ignore-rules)
   - [\[1.2.1-dev2\] - 2026-08-22 - CI and Compatibility: Workflow Bumps and Platform Compatibility Matrix](#121-dev2---2026-08-22---ci-and-compatibility-workflow-bumps-and-platform-compatibility-matrix)
   - [\[1.2.1-dev1\] - 2026-08-20 - Tooling: Ruff Version Bump](#121-dev1---2026-08-20---tooling-ruff-version-bump)
-  - [\[1.2.0\] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-telemetry-entities-data-projections-control-switches-and-health-monitoring)
+  - [\[1.2.0\] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-sensor-entities-data-projections-control-switches-and-health-monitoring)
   - [\[1.2.0-dev77\] - 2026-08-20 - Hardware Verification: Switch Matching and SIM Masking](#120-dev77---2026-08-20---hardware-verification-switch-matching-and-sim-masking)
   - [\[1.2.0-dev73\] - 2026-08-19 - Actions: Encoding-Aware SMS Length Limits](#120-dev73---2026-08-19---actions-encoding-aware-sms-length-limits)
   - [\[1.2.0-dev71\] - 2026-08-19 - Logging: SMS Payload and Phone Number Privacy](#120-dev71---2026-08-19---logging-sms-payload-and-phone-number-privacy)
   - [\[1.2.0-dev70\] - 2026-08-19 - Controls: Switch Write Latching and State Retention](#120-dev70---2026-08-19---controls-switch-write-latching-and-state-retention)
   - [\[1.2.0-dev65\] - 2026-08-19 - Connection Resilience: Connection Repair Strike Limit Alignment](#120-dev65---2026-08-19---connection-resilience-connection-repair-strike-limit-alignment)
-  - [\[1.2.0-dev61\] - 2026-08-19 - Telemetry Configuration: Transmit Power Guard Band Removal](#120-dev61---2026-08-19---telemetry-configuration-transmit-power-guard-band-removal)
+  - [\[1.2.0-dev61\] - 2026-08-19 - Sensor Configuration: Transmit Power Guard Band Removal](#120-dev61---2026-08-19---sensor-configuration-transmit-power-guard-band-removal)
   - [\[1.2.0-dev59\] - 2026-08-19 - Hardware Verification: Script Reporting and Contention Coverage](#120-dev59---2026-08-19---hardware-verification-script-reporting-and-contention-coverage)
   - [\[1.2.0-dev58\] - 2026-08-18 - CI and Test Infrastructure: 100% Coverage Threshold Enforcement](#120-dev58---2026-08-18---ci-and-test-infrastructure-100-coverage-threshold-enforcement)
   - [\[1.2.0-dev57\] - 2026-08-18 - Concurrency and Resilience: Bounded Writes and Salvaged Polls](#120-dev57---2026-08-18---concurrency-and-resilience-bounded-writes-and-salvaged-polls)
@@ -44,7 +45,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev54\] - 2026-08-17 - Diagnostic Health: Severity Enum and Strike Constant Alignment](#120-dev54---2026-08-17---diagnostic-health-severity-enum-and-strike-constant-alignment)
   - [\[1.2.0-dev53\] - 2026-08-17 - Documentation: Accuracy Reconciliation and Stale Guidance Cleanup](#120-dev53---2026-08-17---documentation-accuracy-reconciliation-and-stale-guidance-cleanup)
   - [\[1.2.0-dev52\] - 2026-08-17 - Test Quality: Assertion Audit and Concrete Verification](#120-dev52---2026-08-17---test-quality-assertion-audit-and-concrete-verification)
-  - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
+  - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Local CI python-typing-update Removal; Drift Auditor Source Footnotes](#120-dev51---2026-08-17---dev-workbench-local-ci-python-typing-update-removal-drift-auditor-source-footnotes)
   - [\[1.2.0-dev50\] - 2026-08-17 - Architecture and Roadmap: Client Tracking Opt-Out and Poll Timings](#120-dev50---2026-08-17---architecture-and-roadmap-client-tracking-opt-out-and-poll-timings)
   - [\[1.2.0-dev47\] - 2026-08-17 - Test Coverage: Full Line and Branch Coverage Restoration](#120-dev47---2026-08-17---test-coverage-full-line-and-branch-coverage-restoration)
   - [\[1.2.0-dev46\] - 2026-08-17 - Controls: Network Mode Option List Startup Ordering](#120-dev46---2026-08-17---controls-network-mode-option-list-startup-ordering)
@@ -63,7 +64,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev31\] - 2026-08-15 - Test Suite: Mutation Testing Triage and SMS Parser Fixes](#120-dev31---2026-08-15---test-suite-mutation-testing-triage-and-sms-parser-fixes)
   - [\[1.2.0-dev30\] - 2026-08-15 - Verification Pass: Live Readback Validation and Timer Callback Tests](#120-dev30---2026-08-15---verification-pass-live-readback-validation-and-timer-callback-tests)
   - [\[1.2.0-dev29\] - 2026-08-15 - Tooling: Ruff Version Bump](#120-dev29---2026-08-15---tooling-ruff-version-bump)
-  - [\[1.2.0-dev28\] - 2026-08-15 - Telemetry Configuration: Per-Entry Projection Caching and Source Root Resolvers](#120-dev28---2026-08-15---telemetry-configuration-per-entry-projection-caching-and-source-root-resolvers)
+  - [\[1.2.0-dev28\] - 2026-08-15 - Sensor Configuration: Per-Entry Projection Caching and Source Root Resolvers](#120-dev28---2026-08-15---sensor-configuration-per-entry-projection-caching-and-source-root-resolvers)
   - [\[1.2.0-dev27\] - 2026-08-15 - Dependencies: URL Normalization Dependency Removal](#120-dev27---2026-08-15---dependencies-url-normalization-dependency-removal)
   - [\[1.2.0-dev25\] - 2026-08-15 - Test Infrastructure: Entity Hygiene Sweeps and Unverified Write Refresh](#120-dev25---2026-08-15---test-infrastructure-entity-hygiene-sweeps-and-unverified-write-refresh)
   - [\[1.2.0-dev24\] - 2026-08-15 - Test Quality: Regression Proofs for Rounding and Translation Sweeps](#120-dev24---2026-08-15---test-quality-regression-proofs-for-rounding-and-translation-sweeps)
@@ -72,14 +73,14 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS Deduplication and Event Payload Contracts](#120-dev21---2026-08-15---depth-review-sms-deduplication-and-event-payload-contracts)
   - [\[1.2.0-dev20\] - 2026-08-15 - Diagnostics and Data Sanitization: Diagnostic Tokens and Address Redaction](#120-dev20---2026-08-15---diagnostics-and-data-sanitization-diagnostic-tokens-and-address-redaction)
   - [\[1.2.0-dev19\] - 2026-08-15 - Test Infrastructure: Mutation Testing Setup and Test Root Resolvers](#120-dev19---2026-08-15---test-infrastructure-mutation-testing-setup-and-test-root-resolvers)
-  - [\[1.2.0-dev18\] - 2026-08-15 - Telemetry: Explanatory About Attribute Notes on Every Entity](#120-dev18---2026-08-15---telemetry-explanatory-about-attribute-notes-on-every-entity)
+  - [\[1.2.0-dev18\] - 2026-08-15 - Entity Documentation: Explanatory About Attribute Notes on Every Entity](#120-dev18---2026-08-15---entity-documentation-explanatory-about-attribute-notes-on-every-entity)
   - [\[1.2.0-dev17\] - 2026-08-15 - Diagnostics: Router Diagnostics Binary Sensor](#120-dev17---2026-08-15---diagnostics-router-diagnostics-binary-sensor)
-  - [\[1.2.0-dev16\] - 2026-08-15 - Controls and Telemetry: Master WiFi Radio Switch and Voice Entities](#120-dev16---2026-08-15---controls-and-telemetry-master-wifi-radio-switch-and-voice-entities)
+  - [\[1.2.0-dev16\] - 2026-08-15 - Controls and Sensors: Master WiFi Radio Switch and Voice Entities](#120-dev16---2026-08-15---controls-and-sensors-master-wifi-radio-switch-and-voice-entities)
   - [\[1.2.0-dev15\] - 2026-08-15 - Polling Engine: Follow-Up Refresh Execution During Polling Pauses](#120-dev15---2026-08-15---polling-engine-follow-up-refresh-execution-during-polling-pauses)
   - [\[1.2.0-dev14\] - 2026-08-15 - Polling Engine: Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---polling-engine-follow-up-refresh-after-reboot-and-reconnect)
   - [\[1.2.0-dev13\] - 2026-08-15 - Controls: Reconnect Button Fix Using Dual Dial Actions](#120-dev13---2026-08-15---controls-reconnect-button-fix-using-dual-dial-actions)
   - [\[1.2.0-dev12\] - 2026-08-15 - Dependencies: Upstream Library Pin Bump to 2.0.1](#120-dev12---2026-08-15---dependencies-upstream-library-pin-bump-to-201)
-  - [\[1.2.0-dev11\] - 2026-08-15 - Telemetry: Expanded Entity Set and Monthly Data-Usage Projections](#120-dev11---2026-08-15---telemetry-expanded-entity-set-and-monthly-data-usage-projections)
+  - [\[1.2.0-dev11\] - 2026-08-15 - Sensor Expansion: Expanded Entity Set and Monthly Data-Usage Projections](#120-dev11---2026-08-15---sensor-expansion-expanded-entity-set-and-monthly-data-usage-projections)
   - [\[1.2.0-dev10\] - 2026-08-15 - Documentation: Huawei API Access Reference](#120-dev10---2026-08-15---documentation-huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap: Roadmap Task Alignment](#120-dev9---2026-08-14---roadmap-roadmap-task-alignment)
   - [\[1.2.0-dev8\] - 2026-08-14 - Localization: Stale Translation String Removal](#120-dev8---2026-08-14---localization-stale-translation-string-removal)
@@ -90,7 +91,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev3\] - 2026-08-14 - Code Quality: Masked-Errors Suppression Audit](#120-dev3---2026-08-14---code-quality-masked-errors-suppression-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Documentation: Historical Changelog Sequence Backfill](#120-dev2---2026-08-14---documentation-historical-changelog-sequence-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Architecture and Resilience: Dead Library Calls, Unique ID Scoping, and Entity Cleanup](#120-dev1---2026-08-14---architecture-and-resilience-dead-library-calls-unique-id-scoping-and-entity-cleanup)
-  - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
+  - [\[1.1.3-dev17\] - 2026-08-14 - HA Compatibility Document Addition](#113-dev17---2026-08-14---ha-compatibility-document-addition)
   - [\[1.1.3-dev16\] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC](#113-dev16---2026-08-14---ci-bumps-zizmor-mypy-jsonschema-phacc)
   - [\[1.1.3-dev15\] - 2026-08-14 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table](#113-dev15---2026-08-14---documentation-phase-repair-titles-roadmap-spelling-sweep-table)
   - [\[1.1.3-dev14\] - 2026-08-14 - Diagnostic Health: Integration Health Sensor and Signal Guard Bands](#113-dev14---2026-08-14---diagnostic-health-integration-health-sensor-and-signal-guard-bands)
@@ -177,6 +178,18 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3-dev1] - 2026-09-07 - CI Bumps; SShared Local CI Improvements; Doc Updates
+
+### Bumps
+
+- **Validate Bump**: Update `ruff` from 0.16.3 to 0.16.5
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.357 to 0.13.364
+
+### Changed
+
+- **SHared Local CI**: Updated `tasks.json` shared internal CI to run all fixes and validations as a sigle operation, with an end summary.
+- **Changelog(s)**: Updated `CHANGELOG.md` and `docs/changelog_local.md` for clarity and readability (removed verbiage, internal/CI notes in user changelog etc.)
 
 ## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
 
@@ -399,7 +412,7 @@ Documentation only. No source code changes. Aligns the tracker naming architectu
 
 ---
 
-## [1.2.1-dev15] - 2026-08-24 - Telemetry Configuration: Write-Refusal Sweeps and Rate Sensor Defaults
+## [1.2.1-dev15] - 2026-08-24 - Sensor Configuration: Write-Refusal Sweeps and Rate Sensor Defaults
 
 ### Summary
 
@@ -709,9 +722,9 @@ Bumped Ruff linter dependency.
 
 ### Bumps
 
-- **Validate Bump**: Update `ruff` from 0.16.2 to 0.16.2
+- **Validate Bump**: Update `ruff` from 0.16.2 to 0.16.3
 
-## [1.2.0] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring
+## [1.2.0] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring
 
 ### Highlights
 
@@ -876,7 +889,7 @@ Found while aligning the **Under the Hood** sections of this README against `zte
 - **Not run for this change**: mypy, and the assertion audit.
 - Two `README.md` items found in the same review are **not** fixed here: the Session Handling intro repeats its own first detail sentence verbatim, and Huawei has no counterpart to ZTE's "Polling Loop" bullet.
 
-## [1.2.0-dev61] - 2026-08-19 - Telemetry Configuration: Transmit Power Guard Band Removal
+## [1.2.0-dev61] - 2026-08-19 - Sensor Configuration: Transmit Power Guard Band Removal
 
 ### Summary
 
@@ -1089,7 +1102,7 @@ Caught by **Validate All → Tests: Assertion Audit**, which failed with two tes
 - **Not allow-listed, and that was the right call.** An allow-list entry would have recorded the gap rather than closed it, on the same day plan item 10 took this project from four zero-assertion tests to zero. Audit now reports **0 of 694**.
 - The two were written to close a coverage gap, and they did — coverage counts a line as covered when it executes, whether or not anything checks the result. **Coverage and assertion count measure different things, and passing one says nothing about the other.** Both tests ran the code they targeted; neither would have failed if the behavior had been wrong.
 
-## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor
+## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Local CI python-typing-update Removal; Drift Auditor Source Footnotes
 
 ### Summary
 
@@ -1448,7 +1461,7 @@ Bumped Ruff linter dependency.
 
 - **Validate Bump**: Update `ruff` from 0.16.1 to 0.16.2
 
-## [1.2.0-dev28] - 2026-08-15 - Telemetry Configuration: Per-Entry Projection Caching and Source Root Resolvers
+## [1.2.0-dev28] - 2026-08-15 - Sensor Configuration: Per-Entry Projection Caching and Source Root Resolvers
 
 ### Summary
 
@@ -1645,7 +1658,7 @@ Configured mutation testing framework and fixed test suite source path resolutio
 
 ---
 
-## [1.2.0-dev18] - 2026-08-15 - Telemetry: Explanatory About Attribute Notes on Every Entity
+## [1.2.0-dev18] - 2026-08-15 - Entity Documentation: Explanatory About Attribute Notes on Every Entity
 
 ### Summary
 
@@ -1690,7 +1703,7 @@ Added router diagnostics binary sensor surfacing router-reported connection heal
 
 ---
 
-## [1.2.0-dev16] - 2026-08-15 - Controls and Telemetry: Master WiFi Radio Switch and Voice Entities
+## [1.2.0-dev16] - 2026-08-15 - Controls and Sensors: Master WiFi Radio Switch and Voice Entities
 
 ### Summary
 
@@ -1776,7 +1789,7 @@ Pinned huawei-lte-api library dependency to version 2.0.1 and verified library c
 
 ---
 
-## [1.2.0-dev11] - 2026-08-15 - Telemetry: Expanded Entity Set and Monthly Data-Usage Projections
+## [1.2.0-dev11] - 2026-08-15 - Sensor Expansion: Expanded Entity Set and Monthly Data-Usage Projections
 
 ### Summary
 
@@ -1991,7 +2004,7 @@ That is the argument for running this prompt last rather than first, made concre
 - Suite **540 tests passing** (was 515), 100% line and 100% branch coverage, 0 partial branches, assertion audit PASSED, `ruff` lint and format clean, mypy standard and strict clean.
 - **Clear Traffic Statistics is fixed but not yet exercised against hardware** — deferred to month-end at the owner's request, since it resets counters. The Reboot change is likewise unexercised by choice.
 
-## [1.1.3-dev17] - 2026-08-14 - Add HA Compatibility Document
+## [1.1.3-dev17] - 2026-08-14 - HA Compatibility Document Addition
 
 ### Changes
 
@@ -2054,7 +2067,7 @@ Added Integration Health sensor with drift detection and reconciled value min/ma
 
   What it reports:
   - **Capability degradation** — an endpoint absent for three consecutive polls, named in plain language (`SMS messages`, `WiFi clients`), not by raw endpoint key. Strike-budgeted so a single dropped poll raises no alarm.
-  - **Contract drift** — a `device_signal` block that is present and non-empty but carries **none** of `rsrp`, `rsrq`, `rssi`, `sinr`. That is the direct catch for a firmware field rename, and it is the highest-value check in the section. One recognized field is enough to clear it: a weak signal is not a renamed field.
+  - **Missing router data** — a `device_signal` block that is present and non-empty but carries **none** of `rsrp`, `rsrq`, `rssi`, `sinr`. That is the direct catch for a firmware field rename, and it is the highest-value check in the section. One recognized field is enough to clear it: a weak signal is not a renamed field.
   - **Total outage** — flagged on the **first** failure at cold start (there are no held values, so waiting out the budget would leave the user with a wholly unavailable integration and no explanation), and on the **third** at runtime.
 
   Three properties worth stating because each is easy to get wrong:

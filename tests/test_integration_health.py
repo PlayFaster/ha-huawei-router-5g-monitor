@@ -122,7 +122,7 @@ def test_the_critical_endpoint_can_never_appear_as_degraded(coordinator):
 
 
 # ---------------------------------------------------------------------------
-# Contract drift — the highest-value check
+# Missing router data — the highest-value check
 # ---------------------------------------------------------------------------
 
 

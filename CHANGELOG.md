@@ -32,7 +32,7 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 - **Connection Error Repair on Refused Connections**: The `conn_error` Repair ("Huawei router is not responding") now triggers on refused socket connections (e.g. router powered off, cable unplugged, or changed IP address) after the strike budget is spent, rather than only on timeouts.
 
-## [1.2.0] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring
+## [1.2.0] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring
 
 ### Highlights
 
@@ -138,32 +138,15 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 ### Changed
 
-- **Readme**: Added clarifying info to readme file, and several example automations.
-- **Test Coverage**: Internal test coverage improved to > 95%.
+- **SMS Inbox Management**: Added actions for reading, sending, and deleting SMS messages.
+- **WiFi Sub-Device**: Grouped Wi-Fi management and status entities under a dedicated Wi-Fi sub-device.
 
-### Fixed
-
-- **WiFi status reporting**: Resolved edge cases where the 2.4GHz and 5GHz WiFi status sensors could report out-of-sync states.
-- **Guest WiFi control toggling**: Improved communication reliability when toggling the Guest WiFi Network switch.
-
-## [1.0.1] - 2026-05-03 - Release: Connection Quality Telemetry and SMS Messaging Actions
+## [1.0.1] - 2026-05-03 - Release: Connection Quality Sensors and SMS Messaging Actions
 
 ### Added
 
 - **Best Connection Sensor**: A new primary sensor (replacing "5G NR Active") using a 3-stage quality gate to accurately report 5G connectivity status.
 - **Display Last SMS**: Added SMS "Last Msg" text sensor.
-- **send_sms Service**: New service to send SMS messages with support for multiple recipients and content.
-
-### Changed
-
-- **LTE Carrier Aggregation**: Converted from a string sensor to a more appropriate Binary Sensor.
-- **Test Coverage**: Internal test coverage at 90%.
-
-### Fixed
-
-- **Band attributes mapping**: Improved band extraction logic to derive LTE Carrier Aggregation and 5G NR Band values from composite band strings on newer firmware.
-
-### Initial Commit - 2026-05-01
 
 ---
 
@@ -178,11 +161,11 @@ Entry structure — headers, titles, category headings and the split between thi
 - [Changelog](#changelog)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering](#121---2026-08-24---release-connection-loss-repair-triggering)
-  - [\[1.2.0\] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-telemetry-entities-data-projections-control-switches-and-health-monitoring)
+  - [\[1.2.0\] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-sensor-entities-data-projections-control-switches-and-health-monitoring)
   - [\[1.1.2\] - 2026-07-03 - Release: Manual Refresh Controls, Display Precision Units, and Configuration Hardening](#112---2026-07-03---release-manual-refresh-controls-display-precision-units-and-configuration-hardening)
   - [\[1.1.1\] - 2026-06-07 - Release: Startup Timing Resilience, Session Lifecycle, and Uptime Timestamp Drift](#111---2026-06-07---release-startup-timing-resilience-session-lifecycle-and-uptime-timestamp-drift)
   - [\[1.1.0\] - 2026-05-07 - Release: MAC-Based Unique Identifier Migration and Code Hygiene](#110---2026-05-07---release-mac-based-unique-identifier-migration-and-code-hygiene)
   - [\[1.0.2\] - 2026-05-05 - Release: SMS Management Actions, WiFi Sub-Device Hierarchy, and Client Tracking](#102---2026-05-05---release-sms-management-actions-wifi-sub-device-hierarchy-and-client-tracking)
-  - [\[1.0.1\] - 2026-05-03 - Release: Connection Quality Telemetry and SMS Messaging Actions](#101---2026-05-03---release-connection-quality-telemetry-and-sms-messaging-actions)
+  - [\[1.0.1\] - 2026-05-03 - Release: Connection Quality Sensors and SMS Messaging Actions](#101---2026-05-03---release-connection-quality-sensors-and-sms-messaging-actions)
 
 ---

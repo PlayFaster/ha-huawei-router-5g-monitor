@@ -405,7 +405,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             if strikes >= HEALTH_DRIFT_STRIKE_LIMIT
         )
 
-        # 2. Contract drift — a non-empty response that parses to nothing
+        # 2. Missing router data — a non-empty response that parses to nothing
         #    meaningful. This is the direct catch for a firmware field rename,
         #    and it is the highest-value check here.
         drift: list[str] = []

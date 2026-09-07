@@ -2247,7 +2247,7 @@ This integration is specifically optimized as a high-performance monitor for Hua
 Depending on your specific hardware, deployment setup, or preferred feature set, several other excellent Home Assistant options exist:
 
 - 🏠 **[Home Assistant Core: Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/)** by @scop, @fphammerle, @joostlek, and Home Assistant Core contributors  
-  _Best for:_ Most users with a standard Huawei LTE/5G router who want an officially supported, core-maintained integration for basic signal telemetry, data volume, and SMS notifications.
+  _Best for:_ Most users with a standard Huawei LTE/5G router who want an officially supported, core-maintained integration for basic signal metrics, data volume, and SMS notifications.
 
 - 💬 **[`william-aqn/huawei_lte_extended`](https://github.com/william-aqn/huawei_lte_extended)** by @william-aqn  
   _Best for:_ Users who are happily running the official HA Core Huawei LTE integration but wish to augment it with expanded SMS inbox sensors and dedicated SMS management services.
