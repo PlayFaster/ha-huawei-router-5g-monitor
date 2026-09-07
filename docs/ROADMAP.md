@@ -99,6 +99,10 @@ Neither reason is about poll time. **If the endpoint saving were the only argume
 
 The cleanup half is already in place: `cleanup_unused_entities` exists as both an action with `dry_run` and a button, so option-group orphans would extend the existing planner rather than needing a new module.
 
+**What core `huawei_lte` does, and it is not this.** Core offers `track_wired_clients`, and the difference is where and when. It is an **options-flow field only** (`config_flow.py:406`, inside `async_step_init`), so it is never asked at setup — a first-time installer is not offered a choice and the integration begins tracking immediately. It defaults to `True` (`const.py:18`), so wired clients are tracked unless the user later goes looking for the setting. And it is a **wired/wireless filter, not an opt-out**: it is read at `device_tracker.py:66` and `:134` to decide which hosts become entities, so wireless clients are tracked either way and there is no setting in core that stops client tracking altogether.
+
+Two consequences for this entry. The privacy argument above is **not** addressed by core's option — a user who wants no MAC, hostname or IP collected cannot get that from core at all, which is the gap this entry exists to close. And core's placement is the thing to diverge from deliberately: this entry proposes a setup-time question precisely because a post-hoc toggle arrives after the data has already been collected. Read this way, core's option is closer to a subset of _Retire long-unseen device trackers_ than to this entry.
+
 - **Value**: ⭐⭐
 - **Effort**: Medium — a config-flow field, gating in two platforms, and a fetch skip. The interaction above is the decision, not the code.
 - **Trigger**: A user who wants client tracking off entirely rather than hidden, **or** the tracker-retirement entry being taken up.

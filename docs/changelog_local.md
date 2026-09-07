@@ -5,7 +5,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.3-dev1\] - 2026-09-07 - CI Bumps; SShared Local CI Improvements; Doc Updates](#123-dev1---2026-09-07---ci-bumps-sshared-local-ci-improvements-doc-updates)
+  - [\[1.2.3-dev2\] - 2026-09-07 - CI Bumps; Doc Updates](#123-dev2---2026-09-07---ci-bumps-doc-updates)
+  - [\[1.2.3-dev1\] - 2026-09-07 - CI Bumps; Shared Local CI Improvements; Doc Updates](#123-dev1---2026-09-07---ci-bumps-shared-local-ci-improvements-doc-updates)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.2-dev7\] - 2026-08-26 - Linting: Test Import Exclusions](#122-dev7---2026-08-26---linting-test-import-exclusions)
   - [\[1.2.2-dev6\] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment](#122-dev6---2026-08-26---documentation-readme-repairs-and-health-section-alignment)
@@ -179,7 +180,17 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
-## [1.2.3-dev1] - 2026-09-07 - CI Bumps; SShared Local CI Improvements; Doc Updates
+## [1.2.3-dev2] - 2026-09-07 - CI Bumps; Doc Updates
+
+### Bumps
+
+- **Validate Bump**: Update `zizmor` from 1.29.0 to 1.30.0
+
+### Changed
+
+- **README**: Added a note to `README.md` to clarify that the integrations data use sensors come directly from the router, and are not independent. Included a pointer towards a `Utility Meter` helper if a separate independent data tracker, that would be immune to router resets or changes, is required.
+
+## [1.2.3-dev1] - 2026-09-07 - CI Bumps; Shared Local CI Improvements; Doc Updates
 
 ### Bumps
 
@@ -188,7 +199,7 @@ All changes to this project will be documented in this file. This is the detaile
 
 ### Changed
 
-- **SHared Local CI**: Updated `tasks.json` shared internal CI to run all fixes and validations as a sigle operation, with an end summary.
+- **SHared Local CI**: Updated `tasks.json` shared internal CI to run all fixes and validations as a single operation, with an end summary.
 - **Changelog(s)**: Updated `CHANGELOG.md` and `docs/changelog_local.md` for clarity and readability (removed verbiage, internal/CI notes in user changelog etc.)
 
 ## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
