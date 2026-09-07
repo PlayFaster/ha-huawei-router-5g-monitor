@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev3\] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe](#123-dev3---2026-09-07---diagnostic-download-rejection-endpoint-and-entity-evidence-unpolled-endpoint-probe)
   - [\[1.2.3-dev2\] - 2026-09-07 - CI Bumps; Doc Updates](#123-dev2---2026-09-07---ci-bumps-doc-updates)
   - [\[1.2.3-dev1\] - 2026-09-07 - CI Bumps; Shared Local CI Improvements; Doc Updates](#123-dev1---2026-09-07---ci-bumps-shared-local-ci-improvements-doc-updates)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
@@ -179,6 +180,58 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3-dev3] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe
+
+### Summary
+
+The diagnostics download previously carried the coordinator's last payload and nothing about what the router refused, so a report from an unfamiliar Huawei model could not be read: an endpoint missing from `data` might have been refused, skipped at the fetch deadline, or swallowed by a handler, and all three looked identical. Four blocks now answer that — what was rejected, what each endpoint served, which entity descriptions the payload populates, and what the router does with the endpoints this integration never polls.
+
+**Work is paused mid-task and is not complete.** Two tests fail, the probe still uses the retry wrapper it must not use, and the probe list has not been reconciled against the endpoint survey in `docs/huawei_how_to_access.md`. The remaining items are listed under **Deferred**.
+
+### Added
+
+- **`last_rejection` in the download.** The response behind a failure, held on the API client, bounded to the most recent, cleared before each poll, and published through the existing sanitizer. Carries the router's own error code where it gave one and the exception class where it did not. Recorded at five sites — the expiry classification in `_execute_with_retry` and all four per-endpoint handlers in `get_data`, **including the two that log and continue without raising**, which is where an absence previously became untraceable.
+- **`endpoints` in the download.** Every endpoint of the most recent poll, as `answered`, `refused` with the router's code, `expired`, `unavailable`, or `skipped` at the fetch deadline. An answered entry also carries the returned type, the key count and how many of those keys hold a value — `answered` alone cannot separate a full block from a polite empty one, which is the common case on unfamiliar firmware.
+- **`entity_resolution` in the download.** Each of the 134 description-driven entities evaluated against the live payload and reported as resolved, `no_value`, or `raised`. A description whose `value_fn` throws is a defect in this integration and was previously invisible — the entity simply showed nothing.
+- **`probes` in the download.** Forty-two endpoints this integration does not poll, called once per download and recorded in the same vocabulary. Reads only, no arguments, key names and counts but never values.
+- **`scripts/diag_check.py`**, and the **Hardware: Check Diagnostics Download** task that has been present in the shared `tasks.json` and skipped in this project until now. Builds a real coordinator against the router, calls the real `async_get_config_entry_diagnostics`, asserts over the produced file, and runs twice to diff. `--sabotage` ends the session mid-poll so a real expiry is classified by real firmware.
+
+### Fixed
+
+- **`hardware_check.py` reported a passing run as a failure.** It printed `All 8 checks passed.` while the shared `Show: Results Summary` task greps every project's `hardware_check.txt` for `Hardware check: PASSED`. Now prints `zte_router_5g`'s wording verbatim, with the banner in the script rather than the task because `tee >(...)` reports `tee`'s exit status.
+- **`login.authenticated` renamed to `username_configured`.** A live download read `"result": "ok"` beside `"authenticated": false` on an entry configured without a username, which reads as a failed login to anyone who did not write the code.
+
+### Tests
+
+- 1024 passing, **2 failing**: `test_a_complete_document_passes_the_shape_check` (the fixture predates the `probes` key) and `test_every_suppression_is_on_the_reviewed_allow_list` (`api.py:653` needs its reason recorded). Both are stale expectations against this entry's own changes.
+- New: `tests/test_diagnostic_capture.py` on the captures, `tests/test_diagnostics_artefact.py` asserting on the produced file rather than the producer, and `tests/test_diag_check_stability.py` on the script's own judgement.
+
+### Verified
+
+- **On the reference H165-383, 2026-09-07.** `diag_check.py` 28/28 twice; `--sabotage` 8/8 three times, classifying the induced loss as `expired` each time.
+- **`voice_busy` returns the string `Idle`, not a mapping** — found by the new type field, and previously unrecorded anywhere.
+- **`device_signal` answers 55 keys with 41 populated** on a device considered fully supported, which is the "answered but not really" case the counts exist to expose.
+- **A 42-endpoint sweep through `_execute_with_retry` provoked enough logout/login churn to leave the router refusing connections.** The same 42 calls on one session without the wrapper completed in about 900 ms with every endpoint returning an outcome.
+
+### Notes
+
+- **`100003` costs an extra login, and is a refusal rather than an expiry here.** Measured: `100003` → 2 logins through `_execute_with_retry`, `100002` → 1, a good read → 1. The library raises `ResponseErrorLoginRequiredException` for `100003` and no other code, so the `isinstance` test in that method fires on it alone and re-logs in before the code list is consulted. The mechanism is recorded in `docs/huawei_how_to_access.md`, whose Authentication section already warned that bulk sweeps produce false `100003` results — this entry explains why.
+- **`system.onlinestate` cannot be probed.** The endpoint returns a list and `huawei-lte-api` calls `.get()` on it, raising `AttributeError` inside the library.
+
+### Declined
+
+- **`device_basic_information` was not added to the poll.** Called on the reference device it returns seven keys, of which `devicename`, `spreadname_en` and `spreadname_zh` duplicate `device_information` and `classify` duplicates `monitoring_status`. It would populate no entity and cost a round trip every cycle. `docs/huawei_how_to_access.md` had already reached this conclusion in its endpoint survey.
+- **The `100003` classification in `api.py` was not changed.** No polled endpoint returns it, so normal operation is unaffected, and the code is ambiguous: on firmware where a lapsed session answers `100003` to everything, the present retry is correct.
+
+### Deferred
+
+- The probe must call on one session **without** `_execute_with_retry`; it currently does not, and that is the cause of the churn measured above.
+- The two failing tests.
+- Reconciling the probe list against the **Readable, never reviewed** table in `docs/huawei_how_to_access.md`, which names `diagnosis.time_reboot`, `security.get_firewall_switch`, `diagnosis.diagnose_ping` and `led.appctrlled` and is where the survey said to start.
+- Dropping or guarding the `system_onlinestate` probe.
+- Unit tests for `probe_diagnostic_endpoints`.
+- The cross-project status cell in `improve_diagnostics_on_bad_payload_data.md`, which describes the capture alone and not the three blocks added since.
 
 ## [1.2.3-dev2] - 2026-09-07 - CI Bumps; Doc Updates
 

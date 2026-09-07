@@ -263,6 +263,54 @@ Returned `100002: No support`. **Do not add, do not retry.**
 
 `wlan.station_information` is the notable loss — it would give per-client WiFi signal strength, which nothing else provides.
 
+### Why a bulk sweep produces false `100003` results — the mechanism
+
+The Authentication section already records the rule: **probe in small batches on
+fresh sessions, and re-verify every negative**, because a bulk sweep produces
+`100003` results that read exactly like a permission boundary. What follows is
+the cause, measured on 2026-09-07, and it is in this integration rather than in
+the router.
+
+`ResponseErrorLoginRequiredException` is raised by `huawei-lte-api` for `100003`
+**and for no other code** — `125002` and `125003` map to
+`ResponseErrorLoginCsrfException` and `ResponseErrorWrongSessionToken`
+(`Session.py:189`). `api.py:_execute_with_retry` opens its handler with
+`isinstance(err, ResponseErrorLoginRequiredException)`, so a `100003` discards
+the client and logs in again before the code list below it is ever consulted.
+
+Measured logins per call through that wrapper:
+
+| Call | Logins |
+| :-- | --: |
+| A read that answers | 1 |
+| `100002: No support` | 1 |
+| `100003: No rights` | **2** |
+
+So every refusal in a sweep costs a logout and a login. A 42-endpoint sweep on
+2026-09-07 accumulated enough churn that the router began answering
+`LoginErrorAlreadyLoginException` and then refused connections for the rest of
+the run — after which the remaining endpoints reported failures that were
+artefacts, not findings. **The same 42 calls on one session, called directly
+without the retry wrapper, completed in about 900 ms with every endpoint
+returning a real outcome.**
+
+Two consequences:
+
+- **Anything sweeping endpoints outside the polled set must bypass
+  `_execute_with_retry`** and call on a single established session. That is the
+  whole fix, and it needs no delays between calls.
+- **`100003` does not end the session on this firmware.** A read on the same
+  session immediately afterwards answers normally, and a *fresh* session returns
+  `100003` from the same endpoints every time.
+
+**Not fixed in `api.py`, deliberately.** No polled endpoint returns `100003`, so
+normal operation is unaffected, and the code is genuinely ambiguous: on firmware
+where a lapsed session answers `100003` to everything, the present retry is
+correct and removing it would break recovery. If it is ever fixed, the
+discriminator is not the code list — **a `100003` on a session that was just
+established cannot be an expiry** — and the `isinstance` test above the list is
+what decides first.
+
 ---
 
 ## 🔤 Field formats and traps

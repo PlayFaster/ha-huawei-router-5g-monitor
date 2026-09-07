@@ -104,6 +104,39 @@ class HuaweiRouter5GAPI:
         self._lock_owner: asyncio.Task[Any] | None = None
         self._last_activity = datetime.now(UTC)
 
+        # Evidence for the diagnostics download. `coordinator.data` is `None`
+        # until the first successful poll, so an integration that has never
+        # succeeded produces an empty `data` block — which is exactly when the
+        # download is asked for. These two carry what was rejected and what the
+        # login saw, and both are sanitized on the way out.
+        #
+        # Aligned with `zte_router_5g`, which is the reference implementation
+        # for this capture: same attribute names, same `verdict` vocabulary,
+        # same clearing rule. Two fields it carries have no source here and are
+        # absent rather than stubbed — the key presence map, because expiry is
+        # stated by the router's own error code rather than inferred from the
+        # payload shape, and `body_preview`, because `huaweiapi` parses the
+        # response and this wrapper never sees a raw body.
+        self.last_rejection: dict[str, Any] | None = None
+        self.login_metadata: dict[str, Any] = {}
+
+        # The outcome of every endpoint in the most recent poll, by name.
+        #
+        # **Absence from the payload has three causes and they are not the
+        # same.** An endpoint can be refused by the router, skipped when the
+        # fetch deadline expires part way down the list, or fail in a handler
+        # that logs and continues. All three leave the key missing from `data`
+        # and, without this, leave a reader of the download unable to tell
+        # which happened — the confusion `zte_router_5g` named in
+        # `[3.3.9-dev10]`, where a refusal was indistinguishable from an
+        # eviction. `last_rejection` cannot answer it either: it is bounded to
+        # the most recent, so a router refusing five endpoints reports one.
+        #
+        # Names and codes only, in the shape `diagnostics.py` publishes
+        # unchanged. Written per poll, so it describes one pass rather than
+        # accumulating across a session.
+        self.endpoint_outcomes: dict[str, Any] = {}
+
     @asynccontextmanager
     async def _write_deadline(self, operation: str) -> AsyncIterator[None]:
         """Stop waiting for a write that will not finish, and free the lock.
@@ -355,6 +388,33 @@ class HuaweiRouter5GAPI:
             raise HuaweiConnectionError("Failed to establish API client connection")
         return self._client
 
+    def _record_login_metadata(self, result: str, error: str | None = None) -> None:
+        """Record what the login attempt produced, for diagnostics.
+
+        **Outcome only, and never a credential.** `zte_router_5g` records the
+        response's header and cookie names beside this, because it manages its
+        own session and can see them. `huaweiapi` owns the session here and
+        returns a client or raises, so the response never reaches this wrapper
+        and there is nothing further to capture — the reduction is recorded in
+        the item's alignment table rather than being an omission.
+
+        `error` carries the exception's class name, never its message: the
+        message is library-formatted text that has been observed to interpolate
+        the URL, and the class is what a reader needs.
+        """
+        self.login_metadata = {
+            "result": result,
+            # **Not "authenticated".** This says whether a username was
+            # configured for this entry, which is a fact about the setup rather
+            # than about the outcome — `result` carries the outcome. The field
+            # was named `authenticated` until 2026-09-07, and a live download
+            # showed `"result": "ok"` beside `"authenticated": false` on an
+            # entry set up without a username, which reads as a failed login to
+            # anyone who did not write the code.
+            "username_configured": bool(self.username),
+            "error": error,
+        }
+
     async def _login_internal(self) -> None:
         """Perform internal login without locking."""
         self._reset_client()
@@ -363,17 +423,97 @@ class HuaweiRouter5GAPI:
             self._connection = conn
             self._client = client
             self._last_activity = datetime.now(UTC)
+            self._record_login_metadata("ok")
         except (
             LoginErrorPasswordWrongException,
             LoginErrorUsernameWrongException,
         ) as err:
             self._connection = None
             self._client = None
+            self._record_login_metadata("auth_failed", type(err).__name__)
             raise HuaweiAuthError(f"Authentication failed: {err}") from err
         except Exception as err:
             self._connection = None
             self._client = None
+            self._record_login_metadata("connection_failed", type(err).__name__)
             raise HuaweiConnectionError(f"Cannot connect to router: {err}") from err
+
+    def _record_verdict(
+        self,
+        verdict: str,
+        *,
+        code: str | None = None,
+        key: str | None = None,
+        error: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Hold the response behind a non-live verdict, for diagnostics.
+
+        Names and codes only — the payload itself is sanitized by
+        `diagnostics.py` on the way out, the same walker that already handles
+        `coordinator.data`, so a rejected payload is no more revealing than an
+        accepted one. Bounded to the most recent, and cleared by a live verdict
+        so a stale rejection cannot outlive the fault.
+
+        Aligned with `zte_router_5g._record_verdict`: same name, same clearing
+        rule, same `verdict` vocabulary. `code` replaces that project's key
+        presence map, because this router states expiry through its own error
+        codes rather than leaving it to be inferred from which keys came back
+        blank, and `key` names the endpoint the verdict was drawn at, which is
+        per-endpoint here and whole-batch there.
+        """
+        if verdict == "live":
+            self.last_rejection = None
+            return
+
+        record: dict[str, Any] = {"verdict": verdict}
+        if code is not None:
+            record["code"] = code
+        if error is not None:
+            record["error"] = error
+        if key is not None:
+            record["key"] = key
+        if payload is not None:
+            record["payload"] = dict(payload)
+        self.last_rejection = record
+
+    def _record_endpoint(
+        self,
+        key: str,
+        outcome: str,
+        code: str | None = None,
+        *,
+        result: Any = None,
+        elapsed_ms: int | None = None,
+    ) -> None:
+        """Record one endpoint's outcome in the current poll's map.
+
+        **`answered` on its own is too coarse to support an unfamiliar
+        router.** A call that does not raise is recorded as answered whether it
+        returned a full block, an empty mapping, or something that is not a
+        mapping at all — and firmware that knows an endpoint, answers it
+        politely and populates nothing is the common case on a model this
+        integration has not seen. So an answered endpoint also carries how many
+        keys came back, how many of them hold a value, and what type the router
+        actually returned.
+
+        Names and counts only. No key names and no values reach this map: the
+        payload block itself is published beside it in the download and carries
+        both, sanitized.
+        """
+        record: dict[str, Any] = {"outcome": outcome}
+        if code is not None:
+            record["code"] = code
+        if elapsed_ms is not None:
+            record["elapsed_ms"] = elapsed_ms
+        if outcome == "answered":
+            record["type"] = type(result).__name__
+            if isinstance(result, dict):
+                record["keys"] = len(result)
+                record["populated"] = sum(
+                    1 for v in result.values() if v not in (None, "", {}, [])
+                )
+        self.endpoint_outcomes[key] = record
 
     async def _execute_with_retry(self, func: Callable[[Client], Any]) -> Any:
         """Execute operation on client, retrying once on session expiry."""
@@ -384,8 +524,16 @@ class HuaweiRouter5GAPI:
             self._last_activity = datetime.now(UTC)
         except (ResponseErrorLoginRequiredException, ResponseErrorException) as err:
             is_expired = isinstance(err, ResponseErrorLoginRequiredException)
-            if not is_expired and isinstance(err, ResponseErrorException):
-                is_expired = str(err.code) in ("125002", "125003", "100003")
+            code = str(err.code) if isinstance(err, ResponseErrorException) else None
+            if not is_expired and code is not None:
+                is_expired = code in ("125002", "125003", "100003")
+
+            # Recorded at the point the verdict is drawn, not at the point of
+            # raising, so the expiry below — which is retried and often
+            # recovers — still leaves evidence behind. A later live poll
+            # clears it, so a rejection in the download is one the integration
+            # had not yet recovered from.
+            self._record_verdict("expired" if is_expired else "refused", code=code)
 
             if is_expired:
                 _LOGGER.debug(
@@ -398,6 +546,128 @@ class HuaweiRouter5GAPI:
             else:
                 raise
         return res
+
+    # Endpoints this integration does **not** poll, probed once per diagnostics
+    # download so a reporter's file says whether their router serves them.
+    #
+    # **Not added to the poll, deliberately.** The poll runs every 180 seconds
+    # and takes about a second across its 26 endpoints; spending forty more
+    # round trips per cycle to collect the same refusals for ever is the
+    # reasoning already recorded against `monitoring.daily_data_limit`. A
+    # download is a deliberate, infrequent act, which is where the cost belongs.
+    #
+    # Chosen from the 130 read-only, argument-free methods `huawei-lte-api`
+    # 2.0.1 exposes, in two groups. The `*_feature_switch` and capability reads
+    # come first because they are the router **stating** what it supports
+    # rather than us inferring it from a silence. The rest are model-variant
+    # reads — a cradle, a second WAN, a locked cell, a SIM PIN state — that
+    # this reference device does not have and another might.
+    #
+    # Reads only. Nothing here writes, and nothing here takes an argument, so
+    # no call can be shaped wrongly by a value from this side.
+    DIAGNOSTIC_PROBES: tuple[tuple[str, Callable[[Client], Any]], ...] = (
+        # --- What the router says it supports --------------------------------
+        ("global_module_switch", lambda c: c.global_.module_switch()),
+        ("system_devcapacity", lambda c: c.system.devcapacity()),
+        ("device_feature_switch", lambda c: c.device.device_feature_switch()),
+        ("net_feature_switch", lambda c: c.net.net_feature_switch()),
+        (
+            "monitoring_statistic_feature_switch",
+            lambda c: c.monitoring.statistic_feature_switch(),
+        ),
+        ("sms_feature_switch", lambda c: c.sms.sms_feature_switch()),
+        ("voice_featureswitch", lambda c: c.voice.featureswitch()),
+        ("security_feature_switch", lambda c: c.security.feature_switch()),
+        ("dhcp_feature_switch", lambda c: c.dhcp.feature_switch()),
+        ("cradle_feature_switch", lambda c: c.cradle.feature_switch()),
+        # --- Identity and firmware, where the polled reads are restricted ----
+        ("device_basic_information", lambda c: c.device.basic_information()),
+        ("device_vendorname", lambda c: c.device.vendorname()),
+        ("device_boot_time", lambda c: c.device.boot_time()),
+        ("device_autorun_version", lambda c: c.device.autorun_version()),
+        ("system_deviceinfo", lambda c: c.system.deviceinfo()),
+        ("system_deviceinfoex", lambda c: c.system.deviceinfoex()),
+        ("system_onlinestate", lambda c: c.system.onlinestate()),
+        # --- Radio and network detail this integration does not read ---------
+        ("net_cell_info", lambda c: c.net.cell_info()),
+        ("net_network", lambda c: c.net.network()),
+        ("net_register", lambda c: c.net.register()),
+        ("net_mode_list", lambda c: c.net.net_mode_list()),
+        ("ntwk_celllock", lambda c: c.ntwk.celllock()),
+        ("ntwk_dualwaninfo", lambda c: c.ntwk.dualwaninfo()),
+        ("ntwk_lan_wan_config", lambda c: c.ntwk.lan_wan_config()),
+        ("statistic_feature_roam", lambda c: c.statistic.feature_roam_statistic()),
+        # --- SIM state, which explains a device reporting no service ---------
+        ("pin_status", lambda c: c.pin.status()),
+        ("pin_simlock", lambda c: c.pin.simlock()),
+        # --- Antenna, on models that expose a choice -------------------------
+        ("device_antenna_status", lambda c: c.device.antenna_status()),
+        ("device_antenna_settings", lambda c: c.device.get_antenna_settings()),
+        # --- Cradle, for the models that have one ----------------------------
+        ("cradle_basic_info", lambda c: c.cradle.basic_info()),
+        ("cradle_status_info", lambda c: c.cradle.status_info()),
+        # --- Usage vocabularies this device does not answer ------------------
+        ("monitoring_daily_data_limit", lambda c: c.monitoring.daily_data_limit()),
+        (
+            "monitoring_month_statistics_wlan",
+            lambda c: c.monitoring.month_statistics_wlan(),
+        ),
+        ("monitoring_wifi_month_setting", lambda c: c.monitoring.wifi_month_setting()),
+        # --- WiFi detail beyond the two blocks the poll reads ----------------
+        ("wlan_basic_settings", lambda c: c.wlan.basic_settings()),
+        ("wlan_station_information", lambda c: c.wlan.station_information()),
+        ("wlan_multi_switch_settings", lambda c: c.wlan.multi_switch_settings()),
+        ("wlan_wififrequence", lambda c: c.wlan.wififrequence()),
+        ("wlan_wlandbho", lambda c: c.wlan.wlandbho()),
+        ("wlan_wlanintelligent", lambda c: c.wlan.wlanintelligent()),
+        # --- DHCP, which names the LAN this router is serving ----------------
+        ("dhcp_settings", lambda c: c.dhcp.settings()),
+        ("dial_up_auto_apn", lambda c: c.dial_up.auto_apn()),
+    )
+
+    async def probe_diagnostic_endpoints(self) -> dict[str, Any]:
+        """Call every `DIAGNOSTIC_PROBES` endpoint once and report what happened.
+
+        **For the diagnostics download only**, and never from the poll. Each
+        entry is recorded exactly as a polled endpoint is — `answered` with the
+        returned type and key counts, `refused` with the router's own error
+        code, or `unavailable` with the exception class — so a reader compares
+        the two maps without learning a second vocabulary.
+
+        **Key names are published; values are not.** A name is a property of the
+        firmware and is what a supporter needs to see; a value from an endpoint
+        nobody here has seen has no entry in `diagnostics.py`'s key lists and
+        would be published intact by a sanitizer that matches on exact key
+        names. Names and counts carry the finding without that risk.
+
+        One failure never stops the sweep: the whole point is the shape of the
+        set of failures, not the first one.
+        """
+        results: dict[str, Any] = {}
+        for key, call in self.DIAGNOSTIC_PROBES:
+            started_at = time.monotonic()
+            try:
+                value = await self._execute_with_retry(call)
+            except ResponseErrorException as err:
+                results[key] = {"outcome": "refused", "code": str(err.code)}
+            except Exception as err:  # noqa: BLE001 - a probe never raises out
+                results[key] = {
+                    "outcome": "unavailable",
+                    "error": type(err).__name__,
+                }
+            else:
+                record: dict[str, Any] = {
+                    "outcome": "answered",
+                    "type": type(value).__name__,
+                    "elapsed_ms": int((time.monotonic() - started_at) * 1000),
+                }
+                if isinstance(value, dict):
+                    record["keys"] = sorted(str(k) for k in value)
+                    record["populated"] = sum(
+                        1 for v in value.values() if v not in (None, "", {}, [])
+                    )
+                results[key] = record
+        return results
 
     async def get_data(self) -> dict[str, Any]:
         """Fetch all available data from the router."""
@@ -499,6 +769,8 @@ class HuaweiRouter5GAPI:
                     # critical block.
                     if index and time.monotonic() - started > FETCH_DEADLINE:
                         skipped = [name for name, _ in fetch_tasks[index:]]
+                        for name in skipped:
+                            self._record_endpoint(name, "skipped")
                         _LOGGER.warning(
                             "Fetch reached its %ss deadline after %d of %d "
                             "endpoints; returning what was collected. "
@@ -511,13 +783,22 @@ class HuaweiRouter5GAPI:
                         break
 
                     try:
+                        started_at = time.monotonic()
                         data[key] = fetcher()
+                        self._record_endpoint(
+                            key,
+                            "answered",
+                            result=data[key],
+                            elapsed_ms=int((time.monotonic() - started_at) * 1000),
+                        )
                     except ResponseErrorLoginRequiredException as err:
                         _LOGGER.debug(
                             "Session expired during fetch of %s (%s). Re-logging.",
                             key,
                             err,
                         )
+                        self._record_verdict("expired", key=key, payload=data)
+                        self._record_endpoint(key, "expired")
                         raise HuaweiAuthError(f"Session expired: {err}") from err
                     except ResponseErrorException as err:
                         if str(err.code) in ("125002", "125003"):
@@ -527,7 +808,21 @@ class HuaweiRouter5GAPI:
                                 key,
                                 err,
                             )
+                            self._record_verdict(
+                                "expired", code=str(err.code), key=key, payload=data
+                            )
+                            self._record_endpoint(key, "expired", str(err.code))
                             raise HuaweiAuthError(f"Session expired: {err}") from err
+
+                        # Every path below this line is a rejection, and two of
+                        # the three swallow their own error — the endpoint goes
+                        # missing from `data` and nothing is raised. Recording
+                        # here rather than at the raise is what makes those two
+                        # visible in the download at all.
+                        self._record_verdict(
+                            "refused", code=str(err.code), key=key, payload=data
+                        )
+                        self._record_endpoint(key, "refused", str(err.code))
 
                         if key == "device_information":
                             _LOGGER.warning("Critical fetch %s failed: %s", key, err)
@@ -540,6 +835,18 @@ class HuaweiRouter5GAPI:
                         else:
                             _LOGGER.debug("Failed to fetch %s: %s", key, err)
                     except Exception as err:
+                        # No error code to carry: the failure came from the
+                        # transport or the library rather than from the router
+                        # stating a refusal, so the verdict says only that the
+                        # endpoint could not be read.
+                        self._record_verdict(
+                            "unavailable",
+                            key=key,
+                            error=type(err).__name__,
+                            payload=data,
+                        )
+                        self._record_endpoint(key, "unavailable")
+
                         if key == "device_information":
                             _LOGGER.warning("Critical fetch %s failed: %s", key, err)
                             raise HuaweiConnectionError(
@@ -553,6 +860,14 @@ class HuaweiRouter5GAPI:
                 return data
 
             res = None
+            # Cleared before the attempt, not after it. `_fetch` records its
+            # own rejections as it goes and two of them do not raise, so
+            # clearing on the way out would erase the evidence the poll had
+            # just collected. A poll that records nothing therefore leaves this
+            # `None`, which is `zte_router_5g`'s "cleared by a live verdict"
+            # expressed against a fetch loop that can partially succeed.
+            self._record_verdict("live")
+            self.endpoint_outcomes = {}
             try:
                 res = await asyncio.to_thread(_fetch)
                 self._last_activity = datetime.now(UTC)

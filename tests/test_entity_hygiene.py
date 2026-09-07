@@ -673,6 +673,53 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "typing-only constraint and there is no deprecation or removal date. "
         "Recorded in docs/ha_compatibility.md."
     ),
+    ("diagnostics.py", "noqa: BLE001"): (
+        "`_entity_resolution` runs every entity description's `value_fn` "
+        "against the live payload and records the ones that raise. Naming an "
+        "exception type would suppress every other kind, and the finding is "
+        "precisely that nobody knows what an unfamiliar firmware provokes — a "
+        "description that throws is a defect in this integration and is "
+        "otherwise invisible, since the entity simply shows nothing. Nothing "
+        "is swallowed: the class name is published in the download."
+    ),
+    ("diag_check.py", "ruff: noqa: T201"): (
+        "The console report is this script's entire output. There is no logger "
+        "to route it through, and a caller reading the transcript is the point. "
+        "File-level rather than per-line because every print in the file is the "
+        "same deliberate choice. Same reason as `hardware_check.py` below, and "
+        "the same form `zte_router_5g/scripts/diag_check.py` uses."
+    ),
+    ("diag_check.py", "pragma: no cover"): (
+        "The import guard that turns a ModuleNotFoundError into an instruction "
+        "to use the container interpreter. It fires only when the script is run "
+        "the wrong way, which the suite cannot reproduce without unimporting "
+        "Home Assistant. Covering it would test the operator's mistake, not the "
+        "script."
+    ),
+    ("diag_check.py", "noqa: SLF001"): (
+        "Sets `coordinator._force_refresh_once` and awaits "
+        "`_async_update_data()` directly. `async_force_refresh` is the "
+        "supported route and what the integration itself calls, but it goes "
+        "through the debouncer, which needs a running Home Assistant to fire. "
+        "Nothing here runs one, so the flag is set and the refresh awaited — "
+        "the same two steps, minus the scheduling. Identical to the "
+        "`zte_router_5g` script's handling of the same problem."
+    ),
+    ("diag_check.py", "noqa: BLE001"): (
+        "The poll loop catches everything on purpose: a poll that fails is the "
+        "subject of this script rather than an error in it, and the download "
+        "taken afterwards is the evidence about that failure. Naming types "
+        "here would abort the run on exactly the fault it exists to capture. "
+        "The exception type and message are printed, so nothing is swallowed."
+    ),
+    ("diag_check.py", "type: ignore[method-assign]"): (
+        "`--sabotage` replaces `HuaweiRouter5GAPI.get_data` for the duration of "
+        "one run so a session loss happens at a chosen point, and restores it "
+        "in a `finally`. Patching the class is what makes the recovery path the "
+        "real one rather than a stub; mypy objects to assigning a method, which "
+        "is the whole technique. Same approach as `zte_router_5g`'s "
+        "`_sabotaging_chunk`."
+    ),
     ("hardware_check.py", "ruff: noqa: T201"): (
         "The console report is this script's entire output. There is no logger "
         "to route it through, and a caller reading the transcript is the point. "
