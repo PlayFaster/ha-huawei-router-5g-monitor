@@ -587,7 +587,6 @@ class HuaweiRouter5GAPI:
         ("device_autorun_version", lambda c: c.device.autorun_version()),
         ("system_deviceinfo", lambda c: c.system.deviceinfo()),
         ("system_deviceinfoex", lambda c: c.system.deviceinfoex()),
-        ("system_onlinestate", lambda c: c.system.onlinestate()),
         # --- Radio and network detail this integration does not read ---------
         ("net_cell_info", lambda c: c.net.cell_info()),
         ("net_network", lambda c: c.net.network()),
@@ -623,6 +622,41 @@ class HuaweiRouter5GAPI:
         # --- DHCP, which names the LAN this router is serving ----------------
         ("dhcp_settings", lambda c: c.dhcp.settings()),
         ("dial_up_auto_apn", lambda c: c.dial_up.auto_apn()),
+        # --- Named by the survey as where to start ---------------------------
+        #
+        # `docs/huawei_how_to_access.md` → "Readable, never reviewed" records
+        # these as found by an earlier endpoint sweep and never assessed, with
+        # the note that the next person should start there rather than re-run
+        # the probe. Probing them costs one call each and answers the question
+        # that table left open for every model, not only this one.
+        #
+        # `diagnosis.time_reboot` is the notable one: the reference unit has a
+        # scheduled reboot ENABLED, which explains a weekly uptime reset and
+        # interacts with reboot detection.
+        ("diagnosis_time_reboot", lambda c: c.diagnosis.time_reboot()),
+        ("security_get_firewall_switch", lambda c: c.security.get_firewall_switch()),
+        ("led_appctrlled", lambda c: c.led.appctrlled()),
+        ("online_update_status", lambda c: c.online_update.status()),
+        ("sms_config", lambda c: c.sms.config()),
+    )
+
+    # Endpoints deliberately absent from `DIAGNOSTIC_PROBES`, so nobody adds
+    # them back without knowing why they went.
+    #
+    # `system.onlinestate` returns a list and `huawei-lte-api` calls `.get()`
+    # on it, raising `AttributeError` inside the library before this code sees
+    # a response. Measured 2026-09-07. The probe would report a library defect
+    # as a property of the router, which is worse than not probing it.
+    #
+    # `diagnosis.diagnose_ping` and `diagnosis.diagnose_traceroute` ask the
+    # router to *perform* a network operation. They read as reads and are not.
+    PROBES_EXCLUDED: tuple[tuple[str, str], ...] = (
+        ("system.onlinestate", "returns a list the library mishandles"),
+        ("diagnosis.diagnose_ping", "runs a ping rather than reading state"),
+        (
+            "diagnosis.diagnose_traceroute",
+            "runs a traceroute rather than reading state",
+        ),
     )
 
     async def probe_diagnostic_endpoints(self) -> dict[str, Any]:
@@ -642,12 +676,30 @@ class HuaweiRouter5GAPI:
 
         One failure never stops the sweep: the whole point is the shape of the
         set of failures, not the first one.
+
+        **Called directly on one established session, never through
+        `_execute_with_retry`.** That wrapper re-logs in on
+        `ResponseErrorLoginRequiredException`, which `huawei-lte-api` raises for
+        `100003` and for no other code — and `100003` is a refusal on this
+        firmware, not an expiry. Measured 2026-09-07: a `100003` costs two
+        logins through the wrapper against one for any other outcome, and a
+        42-endpoint sweep accumulated enough logout/login churn that the router
+        began answering `LoginErrorAlreadyLoginException` and then refused
+        connections, turning the rest of the sweep into artefacts. The same 42
+        calls on one session, called directly, completed in about 900 ms with
+        every endpoint returning a real outcome. `docs/huawei_how_to_access.md`
+        carries the mechanism, and had already warned that a bulk sweep produces
+        false `100003` results.
+
+        A refusal is the finding here, so nothing about it should provoke
+        session recovery.
         """
+        client = await self._ensure_client()
         results: dict[str, Any] = {}
         for key, call in self.DIAGNOSTIC_PROBES:
             started_at = time.monotonic()
             try:
-                value = await self._execute_with_retry(call)
+                value = await asyncio.to_thread(call, client)
             except ResponseErrorException as err:
                 results[key] = {"outcome": "refused", "code": str(err.code)}
             except Exception as err:  # noqa: BLE001 - a probe never raises out

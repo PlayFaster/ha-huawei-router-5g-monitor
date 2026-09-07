@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev4\] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46](#123-dev4---2026-09-07---endpoint-probe-session-churn-fixed-probe-set-widened-to-46)
   - [\[1.2.3-dev3\] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe](#123-dev3---2026-09-07---diagnostic-download-rejection-endpoint-and-entity-evidence-unpolled-endpoint-probe)
   - [\[1.2.3-dev2\] - 2026-09-07 - CI Bumps; Doc Updates](#123-dev2---2026-09-07---ci-bumps-doc-updates)
   - [\[1.2.3-dev1\] - 2026-09-07 - CI Bumps; Shared Local CI Improvements; Doc Updates](#123-dev1---2026-09-07---ci-bumps-shared-local-ci-improvements-doc-updates)
@@ -180,6 +181,47 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3-dev4] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46
+
+### Summary
+
+The unpolled-endpoint probe added in `[1.2.3-dev3]` called each endpoint through `_execute_with_retry`, which re-logs in on `ResponseErrorLoginRequiredException`. `huawei-lte-api` raises that exception for `100003` and no other code, and `100003` is a refusal on this firmware rather than an expiry — so every refused endpoint cost a logout and a login, and a full sweep left the router refusing connections part way through. The probe now runs on one established session, and the deferred items from that entry are closed.
+
+### Fixed
+
+- **The probe no longer provokes session churn.** Calls go directly to the client on a single session established once for the sweep. A refusal is the finding the probe exists to record, so nothing about one should trigger session recovery.
+
+### Added
+
+- **Five endpoints from the survey's `Readable, never reviewed` table**, which `docs/huawei_how_to_access.md` names as where the next person should start: `diagnosis.time_reboot`, `security.get_firewall_switch`, `led.appctrlled`, `online_update.status` and `sms.config`. The probe set is now 46.
+- **`PROBES_EXCLUDED`**, naming endpoints deliberately absent and why, so none is added back blind. Three entries: `system.onlinestate`, and the two `diagnosis` calls that make the router _perform_ a network operation rather than report one.
+- **Seven unit tests for `probe_diagnostic_endpoints`** — one login for the whole sweep, a refusal carrying the router's code, one failure never stopping the sweep, key names published without values, a scalar answer reporting its type, and both list invariants.
+
+### Removed
+
+- **The `system_onlinestate` probe.** The endpoint returns a list and `huawei-lte-api` calls `.get()` on it, raising `AttributeError` inside the library. Probing it would report a library defect as a property of the router.
+
+### Changed
+
+- **Two stale test expectations corrected** — the `diag_check.py` fixture predated the `probes` key, and the probe's broad `except` needed its reason recorded in `ALLOWED_SUPPRESSIONS`.
+- **`diag_check.py` tolerates two more values that move between runs**: `nrrank`, a radio measurement, and an endpoint's `populated` count, which changes when a radio field blanks. The outcome, type, key count and key names beside them do not move and are still compared.
+
+### Tests
+
+- 1033 passing, none failing. The two failures carried by `[1.2.3-dev3]` are closed.
+
+### Verified
+
+- **On the reference H165-383, 2026-09-07.** `diag_check.py` **34/34 on two consecutive runs**, `--sabotage` **8/8**, `hardware_check.py` **8/8** with the corrected banner.
+- **The sweep now returns 31 answered and 15 refused, with no failure outside the router's own answer.** Before the fix the same sweep produced ten `HuaweiConnectionError` artefacts and left the next run unable to connect at all. Every refusal carries the router's code: eleven `100002`, four `100003`.
+- **A download taken from Home Assistant itself matches the one `diag_check.py` produces** — same eight top-level keys, same 46 probes with the same outcomes, same 26 endpoints, same 119/124 and 10/10 entity resolution. The script builds its own coordinator, so agreement is what shows it exercises the real path.
+- **Redaction checked on the Home Assistant download**: host tokenized, password redacted, no raw MAC, and the three IPv4-shaped strings are firmware and OS version numbers rather than addresses. The probe block publishes 271 key names and no values.
+
+### Notes
+
+- **`global_.module_switch` answers 94 keys**, the largest capability block on the device, and `sms.config` answers 16 — the block the survey flagged as most likely to carry the outgoing SMS length ceilings currently taken from the router's web interface rather than the API. Neither is read by any entity; both are now visible in a download.
+- **No probe on this device answered with an empty block, and none returned a non-mapping.** Those two signals are quiet on hardware this integration already supports, which is what they are for.
 
 ## [1.2.3-dev3] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe
 

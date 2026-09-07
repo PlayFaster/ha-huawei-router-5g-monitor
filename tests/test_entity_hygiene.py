@@ -658,6 +658,14 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "the library exposing it, and DialUp.dial() hardcodes Action 1, so "
         "there is no public wrapper for the disconnect half."
     ),
+    ("api.py", "noqa: BLE001"): (
+        "`probe_diagnostic_endpoints` sweeps endpoints this integration does "
+        "not poll, on hardware nobody here has seen. The shape of the set of "
+        "failures is the finding, so one failure must never stop the sweep and "
+        "naming exception types would decide in advance what an unfamiliar "
+        "firmware is allowed to do. Nothing is swallowed: the class name is "
+        "published in the download beside the endpoint that produced it."
+    ),
     ("device_tracker.py", "type: ignore[attr-defined]"): (
         "ScannerEntity is re-exported from homeassistant.components.device_tracker "
         "but is absent from its __all__, so mypy reports an implicit re-export. "

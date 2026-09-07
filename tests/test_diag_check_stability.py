@@ -64,6 +64,7 @@ def _artefact(
         "data": payload if payload is not None else {"device_information": {"a": "1"}},
         "last_rejection": rejection,
         "login": login if login is not None else {"result": "ok", "error": None},
+        "probes": {"global_module_switch": {"outcome": "answered", "type": "dict"}},
         "entity_resolution": {
             "sensor": {"total": 2, "resolved": 1, "no_value": ["b"], "raised": {}},
         },

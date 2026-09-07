@@ -171,7 +171,7 @@ _VOLATILE = re.compile(
     r"^/data/month_statistics/"
     r"|^/data/traffic_statistics/(?!showtraffic$)"
     # Radio measurements and the cell the device happens to be camped on.
-    r"|rsrp|rsrq|rssi|snr|sinr|cqi|mcs|bler|ecio|rscp|txpower"
+    r"|rsrp|rsrq|rssi|snr|sinr|cqi|mcs|bler|ecio|rscp|txpower|rank"
     r"|cell_id|enodeb_id|nei_cellid|lac|tac|pci|arfcn|freq|band|bandwidth|bsic"
     r"|signalicon|signalbar|maxsignal|bars?$"
     # Anything clocked or counted, in either naming convention.
@@ -186,9 +186,11 @@ _VOLATILE = re.compile(
     # run. The endpoint's outcome, key counts and type beside it do not, and
     # those are what the comparison is watching.
     r"|elapsed_ms$"
-    # A probe's populated count moves with the device; its outcome and key
-    # names do not, and those are what the comparison is watching.
-    r"|^/probes/[a-z_]+/populated$"
+    # A populated count moves with the device — a radio field that blanks
+    # between two runs changes it — while the outcome, the type, the key count
+    # and the key names do not, and those are what the comparison is watching.
+    r"|^/probes/[a-z_0-9]+/populated$"
+    r"|^/endpoints/[a-z_0-9]+/populated$"
     # This script's own bookkeeping.
     r"|^/_elapsed$"
     r")"

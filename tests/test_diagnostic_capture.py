@@ -19,6 +19,7 @@ a defect `zte_router_5g` shipped in `[3.3.9-dev5]` and found by hand two
 releases later, and it is why the two files are separate.
 """
 
+from typing import Any
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -351,3 +352,131 @@ def test_an_endpoint_returning_something_other_than_a_mapping_says_so() -> None:
         "outcome": "answered",
         "type": "str",
     }
+
+
+# ---------------------------------------------------------------------------
+# probe_diagnostic_endpoints — the sweep over endpoints the poll never touches
+# ---------------------------------------------------------------------------
+
+
+async def test_the_sweep_calls_every_probe_on_one_session() -> None:
+    """One login for the whole sweep, and no re-login on a failure.
+
+    This is the property the sweep exists to hold. Routed through
+    `_execute_with_retry`, a `100003` costs a second login, and a 42-endpoint
+    sweep accumulated enough churn on the reference H165 to leave the router
+    refusing connections — measured 2026-09-07 and recorded in
+    `docs/huawei_how_to_access.md`.
+    """
+    api = _make_api()
+    logins = {"n": 0}
+
+    async def counting() -> Any:
+        logins["n"] += 1
+        return MagicMock()
+
+    with (
+        patch.object(api, "_ensure_client", side_effect=counting),
+        patch.object(
+            type(api),
+            "DIAGNOSTIC_PROBES",
+            (
+                ("a", lambda _c: {"x": "1"}),
+                ("b", lambda _c: (_ for _ in ()).throw(_error("100003"))),
+                ("c", lambda _c: {"y": "2"}),
+            ),
+        ),
+    ):
+        result = await api.probe_diagnostic_endpoints()
+
+    assert logins["n"] == 1
+    assert sorted(result) == ["a", "b", "c"]
+
+
+async def test_a_refused_probe_carries_the_routers_code() -> None:
+    """A refusal is the finding, recorded with the code the router gave."""
+    api = _make_api()
+    with (
+        patch.object(api, "_ensure_client", return_value=MagicMock()),
+        patch.object(
+            type(api),
+            "DIAGNOSTIC_PROBES",
+            (("refused_one", lambda _c: (_ for _ in ()).throw(_error("100002"))),),
+        ),
+    ):
+        result = await api.probe_diagnostic_endpoints()
+
+    assert result["refused_one"] == {"outcome": "refused", "code": "100002"}
+
+
+async def test_one_failure_never_stops_the_sweep() -> None:
+    """The shape of the set of failures is the point, not the first one."""
+    api = _make_api()
+    with (
+        patch.object(api, "_ensure_client", return_value=MagicMock()),
+        patch.object(
+            type(api),
+            "DIAGNOSTIC_PROBES",
+            (
+                ("first", lambda _c: (_ for _ in ()).throw(OSError("gone"))),
+                ("second", lambda _c: {"k": "v"}),
+            ),
+        ),
+    ):
+        result = await api.probe_diagnostic_endpoints()
+
+    assert result["first"] == {"outcome": "unavailable", "error": "OSError"}
+    assert result["second"]["outcome"] == "answered"
+
+
+async def test_a_probe_publishes_key_names_but_never_values() -> None:
+    """Names are a property of the firmware; values are the household's.
+
+    A value from an endpoint nobody here has seen has no entry in
+    `diagnostics.py`'s key lists and would be published intact by a sanitizer
+    that matches on exact key names.
+    """
+    api = _make_api()
+    with (
+        patch.object(api, "_ensure_client", return_value=MagicMock()),
+        patch.object(
+            type(api),
+            "DIAGNOSTIC_PROBES",
+            (("block", lambda _c: {"Ssid": "TheSmiths-5G", "Empty": ""}),),
+        ),
+    ):
+        result = await api.probe_diagnostic_endpoints()
+
+    assert result["block"]["keys"] == ["Empty", "Ssid"]
+    assert result["block"]["populated"] == 1
+    assert "TheSmiths-5G" not in str(result)
+
+
+async def test_a_probe_returning_a_scalar_reports_its_type() -> None:
+    """Measured on the reference H165: `voice_busy` answers the string `Idle`."""
+    api = _make_api()
+    with (
+        patch.object(api, "_ensure_client", return_value=MagicMock()),
+        patch.object(type(api), "DIAGNOSTIC_PROBES", (("scalar", lambda _c: "Idle"),)),
+    ):
+        result = await api.probe_diagnostic_endpoints()
+
+    assert result["scalar"]["type"] == "str"
+    assert "keys" not in result["scalar"]
+
+
+def test_the_excluded_probes_name_their_reason() -> None:
+    """An endpoint left out on purpose says why, so nobody adds it back blind."""
+    excluded = dict(_make_api().PROBES_EXCLUDED)
+
+    assert "system.onlinestate" in excluded
+    assert all(reason for reason in excluded.values())
+
+
+def test_no_excluded_endpoint_is_also_probed() -> None:
+    """The two lists must not disagree about the same endpoint."""
+    api = _make_api()
+    probed = {key for key, _ in api.DIAGNOSTIC_PROBES}
+    excluded = {name.replace(".", "_") for name, _ in api.PROBES_EXCLUDED}
+
+    assert not probed & excluded
