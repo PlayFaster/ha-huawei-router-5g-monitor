@@ -703,85 +703,47 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         self._check_new_sms(data)
 
         # --- Uptime reboot-detection latches ---
+        #
+        # Three counters with three different reset semantics — router
+        # reboot, WAN reconnect, statistics clear — so each keeps its own
+        # latch state and they are never shared. One helper applies the same
+        # rule to each; the state stays on the caller, which is what keeps
+        # the independence visible at the call site.
         entry_data_updates: dict[str, Any] = {}
-        # 1. System uptime
-        sys_sec: int | None = None
-        with contextlib.suppress(ValueError, TypeError):
-            if (raw := dev_info.get("uptime")) is not None:
-                sys_sec = int(float(raw))
-        if sys_sec is None or sys_sec < 0:
-            data["system_boot_time"] = self._system_boot_time
-        else:
-            if self._system_boot_time is None or (
-                self._last_system_uptime is not None
-                and sys_sec < self._last_system_uptime - UPTIME_REBOOT_MARGIN
-            ):
-                t = dt_util.now() - timedelta(seconds=sys_sec)
-                self._system_boot_time = t.replace(microsecond=0)
-                entry_data_updates["system_boot_time"] = (
-                    self._system_boot_time.isoformat()
-                )
-                entry_data_updates["last_system_uptime"] = sys_sec
-                _LOGGER.debug(
-                    "%s: System boot time latched: %s",
-                    self.entry.title,
-                    self._system_boot_time,
-                )
-            self._last_system_uptime = sys_sec
-            data["system_boot_time"] = self._system_boot_time
-
-        # 2. Current connection time
         traffic = data.get("traffic_statistics") or {}
-        conn_sec: int | None = None
-        with contextlib.suppress(ValueError, TypeError):
-            if (raw := traffic.get("CurrentConnectTime")) is not None:
-                conn_sec = int(float(raw))
-        if conn_sec is None or conn_sec < 0:
-            data["conn_start_time"] = self._conn_start_time
-        else:
-            if self._conn_start_time is None or (
-                self._last_conn_uptime is not None
-                and conn_sec < self._last_conn_uptime - UPTIME_REBOOT_MARGIN
-            ):
-                t = dt_util.now() - timedelta(seconds=conn_sec)
-                self._conn_start_time = t.replace(microsecond=0)
-                entry_data_updates["conn_start_time"] = (
-                    self._conn_start_time.isoformat()
-                )
-                entry_data_updates["last_conn_uptime"] = conn_sec
-                _LOGGER.debug(
-                    "%s: Connection start time latched: %s",
-                    self.entry.title,
-                    self._conn_start_time,
-                )
-            self._last_conn_uptime = conn_sec
-            data["conn_start_time"] = self._conn_start_time
 
-        # 3. Total connection time
-        total_sec: int | None = None
-        with contextlib.suppress(ValueError, TypeError):
-            if (raw := traffic.get("TotalConnectTime")) is not None:
-                total_sec = int(float(raw))
-        if total_sec is None or total_sec < 0:
-            data["total_conn_start_time"] = self._total_conn_start_time
-        else:
-            if self._total_conn_start_time is None or (
-                self._last_total_conn_time is not None
-                and total_sec < self._last_total_conn_time - UPTIME_REBOOT_MARGIN
-            ):
-                t = dt_util.now() - timedelta(seconds=total_sec)
-                self._total_conn_start_time = t.replace(microsecond=0)
-                entry_data_updates["total_conn_start_time"] = (
-                    self._total_conn_start_time.isoformat()
-                )
-                entry_data_updates["last_total_conn_time"] = total_sec
-                _LOGGER.debug(
-                    "%s: Total connection start time latched: %s",
-                    self.entry.title,
-                    self._total_conn_start_time,
-                )
-            self._last_total_conn_time = total_sec
-            data["total_conn_start_time"] = self._total_conn_start_time
+        self._system_boot_time, self._last_system_uptime = self._apply_uptime(
+            dev_info.get("uptime"),
+            self._system_boot_time,
+            self._last_system_uptime,
+            label="System boot time",
+            boot_key="system_boot_time",
+            counter_key="last_system_uptime",
+            entry_data_updates=entry_data_updates,
+        )
+        data["system_boot_time"] = self._system_boot_time
+
+        self._conn_start_time, self._last_conn_uptime = self._apply_uptime(
+            traffic.get("CurrentConnectTime"),
+            self._conn_start_time,
+            self._last_conn_uptime,
+            label="Connection start time",
+            boot_key="conn_start_time",
+            counter_key="last_conn_uptime",
+            entry_data_updates=entry_data_updates,
+        )
+        data["conn_start_time"] = self._conn_start_time
+
+        self._total_conn_start_time, self._last_total_conn_time = self._apply_uptime(
+            traffic.get("TotalConnectTime"),
+            self._total_conn_start_time,
+            self._last_total_conn_time,
+            label="Total connection start time",
+            boot_key="total_conn_start_time",
+            counter_key="last_total_conn_time",
+            entry_data_updates=entry_data_updates,
+        )
+        data["total_conn_start_time"] = self._total_conn_start_time
 
         if entry_data_updates:
             self.hass.config_entries.async_update_entry(
@@ -789,6 +751,61 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             )
 
         return data
+
+    def _apply_uptime(
+        self,
+        raw: Any,
+        boot_time: datetime | None,
+        last_uptime: int | None,
+        *,
+        label: str,
+        boot_key: str,
+        counter_key: str,
+        entry_data_updates: dict[str, Any],
+    ) -> tuple[datetime | None, int | None]:
+        """Latch one boot instant from one uptime counter, and report the pair.
+
+        The boot instant is physically constant between reboots, so it is
+        computed once and held: recomputing `now() - counter` every poll
+        makes the displayed time crawl, because the router's counter and
+        Home Assistant's wall clock do not tick at the same rate. It is
+        re-derived only when the counter drops by more than
+        `UPTIME_REBOOT_MARGIN`, which is a comparison between two counter
+        readings and so immune to that divergence.
+
+        **A reading that cannot be trusted changes nothing.** Missing,
+        unparsable or negative returns the pair untouched, which leaves the
+        last-seen counter at the last value the router actually reported —
+        advancing it to a rejected reading would move the reboot comparison
+        to a number that was never true.
+
+        Returns the boot time and the last-seen counter for the caller to
+        store. The state stays with the caller because the three latches
+        must not share any: their counters reset on different events.
+        """
+        seconds: int | None = None
+        with contextlib.suppress(ValueError, TypeError):
+            if raw is not None:
+                seconds = int(float(raw))
+
+        if seconds is None or seconds < 0:
+            return boot_time, last_uptime
+
+        if boot_time is None or (
+            last_uptime is not None and seconds < last_uptime - UPTIME_REBOOT_MARGIN
+        ):
+            t = dt_util.now() - timedelta(seconds=seconds)
+            boot_time = t.replace(microsecond=0)
+            entry_data_updates[boot_key] = boot_time.isoformat()
+            entry_data_updates[counter_key] = seconds
+            _LOGGER.debug(
+                "%s: %s latched: %s",
+                self.entry.title,
+                label,
+                boot_time,
+            )
+
+        return boot_time, seconds
 
     def _log_sms_shape(self, block: Any) -> None:
         """Log the SMS payload's shape, never its contents.

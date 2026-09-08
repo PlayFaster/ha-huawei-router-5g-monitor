@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev7\] - 2026-09-08 - Cyclomatic Complexity Below 20; One Uptime Latch Replacing Three](#123-dev7---2026-09-08---cyclomatic-complexity-below-20-one-uptime-latch-replacing-three)
   - [\[1.2.3-dev6\] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It](#123-dev6---2026-09-07---every-entity-belongs-to-a-device-one-inherited-device_info-and-the-sweep-that-guards-it)
   - [\[1.2.3-dev5\] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered](#123-dev5---2026-09-07---coverage-shortfall-now-reported-by-the-summary-entity-resolution-failure-path-covered)
   - [\[1.2.3-dev4\] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46](#123-dev4---2026-09-07---endpoint-probe-session-churn-fixed-probe-set-widened-to-46)
@@ -181,6 +182,38 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Multi-Platform Engine: Eighty Sensor Descriptions and Six Platforms](#101-dev2---2026-05-02---multi-platform-engine-eighty-sensor-descriptions-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: DataUpdateCoordinator, API Wrapper, and Non-Blocking Startup](#101-dev1---2026-05-02---core-architecture-dataupdatecoordinator-api-wrapper-and-non-blocking-startup)
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
+
+---
+
+## [1.2.3-dev7] - 2026-09-08 - Cyclomatic Complexity Below 20; One Uptime Latch Replacing Three
+
+### Summary
+
+`coordinator._async_update_data` scored 25 against Ruff's `max-complexity = 25` ceiling, passing it with nothing to spare and failing the family target of 20. It is now **16**. One extraction did it: the three uptime reboot-detection latches were textually near-identical, and collapsing them into a single helper called three times removed ten points. No rule changed — every branch moved verbatim, and the three latches keep the independent state their differing reset semantics require.
+
+**Reaching the target without touching the latch code was measured impossible.** Extracting the two hold-last-known-values preambles, the hardware-metadata block and the recovery block together — four extractions, three of them larger in diff — leaves the function at 21.
+
+### Changed
+
+- **`coordinator._async_update_data` 25 → 16.** The three latch blocks for `system_boot_time`, `conn_start_time` and `total_conn_start_time` became three calls to the new `_apply_uptime`, which scores 4. The parse guard, the negative-reading rejection, the reboot-margin comparison and the `entry.data` write are unchanged; the three call sites keep their own state, so no latch can move another.
+- **The three per-latch debug messages become one parameterized message.** `"%s: System boot time latched: %s"` and its two siblings are now `"%s: %s latched: %s"` with the label as an argument. The rendered line is byte-identical, which is what the existing assertions on `caplog.text` check.
+
+### Tests
+
+- **1037 → 1055.** Eighteen added, all parameterized over the three latches. Nine characterize branches the suite executed but asserted nothing about: a missing, unparsable or negative reading holds the latched timestamp **and** leaves the last-seen counter at the last value the router actually reported; and a drop one second inside `UPTIME_REBOOT_MARGIN` is jitter rather than a reboot. All nine were written first and required to pass against the unmodified function.
+- **Six close two genuine coverage gaps found by mutation**, both pre-existing and neither introduced here. Nothing asserted the latched instant is truncated to the second — every other latch test freezes `now()` on a whole second, so the truncation was invisible to all of them — and nothing asserted the last-seen counter reaches `entry.data`, only that `async_update_entry` had been called at all. A payload carrying the timestamp and not the counter satisfied every test that existed, and restores a boot time the next session has no way to check for staleness.
+
+### Verified
+
+- **Six mutations applied to `_apply_uptime`, all six caught**, each file restored to its pre-mutation checksum and each run under a timeout. Two survived the first pass — the microsecond truncation and the counter write — and both survived the full 1049-test suite, not merely a filtered selection; the tests above were written for them and re-mutation confirms both now fail.
+- Measured with `ruff check --select C901 --config "lint.mccabe.max-complexity=1" custom_components/`, which reports every function rather than only those over the ceiling.
+
+### Notes
+
+- **The project maximum is now `api.get_data` at 16**, with `_compute_health` 14, `diagnostics._sanitize` 13, `binary_sensor.is_on` 13 and `api._fetch` 13 behind it. All are under the target and none is touched here.
+- **`_hold_last_values` was not extracted, unlike `zte_router_5g`.** ZTE's three call sites opened with a textually identical preamble, which is what made that extraction verbatim and therefore safe. The two here differ in format string and argument list — one names the cause, the other carries the exception — so every available unification either rewrites a log line or moves `update_health` ahead of its own warning. Recorded as a permitted difference in the cross-project item.
+- **This extraction is the seam `fix_uptime_timestamp_gets_stuck.md` needs**, not an obstacle to it: that item requires the drift-corrected anchor to go through one shared helper, and there is now one place where the anchor is computed instead of three.
+- The project carries no `# noqa: C901` suppression, before or after.
 
 ---
 
