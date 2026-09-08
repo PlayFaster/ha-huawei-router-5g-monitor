@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev8\] - 2026-09-08 - Documentation: Project Complexity & Health Scorecard Added](#123-dev8---2026-09-08---documentation-project-complexity--health-scorecard-added)
   - [\[1.2.3-dev7\] - 2026-09-08 - Cyclomatic Complexity Below 20; One Uptime Latch Replacing Three](#123-dev7---2026-09-08---cyclomatic-complexity-below-20-one-uptime-latch-replacing-three)
   - [\[1.2.3-dev6\] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It](#123-dev6---2026-09-07---every-entity-belongs-to-a-device-one-inherited-device_info-and-the-sweep-that-guards-it)
   - [\[1.2.3-dev5\] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered](#123-dev5---2026-09-07---coverage-shortfall-now-reported-by-the-summary-entity-resolution-failure-path-covered)
@@ -182,6 +183,12 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Multi-Platform Engine: Eighty Sensor Descriptions and Six Platforms](#101-dev2---2026-05-02---multi-platform-engine-eighty-sensor-descriptions-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: DataUpdateCoordinator, API Wrapper, and Non-Blocking Startup](#101-dev1---2026-05-02---core-architecture-dataupdatecoordinator-api-wrapper-and-non-blocking-startup)
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
+
+## [1.2.3-dev8] - 2026-09-08 - Documentation: Project Complexity & Health Scorecard Added
+
+### Added
+
+- **`docs/project_complexity.md` architectural health scorecard**: Added a tracked project scorecard documenting current structural complexity metrics, including PlayFaster Health Index score, unmasked McCabe cyclomatic complexity ($V(G)$), routine statement length distributions, module sizes, entity platform declarative efficiency, test surface, and code suppressions.
 
 ---
 
