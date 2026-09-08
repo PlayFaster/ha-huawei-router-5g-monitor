@@ -8,7 +8,7 @@ import math
 from calendar import monthrange
 from collections.abc import Callable
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, cast
+from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
@@ -344,6 +344,76 @@ def build_device_info(
         )
 
     return info
+
+
+class _HasGroup(Protocol):
+    """The one field `HuaweiDeviceEntity` reads from an entity description.
+
+    Declared read-only. Every description in this component is a frozen
+    dataclass, and a protocol member written as a plain attribute would
+    require a settable one.
+    """
+
+    @property
+    def group(self) -> str:
+        """Return the sub-device this entity belongs to."""
+
+
+class HuaweiDeviceEntity:
+    """Mixin resolving an entity's sub-device, inherited rather than repeated.
+
+    Seven platform bases each carried a copy of this property. None of them
+    was wrong, and that is the point: in ``zte_router_5g`` the same shape put
+    ten copies across six modules and the eleventh class was written without
+    one, so ``ZTEOperatorProvisionedSensor`` registered against the config
+    entry with no device — in the entity list, counted in the integration's
+    total, on none of the device cards. Every copy is a place the next
+    omission can happen, and inheriting one removes the place. Cross-project
+    item ``.shared/issues/x_project/every_entity_must_have_a_device.md``.
+
+    **The group is resolved from ``_device_group`` when a class sets it, and
+    from ``entity_description.group`` otherwise.** Six platforms are
+    description-driven and use the second path. ``device_tracker`` is the
+    exception and sets the first: it creates one entity per discovered client
+    and has no entity description to read.
+
+    **The contract this mixin depends on but does not create.** It reads
+    ``self.coordinator``, supplied by ``CoordinatorEntity``, and either
+    ``_device_group`` or the description set by the entity's own ``__init__``.
+    A class inheriting this without either fails at first state write, which
+    ``test_every_live_entity_belongs_to_a_device`` reports rather than letting
+    it reach a device card.
+
+    **Clients stay entities, not devices.** The tracker attaches to the
+    Clients sub-device rather than producing a device per client, and that is
+    the precondition for the ``stale-devices`` exemption recorded in
+    ``quality_scale.yaml`` — were it removed, HA 2026.9+ would create a device
+    per client and the rule would become live.
+
+    List it after ``HuaweiAboutEntity`` and before the platform base, so this
+    property wins over any the platform supplies. On ``ScannerEntity`` it wins
+    over a ``@final`` declaration, which is a typing-only constraint with no
+    deprecation or removal date; the suppression and its reason are in
+    ``device_tracker.py`` and on the reviewed allow-list.
+    """
+
+    # The contract, declared rather than assumed. These are annotations only —
+    # nothing is assigned, so there is no runtime effect and no interference
+    # with the platform bases that provide them. Stating them here is what
+    # lets a class inheriting this mixin without a group fail type checking
+    # instead of failing at first state write.
+    coordinator: HuaweiRouter5GDataUpdateCoordinator
+    entity_description: _HasGroup
+
+    _device_group: str | None = None
+
+    @property
+    def device_info(self) -> DeviceInfo:
+        """Return device information for this entity's sub-device."""
+        group = self._device_group
+        if group is None:
+            group = self.entity_description.group
+        return build_device_info(self.coordinator, group)
 
 
 def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:

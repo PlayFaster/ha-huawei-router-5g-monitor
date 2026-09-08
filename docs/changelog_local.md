@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev6\] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It](#123-dev6---2026-09-07---every-entity-belongs-to-a-device-one-inherited-device_info-and-the-sweep-that-guards-it)
   - [\[1.2.3-dev5\] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered](#123-dev5---2026-09-07---coverage-shortfall-now-reported-by-the-summary-entity-resolution-failure-path-covered)
   - [\[1.2.3-dev4\] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46](#123-dev4---2026-09-07---endpoint-probe-session-churn-fixed-probe-set-widened-to-46)
   - [\[1.2.3-dev3\] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe](#123-dev3---2026-09-07---diagnostic-download-rejection-endpoint-and-entity-evidence-unpolled-endpoint-probe)
@@ -182,6 +183,49 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3-dev6] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It
+
+### Summary
+
+Home Assistant does not require `device_info`. An entity registered without it belongs to the config entry and to no device — present in the entity list, counted in the integration's total, shown on none of the six sub-device cards, and visible only to someone adding the cards up. Seven platform bases each declared the property here. None was wrong; in `zte_router_5g` the same shape put ten copies across six modules and the eleventh class was written without one, which reached users. This closes both halves of the cross-project item: one inherited implementation, and a sweep over live entities that reports a class bypassing it.
+
+**No deviceless entity existed in this integration.** Measured, not assumed: all 161 live entities resolve a device with identifiers, across all six sub-devices.
+
+### Added
+
+- **`helpers.HuaweiDeviceEntity`** — the single `device_info` implementation. It resolves the sub-device from `entity_description.group`, or from a class-level `_device_group` where a platform has no description. The contract it depends on but does not create — `coordinator`, and one of the two group sources — is declared as annotations, so a class inheriting it without either fails type checking rather than failing at first state write.
+- **`test_every_live_entity_belongs_to_a_device`** in `tests/test_entity_hygiene.py`. Swept over live entities from a real setup with disabled-by-default entities forced on, asserting each reports a device with non-empty `identifiers`.
+- **`test_device_info_is_declared_once`**, over all seven platform modules. The sweep catches the omission; this stops it being available.
+
+### Changed
+
+- **All seven platform bases inherit the mixin and declare nothing.** `HuaweiBinarySensor`, `HuaweiButton`, `HuaweiPollingInterval`, `HuaweiRouterSelect`, `HuaweiRouterSensor`, `HuaweiSwitch` and `HuaweiRouterDeviceTracker`. The now-dead `self._group = description.group` assignments in `binary_sensor.py`, `number.py` and `switch.py` are removed, along with the `build_device_info` and `DeviceInfo` imports the platforms no longer use.
+- **`device_tracker` is included rather than exempted.** It is the one platform creating entities dynamically, one per discovered client, and so the one where a deviceless entity would be least visible. It sets `_device_group = "clients"`; clients remain entities on the Clients sub-device rather than devices of their own, which is the precondition for the `stale-devices` exemption in `quality_scale.yaml`.
+- **The `type: ignore[misc]` for the `@final` override moves to the class statement**, which is where strict mypy reports a final override once the property is inherited. Verified against mypy rather than assumed; `warn_unused_ignores` confirms it is still doing work. Its allow-list reason is amended to say the override now arrives by inheritance.
+
+### Tests
+
+- **1037 passing, coverage 100.00% line and branch.** Both branches of the group resolution are exercised — `device_tracker` covers `_device_group`, the other six cover the description path.
+- **The sweep was mutation-checked, twice.** Replacing the shared property with one returning `None` failed it naming 27 classes. That mutation also revealed a gap the plan had not anticipated: with `device_info` returning `None`, `ScannerEntity` does not register at all, so the two trackers were **not** among the 27 — the entity count fell from 161 to 159 and the count floor of 150 would not have seen it. The sweep now asserts the `device_tracker` platform is present, and that assertion was itself mutation-checked by clearing `_device_group` alone.
+- **The count floor is 150 against a measured 161**, matching the reasoning already written out for the Section 14 runtime sweep rather than a token value.
+- **Scoped mutation testing: 1769 mutants, 238 survivors, and none in `HuaweiDeviceEntity`.** Every mutant of the new property and its group resolution was killed. The `helpers.py` survivors are all in pre-existing parsing functions, and the one in `build_device_info` mutates `cast(dict[str, Any], info)` to `cast(None, info)` — `typing.cast` is a runtime no-op whatever its first argument, so no test can kill it. Against the recorded 2026-08-15 baseline of 1633 mutants and 231 survivors, the deltas are attributable to three weeks of intervening work rather than to this change.
+
+### Refactored
+
+- **`_live_entities` and its three dependencies move to `tests/conftest.py`** — the autouse `_enable_custom_integrations`, the `live_entry` fixture and `SWEEP_DATA`. Two files need them now, and none works without the others: without the autouse fixture `async_setup` answers "Integration not found", and without `live_entry`'s schema version HA refuses the entry. `tests/test_recorder_runtime.py` imports them and its four sweeps are unchanged.
+
+### Documentation
+
+- **`docs/DEVELOPMENT.md`** gains a pitfall entry: a device tracker without `device_info` is not registered at all, so it disappears rather than reporting as deviceless. Measured, and the reason the sweep asserts the platform is present.
+- **Two citations repointed.** The allow-list reason and the `quality_scale.yaml` `stale-devices` comment both named `docs/ha_compatibility.md` as holding the record of the tracker override. The record is in the cross-project matrix `ha_minimum_version_matrix.md` §3.1; they now say so. Nothing was added to `ha_compatibility.md` — `@final` has no deprecation or removal version, so it does not belong in a deprecation ledger.
+- **`AGENTS.md`** — the sub-device section, the entity-pattern block and the key-helpers list say entities inherit the mixin rather than calling `build_device_info` per platform, and both new tests are in the test register.
+
+### Verified
+
+- Strict mypy clean across 16 source files, with one suppression in `device_tracker.py` and none in `helpers.py`.
+- The twenty existing `entity.device_info` call sites across ten test files are unaffected; the property still resolves through the MRO.
+- Both new tests were run **before** the code change: the sweep passed, confirming nothing was broken here, and `test_device_info_is_declared_once` failed naming all seven bases.
 
 ## [1.2.3-dev5] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered
 

@@ -13,8 +13,11 @@ running.
 """
 
 from homeassistant.components.sensor import SensorStateClass
+from homeassistant.core import HomeAssistant
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.sensor import SENSOR_TYPES
+from tests.conftest import _live_entities
 
 # ---------------------------------------------------------------------------
 # Section 2.2 — SensorStateClass.TOTAL is banned
@@ -677,9 +680,16 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "to the Clients sub-device — and, more importantly, because "
         "entity_registry_enabled_default is True only when device_info is set: "
         "without it every client tracker would be disabled by default unless "
-        "its MAC were already known to another integration. @final is a "
-        "typing-only constraint and there is no deprecation or removal date. "
-        "Recorded in docs/ha_compatibility.md."
+        "its MAC were already known to another integration. Measured on "
+        "2026-09-07: with the property returning None the two trackers are not "
+        "registered at all. @final is a typing-only constraint and there is no "
+        "deprecation or removal date. Recorded in the cross-project matrix, "
+        "shared/SharedNotes/info/ha_min_ver_xproj/ha_minimum_version_matrix.md "
+        "§3.1. "
+        "The override now arrives by inheritance from helpers.HuaweiDeviceEntity "
+        "rather than from a property declared here, so the directive sits on "
+        "the class statement, which is where mypy reports the final override — "
+        "verified against strict mypy rather than assumed."
     ),
     ("diagnostics.py", "noqa: BLE001"): (
         "`_entity_resolution` runs every entity description's `value_fn` "
@@ -1400,3 +1410,125 @@ def test_the_repair_text_sweep_is_not_vacuous() -> None:
 
     assert len(keys) >= 2
     assert {"auth_failed", "conn_error"} <= keys
+
+
+# ---------------------------------------------------------------------------
+# Every entity belongs to a device
+#
+# Home Assistant does not require `device_info`. An entity registered without
+# it belongs to the config entry and to no device: it appears in the entity
+# list, is counted in the integration's total, and shows on none of the six
+# sub-device cards. The only visible symptom is that the integration's entity
+# count exceeds the sum of its device cards, and only to someone adding up.
+#
+# It happened in `zte_router_5g`, where `ZTEOperatorProvisionedSensor` shipped
+# with no `device_info` among three siblings that each declared their own, and
+# was found by a user rather than by a test. Cross-project item
+# `.shared/issues/x_project/every_entity_must_have_a_device.md`.
+#
+# The property has two halves and both are here. `HuaweiDeviceEntity` in
+# `helpers.py` is the code half — one inherited implementation, so omitting it
+# is not something a new entity class can do by accident. The sweep below is
+# the test half, which catches the one case the code half cannot: a class that
+# bypasses the shared base.
+# ---------------------------------------------------------------------------
+
+
+async def test_every_live_entity_belongs_to_a_device(
+    hass: HomeAssistant, live_entry: MockConfigEntry
+) -> None:
+    """No entity this integration registers may be without a device.
+
+    Swept over **live entities** rather than entity descriptions. A
+    description cannot carry this fault — `device_info` is a property on the
+    entity class, so only a constructed entity can be asked where it lives.
+    Disabled-by-default entities are forced on by `_live_entities`, without
+    which a large part of the diagnostic surface is never instantiated and so
+    never inspected.
+    """
+    async with _live_entities(hass, live_entry) as entities:
+        checked = 0
+        homeless: list[str] = []
+        domains: set[str] = set()
+        for entity in entities:
+            checked += 1
+            domains.add(entity.entity_id.split(".")[0])
+            info = entity.device_info
+            if not info or not info.get("identifiers"):
+                homeless.append(type(entity).__name__)
+
+    assert not homeless, (
+        "entities registered with no device: "
+        + ", ".join(sorted(set(homeless)))
+        + ". Inherit `helpers.HuaweiDeviceEntity`."
+    )
+    # Guard the guard. A setup failure or a stale payload yields few entities
+    # or none, and the sweep above would pass over them and go on passing
+    # after a real regression. Measured at 161 on 2026-09-07; the floor sits
+    # just below that rather than at a token value, for the reason written out
+    # in `test_recorder_runtime.py` — set to 20 it would pass with seven
+    # eighths of the component silently dropped from the sweep.
+    assert checked > 150, (
+        f"sweep inspected only {checked} entities — the fixture is stale, "
+        "not the component"
+    )
+    # `device_tracker` needs naming, because it is the one platform whose
+    # entities do not survive to be reported homeless. `ScannerEntity`
+    # registers only when `device_info` is set, so a tracker that loses it is
+    # never constructed: measured under mutation on 2026-09-07, removing the
+    # shared property dropped the sweep from 161 entities to 159 with zero
+    # trackers and none of them named above. The count floor does not see a
+    # two-entity loss, so the platform is asserted directly.
+    assert "device_tracker" in domains, (
+        "no device_tracker entity was swept — a tracker without `device_info` "
+        "is not registered at all, so it vanishes rather than reporting as "
+        "homeless"
+    )
+
+
+def test_device_info_is_declared_once() -> None:
+    """One inherited implementation, not one copy per platform.
+
+    The sweep above catches the omission; this stops it being available. Seven
+    platform bases each carried a copy of the property, and every copy was a
+    place the next one could be left out — which is exactly how the
+    `zte_router_5g` fault occurred.
+
+    `device_tracker` is included deliberately. It is the platform whose
+    entities are created dynamically, one per discovered client, and so the
+    one where a deviceless entity would be least visible.
+    """
+    import inspect
+
+    from custom_components.huawei_router_5g import (
+        binary_sensor,
+        button,
+        device_tracker,
+        number,
+        select,
+        sensor,
+        switch,
+    )
+
+    declaring = [
+        name
+        for module in (
+            binary_sensor,
+            button,
+            device_tracker,
+            number,
+            select,
+            sensor,
+            switch,
+        )
+        for name, obj in vars(module).items()
+        if inspect.isclass(obj)
+        and obj.__module__ == module.__name__
+        and "def device_info" in inspect.getsource(obj)
+    ]
+
+    assert not declaring, (
+        "entity classes declaring their own device_info: "
+        + ", ".join(sorted(declaring))
+        + ". Inherit `helpers.HuaweiDeviceEntity` instead."
+    )

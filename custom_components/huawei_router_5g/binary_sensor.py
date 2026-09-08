@@ -12,7 +12,6 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -21,7 +20,7 @@ from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
     ABOUT_UNRECORDED,
     HuaweiAboutEntity,
-    build_device_info,
+    HuaweiDeviceEntity,
     is_ssid_on,
     parse_signal_value,
 )
@@ -467,6 +466,7 @@ async def async_setup_entry(
 
 class HuaweiBinarySensor(
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     BinarySensorEntity,
 ):
@@ -487,12 +487,6 @@ class HuaweiBinarySensor(
         self.entity_description = description
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
-        self._group = description.group
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, self._group)
 
 
 class HuaweiBestConnectionSensor(HuaweiBinarySensor):

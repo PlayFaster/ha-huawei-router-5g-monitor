@@ -13,7 +13,6 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -21,8 +20,8 @@ from .const import REBOOT_REFRESH_DELAY, RECONNECT_REFRESH_DELAY
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     _stale_tracker_entities,
-    build_device_info,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -161,6 +160,7 @@ async def async_setup_entry(
 
 class HuaweiButton(
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     ButtonEntity,
 ):
@@ -180,11 +180,6 @@ class HuaweiButton(
         self.entity_description = description
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, self.entity_description.group)
 
 
 class HuaweiRefreshButton(HuaweiButton):

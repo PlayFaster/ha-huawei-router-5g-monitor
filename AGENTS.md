@@ -44,7 +44,8 @@ platform files (sensor.py, binary_sensor.py, switch.py, etc.)
   → all extend CoordinatorEntity
   → PARALLEL_UPDATES set per write path: 1 on button/switch/select
     (they command the router), 0 elsewhere — see "Parallel Updates" below
-  → use build_device_info() from helpers.py to target one of the six sub-devices
+  → inherit helpers.HuaweiDeviceEntity; it resolves the sub-device from the
+    description's group, or from a class-level _device_group
 ```
 
 ### Declarative Entity Pattern
@@ -53,7 +54,7 @@ All sensors are defined as `EntityDescription` dataclasses with a `value_fn: Cal
 
 ### Sub-Device Organization
 
-Entities are assigned to one of six sub-devices via `build_device_info(coordinator, group)` in `helpers.py`. Every non-system sub-device links to the System sub-device as its parent, but **not via a hard-coded key** — the link goes through `_compat.via_device_link()`, which emits `via_device_id` on HA 2026.8+ and the legacy `via_device` tuple on 2026.7 and earlier. The tuple is deprecated in 2026.8 and **removed in 2027.8**; the shim keeps the integration floor-free.
+Entities are assigned to one of six sub-devices by **inheriting `HuaweiDeviceEntity` from `helpers.py`**, which resolves the group from the entity description and calls `build_device_info(coordinator, group)`. **No platform declares its own `device_info`**, and `test_device_info_is_declared_once` fails if one starts: seven platform bases each carried a copy, and in `zte_router_5g` the same shape produced an entity with none, which reached users. `device_tracker` has no entity description and sets `_device_group = "clients"` at class level. Every non-system sub-device links to the System sub-device as its parent, but **not via a hard-coded key** — the link goes through `_compat.via_device_link()`, which emits `via_device_id` on HA 2026.8+ and the legacy `via_device` tuple on 2026.7 and earlier. The tuple is deprecated in 2026.8 and **removed in 2027.8**; the shim keeps the integration floor-free.
 
 **Never assert `info["via_device"]` in a test** — it is green only on the HA version that happens to take that branch. Use `assert_links_to_parent()` / `assert_is_root()` from `tests/conftest.py`, which assert the link's presence and exclusivity rather than which key carries it.
 
@@ -102,7 +103,8 @@ Rather than hardcoded radio indices, `switch.py` / `binary_sensor.py` fetch all 
 - `parse_signal_value(val)`: Strips unit suffixes (dBm, dB, MHz, etc.) before numeric conversion
 - `_parse_complex_int` / `_parse_complex_float`: Returns raw string for multi-carrier values like `"DL:500 UL:18500"` to avoid partial-parse errors
 - `parse_sms_list(data)`: Handles varied router response structures (list vs. dict, metadata offset)
-- `build_device_info(coordinator, group)`: Builds `DeviceInfo` targeting the correct sub-device
+- `HuaweiDeviceEntity`: the one `device_info` implementation — inherit it, never redeclare the property
+- `build_device_info(coordinator, group)`: Builds `DeviceInfo` targeting the correct sub-device; called by the mixin, not by platforms
 - `find_ssid_by_path` / `is_ssid_on`: Dynamic WiFi radio discovery by path fragment
 
 ## Key Patterns & Conventions
@@ -188,6 +190,8 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 | `test_no_icon_entry_names_an_action_that_does_not_exist` | the other direction | A dead icon entry renders nothing and breaks nothing, so it accumulates unnoticed. |
 | A repair issue | `test_every_repair_issue_has_title_and_rendered_text`, `test_the_fixable_repair_is_the_one_with_a_fix_flow`, `test_no_orphan_issue_translations` | Add the key to `REPAIR_NAMES` and give it a `title` in **both** `strings.json` and `translations/en.json`, then **exactly one** of `description` or `fix_flow` — `hassfest` declares them `vol.Exclusive`, because a fixable issue renders its prose in the flow's step. **A fixable repair needs `repairs.py`**: without that platform Home Assistant substitutes `ConfirmRepairFlow`, whose Fix button deletes the card and does nothing else. |
 | `test_action_icons_use_the_current_nested_form` | format drift | The flat form works, so nothing would ever fail; only the nested object can carry per-`section` icons. |
+| `test_every_live_entity_belongs_to_a_device` | the cross-project item | An entity without `device_info` registers against the config entry and no device: it is in the entity list, counted in the integration's total, and on none of the six device cards. Home Assistant does not reject it and no other test looks at where an entity lives. Swept over **live** entities — a description cannot carry the fault. Asserts the `device_tracker` platform is present, because a tracker that loses its device is never registered and so vanishes rather than reporting as homeless. |
+| `test_device_info_is_declared_once` | the code half of the same item | The sweep above catches the omission; this stops it being available. Seven platform bases each declared the property, and every copy was a place the next one could be left out — which is how `ZTEOperatorProvisionedSensor` shipped with none. |
 | `test_every_entity_description_has_an_icon_or_a_device_class` | Section 12 | Found `button.refresh` shipping with neither. Reads keys from **module source** across all seven platforms — two hand-maintained files can agree perfectly and both describe an entity that no longer exists. |
 | `test_parallel_updates_matches_the_recorded_decision` | Section 22 | The rule is that the constant is set _deliberately_, which source cannot show: a considered `0` and a copy-pasted `0` are identical. Changing a value means changing the table and reading its reasoning. |
 | `test_every_entity_platform_is_covered_by_the_decision` | the table above | Stops platform number eight shipping with whatever value it happened to get. |

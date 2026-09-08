@@ -21,15 +21,11 @@ exclusion, and Projected Usage published `confidence` that no static reading of
 the class would have revealed.
 """
 
-from contextlib import asynccontextmanager
-from unittest.mock import AsyncMock, patch
-
 import pytest
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
-from custom_components.huawei_router_5g.const import DOMAIN
+from tests.conftest import _live_entities
 
 # Attributes deliberately left recorded, with the justification Section 14
 # demands. **Empty by design.** Attributes carry detail that does not merit its
@@ -39,160 +35,6 @@ from custom_components.huawei_router_5g.const import DOMAIN
 # Adding an entry here is a reviewable act. Forgetting to add a key to
 # `_unrecorded_attributes` is not — which is the entire point of the sweep.
 ALLOWED_RECORDED: frozenset[str] = frozenset()
-
-
-# A payload broad enough that most platforms produce a live entity with real
-# attributes. It does not need to be complete: the sweep asserts a floor on how
-# many entities it inspected, so a payload that stops producing attributes fails
-# loudly rather than passing vacuously.
-SWEEP_DATA: dict = {
-    "device_information": {
-        "DeviceName": "B535-232",
-        "SoftwareVersion": "11.0.1.1(H192SP1C983)",
-        "HardwareVersion": "Ver.A",
-        "Imei": "860000000000000",
-        "MacAddress1": "DC:71:96:11:22:33",
-        "Uptime": "123456",
-    },
-    "device_signal": {
-        "rsrp": "-95dBm",
-        "rsrq": "-12dB",
-        "sinr": "6dB",
-        "cell_id": "12345678",
-        "band": "3",
-        "pci": "44",
-    },
-    "monitoring_status": {
-        "ConnectionStatus": "901",
-        "SignalIcon": "4",
-        "CurrentNetworkType": "19",
-        "WifiStatus": "1",
-    },
-    "traffic_statistics": {
-        "CurrentDownload": "1073741824",
-        "CurrentUpload": "536870912",
-        "CurrentConnectTime": "3600",
-        "TotalDownload": "10737418240",
-        "TotalUpload": "5368709120",
-    },
-    "month_statistics": {
-        "CurrentMonthDownload": "107374182400",
-        "CurrentMonthUpload": "10737418240",
-        "MonthDuration": "864000",
-        "MonthLastClearTime": "2026-04-18",
-    },
-    "start_date": {
-        "SetMonthData": "1",
-        "StartDay": "1",
-        "DataLimit": "2000GB",
-        "MonthThreshold": "80",
-    },
-    "current_plmn": {"FullName": "Test Carrier", "Numeric": "27201"},
-    "net_mode": {"NetworkMode": "03", "NetworkBand": "3FFFFFFF"},
-    "sms_count": {
-        "LocalUnread": "1",
-        "LocalInbox": "3",
-        "LocalOutbox": "2",
-        "LocalMax": "500",
-    },
-    "sms_list": {
-        "Messages": {
-            "Message": [
-                {
-                    "Index": "1",
-                    "Phone": "+353871234567",
-                    "Content": "hello",
-                    "Date": "2026-08-15 10:00:00",
-                    "Smstat": "0",
-                }
-            ]
-        }
-    },
-    "mobile_dataswitch": {"dataswitch": "1"},
-    "lan_host_info": {"Hosts": {"Host": [{"MacAddress": "AA:BB:CC:DD:EE:01"}]}},
-    "wlan_host_list": {"Hosts": {"Host": [{"MacAddress": "AA:BB:CC:DD:EE:02"}]}},
-    "onekey_diag": {"connection_status": "2"},
-    "voice_busy": "Idle",
-    "voice_volte": {"VoLTEStatus": "1"},
-}
-
-
-@pytest.fixture(autouse=True)
-def _enable_custom_integrations(enable_custom_integrations):
-    """Make the custom component importable by the real `hass` fixture.
-
-    Without it `async_setup` answers "Integration not found" and the sweep
-    fails at setup rather than finding anything.
-    """
-    return
-
-
-@pytest.fixture
-def live_entry() -> MockConfigEntry:
-    """Build a config entry at the current schema version.
-
-    Built here rather than reusing `mock_config_entry` from `conftest.py`,
-    which omits `version` and so defaults to 1. Every other test drives the
-    coordinator directly and never reaches the migration check; this one sets
-    the entry up for real, and HA refuses an entry whose version is older than
-    the flow's with "Migration handler not found".
-    """
-    return MockConfigEntry(
-        domain=DOMAIN,
-        version=2,
-        unique_id="dc7196112233",
-        title="My Huawei Router",
-        data={
-            "model": "B535s-232",
-            "sw_version": "11.0.1.1(H192SP1C983)",
-            "hw_version": "Ver.A",
-            "mac": "dc7196112233",
-        },
-        options={
-            CONF_HOST: "192.168.8.1",
-            CONF_USERNAME: "admin",
-            CONF_PASSWORD: "password",
-        },
-    )
-
-
-@asynccontextmanager
-async def _live_entities(hass: HomeAssistant, entry):
-    """Set the integration up for real and yield every entity it created.
-
-    **Disabled-by-default entities are forced on.** A large part of this
-    component's diagnostic surface — the identity sensors in particular — ships
-    disabled, and those are precisely the entities most likely to publish an
-    attribute nobody re-checked. Sweeping only the enabled set would skip them
-    and report success.
-    """
-    entry.add_to_hass(hass)
-
-    with (
-        patch(
-            "homeassistant.helpers.entity.Entity.entity_registry_enabled_default",
-            property(lambda self: True),
-        ),
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI") as api_class,
-    ):
-        api = api_class.return_value
-        # A real string, not the MagicMock default: the root device is
-        # registered with `configuration_url`, and HA validates it.
-        api.url = "http://192.168.8.1"
-        api.login = AsyncMock(return_value=None)
-        api.logout = AsyncMock(return_value=None)
-        api.get_data = AsyncMock(return_value=dict(SWEEP_DATA))
-
-        assert await hass.config_entries.async_setup(entry.entry_id)
-        await hass.async_block_till_done()
-
-        yield [
-            entity
-            for component in hass.data["entity_components"].values()
-            for entity in component.entities
-            if getattr(entity, "platform", None) is not None
-            and entity.platform.platform_name == DOMAIN
-        ]
 
 
 @pytest.mark.asyncio

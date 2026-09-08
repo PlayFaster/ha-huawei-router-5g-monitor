@@ -8,12 +8,11 @@ from homeassistant.components.device_tracker import (  # type: ignore[attr-defin
 )
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import ABOUT_UNRECORDED, HuaweiAboutEntity, build_device_info
+from .helpers import ABOUT_UNRECORDED, HuaweiAboutEntity, HuaweiDeviceEntity
 
 # Section 22. `0` (unlimited) — this platform is read-only. Entities are
 # coordinator-driven with no per-entity polling, so there is nothing to
@@ -64,12 +63,25 @@ async def async_setup_entry(
     entry.async_on_unload(coordinator.async_add_listener(_async_update_listener))
 
 
-class HuaweiRouterDeviceTracker(
+class HuaweiRouterDeviceTracker(  # type: ignore[misc]
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     ScannerEntity,
 ):
     """Representation of a Huawei Router tracked device."""
+
+    # The sub-device every client tracker attaches to. Set at class level
+    # because this platform has no entity description for `HuaweiDeviceEntity`
+    # to read a group from — one entity is created per discovered client.
+    #
+    # Clients are ENTITIES on this sub-device, not devices of their own, and
+    # that is the precondition for the `stale-devices` exemption in
+    # `quality_scale.yaml`. The `type: ignore[misc]` on the class statement
+    # above covers the inherited property overriding `ScannerEntity`'s
+    # `@final` declaration; its reason is on the reviewed allow-list in
+    # `tests/test_entity_hygiene.py`.
+    _device_group = "clients"
 
     # This platform has no entity description — one entity is created per
     # discovered client — so the note is set at class level instead.
@@ -187,8 +199,3 @@ class HuaweiRouterDeviceTracker(
             )
             or {}
         )
-
-    @property  # type: ignore[misc]
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, "clients")

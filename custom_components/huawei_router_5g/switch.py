@@ -10,7 +10,6 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -19,7 +18,7 @@ from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
     ABOUT_UNRECORDED,
     HuaweiAboutEntity,
-    build_device_info,
+    HuaweiDeviceEntity,
     confirm_write,
 )
 
@@ -139,6 +138,7 @@ async def async_setup_entry(
 
 class HuaweiSwitch(
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     SwitchEntity,
 ):
@@ -159,7 +159,6 @@ class HuaweiSwitch(
         self._entry = entry
         self.entity_description = description
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
-        self._group = description.group
 
         # The last position the router reported, held across polls.
         #
@@ -216,11 +215,6 @@ class HuaweiSwitch(
         if self._last_known is not None:
             return self._last_known
         return self._read_position()
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, self._group)
 
     async def _async_confirm(
         self,
