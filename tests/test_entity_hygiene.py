@@ -582,6 +582,22 @@ SECTION_19_ATTRIBUTES = frozenset(
     {"severity", "issues", "degraded_capabilities", "drift", "last_good_update"}
 )
 
+# Published alongside Section 19's five, and normative in the same way: the
+# sibling projects spell them identically, so one template and one field
+# report serve every integration in the family. Kept as a separate set
+# because Section 19 does not define them - a project without a counter to
+# latch publishes the five and none of these.
+DRIFT_ATTRIBUTES = frozenset(
+    {
+        "drift_rate_pct",
+        "drift_rate_min_pct",
+        "drift_rate_max_pct",
+        "drift_intervals",
+        "drift_measured_seconds",
+        "drift_deficit_seconds",
+    }
+)
+
 
 def test_integration_health_publishes_the_normative_attribute_names() -> None:
     """Section 19's attribute names are a published contract, not an internal one.
@@ -605,11 +621,17 @@ def test_integration_health_publishes_the_normative_attribute_names() -> None:
         "drift": [],
         "last_good_update": None,
     }
+    # Supplied as a real mapping rather than left as a mock attribute: the
+    # sensor spreads it, and a mock spreads to nothing, which would let the
+    # keys vanish from the published contract with this test still green.
+    coordinator.uptime_diagnostics = dict.fromkeys(DRIFT_ATTRIBUTES)
     sensor = HuaweiIntegrationHealthSensor(
         coordinator, MagicMock(), INTEGRATION_HEALTH_DESCRIPTION
     )
 
-    assert set(sensor.extra_state_attributes) == SECTION_19_ATTRIBUTES | {"about"}
+    assert set(sensor.extra_state_attributes) == (
+        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES | {"about"}
+    )
 
 
 def test_integration_health_attributes_are_all_unrecorded() -> None:
@@ -622,7 +644,9 @@ def test_integration_health_attributes_are_all_unrecorded() -> None:
         HuaweiIntegrationHealthSensor,
     )
 
-    assert HuaweiIntegrationHealthSensor._unrecorded_attributes >= SECTION_19_ATTRIBUTES
+    assert HuaweiIntegrationHealthSensor._unrecorded_attributes >= (
+        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -690,6 +714,18 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "rather than from a property declared here, so the directive sits on "
         "the class statement, which is where mypy reports the final override — "
         "verified against strict mypy rather than assumed."
+    ),
+    ("coordinator.py", "noqa: BLE001"): (
+        "`async_load_stored_uptime` catches everything the uptime store can "
+        "raise. The contract is that **no** storage fault may fail entry "
+        "setup: the store is a cross-check on the boot-time latches, and the "
+        "cold-start path works without it. Narrow tuples were tried on the "
+        "reference project first and were not sufficient — a store that "
+        "cannot be read must degrade to 'nothing learned', not to an "
+        "integration that will not load. It also matters for the suite: "
+        "several tests drive setup with a MagicMock hass, which `Store` "
+        "cannot operate against, and a narrow catch turns every one of them "
+        "into a TypeError at setup."
     ),
     ("diagnostics.py", "noqa: BLE001"): (
         "`_entity_resolution` runs every entity description's `value_fn` "

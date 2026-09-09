@@ -435,6 +435,9 @@ async def test_async_setup_entry_and_unload(mock_hass):
             "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
         ) as mock_coord_class,
     ):
+        # Setup awaits the uptime store load before spawning the background
+        # task, so a patched coordinator class needs that one method awaitable.
+        mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
         # Test setup
         result = await async_setup_entry(mock_hass, mock_entry)
         assert result is True
@@ -525,6 +528,9 @@ async def test_supported_net_modes_is_read_before_the_first_refresh(mock_hass):
             "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
         ) as mock_coord_class,
     ):
+        # Setup awaits the uptime store load before spawning the background
+        # task, so a patched coordinator class needs that one method awaitable.
+        mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
         await async_setup_entry(mock_hass, mock_entry)
         bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
 
@@ -581,6 +587,9 @@ async def test_a_failed_mode_list_read_cannot_block_the_first_refresh(mock_hass)
             "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
         ) as mock_coord_class,
     ):
+        # Setup awaits the uptime store load before spawning the background
+        # task, so a patched coordinator class needs that one method awaitable.
+        mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
         await async_setup_entry(mock_hass, mock_entry)
         bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
 

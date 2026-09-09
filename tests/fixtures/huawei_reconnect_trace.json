@@ -1,0 +1,57 @@
+{
+  "captured": "2026-09-08T21:50:06+00:00",
+  "device": "H165-383",
+  "outage_seconds": 2.3,
+  "samples": [
+    {
+      "label": "before",
+      "wall": 1788904206.983,
+      "uptime": 216708,
+      "current": 43864,
+      "total": 12329495
+    },
+    {
+      "label": "after+10s",
+      "wall": 1788904218.314,
+      "uptime": 216720,
+      "current": 9,
+      "total": 12329504
+    },
+    {
+      "label": "after+20s",
+      "wall": 1788904229.475,
+      "uptime": 216732,
+      "current": 21,
+      "total": 12329516
+    },
+    {
+      "label": "after+30s",
+      "wall": 1788904243.313,
+      "uptime": 216744,
+      "current": 35,
+      "total": 12329530
+    },
+    {
+      "label": "after+60s",
+      "wall": 1788904279.537,
+      "uptime": 216781,
+      "current": 71,
+      "total": 12329566
+    },
+    {
+      "label": "after+120s",
+      "wall": 1788904351.839,
+      "uptime": 216854,
+      "current": 142,
+      "total": 12329637
+    },
+    {
+      "label": "after+180s",
+      "wall": 1788904423.883,
+      "uptime": 216926,
+      "current": 216,
+      "total": 12329711
+    }
+  ],
+  "what": "A WAN reconnect, sampled either side of the press. Evidence for the floor rule: CurrentConnectTime resets, TotalConnectTime pauses for the outage and resumes, the hardware uptime counter is unaffected."
+}

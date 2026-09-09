@@ -431,6 +431,13 @@ async def async_get_config_entry_diagnostics(
                 else None
             ),
         },
+        # The three boot-time latches and the counter-drift picture behind
+        # them. Nothing here is device data and nothing needs redacting:
+        # counters, rates and timestamps. It is in the download because the
+        # constants in the latch were set from a single device, and a report
+        # that carries no rate leaves a recorder extraction as the only route
+        # to one.
+        "uptime": coordinator.uptime_state,
         "data": _sanitize(raw, tokenizer),
         # `data` is empty until the first successful poll, which is exactly
         # the case this file is usually requested for. These two carry the

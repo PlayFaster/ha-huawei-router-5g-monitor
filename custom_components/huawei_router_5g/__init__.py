@@ -400,6 +400,12 @@ async def async_setup_entry(
     coordinator.reload_signature = _reload_signature(entry.options)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
 
+    # Awaited here rather than in the background task below, so the stored
+    # counters and drift accumulators are in memory before the first poll
+    # reconciles against them. Never raises: an unreadable store resolves to
+    # "nothing learned", which routes to the cold-start path.
+    await coordinator.async_load_stored_uptime()
+
     # Register the root System device early to prevent via_device warnings in platforms.
     device_registry = dr.async_get(hass)
     host = conf[CONF_HOST]

@@ -369,17 +369,30 @@ async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_coordinator_init_restores_uptime_state(mock_hass, mock_config_entry):
-    """Test that uptime/boot state is restored from entry.data at init."""
+    """The anchors come back from `entry.data`; the counters do not.
+
+    **The fixtures here were naive until 2026-09-08, and that hid a real
+    hazard.** `dt_util.parse_datetime` returns a naive datetime for a string
+    carrying no offset, and subtracting naive from aware raises `TypeError` on
+    the first comparison against `now()`. Nothing this integration writes is
+    naive - an old test fixture is the only source - so the restore treats a
+    naive value as absent, and these fixtures now carry the offset the
+    coordinator actually writes.
+
+    The counters are asserted **absent** on purpose: restoring them from the
+    entry is the defect this work removed, and the assertion is what stops it
+    being reintroduced.
+    """
     object.__setattr__(
         mock_config_entry,
         "data",
         {
             **mock_config_entry.data,
-            "system_boot_time": "2024-01-01T00:00:00",
+            "system_boot_time": "2024-01-01T00:00:00+00:00",
             "last_system_uptime": "3600",
-            "conn_start_time": "2024-01-01T01:00:00",
+            "conn_start_time": "2024-01-01T01:00:00+00:00",
             "last_conn_uptime": "1800",
-            "total_conn_start_time": "2024-01-01T02:00:00",
+            "total_conn_start_time": "2024-01-01T02:00:00+00:00",
             "last_total_conn_time": "7200",
         },
     )
@@ -389,15 +402,17 @@ async def test_coordinator_init_restores_uptime_state(mock_hass, mock_config_ent
     )
 
     assert coordinator._system_boot_time == dt_util.parse_datetime(
-        "2024-01-01T00:00:00"
+        "2024-01-01T00:00:00+00:00"
     )
-    assert coordinator._last_system_uptime == 3600
-    assert coordinator._conn_start_time == dt_util.parse_datetime("2024-01-01T01:00:00")
-    assert coordinator._last_conn_uptime == 1800
+    assert coordinator._conn_start_time == dt_util.parse_datetime(
+        "2024-01-01T01:00:00+00:00"
+    )
     assert coordinator._total_conn_start_time == dt_util.parse_datetime(
-        "2024-01-01T02:00:00"
+        "2024-01-01T02:00:00+00:00"
     )
-    assert coordinator._last_total_conn_time == 7200
+    assert coordinator._last_system_uptime is None
+    assert coordinator._last_conn_uptime is None
+    assert coordinator._last_total_conn_time is None
 
 
 @pytest.mark.asyncio
@@ -550,6 +565,10 @@ async def test_coordinator_total_conn_uptime_reboot_detected(
         "2024-06-15 10:00:00+00:00"
     )
     coordinator._last_total_conn_time = 7200
+    # Drive the running-session comparison, not the startup reconciliation.
+    # Before the store existed there was no startup path to take, so this
+    # test reached the margin by default; now it has to ask for it.
+    coordinator._total_latch.startup_reconciled = True
     coordinator.data = {"device_information": {"DeviceName": "B535"}}
 
     caplog.set_level(logging.DEBUG)
@@ -1173,6 +1192,10 @@ async def test_a_drop_within_the_reboot_margin_does_not_relatch(
     )
     setattr(coordinator, boot_attr, latched)
     setattr(coordinator, last_attr, 3600)
+    # The margin is a running-session rule. Startup asks a different question
+    # and would answer it from a fixture that never claimed to be plausible.
+    for latch in coordinator._latches:
+        latch.startup_reconciled = True
 
     data = await coordinator._async_update_data()
 
@@ -1220,13 +1243,17 @@ async def test_a_latched_boot_time_carries_no_microseconds(
 async def test_a_latch_persists_both_the_instant_and_the_counter(
     mock_hass, mock_config_entry, payload, boot_attr, last_attr, data_key
 ):
-    """Both halves of the latch reach `entry.data`, not just the timestamp.
+    """Both halves of the latch are persisted - to the two places they belong.
 
-    The counter is what the next boot compares against: persisted without
+    The counter is what the next start compares against: persisted without
     it, the restored timestamp has nothing to be checked for staleness and
-    the coordinator cannot tell a reboot from a continuing session. The
-    existing tests assert only that `async_update_entry` was called, which
-    a payload missing either key satisfies.
+    the coordinator cannot tell a reset from a continuing session.
+
+    **They no longer go to the same place, and that is the fix.** The anchor
+    stays in `entry.data`, written when it changes. The counter goes to the
+    store, which is written on an interval - `entry.data` is written only at
+    a latch, so a counter kept there froze at whatever the router reported
+    one poll after a boot and the comparison could never fire again.
     """
     mock_api = MagicMock()
     mock_api.get_data = AsyncMock(return_value=payload("3600"))
@@ -1238,4 +1265,8 @@ async def test_a_latch_persists_both_the_instant_and_the_counter(
 
     written = mock_hass.config_entries.async_update_entry.call_args.kwargs["data"]
     assert written[data_key] == getattr(coordinator, boot_attr).isoformat()
-    assert written[last_attr.lstrip("_")] == 3600
+    assert last_attr.lstrip("_") not in written, "the frozen counter key came back"
+
+    block = coordinator._store_record()[last_attr.lstrip("_")]
+    assert block["last_uptime"] == 3600
+    assert block["written_at"] is not None

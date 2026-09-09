@@ -180,7 +180,9 @@ async def test_setup_registers_the_listener() -> None:
 
     with (
         patch("custom_components.huawei_router_5g.HuaweiRouter5GAPI"),
-        patch("custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"),
+        patch(
+            "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
+        ) as mock_coord_class,
         patch("custom_components.huawei_router_5g.dr.async_get"),
         patch(
             "custom_components.huawei_router_5g._async_migrate_tracker_unique_ids",
@@ -188,6 +190,9 @@ async def test_setup_registers_the_listener() -> None:
         ),
         patch("custom_components.huawei_router_5g.via_device_link", return_value={}),
     ):
+        # Setup awaits the uptime store load before spawning the background
+        # task, so a patched coordinator class needs that one method awaitable.
+        mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
         assert await async_setup_entry(hass, entry) is True
 
     entry.add_update_listener.assert_called_once_with(_async_options_updated)

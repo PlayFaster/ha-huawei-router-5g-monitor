@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev9\] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed](#123-dev9---2026-09-08---uptime-anchors-reconciled-at-startup-counter-persistence-fixed)
   - [\[1.2.3-dev8\] - 2026-09-08 - Documentation: Project Complexity & Health Scorecard Added](#123-dev8---2026-09-08---documentation-project-complexity--health-scorecard-added)
   - [\[1.2.3-dev7\] - 2026-09-08 - Cyclomatic Complexity Below 20; One Uptime Latch Replacing Three](#123-dev7---2026-09-08---cyclomatic-complexity-below-20-one-uptime-latch-replacing-three)
   - [\[1.2.3-dev6\] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It](#123-dev6---2026-09-07---every-entity-belongs-to-a-device-one-inherited-device_info-and-the-sweep-that-guards-it)
@@ -183,6 +184,51 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Multi-Platform Engine: Eighty Sensor Descriptions and Six Platforms](#101-dev2---2026-05-02---multi-platform-engine-eighty-sensor-descriptions-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: DataUpdateCoordinator, API Wrapper, and Non-Blocking Startup](#101-dev1---2026-05-02---core-architecture-dataupdatecoordinator-api-wrapper-and-non-blocking-startup)
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
+
+## [1.2.3-dev9] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed
+
+### Summary
+
+The boot-time latches held a stale anchor indefinitely after a reboot Home Assistant did not observe. The development instance showed it while this was written: `entry.data` held `last_system_uptime` = **61** against a live counter of **213,412**, so the reset comparison `live < stored - UPTIME_REBOOT_MARGIN` demanded a reading below 31 seconds and could never fire again. The router had rebooted two days earlier; the Uptime sensor read three weeks, and Connection Uptime read two.
+
+**The cause was where the counter was persisted, not how it was compared.** `entry.data` is written only when a latch happens, so the stored counter froze one poll after a boot and stayed frozen. It now lives in a `Store` written on an interval, and each latch reconciles against it on the first poll after a restart.
+
+### Added
+
+- **A store-backed reconciliation at startup**, with the family's shared names: `async_load_stored_uptime`, `_apply_uptime`, `_apply_runtime_uptime`, `_reconcile_startup_uptime`, `_shortfall_test`, `_cold_start_implausible`, `_check_anchor_plausible`, `_derived_boot`, `_record_drift_sample`, `_drift_rate`, `_finish_startup`, `_log_reconciliation`, `_latch_boot_time`, `_maybe_persist_counter`, `_write_counter`, and the `uptime_diagnostics` / `uptime_state` properties. Awaited in `async_setup_entry` before the background initialization task, and never raising: an unreadable store resolves to "nothing learned".
+- **Per-installation drift measurement for the counters that are clocks**, from consecutive polls, with duration-weighted accumulators persisted across restarts, a thirty-day cap, and the anchor derived as `now - counter / (1 - rate)`. **This device does not drift** — measured 0.00% over eleven minutes against the reference ZTE MC7010's 4.34% — and the machinery ships anyway, because the rate is a property of the hardware in front of the user rather than of the model.
+- **The drift picture on Integration Health and in the diagnostics download**: `drift_rate_pct`, `drift_rate_min_pct`, `drift_rate_max_pct`, `drift_intervals`, `drift_measured_seconds`, `drift_deficit_seconds`, plus an `uptime` block carrying all three latches' state. Every constant in the latch was set from one device on a sibling project; without this a field report carries no rate at all.
+- **`tests/fixtures/huawei_reconnect_trace.json`** — a real WAN reconnect, sampled either side of the press.
+
+### Changed
+
+- **The three counters are no longer treated alike, and the difference is measured.** `device_information.uptime` and `CurrentConnectTime` advance whenever they exist: a dropped link ends the session and resets the session counter rather than freezing it, so within one session it tracks wall time exactly — 9 s to 216 s over 207 s of wall in the captured reconnect. Both carry the full mechanism. **`TotalConnectTime` stops whenever the session is down**: the same reconnect cost it exactly the 2.3 s the link was out, and it has lost 3.8 hours to accumulated downtime since April. Legitimate downtime makes it under-run wall time with nothing wrong, so it carries a floor rule instead — it moves backwards only on a statistics clear.
+- **The counter no longer round-trips through `entry.data`.** `last_system_uptime`, `last_conn_uptime` and `last_total_conn_time` are dropped from the entry at the first latch and never read again. The anchors stay there, where the sensors' restore path expects them.
+- **The three latches became `_UptimeLatch` objects**, one per counter, holding the anchor, the last reading, the stored record and the accumulators. Nothing is shared between them: their counters reset on different events, so a rate or a stored counter borrowed from one is evidence about a different question. The six long-standing attribute names remain as views onto that state, so the platforms, the diagnostic scripts and the suite are untouched.
+
+### Fixed
+
+- **A reboot inside a Home Assistant gap is detected.** The shortfall test asks whether the counter continued across the gap at this device's own rate, with a margin of `max(300 s, 2% of the gap)`.
+- **An anchor that has _become_ wrong is corrected without a restart**, by a plausibility check on every poll against the counter's own measured rate.
+
+### Tests
+
+- **1055 → 1115.** A new `tests/test_uptime_latch.py` drives a simulated three-counter router whose rate is a parameter, so "no false alarm across a simulated month at 12% drift" is assertable offline. The drift sweep runs at 0%, 4.34%, 8%, 12% and −2% — rates above `PLAUSIBILITY_TOLERANCE` included, because a suite stopping at the rate it measured passed a defective build on the reference project.
+- **The defect was written as a test first and failed against the unmodified coordinator**, reproducing the live instance: stored counter 61, live 213,412, a nineteen-day-old anchor.
+- **Five existing tests asserted the old behaviour and were repointed, not weakened.** Three were predicted by the cross-project item: the counter restore from `entry.data` (now inverted, and the guard against wiring it back in), a naive stored timestamp in a fixture (the coordinator only ever writes aware values, and a naive one raises on subtraction), and two margin cases that reached the running comparison only because no startup path existed to take.
+
+### Verified
+
+- **Eighteen mutations across the new decision points, all eighteen caught**, each run under a timeout with a checksummed restore on every exit path. Three survived the first pass and were genuine gaps in the new tests: nothing exercised `_drift_rate`'s own refusal for a pausing counter independently of the accumulator guard that makes it moot, and nothing exercised the shortfall margin — neither its proportional term nor its floor — so a restart inside the margin would have re-latched with the suite green. All three now have cases.
+- Full validation green via `.workbench/run_task.py`: 1115 tests at 100% line and branch coverage, mypy strict, Ruff, hassfest, the sweeps, and the hardware and diagnostics checks.
+
+### Notes
+
+- **The reconnect was pressed deliberately, with the owner's agreement, to settle one question.** Whether `TotalConnectTime` pauses or keeps counting while the link is down could not be answered by reading, and it decides whether the restart comparison for that counter is a floor test or a rate test. A 2.3-second outage cost the counter 2.3 seconds.
+- **Whether the cumulative counter resets on anything other than a statistics clear is not measured.** The floor rule is safe either way — a counter that pauses still never moves backwards — and the design does not depend on the answer.
+- `_async_update_data` is 17 against the family target of 20; the project maximum is `api.get_data` at 16, unchanged.
+
+---
 
 ## [1.2.3-dev8] - 2026-09-08 - Documentation: Project Complexity & Health Scorecard Added
 
