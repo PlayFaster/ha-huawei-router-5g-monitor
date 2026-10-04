@@ -741,6 +741,22 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "same deliberate choice. Same reason as `hardware_check.py` below, and "
         "the same form `zte_router_5g/scripts/diag_check.py` uses."
     ),
+    ("diag_check.py", "noqa: F401"): (
+        "C-036. `import homeassistant` is made for its side effect: Home "
+        "Assistant installs probatio as `voluptuous` when it is first "
+        "imported, and the package's `__init__.py` imports `voluptuous` "
+        "before any `homeassistant` import. A stand-alone script that imports "
+        "the package without it binds real voluptuous. Nothing from the "
+        "module is used, so the import is unused by construction."
+    ),
+    ("hardware_check.py", "noqa: F401"): (
+        "C-036. `import homeassistant` is made for its side effect: Home "
+        "Assistant installs probatio as `voluptuous` when it is first "
+        "imported, and the package's `__init__.py` imports `voluptuous` "
+        "before any `homeassistant` import. A stand-alone script that imports "
+        "the package without it binds real voluptuous. Nothing from the "
+        "module is used, so the import is unused by construction."
+    ),
     ("diag_check.py", "pragma: no cover"): (
         "The import guard that turns a ModuleNotFoundError into an instruction "
         "to use the container interpreter. It fires only when the script is run "

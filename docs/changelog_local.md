@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev14\] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type](#123-dev14---2026-10-04---validation-repairs-suppression-allow-list-and-repair-flow-return-type)
   - [\[1.2.3-dev12\] - 2026-10-04 - Shared CI Bumps](#123-dev12---2026-10-04---shared-ci-bumps)
   - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
   - [\[1.2.3-dev10\] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13](#123-dev10---2026-09-23---breaking-minimum-home-assistant-raised-to-202520-for-python-313)
@@ -189,6 +190,17 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3-dev14] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type
+
+### Fixed
+
+- **`test_every_suppression_is_on_the_reviewed_allow_list` failed on `diag_check.py:75` and `hardware_check.py:79`.** C-036 added `import homeassistant  # noqa: F401` to both scripts, and neither was on `ALLOWED_SUPPRESSIONS`. Two entries added to `tests/test_entity_hygiene.py` with the reason, worded as in `zte_router_5g`. The reason was checked: `__init__.py` imports `voluptuous` before any `homeassistant` import.
+- **Mypy Strict reported two `return-value` errors at `repairs.py:54` and `:56`.** `async_create_entry` and `async_show_form` on `RepairsFlow` return `RepairsFlowResult`, and the steps were annotated `data_entry_flow.FlowResult`. Both steps now return `RepairsFlowResult`, imported from `homeassistant.components.repairs`, which is what `zte_router_5g/repairs.py` uses. The `data_entry_flow` import was removed. The errors were not caused by the C-037 overrides.
+
+### Verified
+
+- `tests/test_entity_hygiene.py` and the repairs tests: 40 passed. `Mypy: Strict Check`: no issues in 16 source files.
 
 ## [1.2.3-dev12] - 2026-10-04 - Shared CI Bumps
 

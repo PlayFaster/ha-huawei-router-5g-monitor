@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-huawei-router-5g-monitor
 
-**Last Measured:** 2026-10-04T19:49:42.710268+00:00 · **Release:** `1.2.3` · **Dev Version:** `1.2.3-dev11`
+**Last Measured:** 2026-10-04T21:34:45.411763+00:00 · **Release:** `1.2.3` · **Dev Version:** `1.2.3-dev14`
 
 ## 1. Executive Summary
 
@@ -18,16 +18,16 @@
 | **Modules > 1,500 Code Lines** | **1** | Candidate for module decomposition |
 | **Code Suppressions (`# noqa`)** | **7** | Zero preferred; review regularly |
 | **Type Suppressions (`# type: ignore`)** | **2** | Mypy strict compliance |
-| **Source Python SLOC** | **6,849** | Across 16 files in custom_components/ (code statements) |
+| **Source Python SLOC** | **6,848** | Across 16 files in custom_components/ (code statements) |
 | **Docstring Volume** | **1,568 lines** | Interface and contract documentation |
 | **Comment Density** | **17.1%** | 1,173 inline comment lines (Healthy implementation rationale) |
 | **Platform Declarations SLOC** | **3,767 lines** | Across 7 platform files |
-| **Core Engine / Driver SLOC** | **3,082 lines** | Across 9 coordinator/API/helper files |
+| **Core Engine / Driver SLOC** | **3,081 lines** | Across 9 coordinator/API/helper files |
 | **Static Entities** | **160 entities** | Scale indicator (`all_sensors.md`) |
 | **Platform SLOC / Entity** | **23.5 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
-| **Test-to-Source Ratio** | **1.69×** | 11,606 test lines ($\ge 1.5×$ recommended) |
-| **Pytest Coverage** | **100%** | 1116 tests executed |
-| **Pytest Duration** | **215.55s** | Full test suite wall-clock execution time |
+| **Test-to-Source Ratio** | **1.7×** | 11,622 test lines ($\ge 1.5×$ recommended) |
+| **Pytest Coverage** | **100%** | 1115 tests executed |
+| **Pytest Duration** | **262.66s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 
