@@ -1,20 +1,23 @@
 """The Huawei Router 5G Monitor integration."""
 
-import logging
 from collections.abc import Mapping
+import logging
 from typing import Any, cast
 
+from huawei_lte_api.enums.sms import BoxTypeEnum
 import voluptuous as vol
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.typing import ConfigType
-from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from ._compat import via_device_link
 from .api import HuaweiRouter5GAPI

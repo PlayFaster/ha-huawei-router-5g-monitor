@@ -22,12 +22,12 @@ releases later, and it is why the two files are separate.
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-import pytest
 from huawei_lte_api.exceptions import (
     LoginErrorPasswordWrongException,
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
+import pytest
 
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,

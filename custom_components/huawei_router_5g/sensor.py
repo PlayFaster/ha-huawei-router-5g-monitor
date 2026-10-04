@@ -1,10 +1,10 @@
 """Sensor platform for Huawei Router 5G."""
 
-import ipaddress
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+import ipaddress
+import logging
 from typing import Any, Final, cast
 
 from homeassistant.components.sensor import (

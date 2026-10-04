@@ -65,8 +65,8 @@ sweep, not this key list, is what covers the rest.
 
 from __future__ import annotations
 
-import re
 from copy import deepcopy
+import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry

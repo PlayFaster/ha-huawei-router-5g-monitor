@@ -27,12 +27,12 @@ cannot be set up at all.
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.const import DEFAULT_SCAN_INTERVAL
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
 )
+from homeassistant.util import dt as dt_util
 
 # The six keys `__init__` restores, paired with the attribute each lands on.
 # Split by the kind of parsing they do, because the two groups suppress

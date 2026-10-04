@@ -1,16 +1,16 @@
 """Fixtures and utilities for testing the Huawei Router 5G integration."""
 
 import asyncio
-import sys
 from contextlib import asynccontextmanager
+import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.const import DOMAIN
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import HomeAssistant
 
 # Patch pytest-socket for Windows ProactorEventLoop compatibility
 try:

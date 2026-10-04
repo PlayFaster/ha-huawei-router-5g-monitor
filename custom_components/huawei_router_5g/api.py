@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 import asyncio
-import contextlib
-import logging
-import time
 from collections.abc import AsyncIterator, Callable
+import contextlib
 from contextlib import asynccontextmanager
 from datetime import UTC, datetime
+import logging
+import time
 from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
 

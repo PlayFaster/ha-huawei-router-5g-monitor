@@ -142,9 +142,8 @@ async def test_network_mode_write_failure_raises(mock_coordinator, mock_config_e
     success and then silently reverted on the next poll — the user's only
     evidence was a log line they had no reason to look at.
     """
-    from homeassistant.exceptions import HomeAssistantError
-
     from custom_components.huawei_router_5g.select import SELECTS, HuaweiRouterSelect
+    from homeassistant.exceptions import HomeAssistantError
 
     mock_coordinator.api.set_net_mode = AsyncMock(side_effect=Exception("refused"))
     entity = HuaweiRouterSelect(mock_coordinator, SELECTS[0])

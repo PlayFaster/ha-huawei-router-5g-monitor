@@ -1,17 +1,17 @@
 """Tests for the Huawei Router 5G DataUpdateCoordinator."""
 
-import logging
 from datetime import timedelta
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.helpers.update_coordinator import UpdateFailed
-from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.coordinator import (
     UPTIME_REBOOT_MARGIN,
     HuaweiRouter5GDataUpdateCoordinator,
 )
+from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.util import dt as dt_util
 
 
 @pytest.fixture(autouse=True)

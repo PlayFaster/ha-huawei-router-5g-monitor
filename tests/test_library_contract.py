@@ -21,8 +21,8 @@ import inspect
 import re
 from unittest.mock import MagicMock
 
-import pytest
 from huawei_lte_api.Client import Client
+import pytest
 
 from custom_components.huawei_router_5g import api as api_module
 

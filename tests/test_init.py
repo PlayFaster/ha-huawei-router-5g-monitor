@@ -2,10 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from huawei_lte_api.enums.sms import BoxTypeEnum
+import pytest
 
 from custom_components.huawei_router_5g import (
     DOMAIN,
@@ -20,6 +18,8 @@ from custom_components.huawei_router_5g.const import (
     SMS_MAX_CHARS_UNICODE,
 )
 from custom_components.huawei_router_5g.helpers import is_gsm7
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 
 @pytest.fixture
@@ -398,9 +398,8 @@ async def test_async_setup_registers_and_calls_services(mock_hass):
 @pytest.mark.asyncio
 async def test_async_setup_entry_and_unload(mock_hass):
     """Test async_setup_entry and async_unload_entry."""
-    from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-
     from custom_components.huawei_router_5g import async_setup_entry, async_unload_entry
+    from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
     mock_entry = MagicMock()
     mock_entry.options = {

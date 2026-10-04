@@ -26,7 +26,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 import requests_mock as requests_mock_module
-from homeassistant.helpers import issue_registry as ir
 
 from custom_components.huawei_router_5g import coordinator as coordinator_module
 from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
@@ -41,6 +40,7 @@ from custom_components.huawei_router_5g.const import (
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
 )
+from homeassistant.helpers import issue_registry as ir
 
 from .transport import RouterTransport
 

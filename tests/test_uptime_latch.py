@@ -28,14 +28,13 @@ constants are in `.shared/info/uptime_timestamp/uptime_drift_analyzed.md`;
 this project's measured departures from it are in the cross-project item.
 """
 
+from datetime import UTC, datetime, timedelta
 import json
 import logging
-from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.coordinator import (
     DRIFT_ACCUMULATOR_CAP,
@@ -45,6 +44,7 @@ from custom_components.huawei_router_5g.coordinator import (
     UPTIME_WRITE_INTERVAL,
     HuaweiRouter5GDataUpdateCoordinator,
 )
+from homeassistant.util import dt as dt_util
 
 _TRACE = json.loads(
     (Path(__file__).parent / "fixtures" / "huawei_reconnect_trace.json").read_text(

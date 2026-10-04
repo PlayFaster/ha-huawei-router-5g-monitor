@@ -1,9 +1,9 @@
 """Number platform for Huawei Router 5G."""
 
 import asyncio
-import logging
 from dataclasses import dataclass
 from datetime import timedelta
+import logging
 
 from homeassistant.components.number import (
     NumberEntity,

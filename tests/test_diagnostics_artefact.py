@@ -25,14 +25,14 @@ import json
 from unittest.mock import MagicMock, patch
 
 import pytest
-from homeassistant.components.sensor import SensorEntityDescription
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant
 
 from custom_components.huawei_router_5g.diagnostics import (
     async_get_config_entry_diagnostics,
 )
+from homeassistant.components.sensor import SensorEntityDescription
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import HomeAssistant
 
 SECRET = "sekrit_hunter2"
 

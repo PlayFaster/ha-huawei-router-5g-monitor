@@ -1,7 +1,5 @@
 """Tests for the organization and grouping of entities."""
 
-from homeassistant.helpers.entity import EntityCategory
-
 from custom_components.huawei_router_5g.binary_sensor import (
     SINGLE_SSID_MODE_DESCRIPTION,
     WIFI_5G_STATUS_DESCRIPTION,
@@ -10,14 +8,12 @@ from custom_components.huawei_router_5g.binary_sensor import (
     HuaweiBinarySensor,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
-from custom_components.huawei_router_5g.sensor import (
-    SENSOR_TYPES,
-    HuaweiRouterSensor,
-)
+from custom_components.huawei_router_5g.sensor import SENSOR_TYPES, HuaweiRouterSensor
 from custom_components.huawei_router_5g.switch import (
     GUEST_WIFI_DESCRIPTION,
     HuaweiSwitch,
 )
+from homeassistant.helpers.entity import EntityCategory
 from tests.conftest import assert_links_to_parent
 
 

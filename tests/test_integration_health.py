@@ -345,8 +345,8 @@ def _raised_repair_keys() -> set[str]:
     Read from `coordinator.py` rather than from a list, because a
     hand-maintained inventory of raise sites is one more thing to forget.
     """
-    import re
     from pathlib import Path
+    import re
 
     from custom_components.huawei_router_5g import coordinator as coordinator_module
 

@@ -1,8 +1,8 @@
 """Select platform for Huawei Router 5G."""
 
-import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
@@ -13,11 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (
-    NETWORK_MODE_FALLBACK,
-    NETWORK_MODE_LABELS,
-    network_mode_label,
-)
+from .const import NETWORK_MODE_FALLBACK, NETWORK_MODE_LABELS, network_mode_label
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity
 

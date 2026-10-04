@@ -4,7 +4,6 @@ import asyncio
 from datetime import UTC, datetime, timedelta
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
 from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
     LoginErrorAlreadyLoginException,
@@ -13,6 +12,7 @@ from huawei_lte_api.exceptions import (
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
+import pytest
 
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,

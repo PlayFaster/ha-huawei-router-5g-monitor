@@ -12,11 +12,11 @@ changed, because the trigger is the set growing rather than the code path
 running.
 """
 
-from homeassistant.components.sensor import SensorStateClass
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.sensor import SENSOR_TYPES
+from homeassistant.components.sensor import SensorStateClass
+from homeassistant.core import HomeAssistant
 from tests.conftest import _live_entities
 
 # ---------------------------------------------------------------------------
@@ -284,9 +284,8 @@ def test_every_entity_description_has_an_icon_or_a_device_class() -> None:
     import inspect
     import pkgutil
 
-    from homeassistant.helpers.entity import EntityDescription
-
     import custom_components.huawei_router_5g as component
+    from homeassistant.helpers.entity import EntityDescription
 
     icons = _load_json("icons.json")["entity"]
 
@@ -381,9 +380,8 @@ def test_every_entity_platform_is_covered_by_the_decision() -> None:
     import importlib
     import pkgutil
 
-    from homeassistant.const import Platform
-
     import custom_components.huawei_router_5g as component
+    from homeassistant.const import Platform
 
     known = {p.value for p in Platform}
     platforms = {
@@ -1066,9 +1064,8 @@ def _descriptions_by_platform() -> dict[str, dict[str, object]]:
     import inspect
     import pkgutil
 
-    from homeassistant.helpers.entity import EntityDescription
-
     import custom_components.huawei_router_5g as component
+    from homeassistant.helpers.entity import EntityDescription
 
     found: dict[str, dict[str, object]] = {}
     for mod_info in pkgutil.iter_modules(component.__path__):

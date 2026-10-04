@@ -1,8 +1,8 @@
 """Switch platform for Huawei Router 5G Monitor."""
 
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from homeassistant.components.switch import SwitchEntity, SwitchEntityDescription

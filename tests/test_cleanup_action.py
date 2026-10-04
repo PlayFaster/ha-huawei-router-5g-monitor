@@ -13,9 +13,6 @@ so the guard against that is the most important thing here and is tested first.
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.const import Platform
-from homeassistant.core import HomeAssistant
-from homeassistant.helpers import entity_registry as er
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -23,6 +20,9 @@ from custom_components.huawei_router_5g.helpers import (
     _stale_tracker_entities,
     _tracked_macs,
 )
+from homeassistant.const import Platform
+from homeassistant.core import HomeAssistant
+from homeassistant.helpers import entity_registry as er
 
 PRESENT = "AA:BB:CC:DD:EE:01"
 GONE = "AA:BB:CC:DD:EE:99"

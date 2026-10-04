@@ -11,7 +11,6 @@ the test that fails if `repairs.py` is deleted or renamed.
 
 from unittest.mock import patch
 
-from homeassistant.core import HomeAssistant
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.const import DOMAIN
@@ -19,6 +18,7 @@ from custom_components.huawei_router_5g.repairs import (
     AuthFailedRepairFlow,
     async_create_fix_flow,
 )
+from homeassistant.core import HomeAssistant
 
 
 async def test_the_fix_flow_is_ours_not_the_confirm_fallback(

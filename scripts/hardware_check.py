@@ -63,17 +63,20 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from collections.abc import Iterator
 import contextlib
+from datetime import UTC, datetime
 import json
 import logging
 import os
 import pathlib
 import sys
-from collections.abc import Iterator
-from datetime import UTC, datetime
 from typing import Any
 
 import requests
+
+# Installs probatio as `voluptuous` before the package imports it (C-036).
+import homeassistant  # noqa: F401
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 

@@ -20,10 +20,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from custom_components.huawei_router_5g.const import PROJECTION_CREDIBILITY_DAYS
-from custom_components.huawei_router_5g.helpers import (
-    cycle_bounds,
-    project_cycle_usage,
-)
+from custom_components.huawei_router_5g.helpers import cycle_bounds, project_cycle_usage
 from custom_components.huawei_router_5g.sensor import (
     SENSOR_TYPES,
     _antenna,

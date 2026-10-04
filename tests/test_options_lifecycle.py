@@ -20,8 +20,6 @@ teardown — and it is the half a later "simplification" would quietly remove.
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant
 
 from custom_components.huawei_router_5g import (
     LIVE_OPTION_KEYS,
@@ -32,6 +30,8 @@ from custom_components.huawei_router_5g.const import (
     CONF_SCAN_INTERVAL,
     CONF_STOP_POLLING,
 )
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import HomeAssistant
 
 BASE_OPTIONS = {
     CONF_HOST: "192.168.8.1",

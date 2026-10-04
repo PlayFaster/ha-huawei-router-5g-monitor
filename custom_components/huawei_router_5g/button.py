@@ -1,7 +1,7 @@
 """Button platform for Huawei Router 5G Monitor."""
 
-import logging
 from dataclasses import dataclass
+import logging
 
 from homeassistant.components.button import (
     ButtonDeviceClass,
@@ -18,11 +18,7 @@ from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import REBOOT_REFRESH_DELAY, RECONNECT_REFRESH_DELAY
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import (
-    HuaweiAboutEntity,
-    HuaweiDeviceEntity,
-    _stale_tracker_entities,
-)
+from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity, _stale_tracker_entities
 
 _LOGGER = logging.getLogger(__name__)
 

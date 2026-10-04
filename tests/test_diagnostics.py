@@ -16,14 +16,14 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant
 
 from custom_components.huawei_router_5g.diagnostics import (
     REDACTED,
     async_get_config_entry_diagnostics,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import HomeAssistant
 
 # Every value below is something a real router returns and a maintainer must
 # never receive. They are deliberately distinctive strings so a substring search

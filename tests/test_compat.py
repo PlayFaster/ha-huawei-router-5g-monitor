@@ -9,10 +9,9 @@ post-2027.8 alike.
 
 from unittest.mock import MagicMock, patch
 
-from homeassistant.core import HomeAssistant
-
 from custom_components.huawei_router_5g import _compat
 from custom_components.huawei_router_5g.const import DOMAIN
+from homeassistant.core import HomeAssistant
 
 IDENT = "DC:71:96:11:22:33_system"
 ENTRY_ID = "entry-1"

@@ -5,8 +5,11 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev12\] - 2026-10-04 - Shared CI Bumps](#123-dev12---2026-10-04---shared-ci-bumps)
+  - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
+  - [\[1.2.3-dev10\] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13](#123-dev10---2026-09-23---breaking-minimum-home-assistant-raised-to-202520-for-python-313)
   - [\[1.2.3-dev9\] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed](#123-dev9---2026-09-08---uptime-anchors-reconciled-at-startup-counter-persistence-fixed)
-  - [\[1.2.3-dev8\] - 2026-09-08 - Documentation: Project Complexity & Health Scorecard Added](#123-dev8---2026-09-08---documentation-project-complexity--health-scorecard-added)
+  - [\[1.2.3-dev8\] - 2026-09-08 - Documentation: Project Complexity \& Health Scorecard Added](#123-dev8---2026-09-08---documentation-project-complexity--health-scorecard-added)
   - [\[1.2.3-dev7\] - 2026-09-08 - Cyclomatic Complexity Below 20; One Uptime Latch Replacing Three](#123-dev7---2026-09-08---cyclomatic-complexity-below-20-one-uptime-latch-replacing-three)
   - [\[1.2.3-dev6\] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It](#123-dev6---2026-09-07---every-entity-belongs-to-a-device-one-inherited-device_info-and-the-sweep-that-guards-it)
   - [\[1.2.3-dev5\] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered](#123-dev5---2026-09-07---coverage-shortfall-now-reported-by-the-summary-entity-resolution-failure-path-covered)
@@ -184,6 +187,68 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev2\] - 2026-05-02 - Multi-Platform Engine: Eighty Sensor Descriptions and Six Platforms](#101-dev2---2026-05-02---multi-platform-engine-eighty-sensor-descriptions-and-six-platforms)
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: DataUpdateCoordinator, API Wrapper, and Non-Blocking Startup](#101-dev1---2026-05-02---core-architecture-dataupdatecoordinator-api-wrapper-and-non-blocking-startup)
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
+
+---
+
+## [1.2.3-dev12] - 2026-10-04 - Shared CI Bumps
+
+### Bumps
+
+- **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.16 to v2.0.17
+
+- **Validate Bump**: Update `zizmor` from 1.30.0 to 1.30.1
+- **Validate Bump**: Update `mypy` from 2.3.1 to 2.4.0
+- **Validate Bump**: Update `ruff` from 0.16.5 to 0.16.9
+- **Validate Bump**: Update `check-jsonschema` from 0.38.0 to 0.38.2
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.364 to 0.13.367
+
+### Changed
+
+- **`pyproject_common.toml`**: added `[lint.isort]` with HA core's four settings (`force-sort-within-sections = true`, `known-first-party = ["homeassistant"]`, `combine-as-imports = true`, `split-on-trailing-comma = false`), and added `"ICN002"` to `select`. HA core pairs `ICN002` with a `probatio` → `vol` banned alias; that alias was not adopted, so the rule currently flags nothing.
+
+- **Import order: `force-sort-within-sections` sorts plain `import x` and `from x import y` statements together alphabetically within each section, so `from pathlib import Path` now precedes `import sys`. `split-on-trailing-comma = false` joins wrapped import lists that fit on one line.
+
+## [1.2.3-dev11] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test_guards.md
+
+### Summary
+
+`AGENTS.md` aligned with the updated `agents_md_index.md` specification. The "Tests that will stop you" table is trimmed to one line per row, with each row's rationale moved verbatim to a new `docs/test_guards.md`. Junction paths are no longer written as markdown links, and the Home Assistant compatibility ledger pointer is added. No code or test changes.
+
+### Changed
+
+- **Tests that will stop you**: 35 rows grouped into 24, each `Add or change this | This fails | Do this`; the section shrinks from 1,607 to 679 words. The heading drops "and why they exist", and the section ends with the instruction to add a new guard's row here and its rationale to `docs/test_guards.md`. The table moved from `Test | Guards | Why it exists` to the standard three columns; tests guarding the same change share a row, and the two vacuity guards (`test_total_state_class_sweep_is_not_vacuous`, `test_unrecorded_attribute_sweep_is_not_vacuous`) are recorded in `docs/test_guards.md` only.
+- **Guard tests added to the table**: 10 tests that fail on an ordinary change (adding, changing or removing an entity, action, translation, repair issue, option or write) and were not listed. Their docstrings are recorded as rationale in `docs/test_guards.md`.
+- **Junction links**: 9 markdown links to `.shared/` and `.notes/` converted to inline code. `AGENTS.md` is committed to the public repository, where those junctions do not exist, so the links were broken for GitHub readers.
+- **Compatibility ledger pointer**: the mandatory block pointing to `docs/ha_compatibility.md` added after the entity inventory pointer.
+
+### Added
+
+- **`docs/test_guards.md`**: rationale for every guard test in the table, in two sections: the former rationale column copied verbatim, and the docstrings of the tests added to the table.
+
+### Notes
+
+- **Source**: `agents_md_align` run of 2026-09-23 (`shared/SharedNotes/prompts/prompt_run_logs/agents_md_align/agents_md_align_20260923_1638.md`).
+
+## [1.2.3-dev10] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13
+
+### Summary
+
+The minimum supported Home Assistant version rises from 2024.6.0 to 2025.2.0. Home Assistant 2025.2.0 is the first release that requires Python 3.13, so this change makes Python 3.13 the minimum runtime. No integration code changes.
+
+### Changed, breaking
+
+- **Minimum Home Assistant version**: `hacs.json` `homeassistant` raised from `2024.6.0` to `2025.2.0`. HACS treats this key as the minimum required Home Assistant version, so installations on earlier releases are not offered this version.
+- **README requirements**: minimum Home Assistant `2025.2`, minimum Python `3.13+`.
+
+### Documentation
+
+- **`docs/ha_compatibility.md`**: Minimum, Enforced-by and Python rows updated to 2025.2.0 and Python 3.13; the planned-floor milestone removed.
+
+### Notes
+
+- **Rationale**: the previous floor implied Python 3.12 (Home Assistant 2024.6 to 2025.1), which was verified by compilation only. Tests run on Python 3.14, Ruff targets `py313`, and `pyproject.toml` declares `requires-python >=3.13`. The new floor makes the declared, linted and packaged Python minimums agree.
+- **Impact**: Home Assistant public analytics (2026-09-23, 687,049 opted-in installations) place 4.6% of installations below 2025.2.0.
+- **Functional floor unchanged**: the features the code depends on predate 2025.2.0, and `_compat.py` is unaffected because its branches detect 2026.8 device-registry features. The cross-project rationale is in `ha_minimum_version_matrix.md` §6 and §7.5.
 
 ## [1.2.3-dev9] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed
 
