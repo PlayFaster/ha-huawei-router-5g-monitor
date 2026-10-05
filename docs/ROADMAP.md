@@ -24,6 +24,21 @@ Items that were on this roadmap and were then built. **Membership is by provenan
 
 ---
 
+## To Be Done
+
+### Router Ethernet mode support
+
+Behavior on a router that takes its internet from its WAN Ethernet port and has no cellular link: setup succeeds, the cellular entities read unknown and never raise, and the Integration Health sensor reports no signal-block drift for a signal block that is empty because there is no cellular link.
+
+**Detail.** The router is then a router and not a modem, so the polled cellular reads return nothing or an error shape. Measured 2026-10-05 on a B315s-22 with an Ethernet WAN and no SIM (`local_only/b315_session_checks_20261005.md`): the signal block holds none of `rsrp`, `rsrq`, `rssi` and `sinr`, so the health sensor reads `warning` with a drift message that blames a firmware rename; `net.current_plmn` returns the string `FAILED`, and three sensor value functions raise on it (task `tasks/current_plmn_failed_string_crashes_sensors.md`); 53 of 124 entities read unknown. With a SIM installed the same router answered normally (`local_only/b315_with_sim_checks_20261005.md`), so the difference is the mode and not the firmware.
+
+What it needs: a pass over every entity description against a router in this mode, to list which entities read unknown, which raise, and which health findings fire, then the changes that follow from that list. The reference H165-383 has not been run in an Ethernet mode, so whether it behaves as the B315s-22 did is unmeasured.
+
+- **Value**: ⭐⭐
+- **Effort**: Medium
+
+---
+
 ## Maybe
 
 ### Per-endpoint strike budgets
@@ -192,6 +207,7 @@ Recorded against cross-project chore `C-030`, whose requirement is the scan and 
 | Item                                   | Value  | Effort         |
 | :------------------------------------- | :----- | :------------- |
 | WLAN band locking write capability     | ⭐⭐⭐ | High (Blocked) |
+| Router Ethernet mode support           | ⭐⭐   | Medium (To Be Done) |
 | New device alert                       | ⭐⭐⭐ | Medium         |
 | Per-endpoint strike budgets            | ⭐⭐   | Medium         |
 | Retire long-unseen device trackers     | ⭐⭐   | Medium         |
@@ -205,6 +221,7 @@ Recorded against cross-project chore `C-030`, whose requirement is the scan and 
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v3.4.0 | 2026-10-05 | **Added _Router Ethernet mode support_ under To Be Done**, at the owner's request. Measured on a B315s-22 with an Ethernet WAN and no SIM: an empty signal block reads as drift, `net.current_plmn` returns `FAILED`, and 53 of 124 entities read unknown. The reference H165-383 has not been run in this mode. |
 | v3.3.0 | 2026-08-24 | **The _Renaming entities that repeat their sub-device word_ entry corrected from four entities to eight**, and the keeps recorded as a table. The entry had named `total_data`, `signal_bars`, `signal_bars_nr` and `sms_storage_full` since v2.0.0. A full scan on 2026-08-24 — every one of the 159 entity descriptions, matching its `strings.json` name against its group's `SUB_DEVICE_LABELS` label rather than against the description key — found four more: `data_allowance`, `data_plan_enabled`, `poor_signal` and the `wifi` switch, whose name is the label itself. **The decision is unchanged**; all eight are keeps for the same reason, and nothing is renamed. This is the deliverable of cross-project chore `C-030`, which asks for the scan and the recorded keeps rather than a rename, and it is what let that chore's Huawei cell settle. |
 | v3.2.0 | 2026-08-19 | **Added _5G Mode select, and a sensor to read it back_** under Maybe, at the owner's request. The router GUI offers SA+NSA / NSA / SA and exposes it whether Preferred Network Mode is Auto or 5G Only. **The write path was validated before the entry was written and does not exist**: `huawei-lte-api` 2.0.1 has no method for it anywhere in the package, and the polled `net/net-mode` block returns only `NetworkMode`, `NetworkBand`, `LTEBand`, `networkOption` and `LTEBandOption` — so there is no read path either, and no sensor could be populated from the current poll. The entry therefore leads with discovery: capture what the router's own web interface posts, the method that established `dialup/dial` and `wlan/status-switch-settings` once the library proved insufficient. **One correction to the request as made**: it asked for read-back sensors for both Preferred Network Mode and 5G Mode, and the first already exists — a diagnostic reading `net_mode.NetworkMode` whose `about` note already covers the control-versus-state disagreement. Only the 5G Mode sensor is new. |
 | v3.1.0 | 2026-08-17 | **Added _Opt out of client tracking at setup_** under Maybe, from the `setup_cleanup_options.md` assessment. That guide predicted Huawei was "likely most applicable" for sensor-group toggles; on inspection only one group qualifies. SMS and WiFi fail the tax-on-every-installer test — Home Assistant's own per-device disable already hides them, and the saving is two endpoints out of twenty-six on a poll measured at about one second. Clients passes on two counts a toggle can serve and disabling cannot: it is the integration's privacy surface (MAC, hostname and IP per client) and the only group whose entity count is unbounded. The entry records its dependency on _Retire long-unseen device trackers_, since both address the same sprawl from opposite ends. |

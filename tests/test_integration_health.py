@@ -8,6 +8,7 @@ any optional one that fails — only `device_information` raises — so
 silent failure.
 """
 
+import asyncio
 import logging
 from unittest.mock import MagicMock, patch
 
@@ -447,3 +448,155 @@ def test_the_severity_sweep_still_sweeps_something() -> None:
     assert len(SEVERITY_VOCABULARY) == 5
     assert len(ENDPOINT_NAMES) >= 20
     assert len(_raised_repair_keys()) >= 2
+
+
+# ---------------------------------------------------------------------------
+# A standing refusal is not a lost capability (dev16 plan I5)
+# ---------------------------------------------------------------------------
+#
+# Driven through successive polls of the fake router and not through
+# `update_health` with hand-built data: whether an endpoint "has never
+# answered" is a fact `api.py` accumulates, and a hand-built payload would
+# supply it instead of deriving it.
+
+
+@pytest.fixture(name="transport")
+def transport_fixture():
+    """Serve a working router over the `requests` transport."""
+    import requests_mock as requests_mock_module
+
+    from tests.transport import RouterTransport
+
+    with requests_mock_module.Mocker() as mocker:
+        yield RouterTransport(mocker)
+
+
+def _real_coordinator(hass, entry):
+    """Build a coordinator over a real API client."""
+    from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
+
+    entry.add_to_hass(hass)
+    api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
+    return HuaweiRouter5GDataUpdateCoordinator(hass, entry, api)
+
+
+@pytest.mark.parametrize("code", [100003, 100002, 113017])
+async def test_a_standing_refusal_is_listed_as_not_served_and_not_degraded(
+    hass, mock_config_entry, transport, code
+):
+    """A never-answered endpoint refused every poll is `not_served`, severity `ok`."""
+    transport.refuse("sms/sms-list", code)
+    coordinator = _real_coordinator(hass, mock_config_entry)
+
+    for _ in range(HEALTH_DRIFT_STRIKE_LIMIT + 1):
+        await coordinator.async_refresh()
+
+    snapshot = coordinator.health_snapshot
+    assert snapshot["not_served"] == ["SMS messages"]
+    assert snapshot["degraded_capabilities"] == []
+    assert snapshot["issues"] == []
+    assert snapshot["severity"] == "ok"
+
+
+async def test_an_endpoint_that_stopped_answering_is_degraded_not_not_served(
+    hass, mock_config_entry, transport
+):
+    """It answered, then the router refused it for three polls."""
+    coordinator = _real_coordinator(hass, mock_config_entry)
+    await coordinator.async_refresh()
+    transport.refuse("sms/sms-list")
+
+    for _ in range(HEALTH_DRIFT_STRIKE_LIMIT):
+        await coordinator.async_refresh()
+
+    snapshot = coordinator.health_snapshot
+    assert snapshot["degraded_capabilities"] == ["SMS messages"]
+    assert snapshot["not_served"] == []
+    assert snapshot["severity"] == "degraded"
+
+
+async def test_a_never_answered_endpoint_that_times_out_still_accrues_strikes(
+    hass, mock_config_entry, transport
+):
+    """A timeout is not a router code, so it is not a standing refusal."""
+    transport.hang_seconds = 0.05
+    transport.arm("timeout", endpoint="sms/sms-list")
+    coordinator = _real_coordinator(hass, mock_config_entry)
+
+    for _ in range(HEALTH_DRIFT_STRIKE_LIMIT):
+        await coordinator.async_refresh()
+        await asyncio.sleep(transport.hang_seconds)
+
+    snapshot = coordinator.health_snapshot
+    assert snapshot["degraded_capabilities"] == ["SMS messages"]
+    assert snapshot["not_served"] == []
+
+
+async def test_an_endpoint_that_answers_after_a_refusal_leaves_not_served(
+    hass, mock_config_entry, transport
+):
+    """The listing follows the router, poll by poll."""
+    transport.refuse("sms/sms-list")
+    coordinator = _real_coordinator(hass, mock_config_entry)
+    await coordinator.async_refresh()
+    assert coordinator.health_snapshot["not_served"] == ["SMS messages"]
+
+    transport.refused.clear()
+    await coordinator.async_refresh()
+
+    assert coordinator.health_snapshot["not_served"] == []
+    assert coordinator.health_snapshot["degraded_capabilities"] == []
+
+
+async def test_the_sensor_publishes_not_served(hass, mock_config_entry, transport):
+    """The attribute reaches the entity, beside the existing ones."""
+    transport.refuse("sms/sms-list")
+    coordinator = _real_coordinator(hass, mock_config_entry)
+    await coordinator.async_refresh()
+    sensor = HuaweiIntegrationHealthSensor(
+        coordinator, mock_config_entry, INTEGRATION_HEALTH_DESCRIPTION
+    )
+
+    assert sensor.extra_state_attributes["not_served"] == ["SMS messages"]
+    assert "not_served" in HuaweiIntegrationHealthSensor._unrecorded_attributes
+
+
+def test_every_attribute_the_readme_names_for_the_sensor_exists(
+    hass_less_sensor_attributes,
+):
+    """The README names only attributes the sensor publishes (dev16 plan I5).
+
+    The Integration Health table and the template note once named `repairs` and
+    `consecutive_failures`, which the sensor does not publish.
+    """
+    from pathlib import Path
+    import re
+
+    readme = (Path(__file__).parent.parent / "README.md").read_text(encoding="utf-8")
+    start = readme.index("The **Integration Health** sensor")
+    section = readme[start : readme.index("### 📊 Diagnostics", start)]
+    named = set(re.findall(r"^\| `([a-z_]+)`\s+\|", section, flags=re.MULTILINE))
+
+    assert "not_served" in named
+    assert named <= hass_less_sensor_attributes
+    assert "consecutive_failures" not in readme
+    assert "drift, repairs" not in readme
+
+
+@pytest.fixture(name="hass_less_sensor_attributes")
+def hass_less_sensor_attributes_fixture(mock_config_entry):
+    """The attribute names the sensor publishes for a populated snapshot."""
+    coordinator = MagicMock()
+    coordinator.health_snapshot = {
+        "severity": "ok",
+        "issues": [],
+        "degraded_capabilities": [],
+        "not_served": [],
+        "drift": [],
+        "last_good_update": None,
+    }
+    coordinator.uptime_diagnostics = {}
+    sensor = HuaweiIntegrationHealthSensor(
+        coordinator, mock_config_entry, INTEGRATION_HEALTH_DESCRIPTION
+    )
+    return set(sensor.extra_state_attributes)

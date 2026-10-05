@@ -227,6 +227,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             "severity": "unknown",
             "issues": [],
             "degraded_capabilities": [],
+            "not_served": [],
             "drift": [],
             "last_good_update": None,
         }
@@ -310,6 +311,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             "severity": "ok",
             "issues": [],
             "degraded_capabilities": [],
+            "not_served": [],
             "drift": [],
             "last_good_update": (
                 self.last_update_success_time.isoformat()
@@ -522,7 +524,25 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             for key in ENDPOINT_NAMES
             if key != CRITICAL_ENDPOINT and key not in data and key not in unsupported
         ]
+        # **A standing refusal is not a lost capability.** An endpoint the
+        # router refused with one of its own codes this poll, and that has never
+        # answered in this run, is something this router does not serve: there
+        # was nothing to lose. It is listed under `not_served`, so nothing is
+        # hidden, and takes no strike. An endpoint that answered earlier and now
+        # refuses, and any failure that is not a router code (a timeout, a
+        # dropped connection), accrues strikes as before.
+        refused = {
+            key
+            for key, record in self.api.endpoint_outcomes.items()
+            if isinstance(record, dict) and record.get("outcome") == "refused"
+        }
+        answered = self.api.answered_endpoints
+        not_served_keys = {
+            key for key in missing if key in refused and key not in answered
+        }
         for key in ENDPOINT_NAMES:
+            if key in not_served_keys:
+                continue
             if key in missing:
                 self._endpoint_strikes[key] = self._endpoint_strikes.get(key, 0) + 1
             else:
@@ -531,8 +551,9 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         degraded = sorted(
             ENDPOINT_NAMES[key]
             for key, strikes in self._endpoint_strikes.items()
-            if strikes >= HEALTH_DRIFT_STRIKE_LIMIT
+            if strikes >= HEALTH_DRIFT_STRIKE_LIMIT and key not in not_served_keys
         )
+        not_served = sorted(ENDPOINT_NAMES[key] for key in not_served_keys)
 
         # 2. Missing router data — a non-empty response that parses to nothing
         #    meaningful. This is the direct catch for a firmware field rename,
@@ -549,6 +570,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         issues = [f"{name} is not responding." for name in degraded] + drift
         snapshot["degraded_capabilities"] = degraded
+        snapshot["not_served"] = not_served
         snapshot["drift"] = drift
         snapshot["issues"] = issues
         # Section 19's five-value enum, and the two middle values are not

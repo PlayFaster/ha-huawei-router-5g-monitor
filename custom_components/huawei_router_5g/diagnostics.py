@@ -470,6 +470,24 @@ async def async_get_config_entry_diagnostics(
         # is a capability this device has and the integration does not read.
         # Names and counts only — see `api.probe_diagnostic_endpoints`.
         "probes": probes,
+        # How the refusal-or-expiry question was settled on this router
+        # (dev16 plan I1): whether it refuses `device_information` without a
+        # login, which is what lets a 100003 from an optional endpoint be read as
+        # a refusal and not as an expired session. Outcome and code only, never
+        # the payload. `not_made` means no endpoint has drawn a session signal
+        # since the integration started, so the question never arose.
+        "premise": (
+            deepcopy(coordinator.api.premise_result)
+            if isinstance(coordinator.api.premise_result, dict)
+            else {"outcome": "not_made", "code": None}
+        ),
+        # Sessions the probe sweep found lost and replaced. Zero where none was,
+        # which says the probe outcomes above were read on one live session.
+        "probe_sessions_lost": (
+            coordinator.api.sweep_sessions_lost
+            if isinstance(coordinator.api.sweep_sessions_lost, int)
+            else 0
+        ),
         # Which of this integration's entity descriptions the payload above
         # populates. The endpoint map says what the router served; this says
         # what that means for the entities a reporter is looking at.

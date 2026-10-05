@@ -20,7 +20,7 @@ releases later, and it is why the two files are separate.
 """
 
 from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import AsyncMock, MagicMock, patch
 
 from huawei_lte_api.exceptions import (
     LoginErrorPasswordWrongException,
@@ -480,3 +480,333 @@ def test_no_excluded_endpoint_is_also_probed() -> None:
     excluded = {name.replace(".", "_") for name, _ in api.PROBES_EXCLUDED}
 
     assert not probed & excluded
+
+
+# ---------------------------------------------------------------------------
+# The sweep on a session that ends (dev16 plan I4)
+# ---------------------------------------------------------------------------
+#
+# On this firmware a 100003 is both a refusal and the answer to an ended
+# session, so after any probe that does not answer the sweep reads
+# `device_information` and tells the two apart. The tests below drive it with
+# the client mocked, which is the seam the sweep tests above use, and one
+# through the fake transport, so that the login is the real `_login_internal`.
+
+
+def _sweep_api(
+    probes: tuple[tuple[str, Any], ...],
+    client: Any,
+) -> tuple[HuaweiRouter5GAPI, Any]:
+    """Build an API whose sweep runs `probes` on `client`, with a fake login.
+
+    The login replaces `_client` and bumps the generation as the real
+    `_login_internal` does, and hands out a fresh mock each time.
+    """
+    api = _make_api()
+    api._client = client
+    fresh_clients: list[Any] = []
+
+    async def login() -> None:
+        fresh = MagicMock(name=f"client-{len(fresh_clients) + 1}")
+        fresh.device.information.return_value = {"ok": "1"}
+        fresh_clients.append(fresh)
+        api._client = fresh
+        api._generation += 1
+
+    login_mock = AsyncMock(side_effect=login)
+    api.__dict__["_login_internal"] = login_mock
+    api.__dict__["DIAGNOSTIC_PROBES"] = probes
+    return api, login_mock
+
+
+def _refuse(code: str = "100003") -> Any:
+    def call(_client: Any) -> Any:
+        raise _error(code)
+
+    return call
+
+
+async def test_a_probe_refused_on_a_live_session_logs_in_no_more() -> None:
+    """A refusal is the finding: no `session_lost`, and no login."""
+    client = MagicMock()
+    client.device.information.return_value = {"ok": "1"}
+    api, login = _sweep_api(
+        (("a", _refuse("100003")), ("b", lambda _c: {"k": "v"})), client
+    )
+
+    result = await api.probe_diagnostic_endpoints()
+
+    assert result["a"] == {"outcome": "refused", "code": "100003"}
+    assert result["b"]["outcome"] == "answered"
+    assert api.sweep_sessions_lost == 0
+    login.assert_not_awaited()
+    client.device.information.assert_called_once()  # the canary after `a`
+
+
+async def test_a_probe_after_which_the_canary_reads_100003_is_repeated_once() -> None:
+    """The session ended: log in through `_login_internal`, repeat the probe."""
+    old = MagicMock(name="old")
+    old.device.information.side_effect = ResponseErrorLoginRequiredException(
+        "login required", 100003
+    )
+    calls: list[Any] = []
+
+    def probe(client: Any) -> Any:
+        calls.append(client)
+        if client is old:
+            raise _error("100003")
+        return {"k": "v"}
+
+    api, login = _sweep_api((("a", probe), ("b", lambda _c: {"k": "v"})), old)
+
+    result = await api.probe_diagnostic_endpoints()
+
+    assert len(calls) == 2
+    assert calls[0] is old
+    assert calls[1] is not old
+    assert result["a"]["outcome"] == "answered"
+    assert result["a"]["session_lost"] is True
+    assert result["b"]["outcome"] == "answered"
+    assert api.sweep_sessions_lost == 1
+    login.assert_awaited_once()
+
+
+async def test_a_canary_connection_error_causes_no_login() -> None:
+    """Unknown is not lost: a failed canary read never starts a login."""
+    client = MagicMock()
+    client.device.information.side_effect = ConnectionError("reset")
+    api, login = _sweep_api(
+        (("a", _refuse("100003")), ("b", lambda _c: {"k": "v"})), client
+    )
+
+    result = await api.probe_diagnostic_endpoints()
+
+    assert result["a"] == {"outcome": "refused", "code": "100003"}
+    assert api.sweep_sessions_lost == 0
+    login.assert_not_awaited()
+
+
+async def test_a_third_lost_session_marks_the_rest_not_run() -> None:
+    """At most two sessions are replaced per sweep."""
+    client = MagicMock()
+    client.device.information.side_effect = ResponseErrorLoginRequiredException(
+        "login required", 100003
+    )
+    probes = tuple((name, _refuse("100003")) for name in ("a", "b", "c", "d", "e"))
+    api, login = _sweep_api(probes, client)
+
+    # Every client the fake login hands out is lost as well.
+    original = login.side_effect
+
+    async def login_lost() -> None:
+        await original()
+        api._client.device.information.side_effect = (
+            ResponseErrorLoginRequiredException("login required", 100003)
+        )
+
+    login.side_effect = login_lost
+
+    result = await api.probe_diagnostic_endpoints()
+
+    assert login.await_count == 2
+    assert api.sweep_sessions_lost == 3
+    assert result["c"] == {"outcome": "session_lost"}
+    assert result["d"]["outcome"] == "not_run"
+    assert result["e"]["outcome"] == "not_run"
+    assert set(result) == {"a", "b", "c", "d", "e"}
+
+
+async def test_the_sweep_deadline_is_checked_before_each_request() -> None:
+    """Past the deadline no canary, login or probe is made, and the rest are `not_run`."""
+    from types import SimpleNamespace
+
+    from custom_components.huawei_router_5g import api as api_module
+
+    clock = {"t": 0.0}
+    client = MagicMock()
+    client.device.information.return_value = {"ok": "1"}
+
+    def slow(_client: Any) -> Any:
+        clock["t"] += 25.0
+        raise _error("100003")
+
+    api, login = _sweep_api((("a", slow), ("b", lambda _c: {"k": "v"})), client)
+
+    with patch.object(
+        api_module, "time", SimpleNamespace(monotonic=lambda: clock["t"])
+    ):
+        result = await api.probe_diagnostic_endpoints()
+
+    assert result["a"]["outcome"] == "refused"
+    assert result["b"] == {"outcome": "not_run", "reason": "deadline"}
+    client.device.information.assert_not_called()
+    login.assert_not_awaited()
+
+
+async def test_a_failed_login_returns_the_probes_collected_so_far() -> None:
+    """The sweep returns a map and does not raise when the login fails."""
+    client = MagicMock()
+    client.device.information.side_effect = ResponseErrorLoginRequiredException(
+        "login required", 100003
+    )
+    api, login = _sweep_api(
+        (("a", lambda _c: {"k": "v"}), ("b", _refuse("100003")), ("c", lambda _c: {})),
+        client,
+    )
+    login.side_effect = HuaweiConnectionError("gone")
+
+    result = await api.probe_diagnostic_endpoints()
+
+    assert result["a"]["outcome"] == "answered"
+    assert result["b"] == {"outcome": "session_lost"}
+    assert result["c"] == {"outcome": "not_run", "reason": "login_failed"}
+
+
+async def test_a_client_reset_under_the_sweep_marks_the_rest_not_run() -> None:
+    """The sweep stops if something else replaced the client under it."""
+    client = MagicMock()
+    api, login = _sweep_api(
+        (("a", lambda _c: api._reset_client() or {"k": "v"}), ("b", lambda _c: {})),
+        client,
+    )
+
+    result = await api.probe_diagnostic_endpoints()
+
+    assert result["a"]["outcome"] == "answered"
+    assert result["b"] == {"outcome": "not_run", "reason": "client_reset"}
+    login.assert_not_awaited()
+
+
+async def test_the_sweep_logs_in_again_through_the_unlocked_login() -> None:
+    """`login` takes the lock the sweep holds, so the sweep must not call it.
+
+    Run over the fake transport with the real `_login_internal`: the session is
+    ended while the sweep is part way down the list, and the sweep recovers.
+    Calling `login` in its place would raise the lock's re-entry error.
+    """
+    import requests_mock as requests_mock_module
+
+    from .transport import RouterTransport
+
+    with requests_mock_module.Mocker() as mocker:
+        transport = RouterTransport(mocker)
+        api = _make_api()
+        await api.login()
+        api.__dict__["DIAGNOSTIC_PROBES"] = (
+            ("a", lambda c: c.device.signal()),
+            ("b", lambda c: c.net.net_mode()),
+            ("c", lambda c: c.monitoring.status()),
+        )
+        seen = {"n": 0}
+
+        def end_session(endpoint: str) -> None:
+            if endpoint == "net/net-mode":
+                seen["n"] += 1
+                if seen["n"] == 1:
+                    transport.log_out()
+
+        transport.on_request = end_session
+        logins_before = transport.logins
+
+        result = await api.probe_diagnostic_endpoints()
+
+        assert transport.logins == logins_before + 1
+        assert api.sweep_sessions_lost == 1
+        assert result["a"]["outcome"] == "answered"
+        assert result["b"]["outcome"] == "answered"
+        assert result["b"]["session_lost"] is True
+        assert result["c"]["outcome"] == "answered"
+
+
+async def test_a_poll_started_during_the_sweep_waits_for_it() -> None:
+    """The sweep holds the API lock, so a poll queues behind it and then completes."""
+    import asyncio
+    import threading
+
+    import requests_mock as requests_mock_module
+
+    from .transport import RouterTransport
+
+    release = threading.Event()
+
+    def blocked(_client: Any) -> Any:
+        release.wait(5)
+        return {"k": "v"}
+
+    with requests_mock_module.Mocker() as mocker:
+        RouterTransport(mocker)
+        api = _make_api()
+        await api.login()
+        api.__dict__["DIAGNOSTIC_PROBES"] = (("a", blocked),)
+
+        sweep = asyncio.create_task(api.probe_diagnostic_endpoints())
+        await asyncio.sleep(0.2)
+        poll = asyncio.create_task(api.get_data())
+        await asyncio.sleep(0.3)
+
+        assert not poll.done()
+
+        release.set()
+        swept = await sweep
+        data = await poll
+
+        assert swept["a"]["outcome"] == "answered"
+        assert data["device_information"]["DeviceName"] == "B535-232"
+
+
+async def test_the_sweep_login_does_not_start_past_the_deadline() -> None:
+    """A login is a request, so the deadline is checked before it."""
+    api, login = _sweep_api((), MagicMock())
+
+    fresh, reason = await api._relogin_for_sweep(deadline=-1.0)
+
+    assert (fresh, reason) == (None, "deadline")
+    login.assert_not_awaited()
+
+
+async def test_a_failed_sweep_login_is_reported_not_raised() -> None:
+    """The failure is a reason for the sweep to stop, not an exception out of it."""
+    api, login = _sweep_api((), MagicMock())
+    login.side_effect = HuaweiConnectionError("gone")
+
+    fresh, reason = await api._relogin_for_sweep(deadline=1e12)
+
+    assert (fresh, reason) == (None, "login_failed")
+
+
+async def test_a_login_that_leaves_no_client_is_a_failed_login() -> None:
+    """The sweep never repeats a probe on a client that does not exist."""
+    api, login = _sweep_api((), MagicMock())
+
+    async def login_without_a_client() -> None:
+        api._client = None
+
+    login.side_effect = login_without_a_client
+
+    fresh, reason = await api._relogin_for_sweep(deadline=1e12)
+
+    assert (fresh, reason) == (None, "login_failed")
+
+
+async def test_a_login_that_finishes_past_the_deadline_is_not_used() -> None:
+    """The deadline is checked after the login as well, before the repeat."""
+    from types import SimpleNamespace
+
+    from custom_components.huawei_router_5g import api as api_module
+
+    clock = {"t": 0.0}
+    api, login = _sweep_api((), MagicMock())
+    original = login.side_effect
+
+    async def slow_login() -> None:
+        await original()
+        clock["t"] = 100.0
+
+    login.side_effect = slow_login
+
+    with patch.object(
+        api_module, "time", SimpleNamespace(monotonic=lambda: clock["t"])
+    ):
+        fresh, reason = await api._relogin_for_sweep(deadline=50.0)
+
+    assert (fresh, reason) == (None, "deadline")

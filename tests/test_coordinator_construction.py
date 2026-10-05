@@ -130,7 +130,7 @@ def test_the_health_snapshot_starts_unknown_and_empty(mock_hass) -> None:
     """Section 19's published attribute names **and values** are a contract.
 
     Users write templates against `severity`, `issues`, `degraded_capabilities`,
-    `drift` and `last_good_update`. A key renamed at construction — even in
+    `not_served`, `drift` and `last_good_update`. A key renamed at construction — even in
     case — silently breaks every template written for it, and nothing errors.
 
     **`severity` starts `"unknown"`, not `None`.** Nothing has been fetched at
@@ -144,12 +144,14 @@ def test_the_health_snapshot_starts_unknown_and_empty(mock_hass) -> None:
         "severity",
         "issues",
         "degraded_capabilities",
+        "not_served",
         "drift",
         "last_good_update",
     }
     assert snapshot["severity"] == "unknown"
     assert snapshot["issues"] == []
     assert snapshot["degraded_capabilities"] == []
+    assert snapshot["not_served"] == []
     assert snapshot["drift"] == []
     assert snapshot["last_good_update"] is None
 

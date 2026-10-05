@@ -150,7 +150,7 @@ The document had **never** been reconciled: it documented two bands that did not
 
 **Guards:** Section 19
 
-`severity` / `issues` / `degraded_capabilities` / `drift` / `last_good_update` are a **published contract**. Users write templates against them, so a rename silently breaks every example written for a sibling project.
+`severity` / `issues` / `degraded_capabilities` / `drift` / `last_good_update` are a **published contract**. Users write templates against them, so a rename silently breaks every example written for a sibling project. `not_served` was added beside them in 1.2.3-dev16 and is held to the same rule.
 
 ### `test_translation_keys_resolve_in_both_files`
 

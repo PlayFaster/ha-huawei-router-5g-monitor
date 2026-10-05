@@ -66,7 +66,7 @@ Re-verify any of these on a fresh session before treating a refusal as permanent
 | Code | Meaning | What to do |
 | :-- | :-- | :-- |
 | `100002: No support` | The hardware or firmware does not implement it | Nothing. Do not retry, do not add a sensor |
-| `100003: No rights (needs login)` | Requires a session this connection does not have | Not a bug to fix in this integration |
+| `100003: No rights (needs login)` | Either the router refuses this one read, or the session has ended | `api.py` tells the two apart; see [Telling a refusal from an expiry](#telling-a-refusal-from-an-expiry--the-rule-as-built-123-dev16) |
 | `108003` / `108006` | Wrong username / password | Surfaces as `HuaweiAuthError` → `ConfigEntryAuthFailed` → reauth flow |
 | `-1: Unknown` | **Ambiguous — never treat it as a refusal on its own** | Read the state back and let that decide. See below |
 
@@ -292,7 +292,97 @@ Two consequences:
 - **Anything sweeping endpoints outside the polled set must bypass `_execute_with_retry`** and call on a single established session. That is the whole fix, and it needs no delays between calls.
 - **`100003` does not end the session on this firmware.** A read on the same session immediately afterwards answers normally, and a _fresh_ session returns `100003` from the same endpoints every time.
 
-**Not fixed in `api.py`, deliberately.** No polled endpoint returns `100003`, so normal operation is unaffected, and the code is genuinely ambiguous: on firmware where a lapsed session answers `100003` to everything, the present retry is correct and removing it would break recovery. If it is ever fixed, the discriminator is not the code list — **a `100003` on a session that was just established cannot be an expiry** — and the `isinstance` test above the list is what decides first.
+### Telling a refusal from an expiry — the rule as built (1.2.3-dev16)
+
+**The ambiguity.** `100003` is the router's answer to a read it refuses on a live session, and it is also the answer to every login-only read once a session has ended. Until 1.2.3-dev16 the fetch loop in `api.py` treated a `100003`, `125002` or `125003` from any endpoint as an expired session. A router that refused one optional endpoint therefore failed the whole poll, and at setup the config flow reported `invalid_auth` although the login had worked. That is issue 50: a B529s-23a branded for Magenta Austria, firmware 11.182.63.00.1409. The report names neither the endpoint nor the code, so the three codes are handled alike.
+
+**The rule.** `device_information` is the critical endpoint, and a session signal from it is always an expiry, as before. A non-critical endpoint that raises one of the three codes is adjudicated:
+
+| Step | What `api.py` does | Result |
+| :-- | :-- | :-- |
+| 1. Premise | A new `Connection` with no credentials reads `device.information`. It opens no session and makes no login attempt | `100003` confirms the premise that this router refuses `device_information` without a login. An answer means the router serves it anonymously, and any other failure leaves the premise unknown, which is not kept |
+| 2. Re-read | With the premise confirmed, `device_information` is read again on the session, at most once per poll | An answer means the session is live: the endpoint is recorded `refused` with `judged: live_session` and the poll continues. One of the three codes means the session has ended, and `HuaweiAuthError` is raised as before |
+| 3. History | With the premise not confirmed, or with more than 10 s of the poll's 30 s used, the history of the run decides | An endpoint that has never answered is recorded `refused` with `judged: history`. An endpoint that answered earlier in the run raises `HuaweiAuthError` |
+
+**Why `device_information`.** It is the one polled read that needs a login on both routers measured, and it is read every poll. A read that answers without a login cannot show a dead session, and a read the router refuses on a live session cannot show a live one. The reads that answer without a login are in the per-model tables below.
+
+**Bounds.** Each request of the premise check is allowed `PREMISE_TIMEOUT`, 3 s. The premise check and the re-read are made only while the poll has used at most `ADJUDICATION_BUDGET`, 10 s of the 30 s, so that the adjudication cannot reach the coordinator's `asyncio.timeout`. The premise is kept for the run and cleared whenever the client is reset, so a router restarted by a firmware update is checked again. The recorded premise result holds an outcome and a code and never the payload, because a router that serves `device_information` anonymously returns identifiers in it. The history and the premise are written only if the client generation is unchanged since the read began, so a worker thread orphaned by a timeout cannot write after a reset.
+
+**The history is `HuaweiRouter5GAPI.answered_endpoints`**, the endpoint names that have answered since the object was created. It lives on the API object and not on the library client, so a reset does not clear it, and it is held in memory only.
+
+**Integration Health.** An endpoint refused with a router code on a poll, and never answered in the run, is not a lost capability. It is listed under the `not_served` attribute of the Integration Health sensor and takes no strike, so severity stays `ok`. An endpoint that answered earlier and now refuses still accrues strikes and reads `degraded`, and a timeout is not a router code.
+
+**The probe sweep of the diagnostics download** holds the API lock for its duration and reads `device_information` after any probe that does not answer. A `100003` from that read is a lost session: the sweep logs in once through `_login_internal`, which does not take the lock, and repeats the probe, at most twice per sweep. A connection error from the read is unknown and causes no login. The sweep stops at 20 s, after a failed login, after a third loss, or if the client was reset under it, and marks the remaining probes `not_run`. The download records the premise result and the number of sessions lost.
+
+**Reads that start something.** `net.plmn_list` starts a network scan. On the H165-383 it timed out in a read sweep and was followed by a brief data-connection restart on two runs, so it is the likely cause. It is not among the 46 `DIAGNOSTIC_PROBES`, and a read sweep of the library excludes it, together with `net.reconnect`, `accept`, `compress`, `operate` and `toggle` methods.
+
+**Known limits.**
+
+- **The router's own refusal of a polled endpoint has not been observed.** No router held refuses one. The refusal path is verified by unit tests built from the report and by a simulated refusal on two routers, in which the premise check and the re-read are real. The first evidence from a B529s is the author's diagnostics download.
+- **The premise is measured on two routers and assumed on the B529s.** Where it does not hold there, the history decides.
+- **The history fallback is more permissive than failing closed.** It reads a signal from an endpoint that has never answered as a refusal, so a session lost before any endpoint answered reads as a refusal. It is to be reviewed against the author's download, as the task `tighten_premise_failure_fallback_after_ops_download` records.
+- **A refusal can follow the router's state.** The B315s-22 answers the SMS list with `125003` when it has no SIM and answers it with one. An endpoint that answered earlier and later draws such a code is an expiry under the history fallback.
+- **The never-answered history is in memory.** A capability lost while Home Assistant is not running reads as never served after the next start. The task `persist_never_answered_endpoint_history` records the persisted set.
+- **`_execute_with_retry` still treats `100003` as an expiry**, so a control the router refuses costs a login. The task `relogin_on_100003_in_execute_with_retry` records the change, which affects controls and not setup.
+
+---
+
+## 📏 Per-model measurements, 2026-10-05
+
+Measured from the development container with `huawei-lte-api` 2.0.1, for the rule above. The H165-383 is the reference unit and the owner's main router. The B315s-22 is an older unit, software 21.329.01.00.25 and web UI 17.100.09.00.03, set up for comparison, and the author of issue 50 owns a B529s-23a that has not been measured. The routers were read and logged in; no reboot was made on the H165-383 and no write was made on either.
+
+### Reads by class
+
+| Measure | H165-383 | B315s-22, no SIM |
+| :-- | :-- | :-- |
+| Reads tried, taking no required argument | 243 | 251 |
+| Answered when logged in | 149 | 86 |
+| Answered both anonymously and logged in | 46 | 76 |
+| `100002` when logged in | 51, of which 13 were also `100002` anonymously | 106, of which 81 were also `100002` anonymously |
+| `100003` on a live session | 38, and a read of `device.information` answered after each | 0 |
+| Refused `100003` anonymously and answered logged in | 103 | 32 |
+| `125003` on a live session | 0, and one read returned `125003`, ended the session and answered `100002` on a fresh one | 3: two SMS reads and `vpn.toggle_status` |
+| Polled reads mapped | 23 of 26 | 23 of 26 |
+| Polled reads that need a login | 14 | 6 |
+| Polled reads that answer without a login | 9 | 11, of which 5 answer `100002` and `sms.get_sms_list` answers `125003` |
+| Polled reads refused on a live session | None | None |
+
+The 14 polled reads that need a login on the H165-383 are `device.information`, `net.net_mode`, `sms.sms_count`, `sms.get_sms_list`, `lan.host_info`, `wlan.host_list`, `wlan.multi_basic_settings`, `dial_up.profiles`, `device.antenna_type`, `net.csps_state`, `security.sip`, `security.upnp`, `voice.voicebusy` and `voice.volte`. The 6 on the B315s-22 are `device.information`, `wlan.host_list`, `wlan.multi_basic_settings`, `dial_up.profiles`, `security.sip` and `security.upnp`.
+
+### How an expiry presents, and what does not end a session
+
+| Test | H165-383 | B315s-22 |
+| :-- | :-- | :-- |
+| Logout, then `device.information` and two login-only reads | `100003` on all three, twice | `100003` on all three, twice |
+| Cleared cookies, the same reads | `100003` on all three, twice | `100003` on all three, twice |
+| Garbage token, and an emptied token list | All three reads answered | All three reads answered |
+| A second login, the first session read for 30 s | Answered throughout | Answered throughout |
+
+An expiry therefore presents as `100003` on every login-only read at once, and the token is not what carries the session. Two sessions coexist on both routers, so a login made by the sweep after a lost session does not end the session of another client.
+
+### Reboot timeline
+
+On the B315s-22 the router was unreachable from about 18 s to 44 s after the reboot command, the old session read `100003` at 46 s, a new login answered, and the integration logged one fetch failure and raised no repair. The H165-383 was not rebooted, by the owner's direction.
+
+### `net.current_plmn` and the SIM state
+
+| State | B315s-22 |
+| :-- | :-- |
+| No SIM, Ethernet WAN | `net.current_plmn` returns the string `FAILED`, with and without a login. `sms.get_sms_list` called with no argument answers `125003` on a live session |
+| SIM fitted and registered on LTE, 5 signal bars, operator code 27205 | `net.current_plmn` returns a dictionary. `sms.get_sms_list` answers and needs a login. 6 of 243 reads differ between the two states |
+
+On the B315s-22 the Integration Health sensor read `warning` with six degraded capabilities and a signal-block drift without a SIM, and `degraded` with five degraded capabilities and no drift with one. The sensor code does not expect the string `FAILED`; the task `current_plmn_failed_string_crashes_sensors` records the three sensor sites. A router with its WAN on Ethernet shows an empty signal block, a `FAILED` operator string and 53 of 124 entities unknown, and the integration has not been tested in that mode, which is a roadmap item.
+
+### The diagnostic probe list with a canary
+
+| Router | Probes | Outcomes | Sessions ended |
+| :-- | :-- | :-- | :-- |
+| H165-383 | 46 in 1.6 s | 31 answered, 10 answered `100002`, 5 answered `100003` on a live session | None shown |
+| B315s-22, with a SIM | 46 in 2.2 s | 22 answered, 23 answered `100002`, 1 answered `103005` | None |
+
+The five `100003` probes on the H165-383 are `device_autorun_version`, `device_antenna_status`, `device_antenna_settings`, `monitoring_wifi_month_setting` and `dial_up_auto_apn`, each followed by a read of `device.information` that answered, except the last. After the last probe that read raised a connection error and not a `100003`, so the session was not shown to be dead, and the connect time of 9793 s afterwards shows the sweep did not restart the data connection. A canary that raises a connection error is therefore treated as unknown.
+
+On the B315s-22, four connection errors in a read matrix coincided with the integration's own poll, and whether load or the SIM caused them is not established. Overlapping requests made it drop connections, so checks against it pause the integration's polling first.
 
 ---
 

@@ -1043,6 +1043,35 @@ async def test_a_full_user_flow_reaches_the_router_and_creates_the_entry(
 
 
 @pytest.mark.asyncio
+async def test_a_refused_optional_endpoint_does_not_fail_the_setup(router_transport):
+    """Issue 50: the login works and one optional endpoint answers 100003.
+
+    The other tests in this file replace the API object or patch the
+    validation, so they cannot show this. Here `_validate_credentials` runs for
+    real over the fake transport, the router refuses one non-critical read on a
+    live session, and the entry is created and not rejected as `invalid_auth`.
+    """
+    router_transport.refuse("sms/sms-list")
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = MagicMock()
+
+    result = await flow.async_step_user(
+        {
+            CONF_HOST: "http://192.168.8.1",
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "password",
+        }
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"]["mac"] == "001122aabbcc"
+    assert router_transport.anonymous_info_reads == 1
+
+
+@pytest.mark.asyncio
 async def test_a_router_that_refuses_the_login_is_reported_as_cannot_connect(
     router_transport,
 ):

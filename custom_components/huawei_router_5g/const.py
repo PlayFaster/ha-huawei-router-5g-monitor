@@ -57,6 +57,20 @@ LOCK_TIMEOUT = 60
 # never fire.
 FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT
 
+# Timeout of each request of the anonymous premise check that tells a refused
+# endpoint from an expired session (`api.py`, `_read_premise`). The check opens
+# a `Connection` (two requests) and reads `device.information` (a third), so
+# its worst case is three of these.
+PREMISE_TIMEOUT = 3
+
+# Latest point in a poll, in seconds elapsed, at which the premise check and the
+# re-read of `device_information` may start. Derived like `FETCH_DEADLINE`: the
+# premise check's worst case (three requests) plus the re-read's (one
+# `REQUEST_TIMEOUT`) plus 1 s must still end inside `FETCH_TIMEOUT`, so that
+# the adjudication cannot reach the coordinator's `asyncio.timeout` and an
+# `invalidate()` under a running worker. Past it the endpoint's history decides.
+ADJUDICATION_BUDGET = FETCH_TIMEOUT - 3 * PREMISE_TIMEOUT - REQUEST_TIMEOUT - 1
+
 # Longest a write may run before the caller stops waiting for it.
 #
 # No write path had an outer timeout, and a write's `asyncio.to_thread` cannot

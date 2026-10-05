@@ -24,6 +24,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 import sys
 from typing import Any
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -31,12 +32,25 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 from scripts.diag_check import (
     EXPIRY_CODES,
+    LOGIN_BOUND,
+    LoginBudget,
     Report,
+    RunStoppedError,
+    _midpoll_ensure,
+    _recording_get_data,
+    _refusal_ensure,
+    _sabotaging_ensure,
     _secrets,
+    _select_entry,
     _serialize,
     check_captures,
     check_endpoints,
+    check_health,
+    check_mid_poll,
+    check_probes,
     check_redaction,
+    check_refusal,
+    check_refusal_expired,
     check_sabotage,
     check_shape,
     check_stability,
@@ -65,6 +79,8 @@ def _artefact(
         "last_rejection": rejection,
         "login": login if login is not None else {"result": "ok", "error": None},
         "probes": {"global_module_switch": {"outcome": "answered", "type": "dict"}},
+        "premise": {"outcome": "not_made", "code": None},
+        "probe_sessions_lost": 0,
         "entity_resolution": {
             "sensor": {"total": 2, "resolved": 1, "no_value": ["b"], "raised": {}},
         },
@@ -108,6 +124,8 @@ def test_a_complete_document_passes_the_shape_check() -> None:
         "coordinator",
         "endpoints",
         "entity_resolution",
+        "premise",
+        "probe_sessions_lost",
     ],
 )
 def test_a_missing_published_key_is_a_failure(key: str) -> None:
@@ -744,3 +762,472 @@ def test_each_documented_expiry_code_is_accepted(code: str) -> None:
     )
 
     assert report.failed == 0
+
+
+# ---------------------------------------------------------------------------
+# check_probes - the sweep's two new verdicts (dev16 plan I4)
+# ---------------------------------------------------------------------------
+
+
+def test_probe_verdicts_not_run_and_session_lost_are_accepted() -> None:
+    """A sweep cut short, or a session that ended, is a known verdict."""
+    artefact = _artefact()
+    artefact["probes"] = {
+        "a": {"outcome": "answered", "type": "dict"},
+        "b": {"outcome": "session_lost"},
+        "c": {"outcome": "not_run", "reason": "login_failed"},
+    }
+
+    report = Report()
+    check_probes(artefact, report, "1")
+
+    assert _passed(report, "every probe outcome is a known verdict")
+
+
+def test_an_unknown_probe_verdict_is_still_a_failure() -> None:
+    """The set is closed: a verdict nobody has named fails the check."""
+    artefact = _artefact()
+    artefact["probes"] = {"a": {"outcome": "mystery"}}
+
+    report = Report()
+    check_probes(artefact, report, "1")
+
+    assert not _passed(report, "every probe outcome is a known verdict")
+
+
+# ---------------------------------------------------------------------------
+# The modes of the live check (dev16 plan I2)
+# ---------------------------------------------------------------------------
+#
+# The modes patch the client the integration holds and are run against real
+# routers by hand. These tests hold the patches themselves: each one has an
+# effect, and removing the effect fails the test that names it. A wrapper that
+# silently stops acting would let a live run report a recovery that never had
+# anything to recover from.
+
+
+class _Group:
+    """A stand-in for one endpoint group of the library client."""
+
+    def __init__(self) -> None:
+        self.calls: list[str] = []
+
+    def status(self) -> str:
+        self.calls.append("status")
+        return "answered"
+
+    def net_mode(self) -> str:
+        self.calls.append("net_mode")
+        return "answered"
+
+
+def _fake_client() -> Any:
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    return SimpleNamespace(
+        monitoring=_Group(), net=_Group(), user=MagicMock(), logouts=0
+    )
+
+
+def _original_ensure(clients: list[Any]) -> Any:
+    """An `_ensure_client` that hands out a new fake client on each call."""
+
+    async def original(_self: Any) -> Any:
+        client = _fake_client()
+        clients.append(client)
+        return client
+
+    return original
+
+
+async def test_the_sabotage_wrapper_logs_every_session_out() -> None:
+    """The existing mode: the session is ended before the poll uses it."""
+    clients: list[Any] = []
+    ensure = _sabotaging_ensure(_original_ensure(clients))
+
+    await ensure(None)
+    await ensure(None)
+
+    assert len(clients) == 2
+    for client in clients:
+        client.user.logout.assert_called_once()
+
+
+async def test_the_mid_poll_wrapper_ends_the_first_session_after_the_endpoint() -> None:
+    """`monitoring.status` answers, then the session is logged out, once."""
+    clients: list[Any] = []
+    ensure = _midpoll_ensure(_original_ensure(clients), {})
+
+    first = await ensure(None)
+    assert first.user.logout.call_count == 0  # nothing yet: it acts mid-poll
+    assert first.monitoring.status() == "answered"
+    first.user.logout.assert_called_once()
+
+    second = await ensure(None)
+    assert second.monitoring.status() == "answered"
+    second.user.logout.assert_not_called()  # the retry's session is left alone
+
+
+async def test_the_refusal_wrapper_raises_a_100003_on_the_first_session_only() -> None:
+    """The simulated refusal is the library's own exception, once."""
+    from huawei_lte_api.exceptions import ResponseErrorLoginRequiredException
+
+    clients: list[Any] = []
+    ensure = _refusal_ensure(_original_ensure(clients), {}, "net_mode", expire=False)
+
+    first = await ensure(None)
+    with pytest.raises(ResponseErrorLoginRequiredException) as caught:
+        first.net.net_mode()
+    assert str(caught.value.code) == "100003"
+    first.user.logout.assert_not_called()  # the session stays live
+
+    second = await ensure(None)
+    assert second.net.net_mode() == "answered"
+
+
+async def test_the_refusal_wrapper_can_end_the_session_with_the_refusal() -> None:
+    """With `expire` the same refusal also logs the session out."""
+    from huawei_lte_api.exceptions import ResponseErrorLoginRequiredException
+
+    clients: list[Any] = []
+    ensure = _refusal_ensure(_original_ensure(clients), {}, "net_mode", expire=True)
+
+    first = await ensure(None)
+    with pytest.raises(ResponseErrorLoginRequiredException):
+        first.net.net_mode()
+
+    first.user.logout.assert_called_once()
+
+
+def test_every_refusable_endpoint_names_a_real_library_method() -> None:
+    """The table the refusal mode reads must point at methods that exist."""
+    from huawei_lte_api.Client import Client
+
+    from scripts.diag_check import REFUSABLE
+
+    for key, (group, method) in REFUSABLE.items():
+        client_group = getattr(Client(MagicMock()), group)
+        assert callable(getattr(client_group, method)), key
+
+
+async def test_the_recording_wrapper_remembers_an_expiry_the_retry_clears() -> None:
+    """The coordinator's retry clears the rejection, so the exception is the evidence."""
+    from custom_components.huawei_router_5g.api import HuaweiAuthError
+
+    seen: list[str] = []
+
+    async def failing(_self: Any) -> Any:
+        raise HuaweiAuthError("expired")
+
+    async def working(_self: Any) -> Any:
+        return {"ok": 1}
+
+    with pytest.raises(HuaweiAuthError):
+        await _recording_get_data(failing, seen)(None)
+    assert await _recording_get_data(working, seen)(None) == {"ok": 1}
+    assert seen == ["HuaweiAuthError"]
+
+
+# ---------------------------------------------------------------------------
+# The entry option
+# ---------------------------------------------------------------------------
+
+_ENTRIES = [
+    {
+        "domain": "other",
+        "entry_id": "x",
+        "title": "Other",
+        "options": {"host": "other"},
+        "data": {},
+    },
+    {
+        "domain": "huawei_router_5g",
+        "entry_id": "aaa111",
+        "title": "Huawei H165",
+        "options": {"host": "http://192.168.252.1", "password": "h165-secret-pw"},
+        "data": {"mac": "aa:bb:cc:00:00:01"},
+    },
+    {
+        "domain": "huawei_router_5g",
+        "entry_id": "bbb222",
+        "title": "Huawei B315",
+        "options": {"host": "http://192.168.8.1", "password": "b315-secret-pw"},
+        "data": {"mac": "aa:bb:cc:00:00:02"},
+    },
+]
+
+
+def test_no_selector_takes_the_first_router_entry() -> None:
+    """The behavior before the option existed is unchanged."""
+    assert _select_entry(_ENTRIES, None)["entry_id"] == "aaa111"
+
+
+@pytest.mark.parametrize("selector", ["bbb222", "huawei b315", "192.168.8"])
+def test_a_selector_matches_an_id_a_title_or_part_of_a_host(selector: str) -> None:
+    """Any of the three names picks the same entry."""
+    assert _select_entry(_ENTRIES, selector)["entry_id"] == "bbb222"
+
+
+def test_a_selector_that_matches_nothing_lists_what_is_configured() -> None:
+    """No guess: the run stops and says which entries exist."""
+    with pytest.raises(SystemExit) as stopped:
+        _select_entry(_ENTRIES, "nonesuch")
+
+    assert "Huawei H165" in str(stopped.value)
+    assert "Huawei B315" in str(stopped.value)
+
+
+def test_the_redaction_secrets_come_from_the_chosen_entry(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Checking the B315 must not look for the H165's password, or the reverse."""
+    import json
+
+    from scripts import diag_check
+
+    path = tmp_path / "core.config_entries"
+    path.write_text(json.dumps({"data": {"entries": _ENTRIES}}), encoding="utf-8")
+    monkeypatch.setattr(diag_check, "CONFIG_ENTRIES", path)
+
+    options, data, entry_id, _ = diag_check._credentials("B315")
+    secrets = _secrets(options, data)
+
+    assert entry_id == "bbb222"
+    assert "b315-secret-pw" in secrets
+    assert "h165-secret-pw" not in secrets
+    assert "aa:bb:cc:00:00:02" in secrets
+
+
+async def test_the_entry_option_reaches_both_produce_and_main(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`produce` builds the client and `main` draws the secrets, from one entry."""
+    from scripts import diag_check
+
+    selectors: list[str | None] = []
+
+    class _HaltError(Exception):
+        pass
+
+    def credentials(selector: str | None = None) -> Any:
+        selectors.append(selector)
+        raise _HaltError
+
+    monkeypatch.setattr(diag_check, "_credentials", credentials)
+
+    with pytest.raises(_HaltError):
+        await diag_check.produce("x", Report(), entry="H165")
+    assert selectors == ["H165"]
+
+    selectors.clear()
+    monkeypatch.setattr(sys, "argv", ["diag_check.py", "--entry", "B315"])
+    with pytest.raises(_HaltError):
+        await diag_check.main()
+    assert selectors == ["B315"]
+
+
+# ---------------------------------------------------------------------------
+# The login bound
+# ---------------------------------------------------------------------------
+
+
+def test_the_login_budget_counts_and_stops_at_its_bound() -> None:
+    """Twelve logins, then the run ends before a thirteenth."""
+    budget = LoginBudget(bound=3)
+    create = budget.wrap(lambda _api: "connection")
+
+    assert [create(None) for _ in range(3)] == ["connection"] * 3
+    assert budget.count == 3
+    with pytest.raises(RunStoppedError):
+        create(None)
+    assert budget.stopped is not None
+    assert budget.count == 3
+
+
+def test_the_login_budget_stops_at_the_first_already_logged_in() -> None:
+    """The router saying it holds a session is the first sign of the lockout."""
+    from huawei_lte_api.exceptions import LoginErrorAlreadyLoginException
+
+    def refuse(_api: Any) -> Any:
+        raise LoginErrorAlreadyLoginException("already", 108002)
+
+    budget = LoginBudget()
+    create = budget.wrap(refuse)
+
+    with pytest.raises(LoginErrorAlreadyLoginException):
+        create(None)
+    assert budget.stopped is not None
+    with pytest.raises(RunStoppedError):
+        create(None)
+    assert budget.count == 1  # the second attempt was never made
+
+
+def test_the_default_login_bound_is_twelve() -> None:
+    """The bound the plan states for one router."""
+    assert LoginBudget().bound == 12 == LOGIN_BOUND
+
+
+def test_a_run_stop_passes_through_the_librarys_exception_handlers() -> None:
+    """`api.py` wraps login failures in `except Exception`, which must not catch this."""
+    assert not issubclass(RunStoppedError, Exception)
+
+
+# ---------------------------------------------------------------------------
+# The checks of the three modes
+# ---------------------------------------------------------------------------
+
+
+def _endpoints_artefact(
+    answered: list[str], extra: dict[str, Any] | None = None, **top: Any
+) -> dict[str, Any]:
+    artefact = _artefact(endpoints={key: {"outcome": "answered"} for key in answered})
+    artefact["endpoints"].update(extra or {})
+    artefact.update(top)
+    return artefact
+
+
+def test_the_mid_poll_check_needs_the_expiry_and_a_full_recovery() -> None:
+    """Passes only if the session was met dead and nothing was lost."""
+    baseline = _endpoints_artefact(["a", "b", "c"])
+
+    good = _endpoints_artefact(["a", "b", "c"], _auth_errors=["HuaweiAuthError"])
+    report = Report()
+    check_mid_poll(good, baseline, report, "m")
+    assert report.failed == 0
+
+    no_expiry = _endpoints_artefact(["a", "b", "c"], _auth_errors=[])
+    report = Report()
+    check_mid_poll(no_expiry, baseline, report, "m")
+    assert _passed(report, "the dead session was met") is False
+
+    lost = _endpoints_artefact(["a", "b"], _auth_errors=["HuaweiAuthError"])
+    report = Report()
+    check_mid_poll(lost, baseline, report, "m")
+    assert _passed(report, "every endpoint the clean pass answered") is False
+
+
+def test_the_refusal_check_needs_the_judgment_the_premise_and_the_rest() -> None:
+    """The recorded refusal, its judgment, the premise and the other endpoints."""
+    baseline = _endpoints_artefact(["a", "b", "c"])
+    good = _endpoints_artefact(
+        ["a", "c"],
+        {"b": {"outcome": "refused", "code": "100003", "judged": "live_session"}},
+        premise={"outcome": "refused", "code": "100003"},
+        _auth_errors=[],
+    )
+
+    report = Report()
+    check_refusal(good, baseline, report, "r", "b")
+    assert report.failed == 0
+
+    for broken_key, broken in (
+        ("judged", {"b": {"outcome": "refused", "code": "100003"}}),
+        ("recorded refused", {"b": {"outcome": "answered"}}),
+    ):
+        artefact = dict(good)
+        artefact["endpoints"] = {**good["endpoints"], **broken}
+        report = Report()
+        check_refusal(artefact, baseline, report, "r", "b")
+        assert report.failed >= 1, broken_key
+
+    no_premise = dict(good, premise={"outcome": "served", "code": None})
+    report = Report()
+    check_refusal(no_premise, baseline, report, "r", "b")
+    assert _passed(report, "the premise check") is False
+
+    lost = _endpoints_artefact(
+        ["a"],
+        {"b": {"outcome": "refused", "code": "100003", "judged": "live_session"}},
+        premise={"outcome": "refused", "code": "100003"},
+        _auth_errors=[],
+    )
+    report = Report()
+    check_refusal(lost, baseline, report, "r", "b")
+    assert _passed(report, "the rest of the poll answered") is False
+
+
+def test_the_refusal_expired_check_needs_the_raise() -> None:
+    """The same refusal with the session ended must raise `HuaweiAuthError`."""
+    baseline = _endpoints_artefact(["a", "b"])
+    good = _endpoints_artefact(
+        ["a", "b"],
+        premise={"outcome": "refused", "code": "100003"},
+        _auth_errors=["HuaweiAuthError"],
+    )
+
+    report = Report()
+    check_refusal_expired(good, baseline, report, "e")
+    assert report.failed == 0
+
+    silent = dict(good, _auth_errors=[])
+    report = Report()
+    check_refusal_expired(silent, baseline, report, "e")
+    assert _passed(report, "raised HuaweiAuthError") is False
+
+
+def test_the_health_check_needs_refused_endpoints_listed_as_not_served() -> None:
+    """Every endpoint refused with a router code is `not_served`, none is degraded."""
+    artefact = _endpoints_artefact(
+        ["a"],
+        {"sms_list": {"outcome": "refused", "code": "125003"}},
+        _health={"not_served": ["SMS messages"], "degraded_capabilities": []},
+    )
+    report = Report()
+    check_health(artefact, report, "h", 1)
+    assert report.failed == 0
+
+    degraded = dict(
+        artefact,
+        _health={
+            "not_served": ["SMS messages"],
+            "degraded_capabilities": ["SMS messages"],
+        },
+    )
+    report = Report()
+    check_health(degraded, report, "h", 1)
+    assert _passed(report, "no refused endpoint is also degraded") is False
+
+    unlisted = dict(artefact, _health={"not_served": [], "degraded_capabilities": []})
+    report = Report()
+    check_health(unlisted, report, "h", 1)
+    assert _passed(report, "not_served lists the endpoints the router refuses") is False
+    assert _passed(report, "not_served holds 1 endpoint") is False
+
+
+def test_the_health_check_expects_none_on_a_router_that_refuses_nothing() -> None:
+    """The reference unit: nothing refused, so nothing is `not_served`."""
+    artefact = _endpoints_artefact(
+        ["a", "b"], _health={"not_served": [], "degraded_capabilities": []}
+    )
+    report = Report()
+    check_health(artefact, report, "h", 0)
+
+    assert report.failed == 0
+
+
+def test_the_health_timestamp_changing_is_not_instability() -> None:
+    """`_health` carries `last_good_update`, the clock reading of the last poll.
+
+    Two runs minutes apart always differ in it. Any other change in the health
+    snapshot is still a difference.
+    """
+    first = _artefact()
+    first["_health"] = {
+        "severity": "ok",
+        "last_good_update": "2026-10-06T09:00:00+00:00",
+    }
+    second = _artefact()
+    second["_health"] = {
+        "severity": "ok",
+        "last_good_update": "2026-10-06T09:21:00+00:00",
+    }
+
+    report = Report()
+    check_stability(first, second, report)
+    assert _passed(report, "no stable value changed")
+
+    second["_health"]["severity"] = "degraded"
+    report = Report()
+    check_stability(first, second, report)
+    assert not _passed(report, "no stable value changed")

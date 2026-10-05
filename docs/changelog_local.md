@@ -5,10 +5,11 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev16\] - 2026-10-05 - Refused Endpoint Told From Expired Session (Issue 50)](#123-dev16---2026-10-05---refused-endpoint-told-from-expired-session-issue-50)
   - [\[1.2.3-dev15\] - 2026-10-05 - Library Range, Startup Guard And Restart Repair](#123-dev15---2026-10-05---library-range-startup-guard-and-restart-repair)
   - [\[1.2.3-dev14\] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type](#123-dev14---2026-10-04---validation-repairs-suppression-allow-list-and-repair-flow-return-type)
   - [\[1.2.3-dev12\] - 2026-10-04 - Shared CI Bumps](#123-dev12---2026-10-04---shared-ci-bumps)
-  - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
+  - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
   - [\[1.2.3-dev10\] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13](#123-dev10---2026-09-23---breaking-minimum-home-assistant-raised-to-202520-for-python-313)
   - [\[1.2.3-dev9\] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed](#123-dev9---2026-09-08---uptime-anchors-reconciled-at-startup-counter-persistence-fixed)
   - [\[1.2.3-dev8\] - 2026-09-08 - Documentation: Project Complexity \& Health Scorecard Added](#123-dev8---2026-09-08---documentation-project-complexity--health-scorecard-added)
@@ -192,6 +193,44 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.3-dev16] - 2026-10-05 - Refused Endpoint Told From Expired Session (Issue 50)
+
+Plan `v123_dev16_plan.md`. A B529s-23a (Magenta Austria, firmware 11.182.63.00.1409) failed setup with `invalid_auth` although the login worked. `api.py` read a `100003`, `125002` or `125003` from any endpoint as an expired session, so one refused optional endpoint failed the poll. The fetch loop now tells a refusal from an expiry, the diagnostics download records how it was judged, and Integration Health no longer reports a standing refusal as a lost capability.
+
+### Fixed
+
+- **A refused optional endpoint no longer fails the poll or the setup.** A non-critical endpoint that raises `100003`, `125002` or `125003` is adjudicated. A one-time anonymous read of `device.information` confirms that the router refuses it without a login. `device_information` is then read again on the session, and an answer means the session is live, so the endpoint is recorded `refused` with `judged: live_session` and the poll continues. Where the premise is not confirmed, or more than 10 s of the 30 s are used, the history of the run decides: an endpoint that has never answered is a refusal and one that answered earlier is an expiry. `device_information` is never adjudicated.
+- **The premise and the history are guarded against a reset.** A client generation counter, incremented by every reset, discards a write made by a worker thread that the coordinator's timeout orphaned. The premise is cleared by a reset and the history is not.
+
+### Added
+
+- **Integration Health attribute `not_served`.** An endpoint the router refuses with its own code on a poll, and that has never answered in the run, is listed under `not_served` and takes no strike, so severity stays `ok`. An endpoint that answered earlier and now refuses still reads `degraded`, and a timeout is not a router code. The attribute joins the unrecorded set and both snapshot defaults, and the README attribute table and the template note now name only attributes the sensor publishes.
+- **Download evidence.** `premise` (the outcome and code of the anonymous read, or `not_made`), `probe_sessions_lost`, the `judged` value on a refused endpoint, and the probe outcomes `not_run` and `session_lost`.
+- **Probe sweep session check.** The sweep holds the API lock, reads `device_information` after any probe that does not answer, logs in again through `_login_internal` after a `100003` from that read and repeats the probe, at most twice per sweep, and stops at a deadline of 20 s, after a failed login, after a third loss or if the client was reset under it. A connection error from the read is unknown and causes no login.
+- **`scripts/diag_check.py` modes.** `--mid-poll`, `--refusal`, `--refusal-expired`, `--polls N` with `--expect-not-served`, `--entry` to name the entry (the redaction secrets come from the same entry), a login counter with a bound of 12 that also stops at the first `LoginErrorAlreadyLoginException`, and `check_probes` accepting `not_run` and `session_lost`. The existing `--sabotage` mode is unchanged.
+- **Tests.** `tests/test_refused_endpoint.py`, with the transport extended to model a login-only `device/information`, an ended session, a refusal per endpoint, an anonymous connection error and a mid-poll hook; new cases in `tests/test_config_flow.py` (the real validation with a refused endpoint), `tests/test_integration_health.py`, `tests/test_diagnostic_capture.py`, `tests/test_diagnostics.py`, `tests/test_diag_check_stability.py`, `tests/test_entity_hygiene.py` and `tests/test_coordinator_construction.py`.
+- **Documentation.** The rule, its bounds, the known limits and the per-model measurements of the H165-383 and the B315s-22 in `docs/huawei_how_to_access.md`, a success pattern in `docs/DEVELOPMENT.md`, a README Compatibility line, an `AGENTS.md` pointer, and a correction of recommendation 3 of the ecosystem review.
+
+### Changed
+
+- **`test_get_data_mid_fetch_auth_error`** now takes the premise as confirmed and has the re-read refused, which is the case in which a signal from a non-critical endpoint is still an expiry.
+- **The two exact-attribute tests** include `not_served`, and `NOT_SERVED_ATTRIBUTE` is held to the same unrecorded rule as the others.
+- **The docstring of `probe_diagnostic_endpoints`** states the lock and the single login after a lost session. Its dated measurements of 2026-09-07, including the 42 calls, are unchanged.
+
+### Defects found during the build
+
+- **The fake transport did not carry the session.** `requests_mock` does not carry the library's cookie jar and the library sends its token header only when it holds one token, so a session marker based on either failed after the library's own reload on `125002`. The premise check's connection is now the one built with `PREMISE_TIMEOUT`, which marks an anonymous client.
+- **The fake transport never served `user/state-login`**, so the library never logged in and every request ran without a session. `user/state-login` is now in the default payloads.
+- **Complexity reached 20 in `get_data`** and the session-signal handling was moved into its own method, which brings the maximum to 18.
+- **Coverage fell to 99.60%** on the premise connection failure, the re-read failures and three sweep login paths, and each was given a test.
+- **New suppressions failed the reviewed allow-list** (`N818` and three `type: ignore` in tests) and were removed by renaming the stop exception and by writing the instance attributes through `__dict__`.
+
+### Verified
+
+- 1311 tests, coverage 100.00%, Mypy strict (17 source files), Ruff, McCabe complexity (maximum 18 in `get_data`), Assertion Audit, Test Depth, IQS Static, Repo Links, Sensor Manifest in sync, Prettier, Markdown lint and Codespell on the changed documents.
+- Mutation proofs for the unconditional raise, the re-read, the premise check, the history, the clear on reset, both generation checks, the canary, the lock, the unlocked login, the sweep deadline and the reset check, each failing the matching test, and for the never-answered and router-code conditions of `not_served`.
+- Live checks (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/refused_endpoint_live_check.md`). H165-383: `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, and the Integration Health reading after three polls 22 of 22 with `not_served` empty, 13 logins in all. B315s-22: `--sabotage` 10 of 10, and every dev16 check passed in the other four runs, including `not_served` holding the five endpoints the router refuses and none degraded, 13 logins, with polling paused. Two clean-pass checks of `diag_check.py` that assume a router answering `voice_volte` and `onekey_diag`, and one that assumes no rejection remains, fail on the B315s-22 by design and were not changed. **The router's own refusal of a polled endpoint was not observed.** `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/refused_endpoint_live_check.md`): `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, with 12 logins in all. **The router's own refusal was not observed.** The B315s-22 checks and the Integration Health reading after three polls have not been run.
+
 ## [1.2.3-dev15] - 2026-10-05 - Library Range, Startup Guard And Restart Repair
 
 Plan `v123_dev15_plan.md`. Resolves the GitHub hassfest failure caused by `huawei-lte-api==2.0.1` against Home Assistant core's pin of 1.11.0, keeps the integration working on either version, installs 2.0.1 when it is safe to, and records the behavior of each version in `docs/library_versions.md`.
@@ -256,7 +295,7 @@ Plan `v123_dev15_plan.md`. Resolves the GitHub hassfest failure caused by `huawe
 
 - **`pyproject_common.toml`**: added `[lint.isort]` with HA core's four settings (`force-sort-within-sections = true`, `known-first-party = ["homeassistant"]`, `combine-as-imports = true`, `split-on-trailing-comma = false`), and added `"ICN002"` to `select`. HA core pairs `ICN002` with a `probatio` → `vol` banned alias; that alias was not adopted, so the rule currently flags nothing.
 
-- **Import order: `force-sort-within-sections` sorts plain `import x` and `from x import y` statements together alphabetically within each section, so `from pathlib import Path` now precedes `import sys`. `split-on-trailing-comma = false` joins wrapped import lists that fit on one line.
+- \*\*Import order: `force-sort-within-sections` sorts plain `import x` and `from x import y` statements together alphabetically within each section, so `from pathlib import Path` now precedes `import sys`. `split-on-trailing-comma = false` joins wrapped import lists that fit on one line.
 
 ## [1.2.3-dev11] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test_guards.md
 

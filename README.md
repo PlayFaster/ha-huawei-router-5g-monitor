@@ -88,7 +88,10 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 **🤝 Alongside Home Assistant's Huawei LTE Integration:**
 
-- Runs side by side with Home Assistant's built-in **Huawei LTE** integration. While both are installed, the **VoLTE** and **Router Diagnostics** sensors read unknown and emoji in SMS messages can arrive or send garbled. [Why, and how the limits lift](#-running-alongside-home-assistants-huawei-lte-integration) is explained under the hood.
+- Runs side by side with Home Assistant's built-in **Huawei LTE** integration. While both are installed:
+  - the **VoLTE** and **Router Diagnostics** sensors read unknown.
+  - Emoji in SMS messages can arrive or send garbled. Send and receive is otherwise correct, some complex emoji will render blank or as an empty block.
+  - See [running alongside core](#-running-alongside-home-assistants-huawei-lte-integration) for more information.
 
 ## 🎯 Use Cases
 
@@ -1395,7 +1398,7 @@ actions:
     note: |
       issues is a list of human-readable problem descriptions. The
       sensor also carries severity (ok / degraded / warning / error),
-      degraded_capabilities, drift, repairs, and consecutive_failures.
+      degraded_capabilities, not_served, drift, and last_good_update.
 ```
 
 > [!TIP]
@@ -1899,7 +1902,7 @@ Three conditions raise a card in Home Assistant's **Repairs** panel: the router 
 | :-- | :-- | :-- | :-- |
 | **Authentication Failed** | Router rejects stored credentials | **Repairs card** (`auth_failed`) & Integration Health (`error`) | Click **Fix** to re-enter username/password |
 | **Sustained Outage** | 10 consecutive failed polls | **Repairs card** (`conn_error`) & Integration Health (`error`) | Check power, network path, or configured IP address |
-| **Library Upgrade Pending** | The integration upgraded the router library it uses, and the new version loads only after a restart | **Repairs card** | Click **Fix** to restart Home Assistant, or leave it until your next restart. See [Running Alongside Home Assistant's Huawei LTE Integration](#-running-alongside-home-assistants-huawei-lte-integration) |
+| **Library Upgrade Pending** | The router API library has an update. The new version loads after a restart | **Repairs card** | Click **Fix** to restart Home Assistant, or leave it until your next restart. See [Running Alongside Home Assistant's Huawei LTE Integration](#-running-alongside-home-assistants-huawei-lte-integration) |
 | **Transient Glitch / Reboot** | 1–3 failed poll cycles | Integration Health (`error` during outage) | None (auto-clears on next successful poll) |
 | **Firmware Schema Change** | Unrecognized or missing API fields | Integration Health (`severity: warning`, `drift` attr) | Check for integration updates or report issue |
 
@@ -1917,7 +1920,13 @@ Three conditions raise a card in Home Assistant's **Repairs** panel: the router 
 
 ### 🤝 Running Alongside Home Assistant's Huawei LTE Integration
 
-You can run this integration and Home Assistant's built-in **Huawei LTE** integration at the same time. Both talk to the router through the same Python library, `huawei-lte-api`, and Home Assistant fixes its own integration to version 1.11.0. This integration works with 1.11.0 and with 2.0.1, so the two never compete over which version is installed.
+You can run this integration and Home Assistant's built-in **Huawei LTE** integration at the same time. Both talk to routers via the same Python library, `huawei-lte-api`, and the Home Assistant core integration is fixed at API version 1.11.0. This integration works with 1.11.0 and 2.0.1, running 1.11.0 if core is also installed, using 2.0.1 otherwise.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
 
 | Your setup | What you will see |
 | :-- | :-- |
@@ -1933,7 +1942,11 @@ Both limits lift once the core **Huawei LTE** integration is removed: at the nex
 
 **Why am I seeing a repair about a library upgrade?** The integration upgraded the router library it uses, and Home Assistant loads a new library only after a restart. Nothing is wrong. Click **Fix** to restart now, or leave the card and the upgrade takes effect the next time Home Assistant restarts. Until then the two entities above show as unknown.
 
-**There is nothing for you to do when Home Assistant core or the library changes version.** The integration works with both and adjusts on its own. This section only explains why the Repairs card appears and why two entities can read unknown. If you ran both integrations on an earlier release, the library could swap between the two versions at restarts and the core integration could log an import error. That no longer happens. The technical record, with measurements, is in `docs/library_versions.md`.
+**There is no action required here.** This integration will work, with or without the core HA Huawei LTE integration, with the API library version managed automatically. Alongside core Huawei LTE, this integration pins to the same API library version to avoid the potential for API library swapping between the two versions at restarts, with resultant log errors.
+
+---
+
+</details>
 
 ### 🔐 Session Handling
 
@@ -2035,6 +2048,7 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 | `severity` | `ok` · `degraded` (a capability was lost) · `warning` (the data may be wrong) · `error` (unreachable) · `unknown` (nothing fetched yet). **Never blank** — see below |
 | `issues` | Plain-language descriptions of what is wrong; empty when healthy |
 | `degraded_capabilities` | Which parts of the router stopped answering, by name |
+| `not_served` | Which parts of the router it refuses with its own error code and has never answered since Home Assistant started, by name. These are not counted as a problem, because there was nothing to lose |
 | `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
 | `last_good_update` | When the last fully successful poll completed |
 

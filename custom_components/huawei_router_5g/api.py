@@ -6,6 +6,7 @@ import asyncio
 from collections.abc import AsyncIterator, Callable
 import contextlib
 from contextlib import asynccontextmanager
+from dataclasses import dataclass
 from datetime import UTC, datetime
 import logging
 import time
@@ -27,10 +28,12 @@ from huawei_lte_api.exceptions import (
 from packaging.version import InvalidVersion, Version
 
 from .const import (
+    ADJUDICATION_BUDGET,
     FETCH_DEADLINE,
     LIBRARY_ADDED_ENDPOINTS,
     LOCK_TIMEOUT,
     NET_MODE_SETTLE,
+    PREMISE_TIMEOUT,
     PROBE_TIMEOUT,
     REQUEST_TIMEOUT,
     WRITE_TIMEOUT,
@@ -101,6 +104,21 @@ class HuaweiConnectionError(Exception):
 
 class HuaweiAuthError(Exception):
     """Raised when login credentials are rejected."""
+
+
+@dataclass
+class _PollState:
+    """What one `_fetch` run knows while it adjudicates session signals.
+
+    `generation` is the client generation the run began on, so a write made
+    after a reset (by a worker thread the coordinator's timeout orphaned) can be
+    told from one made by the live run. `reread_live` is set once the re-read of
+    `device_information` has answered, so it is made at most once per poll.
+    """
+
+    started: float
+    generation: int
+    reread_live: bool = False
 
 
 READ_BACK_ENDPOINTS: dict[str, Callable[[Any], Any]] = {
@@ -179,6 +197,37 @@ class HuaweiRouter5GAPI:
         # accumulating across a session.
         self.endpoint_outcomes: dict[str, Any] = {}
         self._unsupported_logged = False
+
+        # **Refusal separated from expiry** (dev16 plan I1). 100003 is both what
+        # a router answers to an endpoint it refuses and what it answers once a
+        # session has ended, so the fetch loop tells them apart with two things
+        # kept here.
+        #
+        # `_premise_cache` is the outcome of the anonymous premise check:
+        # `refused` where this router answers `device_information` with 100003
+        # to a client with no login, `served` where it answers anyway, `None`
+        # where it has not been checked or the check failed. It is cleared by
+        # `_reset_client`, so a restarted router is checked again.
+        # `premise_result` is the last outcome, outcome string and code only,
+        # for the download; it is deliberately not cleared.
+        #
+        # `_answered` is the history: the endpoint names that have answered
+        # since this object was created. It lives on this object and not on the
+        # library client so that `_reset_client` does not clear it, and it is in
+        # memory only. `_generation` increments on every reset and guards the
+        # writes above against a worker thread orphaned by a timeout.
+        self._premise_cache: str | None = None
+        self.premise_result: dict[str, Any] | None = None
+        self._answered: set[str] = set()
+        self._generation = 0
+        self._refusal_warned: set[tuple[str, str]] = set()
+        # Sessions found lost during the last diagnostics sweep, for the download.
+        self.sweep_sessions_lost = 0
+
+    @property
+    def answered_endpoints(self) -> frozenset[str]:
+        """Names of the endpoints that have answered since this object began."""
+        return frozenset(self._answered)
 
     def _log_unsupported_once(self) -> None:
         """Log, once per client, which endpoints the loaded library cannot serve."""
@@ -358,6 +407,8 @@ class HuaweiRouter5GAPI:
         is deliberate — a failed close must never stop the client being
         cleared, which is the part that matters.
         """
+        self._generation += 1
+        self._premise_cache = None
         connection = self._connection
         self._connection = None
         self._client = None
@@ -577,6 +628,127 @@ class HuaweiRouter5GAPI:
                 )
         self.endpoint_outcomes[key] = record
 
+    def _read_premise(self, generation: int) -> str | None:
+        """Check whether this router refuses `device_information` without a login.
+
+        Blocking, run in the fetch worker. A new `Connection` with no
+        credentials opens no session and makes no login attempt; it reads
+        `device.information`. A 100003 means the premise holds (`refused`):
+        a 100003 on that read, from a client that has a session, is then an
+        expiry. An answer means the router serves it anonymously (`served`),
+        which makes the read useless as a discriminator. Anything else leaves
+        the outcome unknown, which is returned as `None` and not kept.
+
+        Only the outcome and the code are recorded, never the payload: a router
+        that serves `device_information` anonymously returns identifiers in it.
+        The connection is closed on every path. The result is written only if
+        the client generation is unchanged since the read began.
+        """
+        conn: Connection | None = None
+        outcome = "unknown"
+        code: str | None = None
+        try:
+            conn = Connection(self.url, timeout=PREMISE_TIMEOUT)
+            Client(conn).device.information()
+            outcome = "served"
+        except ResponseErrorLoginRequiredException as err:
+            outcome, code = "refused", str(err.code)
+        except Exception:
+            _LOGGER.debug("Premise check failed", exc_info=True)
+        finally:
+            if conn is not None:
+                with contextlib.suppress(Exception):
+                    conn.requests_session.close()
+        if generation == self._generation:
+            self.premise_result = {"outcome": outcome, "code": code}
+            if outcome != "unknown":
+                self._premise_cache = outcome
+        return None if outcome == "unknown" else outcome
+
+    def _judge_signal(self, key: str, client: Client, poll: _PollState) -> str | None:
+        """Decide whether a session signal from `key` is a refusal or an expiry.
+
+        `live_session` when the re-read showed the session live, `history` when
+        the history decided it was a refusal, and `None` when the session has
+        ended. Recorded with the refusal so a download says what it was judged
+        against. Called only for a non-critical endpoint that raised
+        100003, 125002 or 125003; `device_information` is never adjudicated.
+
+        Where the premise is confirmed, `device_information` is read again,
+        at most once per poll: an answer means the session is live and the
+        signal a refusal, a signal from it means the session has ended. Where
+        the premise is not confirmed, or the poll has used its budget, the
+        history decides: an endpoint that has never answered is a refusal, one
+        that has answered raises as an expiry, so setup is not left failing on a
+        router where the premise cannot be checked.
+        """
+        within_budget = time.monotonic() - poll.started <= ADJUDICATION_BUDGET
+        premise = self._premise_cache
+        if premise is None and within_budget:
+            premise = self._read_premise(poll.generation)
+        if premise == "refused" and within_budget:
+            if poll.reread_live:
+                return "live_session"
+            try:
+                client.device.information()
+            except ResponseErrorException as err:
+                if isinstance(err, ResponseErrorLoginRequiredException) or str(
+                    err.code
+                ) in ("125002", "125003"):
+                    return None
+                raise HuaweiConnectionError(
+                    f"Critical data fetch failed: {err}"
+                ) from err
+            except Exception as err:
+                raise HuaweiConnectionError(
+                    f"Critical data fetch failed: {err}"
+                ) from err
+            poll.reread_live = True
+            return "live_session"
+        return "history" if key not in self._answered else None
+
+    def _judge_session_signal(
+        self,
+        key: str,
+        err: ResponseErrorException,
+        code: str,
+        client: Client,
+        poll: _PollState,
+        data: dict[str, Any],
+    ) -> str:
+        """Treat a 100003, 125002 or 125003 from `key`: return the judgment or raise.
+
+        From `device_information` it is always an expiry. From any other endpoint
+        it is an expiry only if the session has ended, and a refusal if the
+        router refuses that one endpoint. An expiry is recorded and raised as
+        `HuaweiAuthError`; a refusal returns `live_session` or `history`, and the
+        refusing endpoint is named once per code in the log.
+        """
+        judged = (
+            None
+            if key == "device_information"
+            else self._judge_signal(key, client, poll)
+        )
+        if judged is None:
+            _LOGGER.debug(
+                "Session expired during fetch of %s (%s). Forcing re-login.",
+                key,
+                err,
+            )
+            self._record_verdict("expired", code=code, key=key, payload=data)
+            self._record_endpoint(key, "expired", code)
+            raise HuaweiAuthError(f"Session expired: {err}") from err
+        if (key, code) not in self._refusal_warned:
+            self._refusal_warned.add((key, code))
+            _LOGGER.warning(
+                "The router refused %s with %s on a live session and the poll "
+                "continues without it. Premise check: %s",
+                key,
+                code,
+                (self.premise_result or {}).get("outcome", "not made"),
+            )
+        return judged
+
     async def _execute_with_retry(self, func: Callable[[Client], Any]) -> Any:
         """Execute operation on client, retrying once on session expiry."""
         client = await self._ensure_client()
@@ -725,10 +897,13 @@ class HuaweiRouter5GAPI:
         """Call every `DIAGNOSTIC_PROBES` endpoint once and report what happened.
 
         **For the diagnostics download only**, and never from the poll. Each
-        entry is recorded exactly as a polled endpoint is — `answered` with the
+        entry is recorded exactly as a polled endpoint is: `answered` with the
         returned type and key counts, `refused` with the router's own error
-        code, or `unavailable` with the exception class — so a reader compares
-        the two maps without learning a second vocabulary.
+        code, or `unavailable` with the exception class, so a reader compares
+        the two maps without learning a second vocabulary. Two further outcomes
+        say that the sweep itself was cut short: `session_lost` for a probe
+        whose session ended under it and could not be repeated, and `not_run`
+        for a probe the sweep never reached.
 
         **Key names are published; values are not.** A name is a property of the
         firmware and is what a supporter needs to see; a value from an endpoint
@@ -739,48 +914,154 @@ class HuaweiRouter5GAPI:
         One failure never stops the sweep: the whole point is the shape of the
         set of failures, not the first one.
 
-        **Called directly on one established session, never through
-        `_execute_with_retry`.** That wrapper re-logs in on
-        `ResponseErrorLoginRequiredException`, which `huawei-lte-api` raises for
-        `100003` and for no other code — and `100003` is a refusal on this
-        firmware, not an expiry. Measured 2026-09-07: a `100003` costs two
-        logins through the wrapper against one for any other outcome, and a
-        42-endpoint sweep accumulated enough logout/login churn that the router
-        began answering `LoginErrorAlreadyLoginException` and then refused
-        connections, turning the rest of the sweep into artefacts. The same 42
-        calls on one session, called directly, completed in about 900 ms with
-        every endpoint returning a real outcome. `docs/huawei_how_to_access.md`
-        carries the mechanism, and had already warned that a bulk sweep produces
-        false `100003` results.
+        **Holds the API lock for its duration**, about 2 s on the routers
+        measured. A login in the sweep replaces the client, and without the lock
+        that would happen under a poll in flight. A poll waits for the sweep.
 
-        A refusal is the finding here, so nothing about it should provoke
-        session recovery.
+        **A refusal does not provoke a login.** The sweep is called directly on
+        one session and never through `_execute_with_retry`, which re-logs in on
+        `ResponseErrorLoginRequiredException`, raised for `100003` and for no
+        other code. Measured 2026-09-07: a `100003` costs two logins through the
+        wrapper against one for any other outcome, and a 42-endpoint sweep
+        accumulated enough logout/login churn that the router began answering
+        `LoginErrorAlreadyLoginException` and then refused connections, turning
+        the rest of the sweep into artefacts. The same 42 calls on one session,
+        called directly, completed in about 900 ms with every endpoint
+        returning a real outcome. `docs/huawei_how_to_access.md` carries the
+        mechanism, and had already warned that a bulk sweep produces false
+        `100003` results.
+
+        **The one exception is a session that has ended.** On this firmware a
+        `100003` is both a refusal and the answer to an ended session, so after
+        any probe that does not answer the sweep reads `device_information`. A
+        `100003` from that read means the session is lost: the sweep logs in
+        again through `_login_internal`, which does not take the lock, and
+        repeats the probe on the fresh session, at most twice per sweep. A
+        connection error or any other failure from the read means the state is
+        unknown, and causes no login. The number of sessions lost is kept in
+        `sweep_sessions_lost` for the download.
+
+        **Bounded.** Every request, whether a probe, the read of
+        `device_information`, a login or a repeat, is preceded by a check of the
+        sweep's deadline of `FETCH_DEADLINE`, and by a check that the client was
+        not reset under the sweep. A poll waiting for the lock would otherwise
+        reach the coordinator's timeout, which calls `invalidate()` under the
+        sweep. Past either, after a failed login, and after a third loss, the
+        rest are `not_run`.
         """
+        async with self._locked("probe_diagnostic_endpoints"):
+            return await self._probe_sweep()
+
+    async def _probe_one(
+        self, call: Callable[[Client], Any], client: Client
+    ) -> dict[str, Any]:
+        """Call one probe and describe the outcome. Never raises."""
+        started_at = time.monotonic()
+        try:
+            value = await asyncio.to_thread(call, client)
+        except ResponseErrorException as err:
+            return {"outcome": "refused", "code": str(err.code)}
+        except Exception as err:  # noqa: BLE001 - a probe never raises out
+            return {"outcome": "unavailable", "error": type(err).__name__}
+        record: dict[str, Any] = {
+            "outcome": "answered",
+            "type": type(value).__name__,
+            "elapsed_ms": int((time.monotonic() - started_at) * 1000),
+        }
+        if isinstance(value, dict):
+            record["keys"] = sorted(str(k) for k in value)
+            record["populated"] = sum(
+                1 for v in value.values() if v not in (None, "", {}, [])
+            )
+        return record
+
+    async def _session_is_lost(self, client: Client) -> bool:
+        """Say whether `device_information` is refused with 100003 on `client`.
+
+        Only that is a lost session. A connection error or any other failure
+        leaves the state unknown, and unknown is not a loss.
+        """
+        try:
+            await asyncio.to_thread(client.device.information)
+        except ResponseErrorLoginRequiredException:
+            return True
+        except Exception:  # noqa: BLE001 - unknown is not lost
+            return False
+        return False
+
+    async def _relogin_for_sweep(
+        self, deadline: float
+    ) -> tuple[Client | None, str | None]:
+        """Log in again for the sweep, or say why it cannot continue.
+
+        Through `_login_internal`, which does not take the lock the sweep holds.
+        Returns the fresh client, or `None` with the reason: the deadline passed
+        before or after the login, or the login failed.
+        """
+        if time.monotonic() > deadline:
+            return None, "deadline"
+        try:
+            await self._login_internal()
+        except Exception:  # noqa: BLE001 - the sweep returns what it has
+            return None, "login_failed"
+        fresh = self._client
+        if fresh is None:
+            return None, "login_failed"
+        if time.monotonic() > deadline:
+            return None, "deadline"
+        return fresh, None
+
+    async def _probe_sweep(self) -> dict[str, Any]:
+        """Run the sweep described at `probe_diagnostic_endpoints`, lock held."""
         client = await self._ensure_client()
+        generation = self._generation
+        deadline = time.monotonic() + FETCH_DEADLINE
+        keys = [key for key, _ in self.DIAGNOSTIC_PROBES]
         results: dict[str, Any] = {}
-        for key, call in self.DIAGNOSTIC_PROBES:
-            started_at = time.monotonic()
-            try:
-                value = await asyncio.to_thread(call, client)
-            except ResponseErrorException as err:
-                results[key] = {"outcome": "refused", "code": str(err.code)}
-            except Exception as err:  # noqa: BLE001 - a probe never raises out
-                results[key] = {
-                    "outcome": "unavailable",
-                    "error": type(err).__name__,
-                }
-            else:
-                record: dict[str, Any] = {
-                    "outcome": "answered",
-                    "type": type(value).__name__,
-                    "elapsed_ms": int((time.monotonic() - started_at) * 1000),
-                }
-                if isinstance(value, dict):
-                    record["keys"] = sorted(str(k) for k in value)
-                    record["populated"] = sum(
-                        1 for v in value.values() if v not in (None, "", {}, [])
-                    )
-                results[key] = record
+        self.sweep_sessions_lost = 0
+
+        def stop_at(index: int, reason: str) -> None:
+            for name in keys[index:]:
+                results[name] = {"outcome": "not_run", "reason": reason}
+
+        def unusable() -> str | None:
+            if time.monotonic() > deadline:
+                return "deadline"
+            if self._generation != generation:
+                return "client_reset"
+            return None
+
+        for index, (key, call) in enumerate(self.DIAGNOSTIC_PROBES):
+            if (reason := unusable()) is not None:
+                stop_at(index, reason)
+                break
+            record = await self._probe_one(call, client)
+            results[key] = record
+            if record["outcome"] == "answered":
+                continue
+
+            if (reason := unusable()) is not None:
+                stop_at(index + 1, reason)
+                break
+            if not await self._session_is_lost(client):
+                continue
+
+            self.sweep_sessions_lost += 1
+            results[key] = {"outcome": "session_lost"}
+            if self.sweep_sessions_lost > 2:
+                stop_at(index + 1, "session_lost_limit")
+                break
+            fresh, reason = await self._relogin_for_sweep(deadline)
+            if fresh is None:
+                stop_at(index + 1, reason or "login_failed")
+                break
+            client = fresh
+            # Our own login replaced the client, so what counts as a reset
+            # under the sweep starts from here.
+            generation = self._generation
+            repeated = await self._probe_one(call, client)
+            repeated["session_lost"] = True
+            results[key] = repeated
         return results
 
     async def get_data(self) -> dict[str, Any]:
@@ -881,6 +1162,7 @@ class HuaweiRouter5GAPI:
                     ),
                 ]
                 started = time.monotonic()
+                poll = _PollState(started=started, generation=self._generation)
                 for index, (key, fetcher) in enumerate(fetch_tasks):
                     # The deadline is checked between endpoints, never inside
                     # one: a request already in flight cannot be interrupted.
@@ -915,34 +1197,23 @@ class HuaweiRouter5GAPI:
                     try:
                         started_at = time.monotonic()
                         data[key] = fetcher()
+                        if poll.generation == self._generation:
+                            self._answered.add(key)
                         self._record_endpoint(
                             key,
                             "answered",
                             result=data[key],
                             elapsed_ms=int((time.monotonic() - started_at) * 1000),
                         )
-                    except ResponseErrorLoginRequiredException as err:
-                        _LOGGER.debug(
-                            "Session expired during fetch of %s (%s). Re-logging.",
-                            key,
-                            err,
-                        )
-                        self._record_verdict("expired", key=key, payload=data)
-                        self._record_endpoint(key, "expired")
-                        raise HuaweiAuthError(f"Session expired: {err}") from err
                     except ResponseErrorException as err:
-                        if str(err.code) in ("125002", "125003"):
-                            _LOGGER.debug(
-                                "Session expired during fetch of %s (%s). "
-                                "Forcing re-login.",
-                                key,
-                                err,
+                        code = str(err.code)
+                        judged: str | None = None
+                        if isinstance(
+                            err, ResponseErrorLoginRequiredException
+                        ) or code in ("125002", "125003"):
+                            judged = self._judge_session_signal(
+                                key, err, code, client, poll, data
                             )
-                            self._record_verdict(
-                                "expired", code=str(err.code), key=key, payload=data
-                            )
-                            self._record_endpoint(key, "expired", str(err.code))
-                            raise HuaweiAuthError(f"Session expired: {err}") from err
 
                         # Every path below this line is a rejection, and two of
                         # the three swallow their own error — the endpoint goes
@@ -953,6 +1224,8 @@ class HuaweiRouter5GAPI:
                             "refused", code=str(err.code), key=key, payload=data
                         )
                         self._record_endpoint(key, "refused", str(err.code))
+                        if judged is not None:
+                            self.endpoint_outcomes[key]["judged"] = judged
 
                         if key == "device_information":
                             _LOGGER.warning("Critical fetch %s failed: %s", key, err)

@@ -580,6 +580,12 @@ SECTION_19_ATTRIBUTES = frozenset(
     {"severity", "issues", "degraded_capabilities", "drift", "last_good_update"}
 )
 
+# Added in 1.2.3-dev16 beside the five (dev_standards permits adding an
+# attribute and forbids renaming one): the endpoints the router refuses and has
+# never answered, which are not a lost capability and so are not in
+# `degraded_capabilities`.
+NOT_SERVED_ATTRIBUTE = "not_served"
+
 # Published alongside Section 19's five, and normative in the same way: the
 # sibling projects spell them identically, so one template and one field
 # report serve every integration in the family. Kept as a separate set
@@ -616,6 +622,7 @@ def test_integration_health_publishes_the_normative_attribute_names() -> None:
         "severity": None,
         "issues": [],
         "degraded_capabilities": [],
+        "not_served": [],
         "drift": [],
         "last_good_update": None,
     }
@@ -628,7 +635,7 @@ def test_integration_health_publishes_the_normative_attribute_names() -> None:
     )
 
     assert set(sensor.extra_state_attributes) == (
-        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES | {"about"}
+        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES | {NOT_SERVED_ATTRIBUTE, "about"}
     )
 
 
@@ -643,7 +650,7 @@ def test_integration_health_attributes_are_all_unrecorded() -> None:
     )
 
     assert HuaweiIntegrationHealthSensor._unrecorded_attributes >= (
-        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES
+        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES | {NOT_SERVED_ATTRIBUTE}
     )
 
 

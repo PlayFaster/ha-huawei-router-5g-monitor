@@ -192,7 +192,7 @@ INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     about=(
         "Reports the health of the integration itself, flagging when polling succeeds "
         "but specific capabilities or endpoints are missing or degraded. Provides "
-        "`severity`, `issues`, `degraded_capabilities`, `drift`, and "
+        "`severity`, `issues`, `degraded_capabilities`, `not_served`, `drift`, and "
         "`last_good_update` attributes, and never goes unavailable."
     ),
     translation_key="integration_health",
@@ -791,6 +791,7 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
             "severity",
             "issues",
             "degraded_capabilities",
+            "not_served",
             "drift",
             "last_good_update",
             "drift_rate_pct",
@@ -838,6 +839,7 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
                     "degraded_capabilities": list(
                         snapshot.get("degraded_capabilities", [])
                     ),
+                    "not_served": list(snapshot.get("not_served", [])),
                     "drift": list(snapshot.get("drift", [])),
                     "last_good_update": snapshot.get("last_good_update"),
                     # The counter-drift picture, published because every

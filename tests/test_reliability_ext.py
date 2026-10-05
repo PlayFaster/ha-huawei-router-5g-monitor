@@ -34,14 +34,25 @@ def mock_report_usage():
 
 @pytest.mark.asyncio
 async def test_get_data_mid_fetch_auth_error():
-    """Test that a 125002 error mid-fetch raises HuaweiAuthError and resets client."""
+    """A 125002 mid-fetch is an expiry when the re-read confirms it.
+
+    Dev16 plan I1: a session signal from a non-critical endpoint is no longer an
+    expiry on that signal alone. The premise is taken as confirmed here, so the
+    loop re-reads `device_information`; that read is refused too, which says the
+    session has ended, and `HuaweiAuthError` is raised and the client reset.
+    The refusal side is covered through the fake transport in
+    `tests/test_refused_endpoint.py`.
+    """
     api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
     mock_client = MagicMock()
     api._client = mock_client
     api._connection = MagicMock()
 
-    # Success for first call, failure for second
-    mock_client.device.information.return_value = {"SoftwareVersion": "1.0"}
+    # The first read answers, the re-read of the critical block is refused.
+    mock_client.device.information.side_effect = [
+        {"SoftwareVersion": "1.0"},
+        ResponseErrorLoginRequiredException(message="login required", code=100003),
+    ]
 
     # Mock a ResponseErrorException with code 125002
     err = ResponseErrorException(message="session timeout", code=125002)
@@ -50,6 +61,7 @@ async def test_get_data_mid_fetch_auth_error():
     # Mock to_thread to execute the fetch loop synchronously
     with (
         patch("asyncio.to_thread", new=AsyncMock(side_effect=lambda fn: fn())),
+        patch.object(api, "_read_premise", return_value="refused"),
         pytest.raises(HuaweiAuthError),
     ):
         await api.get_data()
