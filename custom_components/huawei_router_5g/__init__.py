@@ -33,6 +33,7 @@ from .const import (
 )
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import _stale_tracker_entities, is_gsm7, parse_sms_list
+from .library_guard import async_ensure_library, clear_restart_issue
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -293,6 +294,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    # Started last, so a slow or failed install cannot stop the services above
+    # from registering or make setup return False. A background task does not
+    # hold up bootstrap, which `async_create_task` would.
+    hass.async_create_background_task(
+        async_ensure_library(hass), name=f"{DOMAIN} library guard"
+    )
+
     return True
 
 
@@ -526,3 +534,9 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """
     for name in REPAIR_NAMES:
         ir.async_delete_issue(hass, DOMAIN, f"{name}_{entry.entry_id}")
+
+    # The library repair is domain-level. Once the last entry is gone the
+    # integration is no longer set up on later starts, so nothing else would
+    # clear it.
+    if not hass.config_entries.async_entries(DOMAIN):
+        clear_restart_issue(hass)

@@ -12,6 +12,7 @@ import time
 from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
 
+import huawei_lte_api
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
 from huawei_lte_api.enums.device import ControlModeEnum
@@ -23,9 +24,11 @@ from huawei_lte_api.exceptions import (
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
+from packaging.version import InvalidVersion, Version
 
 from .const import (
     FETCH_DEADLINE,
+    LIBRARY_ADDED_ENDPOINTS,
     LOCK_TIMEOUT,
     NET_MODE_SETTLE,
     PROBE_TIMEOUT,
@@ -35,6 +38,45 @@ from .const import (
 from .helpers import _safe_int, confirm_write
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _read_library_version() -> Version | None:
+    """Return the version of the `huawei-lte-api` modules in memory, if readable.
+
+    `huawei_lte_api.__version__` is a constant of the loaded modules, so it
+    describes what is running and not what is on disk: a guard install can
+    change the files while the old classes stay loaded until the next restart.
+    `None` when it is absent or unparsable, in which case callers make the call
+    and let a real failure surface.
+    """
+    try:
+        return Version(huawei_lte_api.__version__)
+    except (AttributeError, InvalidVersion):
+        return None
+
+
+_LIBRARY_VERSION = _read_library_version()
+
+
+def library_supports(first_version: str) -> bool:
+    """Return whether the loaded library is at or above `first_version`.
+
+    True when the version cannot be read, so an unreadable version never hides
+    an endpoint.
+    """
+    return _LIBRARY_VERSION is None or Version(first_version) <= _LIBRARY_VERSION
+
+
+def _call_added_endpoint(client: Client, key: str) -> Any:
+    """Call a library method listed in `LIBRARY_ADDED_ENDPOINTS` by its table row.
+
+    Reached by name so that Mypy passes on a library that lacks the method and
+    on one that has it, without a `type: ignore` that is unused on the newer
+    one. The two calls are therefore not type-checked; `test_library_contract`
+    checks the table's names against the library instead.
+    """
+    group, method, _ = LIBRARY_ADDED_ENDPOINTS[key]
+    return cast("Callable[[], Any]", getattr(getattr(client, group), method))()
 
 
 def _normalize_router_url(host: str) -> str:
@@ -136,6 +178,26 @@ class HuaweiRouter5GAPI:
         # unchanged. Written per poll, so it describes one pass rather than
         # accumulating across a session.
         self.endpoint_outcomes: dict[str, Any] = {}
+        self._unsupported_logged = False
+
+    def _log_unsupported_once(self) -> None:
+        """Log, once per client, which endpoints the loaded library cannot serve."""
+        if self._unsupported_logged:
+            return
+        # Called only when an endpoint has just been skipped, so the list is
+        # never empty.
+        skipped = sorted(
+            key
+            for key, (_, _, first) in LIBRARY_ADDED_ENDPOINTS.items()
+            if not library_supports(first)
+        )
+        _LOGGER.info(
+            "huawei-lte-api %s predates %s; these endpoints are skipped "
+            "and read unknown until the library is 2.0.1 or later",
+            getattr(huawei_lte_api, "__version__", "unknown"),
+            ", ".join(skipped),
+        )
+        self._unsupported_logged = True
 
     @asynccontextmanager
     async def _write_deadline(self, operation: str) -> AsyncIterator[None]:
@@ -809,8 +871,14 @@ class HuaweiRouter5GAPI:
                     # the only block in this payload that does. Anything walking
                     # the payload must tolerate that.
                     ("voice_busy", lambda: client.voice.voicebusy()),
-                    ("voice_volte", lambda: client.voice.volte()),
-                    ("onekey_diag", lambda: client.monitoring.onekey_diag()),
+                    (
+                        "voice_volte",
+                        lambda: _call_added_endpoint(client, "voice_volte"),
+                    ),
+                    (
+                        "onekey_diag",
+                        lambda: _call_added_endpoint(client, "onekey_diag"),
+                    ),
                 ]
                 started = time.monotonic()
                 for index, (key, fetcher) in enumerate(fetch_tasks):
@@ -833,6 +901,16 @@ class HuaweiRouter5GAPI:
                             ", ".join(skipped),
                         )
                         break
+
+                    added = LIBRARY_ADDED_ENDPOINTS.get(key)
+                    if added is not None and not library_supports(added[2]):
+                        # Not a fault: the loaded library predates the method.
+                        # Recorded apart from `unavailable`, with no rejection
+                        # and no entry in `data`, so health does not count it
+                        # as a lost capability.
+                        self._record_endpoint(key, "unsupported")
+                        self._log_unsupported_once()
+                        continue
 
                     try:
                         started_at = time.monotonic()

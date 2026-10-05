@@ -59,7 +59,12 @@ async def test_async_setup_registers_services(mock_hass):
     """Test that async_setup registers all expected services."""
     mock_hass.services.has_service.return_value = False
 
-    result = await async_setup(mock_hass, {})
+    # The guard is exercised in `test_library_guard.py`; here it is only started.
+    with patch(
+        "custom_components.huawei_router_5g.async_ensure_library",
+        new_callable=MagicMock,
+    ):
+        result = await async_setup(mock_hass, {})
 
     assert result is True
     assert mock_hass.services.async_register.call_count == 5
@@ -363,7 +368,11 @@ async def test_async_setup_registers_and_calls_services(mock_hass):
     """Test that async_setup registers services and they can be called."""
     mock_hass.services.has_service.return_value = False
 
-    result = await async_setup(mock_hass, {})
+    with patch(
+        "custom_components.huawei_router_5g.async_ensure_library",
+        new_callable=MagicMock,
+    ):
+        result = await async_setup(mock_hass, {})
     assert result is True
 
     registered_callbacks = {}
@@ -683,6 +692,54 @@ async def test_clear_repairs_deletes_each_entry_scoped_id(mock_hass, mock_config
     deleted = {call.args[2] for call in delete.call_args_list}
     assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}
     assert all(call.args[1] == DOMAIN for call in delete.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_removing_the_last_entry_also_clears_the_library_repair(
+    mock_config_entry,
+):
+    """The library repair is domain-level, so only the last entry's removal clears it.
+
+    After the last entry is gone the integration is no longer set up on later
+    starts, and nothing else would delete the issue.
+    """
+    from custom_components.huawei_router_5g import async_remove_entry
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_LIBRARY_RESTART,
+        REPAIR_NAMES,
+    )
+
+    hass = MagicMock()
+    hass.config_entries.async_entries.return_value = []
+
+    with patch("custom_components.huawei_router_5g.ir.async_delete_issue") as delete:
+        await async_remove_entry(hass, mock_config_entry)
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {
+        *(f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES),
+        REPAIR_LIBRARY_RESTART,
+    }
+
+
+@pytest.mark.asyncio
+async def test_removing_a_non_last_entry_leaves_the_library_repair(mock_config_entry):
+    """Another entry still needs the repair, so only the per-entry ids go."""
+    from custom_components.huawei_router_5g import async_remove_entry
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_LIBRARY_RESTART,
+        REPAIR_NAMES,
+    )
+
+    hass = MagicMock()
+    hass.config_entries.async_entries.return_value = [MagicMock()]
+
+    with patch("custom_components.huawei_router_5g.ir.async_delete_issue") as delete:
+        await async_remove_entry(hass, mock_config_entry)
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}
+    assert REPAIR_LIBRARY_RESTART not in deleted
 
 
 @pytest.mark.asyncio

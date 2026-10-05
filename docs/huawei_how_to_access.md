@@ -334,7 +334,9 @@ A 2026-08-15 review listed it for `diagnostics.py`'s `TO_REDACT` as "the one ide
 
 ---
 
-## 🆕 What 2.0.1 added, and what a proper scan found
+## 🆕 API Library version 2.0.1 and interoperability
+
+**This integration runs on either 1.11.0 or 2.0.1.** Home Assistant core pins 1.11.0 for its own `huawei_lte` integration, so the methods below that exist only from 2.0.1, `voice.volte` and `monitoring.onekey_diag`, are skipped on 1.11.0 and their entities read unknown. Which version runs, what each does, and why both are supported are in `docs/library_versions.md`.
 
 **Method: a full surface diff, not a probe.** 1.11.0 was unpacked alongside 2.0.1 and both enumerated — every group, every method signature, every enum member, every exception. That is the only way to answer "what is new" without guessing, and it is what the earlier field-level scans could not do.
 
@@ -415,3 +417,4 @@ Only `voice.codec()` refuses.
 - `docs/all_sensors.md` — which entity each polled field becomes.
 - `docs/DEVELOPMENT.md` — architecture, and the reasoning behind the guest-WiFi write path.
 - `docs/ha_compatibility.md` — Home Assistant deprecations this integration absorbs.
+- `docs/library_versions.md` — which `huawei-lte-api` version runs, what each version does, and what the integration does when Home Assistant core pins a different one.

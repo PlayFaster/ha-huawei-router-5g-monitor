@@ -77,7 +77,11 @@ import homeassistant  # noqa: F401
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
 try:
-    from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
+    from custom_components.huawei_router_5g.api import (
+        HuaweiRouter5GAPI,
+        library_supports,
+    )
+    from custom_components.huawei_router_5g.const import LIBRARY_ADDED_ENDPOINTS
     from custom_components.huawei_router_5g.coordinator import (
         HuaweiRouter5GDataUpdateCoordinator,
     )
@@ -534,14 +538,34 @@ def check_endpoints(artefact: dict[str, Any], report: Report, label: str) -> Non
     )
 
     outcomes = sorted({v.get("outcome") for v in endpoints.values()})
+
+    def outcome_is_known(key: str, outcome: Any) -> bool:
+        # `unsupported` is a known verdict only for an endpoint the loaded
+        # library predates, so it cannot pass for any other endpoint or on a
+        # library that has the method.
+        if outcome in {"answered", "refused", "expired", "unavailable", "skipped"}:
+            return True
+        added = LIBRARY_ADDED_ENDPOINTS.get(key)
+        return (
+            outcome == "unsupported"
+            and added is not None
+            and not library_supports(added[2])
+        )
+
     report.record(
-        all(
-            o in {"answered", "refused", "expired", "unavailable", "skipped"}
-            for o in outcomes
-        ),
+        all(outcome_is_known(k, v.get("outcome")) for k, v in endpoints.items()),
         f"[{label}] every outcome is one of the known verdicts",
         f"outcomes: {outcomes}",
     )
+
+    for key, (_, _, first) in LIBRARY_ADDED_ENDPOINTS.items():
+        if library_supports(first):
+            outcome = endpoints.get(key, {}).get("outcome")
+            report.record(
+                outcome == "answered",
+                f"[{label}] {key} answered on a library that has it",
+                f"outcome {outcome!r}",
+            )
 
 
 def check_sabotage(artefact: dict[str, Any], report: Report, label: str) -> None:
@@ -579,7 +603,8 @@ def check_sabotage(artefact: dict[str, Any], report: Report, label: str) -> None
     disturbed = {
         key: value.get("outcome")
         for key, value in endpoints.items()
-        if isinstance(value, dict) and value.get("outcome") != "answered"
+        if isinstance(value, dict)
+        and value.get("outcome") not in ("answered", "unsupported")
     }
     report.record(
         bool(disturbed),

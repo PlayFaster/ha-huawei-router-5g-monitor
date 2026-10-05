@@ -510,10 +510,17 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         # 1. Capability degradation — an endpoint `api.get_data` silently
         #    dropped. Strike-budgeted so a one-poll blip is not reported.
+        #    An endpoint the loaded library cannot serve is recorded
+        #    `unsupported` by `api.get_data` and is not a lost capability.
+        unsupported = {
+            key
+            for key, record in self.api.endpoint_outcomes.items()
+            if isinstance(record, dict) and record.get("outcome") == "unsupported"
+        }
         missing = [
             key
             for key in ENDPOINT_NAMES
-            if key != CRITICAL_ENDPOINT and key not in data
+            if key != CRITICAL_ENDPOINT and key not in data and key not in unsupported
         ]
         for key in ENDPOINT_NAMES:
             if key in missing:

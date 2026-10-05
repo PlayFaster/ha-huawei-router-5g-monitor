@@ -95,13 +95,24 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
 ### A Fixable Repair Needs `repairs.py`, And Only One Text Field (v1.2.2-dev3)
 
-`auth_failed` is the one `is_fixable=True` repair here, and two things about that are easy to get wrong because neither fails loudly.
+`auth_failed` was the first `is_fixable=True` repair here, and `library_restart_required` (v1.2.3-dev15) is the second, a domain-level one with its own flow in the same module. Two things about a fixable repair are easy to get wrong because neither fails loudly.
 
 **Home Assistant substitutes `ConfirmRepairFlow` when an integration ships no `repairs` platform.** That flow shows an empty confirm form and deletes the issue on submit, so the Fix button appears, is clickable, and dismisses the card without touching the credentials — a user presses it, watches the problem vanish, and is still signed out. `repairs.py` returns a flow whose confirm step calls `entry.async_start_reauth`, and `tests/test_repairs.py::test_the_fix_flow_is_ours_not_the_confirm_fallback` asserts the concrete type, so deleting the module fails rather than silently downgrading.
 
 **`description` and `fix_flow` are mutually exclusive.** `hassfest`'s issues schema declares them `vol.Exclusive` under a `fixable` group, so an issue takes a `title` and then exactly one of the two: a fixable issue renders its prose in the flow's step, a plain one on the card. Supplying both fails validation with _"two or more values in the same group of exclusion 'fixable'"_. `conn_error` is the other shape — `title` plus `description`, no flow — and the step-8 sweeps guard the pair against each other.
 
 **The entry is read from the issue's `data`**, not parsed out of `issue_id`. The id format is `{name}_{entry_id}` here and `{entry_id}_{name}` on `zte_router_5g`, and an entry id containing an underscore makes either parse ambiguous.
+
+### `huawei-lte-api` 1.11.0 And 2.0.1 In One Environment (v1.2.3-dev15)
+
+Home Assistant core pins `huawei-lte-api==1.11.0` for its own `huawei_lte` integration, so this integration accepts 1.11.0 or 2.0.1 (`>=1.11.0,<2.0.2`) and a startup guard installs 2.0.1 when no core entry exists. The full record, with measurements, is in `docs/library_versions.md`. The known limits:
+
+- **On 1.11.0 two endpoints do not exist.** `voice.volte` and `monitoring.onekey_diag` are skipped and recorded `unsupported`, their entities read unknown, and Integration Health stays `ok`.
+- **The gate is the loaded library's version, never whether the method exists.** A misspelt or renamed method on a library at or above the first version is recorded `unavailable` and fails `test_library_contract`. A check on existence would hide it.
+- **The gate reads the modules in memory, the guard reads the files on disk.** They differ between an install and the next restart, which is the interval in which the restart repair is shown.
+- **SMS containing emoji is corrupted on 1.11.0 in both directions.** 2.0.0 encodes characters outside the Basic Multilingual Plane as CESU-8; this is inferred to fix it on 2.0.1 and has not been tested on this router.
+- **`async_process_requirements` ignores `hass.config.skip_pip`.** The guard reads the flag itself, and an autouse fixture in `tests/conftest.py` fails any test that reaches the installer without a fake.
+- **An abandoned config flow can leave the restart repair until the next restart.** The issue is not persistent.
 
 ### The Repair And The Fault Probe Belong To The Failure Count, Not To One Exception Type (v1.2.1-dev7)
 

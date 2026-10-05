@@ -27,6 +27,32 @@ if sys.platform == "win32":
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
 
+@pytest.fixture(autouse=True)
+def _no_unexpected_library_install(monkeypatch):
+    """Fail a test that reaches the library installer without expecting to.
+
+    The startup guard calls `async_process_requirements`, which installs a
+    package and ignores `hass.config.skip_pip`. The test `hass` sets `skip_pip`,
+    and the guard reads it, so the existing suite never reaches the installer.
+    This fixture is the second layer: it replaces the installer with a recorder
+    and fails the test at teardown if it was called. An exception raised from
+    inside the installer would be caught by the guard's own handler and the test
+    would pass, which is why the fixture records and asserts instead of raising.
+    The guard tests patch their own fake over this one.
+    """
+    calls = []
+
+    async def _recorder(*args, **kwargs):
+        calls.append((args, kwargs))
+
+    monkeypatch.setattr(
+        "custom_components.huawei_router_5g.library_guard.async_process_requirements",
+        _recorder,
+    )
+    yield calls
+    assert not calls, f"the library installer was called unexpectedly: {calls}"
+
+
 @pytest.fixture
 def mock_config_entry():
     """Fixture providing a mock ConfigEntry for a Huawei router."""

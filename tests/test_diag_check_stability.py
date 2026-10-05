@@ -468,8 +468,13 @@ def test_a_setting_is_not_allowed_to_move(block: str, field: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_map_matching_the_payload_passes() -> None:
+def test_a_map_matching_the_payload_passes(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """Every block came from an endpoint that answered, and vice versa."""
+    # These maps carry no `voice_volte` or `onekey_diag`, which a library
+    # that has them must answer; the case is about payload accounting.
+    _old_library(monkeypatch, supports=False)
     report = Report()
     check_endpoints(_artefact({"device_signal": {"rsrp": "1"}}), report, "1")
 
@@ -509,8 +514,13 @@ def test_an_endpoint_that_answered_nothing_is_a_failure() -> None:
     assert not _passed(report, "accounts for the payload")
 
 
-def test_a_refused_endpoint_explains_its_own_absence() -> None:
+def test_a_refused_endpoint_explains_its_own_absence(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     """The point of the map: absent from `data`, accounted for here."""
+    # These maps carry no `voice_volte` or `onekey_diag`, which a library
+    # that has them must answer; the case is about payload accounting.
+    _old_library(monkeypatch, supports=False)
     report = Report()
     check_endpoints(
         _artefact(
@@ -543,6 +553,78 @@ def test_an_unknown_outcome_is_a_failure() -> None:
     )
 
     assert not _passed(report, "known verdicts")
+
+
+def _old_library(monkeypatch: pytest.MonkeyPatch, *, supports: bool) -> None:
+    """Make the script believe the loaded library has, or lacks, the added methods."""
+    monkeypatch.setattr("scripts.diag_check.library_supports", lambda _first: supports)
+
+
+def test_unsupported_is_a_known_verdict_for_an_added_endpoint_on_an_old_library(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Below the first version the two added endpoints may read `unsupported`."""
+    _old_library(monkeypatch, supports=False)
+    report = Report()
+    check_endpoints(
+        _artefact(
+            {"device_signal": {"rsrp": "1"}},
+            endpoints={
+                "device_signal": {"outcome": "answered"},
+                "voice_volte": {"outcome": "unsupported"},
+                "onekey_diag": {"outcome": "unsupported"},
+            },
+        ),
+        report,
+        "1",
+    )
+
+    assert _passed(report, "known verdicts")
+
+
+def test_unsupported_on_any_other_endpoint_is_a_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """`unsupported` must not become a way for an ordinary endpoint to pass."""
+    _old_library(monkeypatch, supports=False)
+    report = Report()
+    check_endpoints(
+        _artefact(
+            {"device_signal": {"rsrp": "1"}},
+            endpoints={
+                "device_signal": {"outcome": "answered"},
+                "security_sip": {"outcome": "unsupported"},
+            },
+        ),
+        report,
+        "1",
+    )
+
+    assert not _passed(report, "known verdicts")
+
+
+def test_unsupported_on_a_library_that_has_the_method_is_a_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """At or above the first version the two endpoints must answer."""
+    _old_library(monkeypatch, supports=True)
+    report = Report()
+    check_endpoints(
+        _artefact(
+            {"device_signal": {"rsrp": "1"}},
+            endpoints={
+                "device_signal": {"outcome": "answered"},
+                "voice_volte": {"outcome": "unsupported"},
+                "onekey_diag": {"outcome": "answered"},
+            },
+        ),
+        report,
+        "1",
+    )
+
+    assert not _passed(report, "known verdicts")
+    assert not _passed(report, "voice_volte answered on a library that has it")
+    assert _passed(report, "onekey_diag answered on a library that has it")
 
 
 def test_an_empty_map_is_a_failure() -> None:
@@ -605,6 +687,33 @@ def test_a_sabotage_that_did_not_land_is_a_failure() -> None:
         _artefact(
             rejection={"verdict": "expired", "code": "125002"},
             endpoints={"device_signal": {"outcome": "answered"}},
+        ),
+        report,
+        "1",
+    )
+
+    assert not _passed(report, "names what the lost session cost")
+
+
+def test_a_sabotage_run_where_every_endpoint_is_answered_or_unsupported_is_a_failure(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """On an old library the two skipped endpoints must not fake a disturbance.
+
+    The check passes when any endpoint is not `answered`. On 1.11.0 the two
+    `unsupported` endpoints would satisfy it on every run, so a sabotage that
+    never took effect would still pass.
+    """
+    _old_library(monkeypatch, supports=False)
+    report = Report()
+    check_sabotage(
+        _artefact(
+            rejection={"verdict": "expired", "code": "125002"},
+            endpoints={
+                "device_signal": {"outcome": "answered"},
+                "voice_volte": {"outcome": "unsupported"},
+                "onekey_diag": {"outcome": "unsupported"},
+            },
         ),
         report,
         "1",

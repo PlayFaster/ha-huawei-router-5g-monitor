@@ -1366,9 +1366,14 @@ def test_every_disabled_by_decision_entry_carries_a_reason() -> None:
 
 def _declared_repair_keys() -> set[str]:
     """Return every repair key the code can raise, read from `const.py`."""
-    from custom_components.huawei_router_5g.const import REPAIR_NAMES
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_LIBRARY_RESTART,
+        REPAIR_NAMES,
+    )
 
-    return set(REPAIR_NAMES)
+    # The library restart repair is domain-level and deliberately not in
+    # `REPAIR_NAMES`, which names the per-entry issues.
+    return {*REPAIR_NAMES, REPAIR_LIBRARY_RESTART}
 
 
 def test_every_repair_issue_has_title_and_rendered_text() -> None:
@@ -1422,13 +1427,17 @@ def test_the_fixable_repair_is_the_one_with_a_fix_flow() -> None:
     button dismisses the card without acting on it. Both fail silently, which
     is why the pairing is asserted rather than assumed.
     """
-    from custom_components.huawei_router_5g.const import REPAIR_AUTH_FAILED
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_AUTH_FAILED,
+        REPAIR_LIBRARY_RESTART,
+    )
 
     issues = _translation_file("strings.json")["issues"]
     with_flow = {key for key, entry in issues.items() if entry.get("fix_flow")}
+    fixable = {REPAIR_AUTH_FAILED, REPAIR_LIBRARY_RESTART}
 
-    assert with_flow == {REPAIR_AUTH_FAILED}, (
-        f"expected only {REPAIR_AUTH_FAILED!r} to carry a fix_flow, got {with_flow}"
+    assert with_flow == fixable, (
+        f"expected only {sorted(fixable)} to carry a fix_flow, got {with_flow}"
     )
 
 

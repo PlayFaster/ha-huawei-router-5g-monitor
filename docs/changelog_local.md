@@ -5,6 +5,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3-dev15\] - 2026-10-05 - Library Range, Startup Guard And Restart Repair](#123-dev15---2026-10-05---library-range-startup-guard-and-restart-repair)
   - [\[1.2.3-dev14\] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type](#123-dev14---2026-10-04---validation-repairs-suppression-allow-list-and-repair-flow-return-type)
   - [\[1.2.3-dev12\] - 2026-10-04 - Shared CI Bumps](#123-dev12---2026-10-04---shared-ci-bumps)
   - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
@@ -190,6 +191,43 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3-dev15] - 2026-10-05 - Library Range, Startup Guard And Restart Repair
+
+Plan `v123_dev15_plan.md`. Resolves the GitHub hassfest failure caused by `huawei-lte-api==2.0.1` against Home Assistant core's pin of 1.11.0, keeps the integration working on either version, installs 2.0.1 when it is safe to, and records the behavior of each version in `docs/library_versions.md`.
+
+### Added
+
+- **Requirement range `huawei-lte-api>=1.11.0,<2.0.2`** in `manifest.json` and `.validate/requirements_custom.txt`, carried into `.validate/requirements_test.txt` by the sync. Hassfest reports `Invalid integrations: 0` with the range. The negative control, run once with `huawei-lte-api==2.0.1` temporarily in the manifest, reported `Invalid integrations: 1` with the requirement conflict against core's `==1.11.0`, and the manifest was restored.
+- **Version gate for two endpoints.** `voice.volte` and `monitoring.onekey_diag` exist only from library 2.0.1. `LIBRARY_ADDED_ENDPOINTS` in `const.py` lists them with their first version, and `api.py` skips them with the new outcome `unsupported` when `huawei_lte_api.__version__`, the version of the modules in memory, is older. The gate is the loaded version and not whether the method exists, so a misspelt or renamed method on a library that should have it is recorded `unavailable` and fails the contract test. A skipped endpoint writes no rejection, is excluded from the degraded-capability count in `coordinator.py`, and is logged once at INFO.
+- **Startup library guard**, `library_guard.py`. A background task started last in `async_setup` installs `huawei-lte-api>=2.0.1,<2.0.2` when no core `huawei_lte` entry exists, the installed version is older, and `skip_pip` and `skip_pip_packages` allow it. The installer call is shielded with a 180 s timeout, a timeout or cancellation is an unknown outcome, and every failure is logged with its traceback.
+- **Restart repair.** `library_restart_required` is a domain-level, fixable repair raised only after a verified install. Its flow in `repairs.py` restarts Home Assistant on submit and aborts with `restart_failed` if the restart service raises. It is cleared at any start where a core entry exists or the loaded library is 2.0.1 or later, and when the last entry is removed.
+- **Reference document** `docs/library_versions.md`: behavior per version, how the range, guard, gate and repair interact, the measurements, accepted limits, and numbered procedures for core moving to 2.0.1, core moving to 2.0.2 or above, and the library releasing 2.0.2 or above.
+- **Tests.** `tests/test_unsupported_endpoints.py`, `tests/test_library_guard.py`, new cases in `tests/test_library_contract.py`, `tests/test_diag_check_stability.py`, `tests/test_repairs.py`, `tests/test_init.py`, and an autouse fixture in `tests/conftest.py` that fails any test reaching the real installer at teardown.
+
+### Changed
+
+- **`scripts/diag_check.py`** accepts `unsupported` only for the two added endpoints and only when the loaded library is older than their first version, requires both to read `answered` on a library that has them, and its sabotage check no longer counts `unsupported` as a disturbed endpoint, so it cannot pass on 1.11.0 when the sabotage did not take effect. The Diag Check passes 34 of 34 on 1.11.0 and 38 of 38 on 2.0.1.
+- **Existing tests updated.** Two diag-check payload-accounting tests now declare an old library, because the new check requires the two added endpoints on a new one. `test_the_fixable_repair_is_the_one_with_a_fix_flow` expects both fixable keys, `_declared_repair_keys()` reads the new constant, the removal tests in `test_init.py` gain last-entry and non-last-entry cases, and two mock-hass setup tests patch the guard.
+- **Documentation.** README (a short reference under Compatibility & Tested Devices, a new "Running Alongside Home Assistant's Huawei LTE Integration" section under Under the Hood, and the Repairs section), `docs/DEVELOPMENT.md`, `docs/ha_compatibility.md`, `AGENTS.md` and `docs/test_guards.md`.
+
+### Defects found during the build
+
+- **Plan defects, before any code.** Five reviews of the plan found 35 findings, all applied before the build, among them a Diag Check that rejected `unsupported`, a repair-key sweep tied to `REPAIR_NAMES`, a version gate that read the disk instead of the loaded modules, and an autouse fixture that the guard's own handler would have defeated.
+- **A new strings block was first written with literal newlines**, which is invalid JSON; it was caught by loading the file and rewritten.
+- **The contract test's regex lost its `\b` boundary** in an escaped write, so the literal-call test could not fail; the mutation proof showed it passing with a literal call added, and it was corrected and proven.
+- **The guard's exception test bypassed the real handler** by patching the outer function, and raised an unretrieved task exception; it now patches the inner function.
+- **Ruff removed the guard's `noqa: BLE001` comments as unused**, because the handler logs the traceback, which left a dead allow-list entry; the entry was removed.
+- **The new required checks in `diag_check.py` broke two existing payload tests**, which now declare an old library.
+- **Coverage and test depth.** `installed_library_version` was never run unpatched and `library_restart_required` was never driven beside a poll; three tests and one polling test were added, and an unreachable branch in `_log_unsupported_once` was removed.
+- **Repo Links.** Three links to the new, uncommitted document were replaced with plain file names.
+
+### Verified
+
+- Full validation on the final state, core entry absent and library 2.0.1: 1162 tests, coverage 100.00%, Test Depth, Mypy strict (17 source files), Ruff, complexity (max 17), Hassfest 0 invalid, Repo Links 130 links, Zizmor, Hardware Check 8 of 8, Diag Check 38 of 38, and the Diagnostics Recovery task 8 of 8.
+- Mypy strict passes on library 1.11.0 and on 2.0.1, the contract tests pass on both, and the dev container was restored to 2.0.1.
+- Mutation proofs: replacing the version gate with an existence check, adding a literal call to `api.py`, disabling the core-entry check, the post-install re-read, the `skip_pip` return, the exception handling, the shield, the background task, the last-entry clearing, the factory dispatch and the restart-failure abort each fail the matching test.
+- Live check (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/library_coexistence_live_check.md`): the guard installed 2.0.1 at start, raised the repair, and submitting it restarted Home Assistant onto 2.0.1 with both endpoints `answered`. With a core entry present, two restarts left the library on 1.11.0 with both endpoints `unsupported`, health `ok`, no repair and no log errors.
 
 ## [1.2.3-dev14] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type
 

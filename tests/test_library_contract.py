@@ -21,10 +21,13 @@ import inspect
 import re
 from unittest.mock import MagicMock
 
+import huawei_lte_api
 from huawei_lte_api.Client import Client
+from packaging.version import InvalidVersion, Version
 import pytest
 
 from custom_components.huawei_router_5g import api as api_module
+from custom_components.huawei_router_5g.const import LIBRARY_ADDED_ENDPOINTS
 
 # `<receiver>.<group>.<attribute>` — with or without a call, because a method
 # passed to `asyncio.to_thread` is referenced without parentheses.
@@ -81,6 +84,54 @@ def test_every_library_call_exists_on_the_installed_package() -> None:
     assert not missing, (
         "api.py calls library methods that do not exist on the installed "
         "huawei-lte-api:\n" + "\n".join(missing)
+    )
+
+
+def test_the_added_endpoints_are_reached_only_through_the_table() -> None:
+    """The two 2.0-only methods must not appear as literal calls in `api.py`.
+
+    They are reached by name through `LIBRARY_ADDED_ENDPOINTS`, behind a gate on
+    the loaded library's version. A literal `client.voice.volte()` beside that
+    would call the method on a library that lacks it, and the `_CALL` pattern
+    above would then be the only thing standing between that and a masked error.
+    """
+    source = inspect.getsource(api_module)
+    literals = [
+        f"{group}.{method}"
+        for _key, (group, method, _first) in LIBRARY_ADDED_ENDPOINTS.items()
+        if re.search(rf"\.{group}\.{method}\b", source)
+    ]
+
+    assert not literals, (
+        f"literal calls to {literals} in api.py bypass the version gate; "
+        "reach them through LIBRARY_ADDED_ENDPOINTS"
+    )
+
+
+@pytest.mark.parametrize("key", sorted(LIBRARY_ADDED_ENDPOINTS))
+def test_each_table_entry_exists_on_a_library_at_or_above_its_first_version(
+    key: str,
+) -> None:
+    """A table name that never existed would be skipped on every library.
+
+    The gate tolerates absence only below the first version. If the table named
+    a method wrongly, an old library would skip it correctly and a new one would
+    report it as unavailable, which only this test notices when it runs on the
+    new library. On an older library it has nothing to check and says so.
+    """
+    group, method, first = LIBRARY_ADDED_ENDPOINTS[key]
+    try:
+        loaded = Version(huawei_lte_api.__version__)
+    except (AttributeError, InvalidVersion):
+        pytest.skip("the loaded library version cannot be read")
+    if loaded < Version(first):
+        pytest.skip(f"library {loaded} predates {first}, so {key} is not expected")
+
+    endpoint = getattr(Client(MagicMock()), group)
+
+    assert hasattr(endpoint, method), (
+        f"{group}.{method} is missing from huawei-lte-api {loaded}, "
+        f"which is at or above its stated first version {first}"
     )
 
 

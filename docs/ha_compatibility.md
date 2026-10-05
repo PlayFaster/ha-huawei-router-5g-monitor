@@ -2,7 +2,7 @@
 
 What Home Assistant versions this integration supports and the status of any changing core APIs.
 
-**Reviewed 2026-09-30.**
+**Reviewed 2026-10-05.**
 
 > [!IMPORTANT]
 >
@@ -19,6 +19,7 @@ What Home Assistant versions this integration supports and the status of any cha
 | **Enforced by** | `hacs.json` | `"homeassistant": "2025.2.0"` |
 | **Functional floor** | `ConfigFlowResult`, `ConfigEntry.runtime_data` | Both introduced in HA 2024.6 |
 | **Python** | 3.13 or later | Required by Home Assistant 2025.2.0. Tests run on Python 3.14 |
+| **`huawei-lte-api`** | **1.11.0 or 2.0.1** | Range `>=1.11.0,<2.0.2` in `manifest.json`. Core pins 1.11.0 for its own `huawei_lte`, and a startup guard installs 2.0.1 when no core entry exists. See `docs/library_versions.md` |
 
 ---
 

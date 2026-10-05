@@ -546,6 +546,20 @@
     "conn_error": {
       "title": "Huawei router is not responding",
       "description": "Home Assistant stopped receiving data from {entry_title}. Check that the router is powered on and reachable at its configured address. This clears itself once communication is restored."
+    },
+    "library_restart_required": {
+      "title": "Restart Home Assistant to finish the Huawei library upgrade",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Restart Home Assistant",
+            "description": "This integration upgraded its router library, huawei-lte-api, to 2.0.1. The upgrade takes effect after a restart, until then two sensors, VoLTE status and Router self-diagnosis, stay unknown.\n\nSubmitting restarts Home Assistant."
+          }
+        },
+        "abort": {
+          "restart_failed": "Home Assistant could not restart, most likely because the configuration check failed. Fix the configuration or restart manually."
+        }
+      }
     }
   },
   "options": {

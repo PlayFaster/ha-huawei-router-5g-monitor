@@ -84,7 +84,19 @@ A dead icon entry renders nothing and breaks nothing, so it accumulates unnotice
 
 **Guards:** `test_every_repair_issue_has_title_and_rendered_text`, `test_the_fixable_repair_is_the_one_with_a_fix_flow`, `test_no_orphan_issue_translations`
 
-Add the key to `REPAIR_NAMES` and give it a `title` in **both** `strings.json` and `translations/en.json`, then **exactly one** of `description` or `fix_flow` — `hassfest` declares them `vol.Exclusive`, because a fixable issue renders its prose in the flow's step. **A fixable repair needs `repairs.py`**: without that platform Home Assistant substitutes `ConfirmRepairFlow`, whose Fix button deletes the card and does nothing else.
+Add a per-entry key to `REPAIR_NAMES`, or for a domain-level key such as `library_restart_required` give it its own constant, which `_declared_repair_keys()` also reads, and give it a `title` in **both** `strings.json` and `translations/en.json`, then **exactly one** of `description` or `fix_flow` — `hassfest` declares them `vol.Exclusive`, because a fixable issue renders its prose in the flow's step. **A fixable repair needs `repairs.py`**: without that platform Home Assistant substitutes `ConfirmRepairFlow`, whose Fix button deletes the card and does nothing else.
+
+### A library method that exists only from a later `huawei-lte-api`
+
+**Guards:** `test_the_added_endpoints_are_reached_only_through_the_table`, `test_each_table_entry_exists_on_a_library_at_or_above_its_first_version`, `test_a_misspelt_table_entry_on_a_new_library_is_reported`
+
+Add the method to `LIBRARY_ADDED_ENDPOINTS` with its first library version, and reach it only through the table. The skip is gated on the loaded library's version and not on whether the method exists, so a literal call beside the table would run on a library that lacks the method, and a table name that never existed would be skipped on every library. The second guard runs only on a library at or above the first version, and on an older one it says it has nothing to check.
+
+### Anything that installs a package
+
+**Guards:** `_no_unexpected_library_install` (autouse in `conftest.py`), `tests/test_library_guard.py`
+
+The startup guard calls `async_process_requirements`, which installs a package and ignores `hass.config.skip_pip`. The fixture replaces it with a recorder and fails the test at teardown if it was called, because an exception raised from the installer would be caught by the guard's own handler and the test would pass. A test that needs the guard to install supplies its own fake.
 
 ### `test_action_icons_use_the_current_nested_form`
 
