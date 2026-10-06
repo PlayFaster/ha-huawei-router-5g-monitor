@@ -5,11 +5,12 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3\] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
   - [\[1.2.3-dev16\] - 2026-10-05 - Refused Endpoint Told From Expired Session (Issue 50)](#123-dev16---2026-10-05---refused-endpoint-told-from-expired-session-issue-50)
   - [\[1.2.3-dev15\] - 2026-10-05 - Library Range, Startup Guard And Restart Repair](#123-dev15---2026-10-05---library-range-startup-guard-and-restart-repair)
   - [\[1.2.3-dev14\] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type](#123-dev14---2026-10-04---validation-repairs-suppression-allow-list-and-repair-flow-return-type)
   - [\[1.2.3-dev12\] - 2026-10-04 - Shared CI Bumps](#123-dev12---2026-10-04---shared-ci-bumps)
-  - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
+  - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
   - [\[1.2.3-dev10\] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13](#123-dev10---2026-09-23---breaking-minimum-home-assistant-raised-to-202520-for-python-313)
   - [\[1.2.3-dev9\] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed](#123-dev9---2026-09-08---uptime-anchors-reconciled-at-startup-counter-persistence-fixed)
   - [\[1.2.3-dev8\] - 2026-09-08 - Documentation: Project Complexity \& Health Scorecard Added](#123-dev8---2026-09-08---documentation-project-complexity--health-scorecard-added)
@@ -192,6 +193,35 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence
+
+### Summary
+
+- **Refused Endpoint Setup Resilience**: Router models that decline optional diagnostic endpoints no longer cause integration setup or polling to fail with authentication or connection errors.
+- **Uptime and Reboot Tracking**: Router uptime and connection duration timestamps persist across Home Assistant restarts and automatically detect reboots that occurred while Home Assistant was stopped.
+- **Home Assistant Core Compatibility**: Prevents dependency conflicts when running alongside Home Assistant's built-in Huawei integration, adding an automated background update and restart notification when needed.
+- **Minimum Home Assistant Version**: Requires Home Assistant 2025.2.0 or newer to align with Python 3.13 runtime requirements.
+
+### Breaking
+
+- **Minimum Home Assistant Version**: The minimum supported Home Assistant version is now 2025.2.0 (Python 3.13+). Systems running earlier versions of Home Assistant must update Home Assistant before installing this release.
+
+### Added
+
+- **Not-Served Endpoint Tracking**: Added the `not_served` attribute to `sensor.*_integration_health`. Unsupported endpoints that the router refuses are tracked under this attribute without taking error strikes or marking integration health as degraded.
+- **Clock Drift Diagnostics**: Added clock drift attributes (`drift_rate_pct`, `drift_intervals`, and `drift_measured_seconds`) to `sensor.*_integration_health` and diagnostic downloads to monitor counter accuracy.
+- **Library Restart Repair Notification**: Added a fixable Home Assistant Repair issue (`library_restart_required`) that notifies the user to restart Home Assistant after an automated library update.
+
+### Changed
+
+- **Coexistence with Built-In Huawei Integration**: Widened the `huawei-lte-api` requirement range to `>=1.11.0,<2.0.2` in `manifest.json`. This avoids package conflicts on installations running Home Assistant Core's built-in Huawei integration while installing 2.0.1 when safe.
+- **Diagnostic Download Reporting**: Diagnostic downloads now include endpoint response classifications, router error codes, entity evaluation statuses, and capability probe results for unpolled endpoints.
+
+### Fixed
+
+- **Refused Endpoint Polling and Setup Resilience**: Non-critical endpoints that return router error codes (such as `100003`, `125002`, or `125003`) no longer fail integration setup or regular polling cycles. The integration checks session validity to distinguish an endpoint refusal from an expired session.
+- **Uptime Timestamp Persistence Across Restarts**: Router uptime and connection timestamps are now stored persistently across Home Assistant restarts. Reboots occurring during Home Assistant downtime are detected on startup, preventing `sensor.*_uptime` and `sensor.*_connection_uptime` from showing frozen or stale timestamps.
 
 ## [1.2.3-dev16] - 2026-10-05 - Refused Endpoint Told From Expired Session (Issue 50)
 
