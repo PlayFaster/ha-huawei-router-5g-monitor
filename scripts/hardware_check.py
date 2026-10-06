@@ -63,17 +63,20 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+from collections.abc import Iterator
 import contextlib
+from datetime import UTC, datetime
 import json
 import logging
 import os
 import pathlib
 import sys
-from collections.abc import Iterator
-from datetime import UTC, datetime
 from typing import Any
 
 import requests
+
+# Installs probatio as `voluptuous` before the package imports it (C-036).
+import homeassistant  # noqa: F401
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -116,6 +119,12 @@ SMS_DELIVERY_ATTEMPTS = 6
 # A reboot on the reference B535 takes well under three minutes; the budget is
 # generous because a slow return is a wait, not a failure.
 REBOOT_TIMEOUT = 300.0
+
+# A network mode this hardware cannot hold. The documented values are two
+# digits and `99` is not among them, so a router that reports it afterwards has
+# stored a value it does not implement — which is the failure this check looks
+# for, not the refusal.
+INVALID_NET_MODE = "99"
 
 # Longest any single check may run before it is recorded as stalled.
 #
@@ -759,6 +768,15 @@ async def check_attended_writes(api: HuaweiRouter5GAPI, report: Report) -> None:
 
     await _offer(
         report,
+        "refused_write",
+        "Asks the router to hold a network mode that does not exist, and\n"
+        "requires it to refuse. Nothing is left changed: the mode is read\n"
+        "before and after, and restored if the router took the value.",
+        lambda: _check_refused_write(api, report),
+    )
+
+    await _offer(
+        report,
         "send_sms / delete_sms",
         "Sends one message to the SIM's own number, then deletes it.\n"
         "YOUR OPERATOR MAY CHARGE FOR THIS. Nothing else in this suite costs\n"
@@ -1230,6 +1248,55 @@ def _coverage_section(report: Report) -> str:
     return "\n".join(lines)
 
 
+async def _check_refused_write(api: HuaweiRouter5GAPI, report: Report) -> None:
+    """Require the router to refuse a value it cannot hold.
+
+    **Every other write check in this suite confirms a happy path**, and a
+    write surface that accepts anything passes all of them. `zte_router_5g`
+    asserts the same property from the other direction — that a partial
+    `DATA_LIMIT_SETTING` form is refused rather than silently accepted — after
+    finding firmware that took an incomplete form and applied the half it
+    understood.
+
+    The interesting outcome is not the exception. `set_net_mode` deliberately
+    treats the router's `-1: Unknown` as *applied, response unverifiable* and
+    lets the read-back decide, because this hardware answers `-1` to writes it
+    honoured. That is correct for a real mode and dangerous for an invalid one:
+    if the router quietly took `99`, the read-back is the only thing that would
+    say so. So both paths are checked, and the read-back is what settles it.
+    """
+    before = ((await api.get_data()).get("net_mode") or {}).get("NetworkMode")
+    print(f"    {_dim(f'current NetworkMode is {before!r}')}")
+
+    raised: Exception | None = None
+    try:
+        await api.set_net_mode(INVALID_NET_MODE)
+    except Exception as err:  # noqa: BLE001 - any refusal is a pass; see below
+        raised = err
+
+    await asyncio.sleep(RECONNECT_SETTLE)
+    after = ((await api.get_data()).get("net_mode") or {}).get("NetworkMode")
+
+    report.record(
+        after == before,
+        "refused_write: the invalid mode was not applied",
+        f"before {before!r}, after {after!r}, "
+        f"router {'raised ' + type(raised).__name__ if raised else 'accepted the write'}",
+    )
+
+    if after != before:
+        print(_yellow(f"    restoring NetworkMode to {before!r}"))
+        with contextlib.suppress(Exception):
+            await api.set_net_mode(str(before))
+            await asyncio.sleep(RECONNECT_SETTLE)
+        restored = ((await api.get_data()).get("net_mode") or {}).get("NetworkMode")
+        report.record(
+            restored == before,
+            "refused_write: the mode was restored",
+            f"now {restored!r}",
+        )
+
+
 async def _check_send_and_delete_sms(api: HuaweiRouter5GAPI, report: Report) -> None:
     """Send a message to the router's own SIM, then delete it.
 
@@ -1455,14 +1522,22 @@ async def main() -> int:
 
         print()
         total = len(report.checks)
-        if report.failed:
-            print(_red(f"  {report.failed} of {total} checks failed."))
-        else:
-            print(_green(f"  All {total} checks passed."))
+        passed = total - report.failed
         if report.skipped:
             print(_yellow(f"  {report.skipped} skipped."))
         for path in written:
             print(_dim(f"  report: {path}"))
+        # The banner lives here rather than in the VS Code task because
+        # `tee >(...)` reports the exit status of `tee`, not of this script — a
+        # shell-side banner would have to reach for PIPESTATUS to know what
+        # actually happened. The wording is `zte_router_5g`'s verbatim, because
+        # the shared `Show: Results Summary` task greps every project's
+        # `hardware_check.txt` for this exact string; a run that passed under
+        # different wording is reported as a failure.
+        if report.failed:
+            print(_red(f"\n✖  Hardware check: FAILED  ({passed}/{total} passed)"))
+        else:
+            print(_green(f"\n✔  Hardware check: PASSED  ({passed}/{total})"))
         print()
 
     await api.logout()

@@ -38,6 +38,8 @@ from typing import Any
 import requests
 import xmltodict
 
+from custom_components.huawei_router_5g.const import PREMISE_TIMEOUT
+
 # Error codes the router answers with, from `ResponseCodeEnum` in the library.
 # `api.py` treats 125002 and 125003 as session expiry and re-logs in; 100002 is
 # how a router reports an endpoint it does not implement.
@@ -96,6 +98,7 @@ _STATE_LOGIN = {"State": "-1", "password_type": "0"}
 # endpoint absent from this map answers "no support", which is what a router
 # that does not implement it does.
 DEFAULT_PAYLOADS: dict[str, Any] = {
+    "user/state-login": _STATE_LOGIN,
     "device/information": {
         "DeviceName": "B535-232",
         "SerialNumber": "TEST0000000001",
@@ -231,13 +234,43 @@ class RouterTransport:
         # How long the `timeout` fault hangs for. A test using it shortens
         # `FETCH_TIMEOUT` to something below this.
         self.hang_seconds = 0.3
+        # **Session state, for the refusal-or-expiry decision.** A real router
+        # answers `device/information` with 100003 to a client that has no login
+        # (measured on the H165-383 and the B315s-22, dev16 plan E8), so the
+        # fake does too. A real router tells by cookie, and `requests_mock` does
+        # not carry the library's cookie jar between requests, so the fake
+        # tells an anonymous client by the one thing that marks it: the premise
+        # check builds its `Connection` with `PREMISE_TIMEOUT` and no other
+        # client does. Set `info_needs_login` false to model a router that
+        # serves `device/information` anonymously.
+        self.info_needs_login = True
+        # A session that has ended: every request except the login exchange is
+        # answered 100003, as on the measured routers, until the next login.
+        self.logged_out = False
+        # The code a logged-out session is answered with. 100003 is what the
+        # measured routers give; 125002 and 125003 are the other two codes the
+        # integration reads as a session signal.
+        self.logged_out_code = ERROR_NO_RIGHTS
+        # Endpoints that answer one error code to everyone, as a router that
+        # refuses that one read does, keyed by the normalized endpoint.
+        self.refused: dict[str, int] = {}
+        # Make the anonymous read of `device/information`, the premise check's
+        # request, fail with a connection error.
+        self.anonymous_error = False
+        # Called with the normalized endpoint before each answer, from the
+        # worker thread, for a test that has to act mid-poll.
+        self.on_request: Any = None
+        # End the session after this many authenticated answers, so a test can
+        # expire it part way through a poll. `None` leaves it alone.
+        self.expire_after: int | None = None
+        self.logins = 0
+        # Anonymous reads of `device/information`, the premise check's request.
+        self.anonymous_info_reads = 0
+        # Authenticated reads of `device/information`, the re-read's request.
+        self.authenticated_info_reads = 0
 
         mocker.get(re.compile(r"/$"), text=_HOMEPAGE)
-        mocker.post(
-            re.compile(r"/api/user/login$"),
-            text=_xml("OK"),
-            headers={"__RequestVerificationToken": "token-next"},
-        )
+        mocker.post(re.compile(r"/api/user/login$"), text=self._login)
         mocker.get(re.compile(r"/api/.*"), text=self._answer)
         # Some endpoints are POSTs with a request body — `sms/sms-list` is the
         # one a poll reaches. Answered by the same handler so an unregistered
@@ -283,6 +316,21 @@ class RouterTransport:
         ):
             return None
         return self.fault
+
+    def _login(self, request: Any, context: Any) -> str:
+        """Answer the login POST, starting a session."""
+        self.logins += 1
+        self.logged_out = False
+        context.headers["__RequestVerificationToken"] = "token-next"
+        return _xml("OK")
+
+    def refuse(self, endpoint: str, code: int = ERROR_NO_RIGHTS) -> None:
+        """Make one endpoint answer `code` to every request, session or not."""
+        self.refused[_key(endpoint)] = code
+
+    def log_out(self) -> None:
+        """End the session, as a router that expired it would."""
+        self.logged_out = True
 
     def _count_answer(self) -> None:
         """Spend one of the fault's budget, clearing it when nothing is left.
@@ -333,6 +381,33 @@ class RouterTransport:
             return _error_xml(ERROR_NO_SUPPORT)
         if fault == "endpoint_missing":
             return _xml({})
+
+        authenticated = request.timeout != PREMISE_TIMEOUT
+        if self.on_request is not None:
+            self.on_request(endpoint)
+        if endpoint == "device/information":
+            if authenticated:
+                self.authenticated_info_reads += 1
+            else:
+                self.anonymous_info_reads += 1
+                if self.anonymous_error:
+                    raise requests.ConnectionError("connection refused")
+        if endpoint not in [_key(name) for name in _BOOTSTRAP]:
+            if (
+                endpoint == "device/information"
+                and self.info_needs_login
+                and not authenticated
+            ):
+                return _error_xml(ERROR_NO_RIGHTS)
+            if self.logged_out:
+                return _error_xml(self.logged_out_code)
+            if endpoint in self.refused:
+                return _error_xml(self.refused[endpoint])
+            if authenticated and self.expire_after is not None:
+                self.expire_after -= 1
+                if self.expire_after <= 0:
+                    self.expire_after = None
+                    self.logged_out = True
 
         for name, payload in self.payloads.items():
             if _key(name) == endpoint:

@@ -1,20 +1,23 @@
 """The Huawei Router 5G Monitor integration."""
 
-import logging
 from collections.abc import Mapping
+import logging
 from typing import Any, cast
 
+from huawei_lte_api.enums.sms import BoxTypeEnum
 import voluptuous as vol
+
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME, Platform
 from homeassistant.core import HomeAssistant, ServiceCall, SupportsResponse, callback
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
-from homeassistant.helpers import config_validation as cv
-from homeassistant.helpers import device_registry as dr
-from homeassistant.helpers import entity_registry as er
-from homeassistant.helpers import issue_registry as ir
+from homeassistant.helpers import (
+    config_validation as cv,
+    device_registry as dr,
+    entity_registry as er,
+    issue_registry as ir,
+)
 from homeassistant.helpers.typing import ConfigType
-from huawei_lte_api.enums.sms import BoxTypeEnum
 
 from ._compat import via_device_link
 from .api import HuaweiRouter5GAPI
@@ -30,6 +33,7 @@ from .const import (
 )
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import _stale_tracker_entities, is_gsm7, parse_sms_list
+from .library_guard import async_ensure_library, clear_restart_issue
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -290,6 +294,13 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         supports_response=SupportsResponse.OPTIONAL,
     )
 
+    # Started last, so a slow or failed install cannot stop the services above
+    # from registering or make setup return False. A background task does not
+    # hold up bootstrap, which `async_create_task` would.
+    hass.async_create_background_task(
+        async_ensure_library(hass), name=f"{DOMAIN} library guard"
+    )
+
     return True
 
 
@@ -399,6 +410,12 @@ async def async_setup_entry(
     # (apply live). Section 9.
     coordinator.reload_signature = _reload_signature(entry.options)
     entry.async_on_unload(entry.add_update_listener(_async_options_updated))
+
+    # Awaited here rather than in the background task below, so the stored
+    # counters and drift accumulators are in memory before the first poll
+    # reconciles against them. Never raises: an unreadable store resolves to
+    # "nothing learned", which routes to the cold-start path.
+    await coordinator.async_load_stored_uptime()
 
     # Register the root System device early to prevent via_device warnings in platforms.
     device_registry = dr.async_get(hass)
@@ -517,3 +534,9 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """
     for name in REPAIR_NAMES:
         ir.async_delete_issue(hass, DOMAIN, f"{name}_{entry.entry_id}")
+
+    # The library repair is domain-level. Once the last entry is gone the
+    # integration is no longer set up on later starts, so nothing else would
+    # clear it.
+    if not hass.config_entries.async_entries(DOMAIN):
+        clear_restart_issue(hass)

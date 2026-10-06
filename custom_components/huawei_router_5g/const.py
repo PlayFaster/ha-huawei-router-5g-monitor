@@ -57,6 +57,20 @@ LOCK_TIMEOUT = 60
 # never fire.
 FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT
 
+# Timeout of each request of the anonymous premise check that tells a refused
+# endpoint from an expired session (`api.py`, `_read_premise`). The check opens
+# a `Connection` (two requests) and reads `device.information` (a third), so
+# its worst case is three of these.
+PREMISE_TIMEOUT = 3
+
+# Latest point in a poll, in seconds elapsed, at which the premise check and the
+# re-read of `device_information` may start. Derived like `FETCH_DEADLINE`: the
+# premise check's worst case (three requests) plus the re-read's (one
+# `REQUEST_TIMEOUT`) plus 1 s must still end inside `FETCH_TIMEOUT`, so that
+# the adjudication cannot reach the coordinator's `asyncio.timeout` and an
+# `invalidate()` under a running worker. Past it the endpoint's history decides.
+ADJUDICATION_BUDGET = FETCH_TIMEOUT - 3 * PREMISE_TIMEOUT - REQUEST_TIMEOUT - 1
+
 # Longest a write may run before the caller stops waiting for it.
 #
 # No write path had an outer timeout, and a write's `asyncio.to_thread` cannot
@@ -88,6 +102,13 @@ PROBE_TIMEOUT = 20
 REPAIR_AUTH_FAILED = "auth_failed"
 REPAIR_CONN_ERROR = "conn_error"
 REPAIR_NAMES: tuple[str, ...] = (REPAIR_AUTH_FAILED, REPAIR_CONN_ERROR)
+
+# A domain-level repair, raised once for the whole Home Assistant environment
+# when the library guard has installed `huawei-lte-api` 2.0.1 and a restart is
+# needed. It is deliberately **not** in `REPAIR_NAMES`: that tuple names the
+# per-entry issues that `clear_repairs` and `async_remove_entry` delete as
+# `<name>_<entry id>`, and this one has no entry id.
+REPAIR_LIBRARY_RESTART = "library_restart_required"
 
 # --- Section 19: Integration Health ------------------------------------------
 #
@@ -130,6 +151,40 @@ ENDPOINT_NAMES: dict[str, str] = {
     "voice_volte": "VoLTE status",
     "onekey_diag": "Router self-diagnosis",
 }
+
+# --- Library methods that exist only from a later `huawei-lte-api` --------------
+#
+# Fetch key -> (endpoint group, method, first library version that has it).
+#
+# `voice.volte` and `monitoring.onekey_diag` were added in the 2.0 line and are
+# absent from 1.11.0, which Home Assistant core pins for its own `huawei_lte`
+# integration. The first version is `2.0.1`, the first one *published to PyPI*
+# that was measured to carry both; 2.0.0 was tagged and never published.
+#
+# **The gate is the loaded library's version, never whether the method exists.**
+# A missing-method check would also tolerate a misspelt entry or a method renamed
+# in a later release, which is the masked-error defect `test_library_contract`
+# was written to catch. Below the first version the endpoint is skipped and
+# recorded `unsupported`; at or above it the call is made and any failure is an
+# ordinary `unavailable`.
+LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str]] = {
+    "voice_volte": ("voice", "volte", "2.0.1"),
+    "onekey_diag": ("monitoring", "onekey_diag", "2.0.1"),
+}
+
+# --- Startup library guard ------------------------------------------------------
+#
+# `huawei-lte-api` 2.0.1 is installed at startup when no core `huawei_lte` entry
+# exists and the installed version is older (see `library_guard.py`). Core pins
+# 1.11.0 for its own integration, so while a core entry exists the guard leaves
+# the library alone. The requirement string stays inside the manifest's range.
+LIBRARY_PACKAGE = "huawei-lte-api"
+LIBRARY_PREFERRED_VERSION = "2.0.1"
+LIBRARY_REQUIREMENT = f"{LIBRARY_PACKAGE}>={LIBRARY_PREFERRED_VERSION},<2.0.2"
+CORE_DOMAIN = "huawei_lte"
+# Three install attempts of 60 s each is core's own worst case, so the guard
+# stops waiting at the same bound; the install itself is never cancelled.
+LIBRARY_GUARD_TIMEOUT = 180
 
 # --- `monitoring/onekey_diag` -------------------------------------------------
 #

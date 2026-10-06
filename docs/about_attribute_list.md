@@ -142,7 +142,7 @@ An entity that defines its own `extra_state_attributes` must route the result th
 
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
-| Integration Health | Binary sensor | `integration_health` | Reports the health of the integration itself, flagging when polling succeeds but specific capabilities or endpoints are missing or degraded. Provides `severity`, `issues`, `degraded_capabilities`, `drift`, and `last_good_update` attributes, and never goes unavailable. |
+| Integration Health | Binary sensor | `integration_health` | Reports the health of the integration itself, flagging when polling succeeds but specific capabilities or endpoints are missing or degraded. Provides `severity`, `issues`, `degraded_capabilities`, `not_served`, `drift`, and `last_good_update` attributes, and never goes unavailable. |
 | Roaming Auto-Connect | Binary sensor | `roaming_auto_connect` | Whether the router will bring up data automatically while roaming. A setting on the router, and the one that decides whether roaming charges can be incurred without anyone acting. |
 | Router Diagnostics | Binary sensor | `router_diagnostics` | The router's built-in connection diagnostic. Reports whether the router can reach the mobile network, with specific failure causes listed in the `reasons` attribute. Compare with Integration Health to distinguish router-level outages from integration polling issues. |
 | SIM Locked | Binary sensor | `sim_locked` | Whether SIM lock is enabled on the router. A configuration state, not an alarm: it says the router will demand a PIN, not that it is currently blocked. |

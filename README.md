@@ -64,6 +64,14 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - _(Note: While protocol support for these models is built into `huawei-lte-api`, they remain unverified on live hardware for this custom integration)._
   - _(Note: Rebranded Brovi/SoyeaLink models report as manufacturer "Huawei" in Home Assistant)_
 
+> [!TIP] **Help verify your router model**
+>
+> If you are using a model other than the CPE Pro 6 [H165] (or a different firmware version), sharing a **Diagnostic Download** is extremely valuable — even when everything is working. The download records which endpoints your router's firmware serves, refuses, or answers empty, and which of this integration's entities it can populate.
+>
+> 🔒 **Privacy**: Passwords, credentials, subscriber identifiers (IMSI/ICCID), carrier names, and SMS messages are automatically redacted or pseudonymized before saving.
+>
+> 📖 See [How do I download diagnostics?](#-how-do-i-download-diagnostics) for the full step-by-step guide, and attach your file to a new [GitHub Issue](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/issues) with your router model and firmware version.
+
 - **Not Compatible (Incompatible Router Families)**:
   - ❌ **Huawei Landline & Mesh Wi-Fi Routers (WS5200, AX3, AX3 Pro, WiFi Mesh 3/7)** — These landline mesh routers do not run the cellular HiLink modem API. Use **[`vmakeev/huawei_mesh_router`](https://github.com/vmakeev/huawei_mesh_router)** instead.
   - ❌ **Legacy VDSL/Fiber Gateways (e.g. Huawei HG659)** — These use gateway-specific presence detection APIs. Use **[`JohnPaton/huawei-hg659`](https://github.com/JohnPaton/huawei-hg659)** instead.
@@ -75,8 +83,15 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 **🏠 Home Assistant Version:**
 
-- Minimum: Home Assistant **2024.6**
-- Minimum Python: **3.12+** (this is built into and handled by HA, but relevant for non-standard installs).
+- Minimum: Home Assistant **2025.2**
+- Minimum Python: **3.13+** (this is built into and handled by HA, but relevant for non-standard installs).
+
+**🤝 Alongside Home Assistant's Huawei LTE Integration:**
+
+- Runs side by side with Home Assistant's built-in **Huawei LTE** integration. While both are installed:
+  - the **VoLTE** and **Router Diagnostics** sensors read unknown.
+  - Emoji in SMS messages can arrive or send garbled. Send and receive is otherwise correct, some complex emoji will render blank or as an empty block.
+  - See [running alongside core](#-running-alongside-home-assistants-huawei-lte-integration) for more information.
 
 ## 🎯 Use Cases
 
@@ -239,7 +254,16 @@ Monitor daily and monthly data consumption, active session totals, and upload/do
 - **Monthly Data Usage**: Track your monthly download, upload and total data usage. See the [Data Usage Alert](#-data-usage-alert) example.
 - **Session Usage**: Track your download and upload for this session/connection (i.e. since last router restart).
 - **Allowance & Threshold Info**: Visibility to the allowance limits and warning thresholds you set in the router web UI.
+
 - **Projected Cycle Usage** (`sensor.huawei_5g_data_projected_usage`): An estimate of where you will finish the cycle at your current rate. See [Data Usage Projection](#-data-usage-projection) below.
+
+> [!NOTE] **Where these figures come from.**
+>
+> The monthly figures are read from the router, not measured by this integration. They move when the router's own counter moves, they follow its billing-cycle setting rather than the calendar month, and they are not your ISP's billing figure.
+>
+> **These figures can be reset from the router's web UI.** Clearing the traffic statistics there sets the counter back to zero, and the monthly sensors follow. Session usage is a separate counter and is unaffected.
+>
+> If you want a total that is independent of the router, create a Home Assistant [Utility Meter helper](https://www.home-assistant.io/integrations/utility_meter/) with the monthly total as its source. It counts only from the point you create it.
 
 | Data Sensors | Data Diagnostics |
 | :-: | :-: |
@@ -1374,7 +1398,7 @@ actions:
     note: |
       issues is a list of human-readable problem descriptions. The
       sensor also carries severity (ok / degraded / warning / error),
-      degraded_capabilities, drift, repairs, and consecutive_failures.
+      degraded_capabilities, not_served, drift, and last_good_update.
 ```
 
 > [!TIP]
@@ -1866,7 +1890,7 @@ It is deliberately **available at all times**, including when every other entity
 
 ### 🔨 Repairs
 
-Two conditions raise a card in Home Assistant's **Repairs** panel, and both need you to do something before they clear: the router **refusing the stored credentials**, and the router **not responding** over a sustained period.
+Three conditions raise a card in Home Assistant's **Repairs** panel: the router **refusing the stored credentials**, the router **not responding** over a sustained period, and a router-library upgrade that is **waiting for a restart**. The first two need you to act before they clear. The library card clears itself at the next restart, or when you click **Fix**.
 
 <details>
 
@@ -1878,16 +1902,47 @@ Two conditions raise a card in Home Assistant's **Repairs** panel, and both need
 | :-- | :-- | :-- | :-- |
 | **Authentication Failed** | Router rejects stored credentials | **Repairs card** (`auth_failed`) & Integration Health (`error`) | Click **Fix** to re-enter username/password |
 | **Sustained Outage** | 10 consecutive failed polls | **Repairs card** (`conn_error`) & Integration Health (`error`) | Check power, network path, or configured IP address |
+| **Library Upgrade Pending** | The router API library has an update. The new version loads after a restart | **Repairs card** | Click **Fix** to restart Home Assistant, or leave it until your next restart. See [Running Alongside Home Assistant's Huawei LTE Integration](#-running-alongside-home-assistants-huawei-lte-integration) |
 | **Transient Glitch / Reboot** | 1–3 failed poll cycles | Integration Health (`error` during outage) | None (auto-clears on next successful poll) |
 | **Firmware Schema Change** | Unrecognized or missing API fields | Integration Health (`severity: warning`, `drift` attr) | Check for integration updates or report issue |
 
 - **Actionable Issues (Repairs)**: A Repair issue is raised only when a condition persists across multiple polls and requires user intervention to resolve (such as updating credentials or checking physical router power). Non-actionable anomalies (such as API drift) report on the Integration Health sensor attributes instead.
 
-**A Repair also turns the Integration Health sensor on**, so an automation watching that sensor sees these two as well, without watching the panel. See [Self-Diagnosis](#-self-diagnosis).
+**The authentication and outage Repairs also turn the Integration Health sensor on**, so an automation watching that sensor sees these two as well, without watching the panel. The library upgrade card does not. See [Self-Diagnosis](#-self-diagnosis).
 
 > [!NOTE]
 >
 > A brief outage — a router reboot, a passing network glitch — deliberately does **not** raise a Repair. Integration Health turns on after three failed polls and entities go unavailable after four, keeping the Repairs panel quiet until a problem clearly persists.
+
+---
+
+</details>
+
+### 🤝 Running Alongside Home Assistant's Huawei LTE Integration
+
+You can run this integration and Home Assistant's built-in **Huawei LTE** integration at the same time. Both talk to routers via the same Python library, `huawei-lte-api`, and the Home Assistant core integration is fixed at API version 1.11.0. This integration works with 1.11.0 and 2.0.1, running 1.11.0 if core is also installed, using 2.0.1 otherwise.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+| Your setup | What you will see |
+| :-- | :-- |
+| Both integrations installed | The library stays at 1.11.0, which curtails two sensors and emoji in SMS (see below). |
+| Only this integration | Nothing changes, and nothing is curtailed. If you used the core **Huawei LTE** integration before and removed it, the library it left behind is upgraded to 2.0.1 at the next start, and a **Repairs** card asks you to restart Home Assistant so the new version loads. |
+
+**What is curtailed while both are installed:**
+
+- The **VoLTE** and **Router Diagnostics** sensors show as unknown, because they need the newer library.
+- SMS messages containing emoji can arrive or send garbled. Everything else in SMS works as before.
+
+Both limits lift once the core **Huawei LTE** integration is removed: at the next start this integration upgrades the library, and the newer library handles both.
+
+**Why am I seeing a repair about a library upgrade?** The integration upgraded the router library it uses, and Home Assistant loads a new library only after a restart. Nothing is wrong. Click **Fix** to restart now, or leave the card and the upgrade takes effect the next time Home Assistant restarts. Until then the two entities above show as unknown.
+
+**There is no action required here.** This integration will work, with or without the core HA Huawei LTE integration, with the API library version managed automatically. Alongside core Huawei LTE, this integration pins to the same API library version to avoid the potential for API library swapping between the two versions at restarts, with resultant log errors.
 
 ---
 
@@ -1993,6 +2048,7 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 | `severity` | `ok` · `degraded` (a capability was lost) · `warning` (the data may be wrong) · `error` (unreachable) · `unknown` (nothing fetched yet). **Never blank** — see below |
 | `issues` | Plain-language descriptions of what is wrong; empty when healthy |
 | `degraded_capabilities` | Which parts of the router stopped answering, by name |
+| `not_served` | Which parts of the router it refuses with its own error code and has never answered since Home Assistant started, by name. These are not counted as a problem, because there was nothing to lose |
 | `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
 | `last_good_update` | When the last fully successful poll completed |
 
@@ -2247,7 +2303,7 @@ This integration is specifically optimized as a high-performance monitor for Hua
 Depending on your specific hardware, deployment setup, or preferred feature set, several other excellent Home Assistant options exist:
 
 - 🏠 **[Home Assistant Core: Huawei LTE](https://www.home-assistant.io/integrations/huawei_lte/)** by @scop, @fphammerle, @joostlek, and Home Assistant Core contributors  
-  _Best for:_ Most users with a standard Huawei LTE/5G router who want an officially supported, core-maintained integration for basic signal telemetry, data volume, and SMS notifications.
+  _Best for:_ Most users with a standard Huawei LTE/5G router who want an officially supported, core-maintained integration for basic signal metrics, data volume, and SMS notifications.
 
 - 💬 **[`william-aqn/huawei_lte_extended`](https://github.com/william-aqn/huawei_lte_extended)** by @william-aqn  
   _Best for:_ Users who are happily running the official HA Core Huawei LTE integration but wish to augment it with expanded SMS inbox sensors and dedicated SMS management services.

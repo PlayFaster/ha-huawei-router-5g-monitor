@@ -11,14 +11,19 @@ the test that fails if `repairs.py` is deleted or renamed.
 
 from unittest.mock import patch
 
-from homeassistant.core import HomeAssistant
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant_custom_component.common import (
+    MockConfigEntry,
+    async_mock_service,
+)
 
-from custom_components.huawei_router_5g.const import DOMAIN
+from custom_components.huawei_router_5g.const import DOMAIN, REPAIR_LIBRARY_RESTART
 from custom_components.huawei_router_5g.repairs import (
     AuthFailedRepairFlow,
+    LibraryRestartRepairFlow,
     async_create_fix_flow,
 )
+from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 
 
 async def test_the_fix_flow_is_ours_not_the_confirm_fallback(
@@ -69,3 +74,63 @@ async def test_the_flow_survives_an_entry_deleted_under_it(
     result = await flow.async_step_confirm({})
 
     assert result["type"] == "create_entry"
+
+
+async def test_the_factory_returns_the_restart_flow_for_the_library_issue(
+    hass: HomeAssistant,
+) -> None:
+    """The domain-level issue gets its own flow, and every other id keeps the auth one."""
+    library = await async_create_fix_flow(hass, REPAIR_LIBRARY_RESTART, None)
+    auth = await async_create_fix_flow(hass, "auth_failed_abc", {"entry_id": "abc"})
+
+    assert isinstance(library, LibraryRestartRepairFlow)
+    assert isinstance(auth, AuthFailedRepairFlow)
+
+
+async def test_the_restart_flow_shows_a_confirm_form_first(hass: HomeAssistant) -> None:
+    """Nothing restarts until the user submits the form."""
+    calls = async_mock_service(hass, "homeassistant", "restart")
+    flow = LibraryRestartRepairFlow()
+    flow.hass = hass
+
+    result = await flow.async_step_init()
+
+    assert result["type"] == "form"
+    assert result["step_id"] == "confirm"
+    assert calls == []
+
+
+async def test_submitting_the_restart_flow_restarts_home_assistant_once(
+    hass: HomeAssistant,
+) -> None:
+    """The Submit button is the restart."""
+    calls = async_mock_service(hass, "homeassistant", "restart")
+    flow = LibraryRestartRepairFlow()
+    flow.hass = hass
+
+    result = await flow.async_step_confirm({})
+
+    assert result["type"] == "create_entry"
+    assert len(calls) == 1
+
+
+async def test_a_failed_restart_aborts_the_flow_with_a_reason(
+    hass: HomeAssistant,
+) -> None:
+    """The restart service raises when the configuration check fails.
+
+    The flow must abort and say so, not finish as though Home Assistant had
+    restarted: the user would otherwise see the card disappear and nothing happen.
+    """
+
+    async def _refuse(call) -> None:
+        raise HomeAssistantError("configuration check failed")
+
+    hass.services.async_register("homeassistant", "restart", _refuse)
+    flow = LibraryRestartRepairFlow()
+    flow.hass = hass
+
+    result = await flow.async_step_confirm({})
+
+    assert result["type"] == "abort"
+    assert result["reason"] == "restart_failed"

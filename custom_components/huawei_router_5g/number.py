@@ -1,9 +1,9 @@
 """Number platform for Huawei Router 5G."""
 
 import asyncio
-import logging
 from dataclasses import dataclass
 from datetime import timedelta
+import logging
 
 from homeassistant.components.number import (
     NumberEntity,
@@ -13,13 +13,12 @@ from homeassistant.components.number import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory, UnitOfTime
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .const import CONF_SCAN_INTERVAL, DEFAULT_SCAN_INTERVAL
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import HuaweiAboutEntity, build_device_info
+from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +86,7 @@ async def async_setup_entry(
 
 class HuaweiPollingInterval(
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     NumberEntity,
 ):
@@ -107,7 +107,6 @@ class HuaweiPollingInterval(
         super().__init__(coordinator)
         self._entry = entry
         self.entity_description = description
-        self._group = description.group
 
         # Registry identification
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
@@ -191,8 +190,3 @@ class HuaweiPollingInterval(
         new_options = dict(self._entry.options)
         new_options[CONF_SCAN_INTERVAL] = val_int
         self.hass.config_entries.async_update_entry(self._entry, options=new_options)
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, self._group)

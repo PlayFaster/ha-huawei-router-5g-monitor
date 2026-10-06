@@ -1,5 +1,34 @@
 # Changelog
 
+## [1.2.3] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence
+
+### Summary
+
+- **Refused Endpoint Setup Resilience**: Router models that decline optional diagnostic endpoints no longer cause integration setup or polling to fail with authentication or connection errors.
+- **Uptime and Reboot Tracking**: Router uptime and connection duration timestamps persist across Home Assistant restarts and automatically detect reboots that occurred while Home Assistant was stopped.
+- **Home Assistant Core Compatibility**: Prevents dependency conflicts when running alongside Home Assistant's built-in Huawei integration, adding an automated background update and restart notification when needed.
+- **Minimum Home Assistant Version**: Requires Home Assistant 2025.2.0 or newer to align with Python 3.13 runtime requirements.
+
+### Breaking
+
+- **Minimum Home Assistant Version**: The minimum supported Home Assistant version is now 2025.2.0 (Python 3.13+). Systems running earlier versions of Home Assistant must update Home Assistant before installing this release.
+
+### Added
+
+- **Not-Served Endpoint Tracking**: Added the `not_served` attribute to `sensor.*_integration_health`. Unsupported endpoints that the router refuses are tracked under this attribute without taking error strikes or marking integration health as degraded.
+- **Clock Drift Diagnostics**: Added clock drift attributes (`drift_rate_pct`, `drift_intervals`, and `drift_measured_seconds`) to `sensor.*_integration_health` and diagnostic downloads to monitor counter accuracy.
+- **Library Restart Repair Notification**: Added a fixable Home Assistant Repair issue (`library_restart_required`) that notifies the user to restart Home Assistant after an automated library update.
+
+### Changed
+
+- **Coexistence with Built-In Huawei Integration**: Widened the `huawei-lte-api` requirement range to `>=1.11.0,<2.0.2` in `manifest.json`. This avoids package conflicts on installations running Home Assistant Core's built-in Huawei integration while installing 2.0.1 when safe.
+- **Diagnostic Download Reporting**: Diagnostic downloads now include endpoint response classifications, router error codes, entity evaluation statuses, and capability probe results for unpolled endpoints.
+
+### Fixed
+
+- **Refused Endpoint Polling and Setup Resilience**: Non-critical endpoints that return router error codes (such as `100003`, `125002`, or `125003`) no longer fail integration setup or regular polling cycles. The integration checks session validity to distinguish an endpoint refusal from an expired session.
+- **Uptime Timestamp Persistence Across Restarts**: Router uptime and connection timestamps are now stored persistently across Home Assistant restarts. Reboots occurring during Home Assistant downtime are detected on startup, preventing `sensor.*_uptime` and `sensor.*_connection_uptime` from showing frozen or stale timestamps.
+
 ## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
 
 Routine maintenance update refining Repair notifications with no changes to daily operation; safe to skip until you are next updating integrations.
@@ -32,7 +61,7 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 - **Connection Error Repair on Refused Connections**: The `conn_error` Repair ("Huawei router is not responding") now triggers on refused socket connections (e.g. router powered off, cable unplugged, or changed IP address) after the strike budget is spent, rather than only on timeouts.
 
-## [1.2.0] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring
+## [1.2.0] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring
 
 ### Highlights
 
@@ -138,32 +167,15 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 ### Changed
 
-- **Readme**: Added clarifying info to readme file, and several example automations.
-- **Test Coverage**: Internal test coverage improved to > 95%.
+- **SMS Inbox Management**: Added actions for reading, sending, and deleting SMS messages.
+- **WiFi Sub-Device**: Grouped Wi-Fi management and status entities under a dedicated Wi-Fi sub-device.
 
-### Fixed
-
-- **WiFi status reporting**: Resolved edge cases where the 2.4GHz and 5GHz WiFi status sensors could report out-of-sync states.
-- **Guest WiFi control toggling**: Improved communication reliability when toggling the Guest WiFi Network switch.
-
-## [1.0.1] - 2026-05-03 - Release: Connection Quality Telemetry and SMS Messaging Actions
+## [1.0.1] - 2026-05-03 - Release: Connection Quality Sensors and SMS Messaging Actions
 
 ### Added
 
 - **Best Connection Sensor**: A new primary sensor (replacing "5G NR Active") using a 3-stage quality gate to accurately report 5G connectivity status.
 - **Display Last SMS**: Added SMS "Last Msg" text sensor.
-- **send_sms Service**: New service to send SMS messages with support for multiple recipients and content.
-
-### Changed
-
-- **LTE Carrier Aggregation**: Converted from a string sensor to a more appropriate Binary Sensor.
-- **Test Coverage**: Internal test coverage at 90%.
-
-### Fixed
-
-- **Band attributes mapping**: Improved band extraction logic to derive LTE Carrier Aggregation and 5G NR Band values from composite band strings on newer firmware.
-
-### Initial Commit - 2026-05-01
 
 ---
 
@@ -176,13 +188,14 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
+  - [\[1.2.3\] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering](#121---2026-08-24---release-connection-loss-repair-triggering)
-  - [\[1.2.0\] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-telemetry-entities-data-projections-control-switches-and-health-monitoring)
+  - [\[1.2.0\] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-sensor-entities-data-projections-control-switches-and-health-monitoring)
   - [\[1.1.2\] - 2026-07-03 - Release: Manual Refresh Controls, Display Precision Units, and Configuration Hardening](#112---2026-07-03---release-manual-refresh-controls-display-precision-units-and-configuration-hardening)
   - [\[1.1.1\] - 2026-06-07 - Release: Startup Timing Resilience, Session Lifecycle, and Uptime Timestamp Drift](#111---2026-06-07---release-startup-timing-resilience-session-lifecycle-and-uptime-timestamp-drift)
   - [\[1.1.0\] - 2026-05-07 - Release: MAC-Based Unique Identifier Migration and Code Hygiene](#110---2026-05-07---release-mac-based-unique-identifier-migration-and-code-hygiene)
   - [\[1.0.2\] - 2026-05-05 - Release: SMS Management Actions, WiFi Sub-Device Hierarchy, and Client Tracking](#102---2026-05-05---release-sms-management-actions-wifi-sub-device-hierarchy-and-client-tracking)
-  - [\[1.0.1\] - 2026-05-03 - Release: Connection Quality Telemetry and SMS Messaging Actions](#101---2026-05-03---release-connection-quality-telemetry-and-sms-messaging-actions)
+  - [\[1.0.1\] - 2026-05-03 - Release: Connection Quality Sensors and SMS Messaging Actions](#101---2026-05-03---release-connection-quality-sensors-and-sms-messaging-actions)
 
 ---

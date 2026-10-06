@@ -441,10 +441,9 @@ def test_the_sub_device_identifier_falls_back_to_the_host_without_a_mac() -> Non
     across every entry that also lacks a MAC, merging two routers into one
     device.
     """
-    from homeassistant.const import CONF_HOST
-
     from custom_components.huawei_router_5g.const import DOMAIN
     from custom_components.huawei_router_5g.helpers import build_device_info
+    from homeassistant.const import CONF_HOST
 
     coordinator = MagicMock()
     coordinator.entry.title = "Router"

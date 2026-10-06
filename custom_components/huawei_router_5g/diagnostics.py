@@ -65,8 +65,8 @@ sweep, not this key list, is what covers the rest.
 
 from __future__ import annotations
 
-import re
 from copy import deepcopy
+import re
 from typing import Any
 
 from homeassistant.config_entries import ConfigEntry
@@ -300,6 +300,97 @@ def _sanitize(value: Any, tokenizer: _Tokenizer, key: str = "") -> Any:
     return _sweep(value, tokenizer)
 
 
+def _sanitize_rejection(
+    rejection: dict[str, Any] | None, tokenizer: _Tokenizer
+) -> dict[str, Any] | None:
+    """Sanitize a retained rejection, payload included.
+
+    The verdict, the router's error code and the endpoint name are names and
+    codes only and pass through untouched; the payload is walked exactly as
+    `coordinator.data` is.
+
+    Mirrors `zte_router_5g._sanitize_rejection`. That project also sweeps a
+    `body_preview`, which has no counterpart here: `huaweiapi` parses the
+    response and this integration never sees a raw body, so there is no
+    unparsable verdict to carry one.
+    """
+    # `isinstance`, not truthiness: diagnostics must survive a coordinator
+    # whose api is a stand-in, and must never put a non-serializable object
+    # into a file the user is about to attach to an issue.
+    if not isinstance(rejection, dict):
+        return None
+    out = deepcopy(rejection)
+    if "payload" in out:
+        out["payload"] = _sanitize(out["payload"], tokenizer)
+    return out
+
+
+def _entity_resolution(payload: dict[str, Any]) -> dict[str, Any]:
+    """Report which entity descriptions this payload populates, and which it does not.
+
+    **This is the question a support case actually asks.** A reporter with an
+    unfamiliar Huawei router says half their entities read `unknown`; the
+    payload above says what the router sent, and the entity list says what this
+    integration offers, but matching one against the other is manual work over
+    a hundred-odd descriptions. This does that matching in the file.
+
+    Three outcomes, and they are different findings:
+
+    - **`resolved`** — the description produced a value from this payload.
+    - **`no_value`** — it produced `None`. The firmware does not report what
+      that entity reads, and its entity will be `unknown` on this device. This
+      is the list a supporter wants.
+    - **`raised`** — the description's own `value_fn` threw against this
+      payload. That is a defect in **this integration**, not in the firmware,
+      and it is invisible today: the entity simply shows nothing.
+
+    Covers the description-driven platforms only. Switches, buttons, numbers
+    and selects derive their state from entity properties and write paths
+    rather than from a payload function, so there is nothing here to evaluate
+    for them and a stub row would imply otherwise.
+
+    **Evaluated against the raw payload, deliberately.** Sanitizing first would
+    change what the descriptions see — a tokenized address is still a value, but
+    a redacted one is not — and the answer must be what the entity would really
+    produce. Nothing leaks by doing so: only description keys and counts are
+    recorded, never a value.
+    """
+    # Imported here rather than at module scope: `diagnostics` is loaded on
+    # demand for a download, and pulling in every platform module at import
+    # time would make a rarely-used path a startup cost.
+    from .binary_sensor import VALUE_BINARY_SENSORS
+    from .sensor import SENSOR_TYPES
+
+    tables: tuple[tuple[str, Any], ...] = (
+        ("sensor", SENSOR_TYPES),
+        ("binary_sensor", VALUE_BINARY_SENSORS),
+    )
+
+    out: dict[str, Any] = {}
+    for platform, descriptions in tables:
+        resolved: list[str] = []
+        no_value: list[str] = []
+        raised: dict[str, str] = {}
+        for description in descriptions:
+            try:
+                value = description.value_fn(payload)
+            except Exception as err:  # noqa: BLE001 - see `raised` above
+                # A description that throws is the finding. Naming the type
+                # would suppress every other kind, and the whole point is that
+                # nobody knows what unfamiliar firmware provokes.
+                raised[description.key] = type(err).__name__
+                continue
+            (resolved if value is not None else no_value).append(description.key)
+
+        out[platform] = {
+            "total": len(resolved) + len(no_value) + len(raised),
+            "resolved": len(resolved),
+            "no_value": sorted(no_value),
+            "raised": raised,
+        }
+    return out
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
 ) -> dict[str, Any]:
@@ -310,6 +401,14 @@ async def async_get_config_entry_diagnostics(
     # deepcopy first — diagnostics is a read path and must never mutate the
     # live coordinator payload the entities are serving from (Section 20).
     raw = deepcopy(coordinator.data) if coordinator.data else {}
+
+    # Probed here rather than inside the mapping below, because it is the one
+    # part of this document that talks to the router. A failure sweeping the
+    # probes must not cost the reporter the rest of the file.
+    try:
+        probes = await coordinator.api.probe_diagnostic_endpoints()
+    except Exception as err:  # noqa: BLE001 - the download outranks the probe
+        probes = {"error": type(err).__name__}
 
     return {
         "entry": {
@@ -332,5 +431,70 @@ async def async_get_config_entry_diagnostics(
                 else None
             ),
         },
+        # The three boot-time latches and the counter-drift picture behind
+        # them. Nothing here is device data and nothing needs redacting:
+        # counters, rates and timestamps. It is in the download because the
+        # constants in the latch were set from a single device, and a report
+        # that carries no rate leaves a recorder extraction as the only route
+        # to one.
+        "uptime": coordinator.uptime_state,
         "data": _sanitize(raw, tokenizer),
+        # `data` is empty until the first successful poll, which is exactly
+        # the case this file is usually requested for. These two carry the
+        # evidence that would otherwise be reachable only from raw logs.
+        #
+        # The rejected payload goes through the same walker as `data`, so it
+        # is no more revealing than an accepted one. `login` carries an
+        # outcome only and never a credential — see
+        # `api.HuaweiRouter5GAPI._record_login_metadata`.
+        "last_rejection": _sanitize_rejection(
+            coordinator.api.last_rejection, tokenizer
+        ),
+        "login": (
+            deepcopy(coordinator.api.login_metadata)
+            if isinstance(coordinator.api.login_metadata, dict)
+            else {}
+        ),
+        # What each endpoint of the most recent poll did. Names, outcomes and
+        # the router's own codes — no values, so nothing here needs sanitizing
+        # beyond the guard that it is a mapping at all.
+        #
+        # This is what makes an absence readable. Without it, an endpoint
+        # missing from `data` above could have been refused, skipped at the
+        # fetch deadline, or failed in a handler that logs and continues, and
+        # a reader could not tell which — which is the whole question when the
+        # download comes from a router nobody here has seen.
+        # Endpoints this integration does not poll, called once for this
+        # download. An entry reading `refused` with a code is the router
+        # stating it does not serve that endpoint; `answered` with key names
+        # is a capability this device has and the integration does not read.
+        # Names and counts only — see `api.probe_diagnostic_endpoints`.
+        "probes": probes,
+        # How the refusal-or-expiry question was settled on this router
+        # (dev16 plan I1): whether it refuses `device_information` without a
+        # login, which is what lets a 100003 from an optional endpoint be read as
+        # a refusal and not as an expired session. Outcome and code only, never
+        # the payload. `not_made` means no endpoint has drawn a session signal
+        # since the integration started, so the question never arose.
+        "premise": (
+            deepcopy(coordinator.api.premise_result)
+            if isinstance(coordinator.api.premise_result, dict)
+            else {"outcome": "not_made", "code": None}
+        ),
+        # Sessions the probe sweep found lost and replaced. Zero where none was,
+        # which says the probe outcomes above were read on one live session.
+        "probe_sessions_lost": (
+            coordinator.api.sweep_sessions_lost
+            if isinstance(coordinator.api.sweep_sessions_lost, int)
+            else 0
+        ),
+        # Which of this integration's entity descriptions the payload above
+        # populates. The endpoint map says what the router served; this says
+        # what that means for the entities a reporter is looking at.
+        "entity_resolution": _entity_resolution(raw),
+        "endpoints": (
+            deepcopy(coordinator.api.endpoint_outcomes)
+            if isinstance(coordinator.api.endpoint_outcomes, dict)
+            else {}
+        ),
     }

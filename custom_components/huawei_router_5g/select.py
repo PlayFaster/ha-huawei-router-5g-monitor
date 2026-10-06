@@ -1,8 +1,8 @@
 """Select platform for Huawei Router 5G."""
 
-import logging
 from collections.abc import Callable, Coroutine
 from dataclasses import dataclass
+import logging
 from typing import Any
 
 from homeassistant.components.select import SelectEntity, SelectEntityDescription
@@ -10,17 +10,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.exceptions import HomeAssistantError
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import (
-    NETWORK_MODE_FALLBACK,
-    NETWORK_MODE_LABELS,
-    network_mode_label,
-)
+from .const import NETWORK_MODE_FALLBACK, NETWORK_MODE_LABELS, network_mode_label
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import HuaweiAboutEntity, build_device_info
+from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity
 
 # Section 22. `1`, not `0`.
 #
@@ -138,6 +133,7 @@ async def async_setup_entry(
 
 class HuaweiRouterSelect(
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     SelectEntity,
 ):
@@ -155,11 +151,6 @@ class HuaweiRouterSelect(
         super().__init__(coordinator)
         self.entity_description = description
         self._attr_unique_id = f"{coordinator.entry.unique_id}_{description.key}"
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, self.entity_description.group)
 
     @property
     def options(self) -> list[str]:

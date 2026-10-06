@@ -3,7 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.huawei_router_5g.const import CONF_STOP_POLLING, DOMAIN
 from custom_components.huawei_router_5g.switch import (
@@ -17,6 +16,7 @@ from custom_components.huawei_router_5g.switch import (
     HuaweiWifiSwitch,
     async_setup_entry,
 )
+from homeassistant.exceptions import HomeAssistantError
 from tests.conftest import assert_is_root, without_about
 
 # ---------------------------------------------------------------------------

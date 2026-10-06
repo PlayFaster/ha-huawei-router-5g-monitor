@@ -1,16 +1,17 @@
 """Tests for the Huawei Router 5G DataUpdateCoordinator."""
 
-import logging
 from datetime import timedelta
+import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from homeassistant.helpers.update_coordinator import UpdateFailed
-from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.coordinator import (
+    UPTIME_REBOOT_MARGIN,
     HuaweiRouter5GDataUpdateCoordinator,
 )
+from homeassistant.helpers.update_coordinator import UpdateFailed
+from homeassistant.util import dt as dt_util
 
 
 @pytest.fixture(autouse=True)
@@ -368,17 +369,30 @@ async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
 
 @pytest.mark.asyncio
 async def test_coordinator_init_restores_uptime_state(mock_hass, mock_config_entry):
-    """Test that uptime/boot state is restored from entry.data at init."""
+    """The anchors come back from `entry.data`; the counters do not.
+
+    **The fixtures here were naive until 2026-09-08, and that hid a real
+    hazard.** `dt_util.parse_datetime` returns a naive datetime for a string
+    carrying no offset, and subtracting naive from aware raises `TypeError` on
+    the first comparison against `now()`. Nothing this integration writes is
+    naive - an old test fixture is the only source - so the restore treats a
+    naive value as absent, and these fixtures now carry the offset the
+    coordinator actually writes.
+
+    The counters are asserted **absent** on purpose: restoring them from the
+    entry is the defect this work removed, and the assertion is what stops it
+    being reintroduced.
+    """
     object.__setattr__(
         mock_config_entry,
         "data",
         {
             **mock_config_entry.data,
-            "system_boot_time": "2024-01-01T00:00:00",
+            "system_boot_time": "2024-01-01T00:00:00+00:00",
             "last_system_uptime": "3600",
-            "conn_start_time": "2024-01-01T01:00:00",
+            "conn_start_time": "2024-01-01T01:00:00+00:00",
             "last_conn_uptime": "1800",
-            "total_conn_start_time": "2024-01-01T02:00:00",
+            "total_conn_start_time": "2024-01-01T02:00:00+00:00",
             "last_total_conn_time": "7200",
         },
     )
@@ -388,15 +402,17 @@ async def test_coordinator_init_restores_uptime_state(mock_hass, mock_config_ent
     )
 
     assert coordinator._system_boot_time == dt_util.parse_datetime(
-        "2024-01-01T00:00:00"
+        "2024-01-01T00:00:00+00:00"
     )
-    assert coordinator._last_system_uptime == 3600
-    assert coordinator._conn_start_time == dt_util.parse_datetime("2024-01-01T01:00:00")
-    assert coordinator._last_conn_uptime == 1800
+    assert coordinator._conn_start_time == dt_util.parse_datetime(
+        "2024-01-01T01:00:00+00:00"
+    )
     assert coordinator._total_conn_start_time == dt_util.parse_datetime(
-        "2024-01-01T02:00:00"
+        "2024-01-01T02:00:00+00:00"
     )
-    assert coordinator._last_total_conn_time == 7200
+    assert coordinator._last_system_uptime is None
+    assert coordinator._last_conn_uptime is None
+    assert coordinator._last_total_conn_time is None
 
 
 @pytest.mark.asyncio
@@ -549,6 +565,10 @@ async def test_coordinator_total_conn_uptime_reboot_detected(
         "2024-06-15 10:00:00+00:00"
     )
     coordinator._last_total_conn_time = 7200
+    # Drive the running-session comparison, not the startup reconciliation.
+    # Before the store existed there was no startup path to take, so this
+    # test reached the margin by default; now it has to ask for it.
+    coordinator._total_latch.startup_reconciled = True
     coordinator.data = {"device_information": {"DeviceName": "B535"}}
 
     caplog.set_level(logging.DEBUG)
@@ -1080,3 +1100,173 @@ async def test_a_repeated_poll_of_an_unchanged_inbox_fires_nothing(
 
     assert fire.call_count == 1, "a genuinely new message did not fire"
     assert fire.call_args[0][1]["index"] == 3
+
+
+# --- Uptime latch characterization ---------------------------------------
+#
+# The three latches are independent by design (`AGENTS.md`: different reset
+# semantics, no shared state), and two of their branches are executed by the
+# suite above but asserted by nothing: a reading the router cannot supply,
+# and a drop too small to be a reboot. Both are silent when wrong — the
+# sensor simply shows a plausible time that is not the boot instant.
+
+# (payload builder, boot-time attribute, last-counter attribute, data key)
+_LATCHES = [
+    pytest.param(
+        lambda raw: {"device_information": {"DeviceName": "B535", "uptime": raw}},
+        "_system_boot_time",
+        "_last_system_uptime",
+        "system_boot_time",
+        id="system",
+    ),
+    pytest.param(
+        lambda raw: {
+            "device_information": {"DeviceName": "B535"},
+            "traffic_statistics": {"CurrentConnectTime": raw},
+        },
+        "_conn_start_time",
+        "_last_conn_uptime",
+        "conn_start_time",
+        id="current_connection",
+    ),
+    pytest.param(
+        lambda raw: {
+            "device_information": {"DeviceName": "B535"},
+            "traffic_statistics": {"TotalConnectTime": raw},
+        },
+        "_total_conn_start_time",
+        "_last_total_conn_time",
+        "total_conn_start_time",
+        id="total_connection",
+    ),
+]
+
+
+@pytest.mark.parametrize(("payload", "boot_attr", "last_attr", "data_key"), _LATCHES)
+@pytest.mark.parametrize("bad_raw", ["-1", "not-a-number", None])
+@pytest.mark.asyncio
+async def test_a_bad_uptime_reading_holds_the_latched_value(
+    mock_hass, mock_config_entry, payload, boot_attr, last_attr, data_key, bad_raw
+):
+    """A negative, unparsable or absent counter must change no latch state.
+
+    The published timestamp keeps its latched value and the last-seen counter
+    is **not** advanced — advancing it on a reading that was never trusted
+    would move the reboot comparison to a value the router never reported.
+    """
+    latched = dt_util.parse_datetime("2024-06-15 11:00:00+00:00")
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(return_value=payload(bad_raw))
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    setattr(coordinator, boot_attr, latched)
+    setattr(coordinator, last_attr, 3600)
+
+    data = await coordinator._async_update_data()
+
+    assert getattr(coordinator, boot_attr) == latched
+    assert getattr(coordinator, last_attr) == 3600
+    assert data[data_key] == latched
+
+
+@pytest.mark.parametrize(("payload", "boot_attr", "last_attr", "data_key"), _LATCHES)
+@pytest.mark.asyncio
+async def test_a_drop_within_the_reboot_margin_does_not_relatch(
+    mock_hass, mock_config_entry, payload, boot_attr, last_attr, data_key
+):
+    """A counter that slips by less than the margin is jitter, not a reboot.
+
+    The drop is one second inside `UPTIME_REBOOT_MARGIN`, so the latched
+    timestamp must survive while the last-seen counter still follows the
+    reading down — the next poll compares against what the router last said.
+    """
+    latched = dt_util.parse_datetime("2024-06-15 11:00:00+00:00")
+    slipped = 3600 - UPTIME_REBOOT_MARGIN + 1
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(return_value=payload(str(slipped)))
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    setattr(coordinator, boot_attr, latched)
+    setattr(coordinator, last_attr, 3600)
+    # The margin is a running-session rule. Startup asks a different question
+    # and would answer it from a fixture that never claimed to be plausible.
+    for latch in coordinator._latches:
+        latch.startup_reconciled = True
+
+    data = await coordinator._async_update_data()
+
+    assert getattr(coordinator, boot_attr) == latched, "jitter re-latched the boot time"
+    assert getattr(coordinator, last_attr) == slipped
+    assert data[data_key] == latched
+
+
+@pytest.mark.parametrize(("payload", "boot_attr", "last_attr", "data_key"), _LATCHES)
+@pytest.mark.asyncio
+async def test_a_latched_boot_time_carries_no_microseconds(
+    mock_hass, mock_config_entry, payload, boot_attr, last_attr, data_key
+):
+    """The latched instant is truncated to the second before it is held.
+
+    The counter has one-second resolution, so the microseconds on `now()`
+    are noise from the moment the poll happened rather than information
+    about the boot instant. They also reach `entry.data` as text and come
+    back on the next restart, so an untruncated value is persisted noise.
+    Every other latch test freezes `now()` on a whole second, which makes
+    the truncation invisible to all of them.
+    """
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(return_value=payload("3600"))
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+
+    ragged = dt_util.parse_datetime("2024-06-15 12:00:00+00:00").replace(
+        microsecond=123456
+    )
+    with patch.object(dt_util, "now", return_value=ragged):
+        data = await coordinator._async_update_data()
+
+    assert getattr(coordinator, boot_attr).microsecond == 0
+    assert data[data_key] == dt_util.parse_datetime("2024-06-15 11:00:00+00:00")
+
+
+@pytest.mark.parametrize(
+    ("payload", "boot_attr", "last_attr", "data_key"),
+    _LATCHES,
+)
+@pytest.mark.asyncio
+async def test_a_latch_persists_both_the_instant_and_the_counter(
+    mock_hass, mock_config_entry, payload, boot_attr, last_attr, data_key
+):
+    """Both halves of the latch are persisted - to the two places they belong.
+
+    The counter is what the next start compares against: persisted without
+    it, the restored timestamp has nothing to be checked for staleness and
+    the coordinator cannot tell a reset from a continuing session.
+
+    **They no longer go to the same place, and that is the fix.** The anchor
+    stays in `entry.data`, written when it changes. The counter goes to the
+    store, which is written on an interval - `entry.data` is written only at
+    a latch, so a counter kept there froze at whatever the router reported
+    one poll after a boot and the comparison could never fire again.
+    """
+    mock_api = MagicMock()
+    mock_api.get_data = AsyncMock(return_value=payload("3600"))
+
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, mock_api
+    )
+    await coordinator._async_update_data()
+
+    written = mock_hass.config_entries.async_update_entry.call_args.kwargs["data"]
+    assert written[data_key] == getattr(coordinator, boot_attr).isoformat()
+    assert last_attr.lstrip("_") not in written, "the frozen counter key came back"
+
+    block = coordinator._store_record()[last_attr.lstrip("_")]
+    assert block["last_uptime"] == 3600
+    assert block["written_at"] is not None

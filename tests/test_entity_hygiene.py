@@ -12,9 +12,12 @@ changed, because the trigger is the set growing rather than the code path
 running.
 """
 
-from homeassistant.components.sensor import SensorStateClass
+from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.sensor import SENSOR_TYPES
+from homeassistant.components.sensor import SensorStateClass
+from homeassistant.core import HomeAssistant
+from tests.conftest import _live_entities
 
 # ---------------------------------------------------------------------------
 # Section 2.2 — SensorStateClass.TOTAL is banned
@@ -281,9 +284,8 @@ def test_every_entity_description_has_an_icon_or_a_device_class() -> None:
     import inspect
     import pkgutil
 
-    from homeassistant.helpers.entity import EntityDescription
-
     import custom_components.huawei_router_5g as component
+    from homeassistant.helpers.entity import EntityDescription
 
     icons = _load_json("icons.json")["entity"]
 
@@ -378,9 +380,8 @@ def test_every_entity_platform_is_covered_by_the_decision() -> None:
     import importlib
     import pkgutil
 
-    from homeassistant.const import Platform
-
     import custom_components.huawei_router_5g as component
+    from homeassistant.const import Platform
 
     known = {p.value for p in Platform}
     platforms = {
@@ -579,6 +580,28 @@ SECTION_19_ATTRIBUTES = frozenset(
     {"severity", "issues", "degraded_capabilities", "drift", "last_good_update"}
 )
 
+# Added in 1.2.3-dev16 beside the five (dev_standards permits adding an
+# attribute and forbids renaming one): the endpoints the router refuses and has
+# never answered, which are not a lost capability and so are not in
+# `degraded_capabilities`.
+NOT_SERVED_ATTRIBUTE = "not_served"
+
+# Published alongside Section 19's five, and normative in the same way: the
+# sibling projects spell them identically, so one template and one field
+# report serve every integration in the family. Kept as a separate set
+# because Section 19 does not define them - a project without a counter to
+# latch publishes the five and none of these.
+DRIFT_ATTRIBUTES = frozenset(
+    {
+        "drift_rate_pct",
+        "drift_rate_min_pct",
+        "drift_rate_max_pct",
+        "drift_intervals",
+        "drift_measured_seconds",
+        "drift_deficit_seconds",
+    }
+)
+
 
 def test_integration_health_publishes_the_normative_attribute_names() -> None:
     """Section 19's attribute names are a published contract, not an internal one.
@@ -599,14 +622,21 @@ def test_integration_health_publishes_the_normative_attribute_names() -> None:
         "severity": None,
         "issues": [],
         "degraded_capabilities": [],
+        "not_served": [],
         "drift": [],
         "last_good_update": None,
     }
+    # Supplied as a real mapping rather than left as a mock attribute: the
+    # sensor spreads it, and a mock spreads to nothing, which would let the
+    # keys vanish from the published contract with this test still green.
+    coordinator.uptime_diagnostics = dict.fromkeys(DRIFT_ATTRIBUTES)
     sensor = HuaweiIntegrationHealthSensor(
         coordinator, MagicMock(), INTEGRATION_HEALTH_DESCRIPTION
     )
 
-    assert set(sensor.extra_state_attributes) == SECTION_19_ATTRIBUTES | {"about"}
+    assert set(sensor.extra_state_attributes) == (
+        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES | {NOT_SERVED_ATTRIBUTE, "about"}
+    )
 
 
 def test_integration_health_attributes_are_all_unrecorded() -> None:
@@ -619,7 +649,9 @@ def test_integration_health_attributes_are_all_unrecorded() -> None:
         HuaweiIntegrationHealthSensor,
     )
 
-    assert HuaweiIntegrationHealthSensor._unrecorded_attributes >= SECTION_19_ATTRIBUTES
+    assert HuaweiIntegrationHealthSensor._unrecorded_attributes >= (
+        SECTION_19_ATTRIBUTES | DRIFT_ATTRIBUTES | {NOT_SERVED_ATTRIBUTE}
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -658,6 +690,14 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "the library exposing it, and DialUp.dial() hardcodes Action 1, so "
         "there is no public wrapper for the disconnect half."
     ),
+    ("api.py", "noqa: BLE001"): (
+        "`probe_diagnostic_endpoints` sweeps endpoints this integration does "
+        "not poll, on hardware nobody here has seen. The shape of the set of "
+        "failures is the finding, so one failure must never stop the sweep and "
+        "naming exception types would decide in advance what an unfamiliar "
+        "firmware is allowed to do. Nothing is swallowed: the class name is "
+        "published in the download beside the endpoint that produced it."
+    ),
     ("device_tracker.py", "type: ignore[attr-defined]"): (
         "ScannerEntity is re-exported from homeassistant.components.device_tracker "
         "but is absent from its __all__, so mypy reports an implicit re-export. "
@@ -669,9 +709,91 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "to the Clients sub-device — and, more importantly, because "
         "entity_registry_enabled_default is True only when device_info is set: "
         "without it every client tracker would be disabled by default unless "
-        "its MAC were already known to another integration. @final is a "
-        "typing-only constraint and there is no deprecation or removal date. "
-        "Recorded in docs/ha_compatibility.md."
+        "its MAC were already known to another integration. Measured on "
+        "2026-09-07: with the property returning None the two trackers are not "
+        "registered at all. @final is a typing-only constraint and there is no "
+        "deprecation or removal date. Recorded in the cross-project matrix, "
+        "shared/SharedNotes/info/ha_min_ver_xproj/ha_minimum_version_matrix.md "
+        "§3.1. "
+        "The override now arrives by inheritance from helpers.HuaweiDeviceEntity "
+        "rather than from a property declared here, so the directive sits on "
+        "the class statement, which is where mypy reports the final override — "
+        "verified against strict mypy rather than assumed."
+    ),
+    ("coordinator.py", "noqa: BLE001"): (
+        "`async_load_stored_uptime` catches everything the uptime store can "
+        "raise. The contract is that **no** storage fault may fail entry "
+        "setup: the store is a cross-check on the boot-time latches, and the "
+        "cold-start path works without it. Narrow tuples were tried on the "
+        "reference project first and were not sufficient — a store that "
+        "cannot be read must degrade to 'nothing learned', not to an "
+        "integration that will not load. It also matters for the suite: "
+        "several tests drive setup with a MagicMock hass, which `Store` "
+        "cannot operate against, and a narrow catch turns every one of them "
+        "into a TypeError at setup."
+    ),
+    ("diagnostics.py", "noqa: BLE001"): (
+        "`_entity_resolution` runs every entity description's `value_fn` "
+        "against the live payload and records the ones that raise. Naming an "
+        "exception type would suppress every other kind, and the finding is "
+        "precisely that nobody knows what an unfamiliar firmware provokes — a "
+        "description that throws is a defect in this integration and is "
+        "otherwise invisible, since the entity simply shows nothing. Nothing "
+        "is swallowed: the class name is published in the download."
+    ),
+    ("diag_check.py", "ruff: noqa: T201"): (
+        "The console report is this script's entire output. There is no logger "
+        "to route it through, and a caller reading the transcript is the point. "
+        "File-level rather than per-line because every print in the file is the "
+        "same deliberate choice. Same reason as `hardware_check.py` below, and "
+        "the same form `zte_router_5g/scripts/diag_check.py` uses."
+    ),
+    ("diag_check.py", "noqa: F401"): (
+        "C-036. `import homeassistant` is made for its side effect: Home "
+        "Assistant installs probatio as `voluptuous` when it is first "
+        "imported, and the package's `__init__.py` imports `voluptuous` "
+        "before any `homeassistant` import. A stand-alone script that imports "
+        "the package without it binds real voluptuous. Nothing from the "
+        "module is used, so the import is unused by construction."
+    ),
+    ("hardware_check.py", "noqa: F401"): (
+        "C-036. `import homeassistant` is made for its side effect: Home "
+        "Assistant installs probatio as `voluptuous` when it is first "
+        "imported, and the package's `__init__.py` imports `voluptuous` "
+        "before any `homeassistant` import. A stand-alone script that imports "
+        "the package without it binds real voluptuous. Nothing from the "
+        "module is used, so the import is unused by construction."
+    ),
+    ("diag_check.py", "pragma: no cover"): (
+        "The import guard that turns a ModuleNotFoundError into an instruction "
+        "to use the container interpreter. It fires only when the script is run "
+        "the wrong way, which the suite cannot reproduce without unimporting "
+        "Home Assistant. Covering it would test the operator's mistake, not the "
+        "script."
+    ),
+    ("diag_check.py", "noqa: SLF001"): (
+        "Sets `coordinator._force_refresh_once` and awaits "
+        "`_async_update_data()` directly. `async_force_refresh` is the "
+        "supported route and what the integration itself calls, but it goes "
+        "through the debouncer, which needs a running Home Assistant to fire. "
+        "Nothing here runs one, so the flag is set and the refresh awaited — "
+        "the same two steps, minus the scheduling. Identical to the "
+        "`zte_router_5g` script's handling of the same problem."
+    ),
+    ("diag_check.py", "noqa: BLE001"): (
+        "The poll loop catches everything on purpose: a poll that fails is the "
+        "subject of this script rather than an error in it, and the download "
+        "taken afterwards is the evidence about that failure. Naming types "
+        "here would abort the run on exactly the fault it exists to capture. "
+        "The exception type and message are printed, so nothing is swallowed."
+    ),
+    ("diag_check.py", "type: ignore[method-assign]"): (
+        "`--sabotage` replaces `HuaweiRouter5GAPI.get_data` for the duration of "
+        "one run so a session loss happens at a chosen point, and restores it "
+        "in a `finally`. Patching the class is what makes the recovery path the "
+        "real one rather than a stub; mypy objects to assigning a method, which "
+        "is the whole technique. Same approach as `zte_router_5g`'s "
+        "`_sabotaging_chunk`."
     ),
     ("hardware_check.py", "ruff: noqa: T201"): (
         "The console report is this script's entire output. There is no logger "
@@ -965,9 +1087,8 @@ def _descriptions_by_platform() -> dict[str, dict[str, object]]:
     import inspect
     import pkgutil
 
-    from homeassistant.helpers.entity import EntityDescription
-
     import custom_components.huawei_router_5g as component
+    from homeassistant.helpers.entity import EntityDescription
 
     found: dict[str, dict[str, object]] = {}
     for mod_info in pkgutil.iter_modules(component.__path__):
@@ -1252,9 +1373,14 @@ def test_every_disabled_by_decision_entry_carries_a_reason() -> None:
 
 def _declared_repair_keys() -> set[str]:
     """Return every repair key the code can raise, read from `const.py`."""
-    from custom_components.huawei_router_5g.const import REPAIR_NAMES
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_LIBRARY_RESTART,
+        REPAIR_NAMES,
+    )
 
-    return set(REPAIR_NAMES)
+    # The library restart repair is domain-level and deliberately not in
+    # `REPAIR_NAMES`, which names the per-entry issues.
+    return {*REPAIR_NAMES, REPAIR_LIBRARY_RESTART}
 
 
 def test_every_repair_issue_has_title_and_rendered_text() -> None:
@@ -1308,13 +1434,17 @@ def test_the_fixable_repair_is_the_one_with_a_fix_flow() -> None:
     button dismisses the card without acting on it. Both fail silently, which
     is why the pairing is asserted rather than assumed.
     """
-    from custom_components.huawei_router_5g.const import REPAIR_AUTH_FAILED
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_AUTH_FAILED,
+        REPAIR_LIBRARY_RESTART,
+    )
 
     issues = _translation_file("strings.json")["issues"]
     with_flow = {key for key, entry in issues.items() if entry.get("fix_flow")}
+    fixable = {REPAIR_AUTH_FAILED, REPAIR_LIBRARY_RESTART}
 
-    assert with_flow == {REPAIR_AUTH_FAILED}, (
-        f"expected only {REPAIR_AUTH_FAILED!r} to carry a fix_flow, got {with_flow}"
+    assert with_flow == fixable, (
+        f"expected only {sorted(fixable)} to carry a fix_flow, got {with_flow}"
     )
 
 
@@ -1345,3 +1475,125 @@ def test_the_repair_text_sweep_is_not_vacuous() -> None:
 
     assert len(keys) >= 2
     assert {"auth_failed", "conn_error"} <= keys
+
+
+# ---------------------------------------------------------------------------
+# Every entity belongs to a device
+#
+# Home Assistant does not require `device_info`. An entity registered without
+# it belongs to the config entry and to no device: it appears in the entity
+# list, is counted in the integration's total, and shows on none of the six
+# sub-device cards. The only visible symptom is that the integration's entity
+# count exceeds the sum of its device cards, and only to someone adding up.
+#
+# It happened in `zte_router_5g`, where `ZTEOperatorProvisionedSensor` shipped
+# with no `device_info` among three siblings that each declared their own, and
+# was found by a user rather than by a test. Cross-project item
+# `.shared/issues/x_project/every_entity_must_have_a_device.md`.
+#
+# The property has two halves and both are here. `HuaweiDeviceEntity` in
+# `helpers.py` is the code half — one inherited implementation, so omitting it
+# is not something a new entity class can do by accident. The sweep below is
+# the test half, which catches the one case the code half cannot: a class that
+# bypasses the shared base.
+# ---------------------------------------------------------------------------
+
+
+async def test_every_live_entity_belongs_to_a_device(
+    hass: HomeAssistant, live_entry: MockConfigEntry
+) -> None:
+    """No entity this integration registers may be without a device.
+
+    Swept over **live entities** rather than entity descriptions. A
+    description cannot carry this fault — `device_info` is a property on the
+    entity class, so only a constructed entity can be asked where it lives.
+    Disabled-by-default entities are forced on by `_live_entities`, without
+    which a large part of the diagnostic surface is never instantiated and so
+    never inspected.
+    """
+    async with _live_entities(hass, live_entry) as entities:
+        checked = 0
+        homeless: list[str] = []
+        domains: set[str] = set()
+        for entity in entities:
+            checked += 1
+            domains.add(entity.entity_id.split(".")[0])
+            info = entity.device_info
+            if not info or not info.get("identifiers"):
+                homeless.append(type(entity).__name__)
+
+    assert not homeless, (
+        "entities registered with no device: "
+        + ", ".join(sorted(set(homeless)))
+        + ". Inherit `helpers.HuaweiDeviceEntity`."
+    )
+    # Guard the guard. A setup failure or a stale payload yields few entities
+    # or none, and the sweep above would pass over them and go on passing
+    # after a real regression. Measured at 161 on 2026-09-07; the floor sits
+    # just below that rather than at a token value, for the reason written out
+    # in `test_recorder_runtime.py` — set to 20 it would pass with seven
+    # eighths of the component silently dropped from the sweep.
+    assert checked > 150, (
+        f"sweep inspected only {checked} entities — the fixture is stale, "
+        "not the component"
+    )
+    # `device_tracker` needs naming, because it is the one platform whose
+    # entities do not survive to be reported homeless. `ScannerEntity`
+    # registers only when `device_info` is set, so a tracker that loses it is
+    # never constructed: measured under mutation on 2026-09-07, removing the
+    # shared property dropped the sweep from 161 entities to 159 with zero
+    # trackers and none of them named above. The count floor does not see a
+    # two-entity loss, so the platform is asserted directly.
+    assert "device_tracker" in domains, (
+        "no device_tracker entity was swept — a tracker without `device_info` "
+        "is not registered at all, so it vanishes rather than reporting as "
+        "homeless"
+    )
+
+
+def test_device_info_is_declared_once() -> None:
+    """One inherited implementation, not one copy per platform.
+
+    The sweep above catches the omission; this stops it being available. Seven
+    platform bases each carried a copy of the property, and every copy was a
+    place the next one could be left out — which is exactly how the
+    `zte_router_5g` fault occurred.
+
+    `device_tracker` is included deliberately. It is the platform whose
+    entities are created dynamically, one per discovered client, and so the
+    one where a deviceless entity would be least visible.
+    """
+    import inspect
+
+    from custom_components.huawei_router_5g import (
+        binary_sensor,
+        button,
+        device_tracker,
+        number,
+        select,
+        sensor,
+        switch,
+    )
+
+    declaring = [
+        name
+        for module in (
+            binary_sensor,
+            button,
+            device_tracker,
+            number,
+            select,
+            sensor,
+            switch,
+        )
+        for name, obj in vars(module).items()
+        if inspect.isclass(obj)
+        and obj.__module__ == module.__name__
+        and "def device_info" in inspect.getsource(obj)
+    ]
+
+    assert not declaring, (
+        "entity classes declaring their own device_info: "
+        + ", ".join(sorted(declaring))
+        + ". Inherit `helpers.HuaweiDeviceEntity` instead."
+    )

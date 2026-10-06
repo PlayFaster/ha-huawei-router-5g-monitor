@@ -3,15 +3,17 @@
 from __future__ import annotations
 
 import asyncio
+from collections.abc import AsyncIterator, Callable
 import contextlib
+from contextlib import asynccontextmanager
+from dataclasses import dataclass
+from datetime import UTC, datetime
 import logging
 import time
-from collections.abc import AsyncIterator, Callable
-from contextlib import asynccontextmanager
-from datetime import UTC, datetime
 from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
 
+import huawei_lte_api
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
 from huawei_lte_api.enums.device import ControlModeEnum
@@ -23,11 +25,15 @@ from huawei_lte_api.exceptions import (
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
+from packaging.version import InvalidVersion, Version
 
 from .const import (
+    ADJUDICATION_BUDGET,
     FETCH_DEADLINE,
+    LIBRARY_ADDED_ENDPOINTS,
     LOCK_TIMEOUT,
     NET_MODE_SETTLE,
+    PREMISE_TIMEOUT,
     PROBE_TIMEOUT,
     REQUEST_TIMEOUT,
     WRITE_TIMEOUT,
@@ -35,6 +41,45 @@ from .const import (
 from .helpers import _safe_int, confirm_write
 
 _LOGGER = logging.getLogger(__name__)
+
+
+def _read_library_version() -> Version | None:
+    """Return the version of the `huawei-lte-api` modules in memory, if readable.
+
+    `huawei_lte_api.__version__` is a constant of the loaded modules, so it
+    describes what is running and not what is on disk: a guard install can
+    change the files while the old classes stay loaded until the next restart.
+    `None` when it is absent or unparsable, in which case callers make the call
+    and let a real failure surface.
+    """
+    try:
+        return Version(huawei_lte_api.__version__)
+    except (AttributeError, InvalidVersion):
+        return None
+
+
+_LIBRARY_VERSION = _read_library_version()
+
+
+def library_supports(first_version: str) -> bool:
+    """Return whether the loaded library is at or above `first_version`.
+
+    True when the version cannot be read, so an unreadable version never hides
+    an endpoint.
+    """
+    return _LIBRARY_VERSION is None or Version(first_version) <= _LIBRARY_VERSION
+
+
+def _call_added_endpoint(client: Client, key: str) -> Any:
+    """Call a library method listed in `LIBRARY_ADDED_ENDPOINTS` by its table row.
+
+    Reached by name so that Mypy passes on a library that lacks the method and
+    on one that has it, without a `type: ignore` that is unused on the newer
+    one. The two calls are therefore not type-checked; `test_library_contract`
+    checks the table's names against the library instead.
+    """
+    group, method, _ = LIBRARY_ADDED_ENDPOINTS[key]
+    return cast("Callable[[], Any]", getattr(getattr(client, group), method))()
 
 
 def _normalize_router_url(host: str) -> str:
@@ -59,6 +104,21 @@ class HuaweiConnectionError(Exception):
 
 class HuaweiAuthError(Exception):
     """Raised when login credentials are rejected."""
+
+
+@dataclass
+class _PollState:
+    """What one `_fetch` run knows while it adjudicates session signals.
+
+    `generation` is the client generation the run began on, so a write made
+    after a reset (by a worker thread the coordinator's timeout orphaned) can be
+    told from one made by the live run. `reread_live` is set once the re-read of
+    `device_information` has answered, so it is made at most once per poll.
+    """
+
+    started: float
+    generation: int
+    reread_live: bool = False
 
 
 READ_BACK_ENDPOINTS: dict[str, Callable[[Any], Any]] = {
@@ -103,6 +163,90 @@ class HuaweiRouter5GAPI:
         # case and must keep waiting, "held by me" is a deadlock.
         self._lock_owner: asyncio.Task[Any] | None = None
         self._last_activity = datetime.now(UTC)
+
+        # Evidence for the diagnostics download. `coordinator.data` is `None`
+        # until the first successful poll, so an integration that has never
+        # succeeded produces an empty `data` block — which is exactly when the
+        # download is asked for. These two carry what was rejected and what the
+        # login saw, and both are sanitized on the way out.
+        #
+        # Aligned with `zte_router_5g`, which is the reference implementation
+        # for this capture: same attribute names, same `verdict` vocabulary,
+        # same clearing rule. Two fields it carries have no source here and are
+        # absent rather than stubbed — the key presence map, because expiry is
+        # stated by the router's own error code rather than inferred from the
+        # payload shape, and `body_preview`, because `huaweiapi` parses the
+        # response and this wrapper never sees a raw body.
+        self.last_rejection: dict[str, Any] | None = None
+        self.login_metadata: dict[str, Any] = {}
+
+        # The outcome of every endpoint in the most recent poll, by name.
+        #
+        # **Absence from the payload has three causes and they are not the
+        # same.** An endpoint can be refused by the router, skipped when the
+        # fetch deadline expires part way down the list, or fail in a handler
+        # that logs and continues. All three leave the key missing from `data`
+        # and, without this, leave a reader of the download unable to tell
+        # which happened — the confusion `zte_router_5g` named in
+        # `[3.3.9-dev10]`, where a refusal was indistinguishable from an
+        # eviction. `last_rejection` cannot answer it either: it is bounded to
+        # the most recent, so a router refusing five endpoints reports one.
+        #
+        # Names and codes only, in the shape `diagnostics.py` publishes
+        # unchanged. Written per poll, so it describes one pass rather than
+        # accumulating across a session.
+        self.endpoint_outcomes: dict[str, Any] = {}
+        self._unsupported_logged = False
+
+        # **Refusal separated from expiry** (dev16 plan I1). 100003 is both what
+        # a router answers to an endpoint it refuses and what it answers once a
+        # session has ended, so the fetch loop tells them apart with two things
+        # kept here.
+        #
+        # `_premise_cache` is the outcome of the anonymous premise check:
+        # `refused` where this router answers `device_information` with 100003
+        # to a client with no login, `served` where it answers anyway, `None`
+        # where it has not been checked or the check failed. It is cleared by
+        # `_reset_client`, so a restarted router is checked again.
+        # `premise_result` is the last outcome, outcome string and code only,
+        # for the download; it is deliberately not cleared.
+        #
+        # `_answered` is the history: the endpoint names that have answered
+        # since this object was created. It lives on this object and not on the
+        # library client so that `_reset_client` does not clear it, and it is in
+        # memory only. `_generation` increments on every reset and guards the
+        # writes above against a worker thread orphaned by a timeout.
+        self._premise_cache: str | None = None
+        self.premise_result: dict[str, Any] | None = None
+        self._answered: set[str] = set()
+        self._generation = 0
+        self._refusal_warned: set[tuple[str, str]] = set()
+        # Sessions found lost during the last diagnostics sweep, for the download.
+        self.sweep_sessions_lost = 0
+
+    @property
+    def answered_endpoints(self) -> frozenset[str]:
+        """Names of the endpoints that have answered since this object began."""
+        return frozenset(self._answered)
+
+    def _log_unsupported_once(self) -> None:
+        """Log, once per client, which endpoints the loaded library cannot serve."""
+        if self._unsupported_logged:
+            return
+        # Called only when an endpoint has just been skipped, so the list is
+        # never empty.
+        skipped = sorted(
+            key
+            for key, (_, _, first) in LIBRARY_ADDED_ENDPOINTS.items()
+            if not library_supports(first)
+        )
+        _LOGGER.info(
+            "huawei-lte-api %s predates %s; these endpoints are skipped "
+            "and read unknown until the library is 2.0.1 or later",
+            getattr(huawei_lte_api, "__version__", "unknown"),
+            ", ".join(skipped),
+        )
+        self._unsupported_logged = True
 
     @asynccontextmanager
     async def _write_deadline(self, operation: str) -> AsyncIterator[None]:
@@ -263,6 +407,8 @@ class HuaweiRouter5GAPI:
         is deliberate — a failed close must never stop the client being
         cleared, which is the part that matters.
         """
+        self._generation += 1
+        self._premise_cache = None
         connection = self._connection
         self._connection = None
         self._client = None
@@ -355,6 +501,33 @@ class HuaweiRouter5GAPI:
             raise HuaweiConnectionError("Failed to establish API client connection")
         return self._client
 
+    def _record_login_metadata(self, result: str, error: str | None = None) -> None:
+        """Record what the login attempt produced, for diagnostics.
+
+        **Outcome only, and never a credential.** `zte_router_5g` records the
+        response's header and cookie names beside this, because it manages its
+        own session and can see them. `huaweiapi` owns the session here and
+        returns a client or raises, so the response never reaches this wrapper
+        and there is nothing further to capture — the reduction is recorded in
+        the item's alignment table rather than being an omission.
+
+        `error` carries the exception's class name, never its message: the
+        message is library-formatted text that has been observed to interpolate
+        the URL, and the class is what a reader needs.
+        """
+        self.login_metadata = {
+            "result": result,
+            # **Not "authenticated".** This says whether a username was
+            # configured for this entry, which is a fact about the setup rather
+            # than about the outcome — `result` carries the outcome. The field
+            # was named `authenticated` until 2026-09-07, and a live download
+            # showed `"result": "ok"` beside `"authenticated": false` on an
+            # entry set up without a username, which reads as a failed login to
+            # anyone who did not write the code.
+            "username_configured": bool(self.username),
+            "error": error,
+        }
+
     async def _login_internal(self) -> None:
         """Perform internal login without locking."""
         self._reset_client()
@@ -363,17 +536,218 @@ class HuaweiRouter5GAPI:
             self._connection = conn
             self._client = client
             self._last_activity = datetime.now(UTC)
+            self._record_login_metadata("ok")
         except (
             LoginErrorPasswordWrongException,
             LoginErrorUsernameWrongException,
         ) as err:
             self._connection = None
             self._client = None
+            self._record_login_metadata("auth_failed", type(err).__name__)
             raise HuaweiAuthError(f"Authentication failed: {err}") from err
         except Exception as err:
             self._connection = None
             self._client = None
+            self._record_login_metadata("connection_failed", type(err).__name__)
             raise HuaweiConnectionError(f"Cannot connect to router: {err}") from err
+
+    def _record_verdict(
+        self,
+        verdict: str,
+        *,
+        code: str | None = None,
+        key: str | None = None,
+        error: str | None = None,
+        payload: dict[str, Any] | None = None,
+    ) -> None:
+        """Hold the response behind a non-live verdict, for diagnostics.
+
+        Names and codes only — the payload itself is sanitized by
+        `diagnostics.py` on the way out, the same walker that already handles
+        `coordinator.data`, so a rejected payload is no more revealing than an
+        accepted one. Bounded to the most recent, and cleared by a live verdict
+        so a stale rejection cannot outlive the fault.
+
+        Aligned with `zte_router_5g._record_verdict`: same name, same clearing
+        rule, same `verdict` vocabulary. `code` replaces that project's key
+        presence map, because this router states expiry through its own error
+        codes rather than leaving it to be inferred from which keys came back
+        blank, and `key` names the endpoint the verdict was drawn at, which is
+        per-endpoint here and whole-batch there.
+        """
+        if verdict == "live":
+            self.last_rejection = None
+            return
+
+        record: dict[str, Any] = {"verdict": verdict}
+        if code is not None:
+            record["code"] = code
+        if error is not None:
+            record["error"] = error
+        if key is not None:
+            record["key"] = key
+        if payload is not None:
+            record["payload"] = dict(payload)
+        self.last_rejection = record
+
+    def _record_endpoint(
+        self,
+        key: str,
+        outcome: str,
+        code: str | None = None,
+        *,
+        result: Any = None,
+        elapsed_ms: int | None = None,
+    ) -> None:
+        """Record one endpoint's outcome in the current poll's map.
+
+        **`answered` on its own is too coarse to support an unfamiliar
+        router.** A call that does not raise is recorded as answered whether it
+        returned a full block, an empty mapping, or something that is not a
+        mapping at all — and firmware that knows an endpoint, answers it
+        politely and populates nothing is the common case on a model this
+        integration has not seen. So an answered endpoint also carries how many
+        keys came back, how many of them hold a value, and what type the router
+        actually returned.
+
+        Names and counts only. No key names and no values reach this map: the
+        payload block itself is published beside it in the download and carries
+        both, sanitized.
+        """
+        record: dict[str, Any] = {"outcome": outcome}
+        if code is not None:
+            record["code"] = code
+        if elapsed_ms is not None:
+            record["elapsed_ms"] = elapsed_ms
+        if outcome == "answered":
+            record["type"] = type(result).__name__
+            if isinstance(result, dict):
+                record["keys"] = len(result)
+                record["populated"] = sum(
+                    1 for v in result.values() if v not in (None, "", {}, [])
+                )
+        self.endpoint_outcomes[key] = record
+
+    def _read_premise(self, generation: int) -> str | None:
+        """Check whether this router refuses `device_information` without a login.
+
+        Blocking, run in the fetch worker. A new `Connection` with no
+        credentials opens no session and makes no login attempt; it reads
+        `device.information`. A 100003 means the premise holds (`refused`):
+        a 100003 on that read, from a client that has a session, is then an
+        expiry. An answer means the router serves it anonymously (`served`),
+        which makes the read useless as a discriminator. Anything else leaves
+        the outcome unknown, which is returned as `None` and not kept.
+
+        Only the outcome and the code are recorded, never the payload: a router
+        that serves `device_information` anonymously returns identifiers in it.
+        The connection is closed on every path. The result is written only if
+        the client generation is unchanged since the read began.
+        """
+        conn: Connection | None = None
+        outcome = "unknown"
+        code: str | None = None
+        try:
+            conn = Connection(self.url, timeout=PREMISE_TIMEOUT)
+            Client(conn).device.information()
+            outcome = "served"
+        except ResponseErrorLoginRequiredException as err:
+            outcome, code = "refused", str(err.code)
+        except Exception:
+            _LOGGER.debug("Premise check failed", exc_info=True)
+        finally:
+            if conn is not None:
+                with contextlib.suppress(Exception):
+                    conn.requests_session.close()
+        if generation == self._generation:
+            self.premise_result = {"outcome": outcome, "code": code}
+            if outcome != "unknown":
+                self._premise_cache = outcome
+        return None if outcome == "unknown" else outcome
+
+    def _judge_signal(self, key: str, client: Client, poll: _PollState) -> str | None:
+        """Decide whether a session signal from `key` is a refusal or an expiry.
+
+        `live_session` when the re-read showed the session live, `history` when
+        the history decided it was a refusal, and `None` when the session has
+        ended. Recorded with the refusal so a download says what it was judged
+        against. Called only for a non-critical endpoint that raised
+        100003, 125002 or 125003; `device_information` is never adjudicated.
+
+        Where the premise is confirmed, `device_information` is read again,
+        at most once per poll: an answer means the session is live and the
+        signal a refusal, a signal from it means the session has ended. Where
+        the premise is not confirmed, or the poll has used its budget, the
+        history decides: an endpoint that has never answered is a refusal, one
+        that has answered raises as an expiry, so setup is not left failing on a
+        router where the premise cannot be checked.
+        """
+        within_budget = time.monotonic() - poll.started <= ADJUDICATION_BUDGET
+        premise = self._premise_cache
+        if premise is None and within_budget:
+            premise = self._read_premise(poll.generation)
+        if premise == "refused" and within_budget:
+            if poll.reread_live:
+                return "live_session"
+            try:
+                client.device.information()
+            except ResponseErrorException as err:
+                if isinstance(err, ResponseErrorLoginRequiredException) or str(
+                    err.code
+                ) in ("125002", "125003"):
+                    return None
+                raise HuaweiConnectionError(
+                    f"Critical data fetch failed: {err}"
+                ) from err
+            except Exception as err:
+                raise HuaweiConnectionError(
+                    f"Critical data fetch failed: {err}"
+                ) from err
+            poll.reread_live = True
+            return "live_session"
+        return "history" if key not in self._answered else None
+
+    def _judge_session_signal(
+        self,
+        key: str,
+        err: ResponseErrorException,
+        code: str,
+        client: Client,
+        poll: _PollState,
+        data: dict[str, Any],
+    ) -> str:
+        """Treat a 100003, 125002 or 125003 from `key`: return the judgment or raise.
+
+        From `device_information` it is always an expiry. From any other endpoint
+        it is an expiry only if the session has ended, and a refusal if the
+        router refuses that one endpoint. An expiry is recorded and raised as
+        `HuaweiAuthError`; a refusal returns `live_session` or `history`, and the
+        refusing endpoint is named once per code in the log.
+        """
+        judged = (
+            None
+            if key == "device_information"
+            else self._judge_signal(key, client, poll)
+        )
+        if judged is None:
+            _LOGGER.debug(
+                "Session expired during fetch of %s (%s). Forcing re-login.",
+                key,
+                err,
+            )
+            self._record_verdict("expired", code=code, key=key, payload=data)
+            self._record_endpoint(key, "expired", code)
+            raise HuaweiAuthError(f"Session expired: {err}") from err
+        if (key, code) not in self._refusal_warned:
+            self._refusal_warned.add((key, code))
+            _LOGGER.warning(
+                "The router refused %s with %s on a live session and the poll "
+                "continues without it. Premise check: %s",
+                key,
+                code,
+                (self.premise_result or {}).get("outcome", "not made"),
+            )
+        return judged
 
     async def _execute_with_retry(self, func: Callable[[Client], Any]) -> Any:
         """Execute operation on client, retrying once on session expiry."""
@@ -384,8 +758,16 @@ class HuaweiRouter5GAPI:
             self._last_activity = datetime.now(UTC)
         except (ResponseErrorLoginRequiredException, ResponseErrorException) as err:
             is_expired = isinstance(err, ResponseErrorLoginRequiredException)
-            if not is_expired and isinstance(err, ResponseErrorException):
-                is_expired = str(err.code) in ("125002", "125003", "100003")
+            code = str(err.code) if isinstance(err, ResponseErrorException) else None
+            if not is_expired and code is not None:
+                is_expired = code in ("125002", "125003", "100003")
+
+            # Recorded at the point the verdict is drawn, not at the point of
+            # raising, so the expiry below — which is retried and often
+            # recovers — still leaves evidence behind. A later live poll
+            # clears it, so a rejection in the download is one the integration
+            # had not yet recovered from.
+            self._record_verdict("expired" if is_expired else "refused", code=code)
 
             if is_expired:
                 _LOGGER.debug(
@@ -398,6 +780,289 @@ class HuaweiRouter5GAPI:
             else:
                 raise
         return res
+
+    # Endpoints this integration does **not** poll, probed once per diagnostics
+    # download so a reporter's file says whether their router serves them.
+    #
+    # **Not added to the poll, deliberately.** The poll runs every 180 seconds
+    # and takes about a second across its 26 endpoints; spending forty more
+    # round trips per cycle to collect the same refusals for ever is the
+    # reasoning already recorded against `monitoring.daily_data_limit`. A
+    # download is a deliberate, infrequent act, which is where the cost belongs.
+    #
+    # Chosen from the 130 read-only, argument-free methods `huawei-lte-api`
+    # 2.0.1 exposes, in two groups. The `*_feature_switch` and capability reads
+    # come first because they are the router **stating** what it supports
+    # rather than us inferring it from a silence. The rest are model-variant
+    # reads — a cradle, a second WAN, a locked cell, a SIM PIN state — that
+    # this reference device does not have and another might.
+    #
+    # Reads only. Nothing here writes, and nothing here takes an argument, so
+    # no call can be shaped wrongly by a value from this side.
+    DIAGNOSTIC_PROBES: tuple[tuple[str, Callable[[Client], Any]], ...] = (
+        # --- What the router says it supports --------------------------------
+        ("global_module_switch", lambda c: c.global_.module_switch()),
+        ("system_devcapacity", lambda c: c.system.devcapacity()),
+        ("device_feature_switch", lambda c: c.device.device_feature_switch()),
+        ("net_feature_switch", lambda c: c.net.net_feature_switch()),
+        (
+            "monitoring_statistic_feature_switch",
+            lambda c: c.monitoring.statistic_feature_switch(),
+        ),
+        ("sms_feature_switch", lambda c: c.sms.sms_feature_switch()),
+        ("voice_featureswitch", lambda c: c.voice.featureswitch()),
+        ("security_feature_switch", lambda c: c.security.feature_switch()),
+        ("dhcp_feature_switch", lambda c: c.dhcp.feature_switch()),
+        ("cradle_feature_switch", lambda c: c.cradle.feature_switch()),
+        # --- Identity and firmware, where the polled reads are restricted ----
+        ("device_basic_information", lambda c: c.device.basic_information()),
+        ("device_vendorname", lambda c: c.device.vendorname()),
+        ("device_boot_time", lambda c: c.device.boot_time()),
+        ("device_autorun_version", lambda c: c.device.autorun_version()),
+        ("system_deviceinfo", lambda c: c.system.deviceinfo()),
+        ("system_deviceinfoex", lambda c: c.system.deviceinfoex()),
+        # --- Radio and network detail this integration does not read ---------
+        ("net_cell_info", lambda c: c.net.cell_info()),
+        ("net_network", lambda c: c.net.network()),
+        ("net_register", lambda c: c.net.register()),
+        ("net_mode_list", lambda c: c.net.net_mode_list()),
+        ("ntwk_celllock", lambda c: c.ntwk.celllock()),
+        ("ntwk_dualwaninfo", lambda c: c.ntwk.dualwaninfo()),
+        ("ntwk_lan_wan_config", lambda c: c.ntwk.lan_wan_config()),
+        ("statistic_feature_roam", lambda c: c.statistic.feature_roam_statistic()),
+        # --- SIM state, which explains a device reporting no service ---------
+        ("pin_status", lambda c: c.pin.status()),
+        ("pin_simlock", lambda c: c.pin.simlock()),
+        # --- Antenna, on models that expose a choice -------------------------
+        ("device_antenna_status", lambda c: c.device.antenna_status()),
+        ("device_antenna_settings", lambda c: c.device.get_antenna_settings()),
+        # --- Cradle, for the models that have one ----------------------------
+        ("cradle_basic_info", lambda c: c.cradle.basic_info()),
+        ("cradle_status_info", lambda c: c.cradle.status_info()),
+        # --- Usage vocabularies this device does not answer ------------------
+        ("monitoring_daily_data_limit", lambda c: c.monitoring.daily_data_limit()),
+        (
+            "monitoring_month_statistics_wlan",
+            lambda c: c.monitoring.month_statistics_wlan(),
+        ),
+        ("monitoring_wifi_month_setting", lambda c: c.monitoring.wifi_month_setting()),
+        # --- WiFi detail beyond the two blocks the poll reads ----------------
+        ("wlan_basic_settings", lambda c: c.wlan.basic_settings()),
+        ("wlan_station_information", lambda c: c.wlan.station_information()),
+        ("wlan_multi_switch_settings", lambda c: c.wlan.multi_switch_settings()),
+        ("wlan_wififrequence", lambda c: c.wlan.wififrequence()),
+        ("wlan_wlandbho", lambda c: c.wlan.wlandbho()),
+        ("wlan_wlanintelligent", lambda c: c.wlan.wlanintelligent()),
+        # --- DHCP, which names the LAN this router is serving ----------------
+        ("dhcp_settings", lambda c: c.dhcp.settings()),
+        ("dial_up_auto_apn", lambda c: c.dial_up.auto_apn()),
+        # --- Named by the survey as where to start ---------------------------
+        #
+        # `docs/huawei_how_to_access.md` → "Readable, never reviewed" records
+        # these as found by an earlier endpoint sweep and never assessed, with
+        # the note that the next person should start there rather than re-run
+        # the probe. Probing them costs one call each and answers the question
+        # that table left open for every model, not only this one.
+        #
+        # `diagnosis.time_reboot` is the notable one: the reference unit has a
+        # scheduled reboot ENABLED, which explains a weekly uptime reset and
+        # interacts with reboot detection.
+        ("diagnosis_time_reboot", lambda c: c.diagnosis.time_reboot()),
+        ("security_get_firewall_switch", lambda c: c.security.get_firewall_switch()),
+        ("led_appctrlled", lambda c: c.led.appctrlled()),
+        ("online_update_status", lambda c: c.online_update.status()),
+        ("sms_config", lambda c: c.sms.config()),
+    )
+
+    # Endpoints deliberately absent from `DIAGNOSTIC_PROBES`, so nobody adds
+    # them back without knowing why they went.
+    #
+    # `system.onlinestate` returns a list and `huawei-lte-api` calls `.get()`
+    # on it, raising `AttributeError` inside the library before this code sees
+    # a response. Measured 2026-09-07. The probe would report a library defect
+    # as a property of the router, which is worse than not probing it.
+    #
+    # `diagnosis.diagnose_ping` and `diagnosis.diagnose_traceroute` ask the
+    # router to *perform* a network operation. They read as reads and are not.
+    PROBES_EXCLUDED: tuple[tuple[str, str], ...] = (
+        ("system.onlinestate", "returns a list the library mishandles"),
+        ("diagnosis.diagnose_ping", "runs a ping rather than reading state"),
+        (
+            "diagnosis.diagnose_traceroute",
+            "runs a traceroute rather than reading state",
+        ),
+    )
+
+    async def probe_diagnostic_endpoints(self) -> dict[str, Any]:
+        """Call every `DIAGNOSTIC_PROBES` endpoint once and report what happened.
+
+        **For the diagnostics download only**, and never from the poll. Each
+        entry is recorded exactly as a polled endpoint is: `answered` with the
+        returned type and key counts, `refused` with the router's own error
+        code, or `unavailable` with the exception class, so a reader compares
+        the two maps without learning a second vocabulary. Two further outcomes
+        say that the sweep itself was cut short: `session_lost` for a probe
+        whose session ended under it and could not be repeated, and `not_run`
+        for a probe the sweep never reached.
+
+        **Key names are published; values are not.** A name is a property of the
+        firmware and is what a supporter needs to see; a value from an endpoint
+        nobody here has seen has no entry in `diagnostics.py`'s key lists and
+        would be published intact by a sanitizer that matches on exact key
+        names. Names and counts carry the finding without that risk.
+
+        One failure never stops the sweep: the whole point is the shape of the
+        set of failures, not the first one.
+
+        **Holds the API lock for its duration**, about 2 s on the routers
+        measured. A login in the sweep replaces the client, and without the lock
+        that would happen under a poll in flight. A poll waits for the sweep.
+
+        **A refusal does not provoke a login.** The sweep is called directly on
+        one session and never through `_execute_with_retry`, which re-logs in on
+        `ResponseErrorLoginRequiredException`, raised for `100003` and for no
+        other code. Measured 2026-09-07: a `100003` costs two logins through the
+        wrapper against one for any other outcome, and a 42-endpoint sweep
+        accumulated enough logout/login churn that the router began answering
+        `LoginErrorAlreadyLoginException` and then refused connections, turning
+        the rest of the sweep into artefacts. The same 42 calls on one session,
+        called directly, completed in about 900 ms with every endpoint
+        returning a real outcome. `docs/huawei_how_to_access.md` carries the
+        mechanism, and had already warned that a bulk sweep produces false
+        `100003` results.
+
+        **The one exception is a session that has ended.** On this firmware a
+        `100003` is both a refusal and the answer to an ended session, so after
+        any probe that does not answer the sweep reads `device_information`. A
+        `100003` from that read means the session is lost: the sweep logs in
+        again through `_login_internal`, which does not take the lock, and
+        repeats the probe on the fresh session, at most twice per sweep. A
+        connection error or any other failure from the read means the state is
+        unknown, and causes no login. The number of sessions lost is kept in
+        `sweep_sessions_lost` for the download.
+
+        **Bounded.** Every request, whether a probe, the read of
+        `device_information`, a login or a repeat, is preceded by a check of the
+        sweep's deadline of `FETCH_DEADLINE`, and by a check that the client was
+        not reset under the sweep. A poll waiting for the lock would otherwise
+        reach the coordinator's timeout, which calls `invalidate()` under the
+        sweep. Past either, after a failed login, and after a third loss, the
+        rest are `not_run`.
+        """
+        async with self._locked("probe_diagnostic_endpoints"):
+            return await self._probe_sweep()
+
+    async def _probe_one(
+        self, call: Callable[[Client], Any], client: Client
+    ) -> dict[str, Any]:
+        """Call one probe and describe the outcome. Never raises."""
+        started_at = time.monotonic()
+        try:
+            value = await asyncio.to_thread(call, client)
+        except ResponseErrorException as err:
+            return {"outcome": "refused", "code": str(err.code)}
+        except Exception as err:  # noqa: BLE001 - a probe never raises out
+            return {"outcome": "unavailable", "error": type(err).__name__}
+        record: dict[str, Any] = {
+            "outcome": "answered",
+            "type": type(value).__name__,
+            "elapsed_ms": int((time.monotonic() - started_at) * 1000),
+        }
+        if isinstance(value, dict):
+            record["keys"] = sorted(str(k) for k in value)
+            record["populated"] = sum(
+                1 for v in value.values() if v not in (None, "", {}, [])
+            )
+        return record
+
+    async def _session_is_lost(self, client: Client) -> bool:
+        """Say whether `device_information` is refused with 100003 on `client`.
+
+        Only that is a lost session. A connection error or any other failure
+        leaves the state unknown, and unknown is not a loss.
+        """
+        try:
+            await asyncio.to_thread(client.device.information)
+        except ResponseErrorLoginRequiredException:
+            return True
+        except Exception:  # noqa: BLE001 - unknown is not lost
+            return False
+        return False
+
+    async def _relogin_for_sweep(
+        self, deadline: float
+    ) -> tuple[Client | None, str | None]:
+        """Log in again for the sweep, or say why it cannot continue.
+
+        Through `_login_internal`, which does not take the lock the sweep holds.
+        Returns the fresh client, or `None` with the reason: the deadline passed
+        before or after the login, or the login failed.
+        """
+        if time.monotonic() > deadline:
+            return None, "deadline"
+        try:
+            await self._login_internal()
+        except Exception:  # noqa: BLE001 - the sweep returns what it has
+            return None, "login_failed"
+        fresh = self._client
+        if fresh is None:
+            return None, "login_failed"
+        if time.monotonic() > deadline:
+            return None, "deadline"
+        return fresh, None
+
+    async def _probe_sweep(self) -> dict[str, Any]:
+        """Run the sweep described at `probe_diagnostic_endpoints`, lock held."""
+        client = await self._ensure_client()
+        generation = self._generation
+        deadline = time.monotonic() + FETCH_DEADLINE
+        keys = [key for key, _ in self.DIAGNOSTIC_PROBES]
+        results: dict[str, Any] = {}
+        self.sweep_sessions_lost = 0
+
+        def stop_at(index: int, reason: str) -> None:
+            for name in keys[index:]:
+                results[name] = {"outcome": "not_run", "reason": reason}
+
+        def unusable() -> str | None:
+            if time.monotonic() > deadline:
+                return "deadline"
+            if self._generation != generation:
+                return "client_reset"
+            return None
+
+        for index, (key, call) in enumerate(self.DIAGNOSTIC_PROBES):
+            if (reason := unusable()) is not None:
+                stop_at(index, reason)
+                break
+            record = await self._probe_one(call, client)
+            results[key] = record
+            if record["outcome"] == "answered":
+                continue
+
+            if (reason := unusable()) is not None:
+                stop_at(index + 1, reason)
+                break
+            if not await self._session_is_lost(client):
+                continue
+
+            self.sweep_sessions_lost += 1
+            results[key] = {"outcome": "session_lost"}
+            if self.sweep_sessions_lost > 2:
+                stop_at(index + 1, "session_lost_limit")
+                break
+            fresh, reason = await self._relogin_for_sweep(deadline)
+            if fresh is None:
+                stop_at(index + 1, reason or "login_failed")
+                break
+            client = fresh
+            # Our own login replaced the client, so what counts as a reset
+            # under the sweep starts from here.
+            generation = self._generation
+            repeated = await self._probe_one(call, client)
+            repeated["session_lost"] = True
+            results[key] = repeated
+        return results
 
     async def get_data(self) -> dict[str, Any]:
         """Fetch all available data from the router."""
@@ -487,10 +1152,17 @@ class HuaweiRouter5GAPI:
                     # the only block in this payload that does. Anything walking
                     # the payload must tolerate that.
                     ("voice_busy", lambda: client.voice.voicebusy()),
-                    ("voice_volte", lambda: client.voice.volte()),
-                    ("onekey_diag", lambda: client.monitoring.onekey_diag()),
+                    (
+                        "voice_volte",
+                        lambda: _call_added_endpoint(client, "voice_volte"),
+                    ),
+                    (
+                        "onekey_diag",
+                        lambda: _call_added_endpoint(client, "onekey_diag"),
+                    ),
                 ]
                 started = time.monotonic()
+                poll = _PollState(started=started, generation=self._generation)
                 for index, (key, fetcher) in enumerate(fetch_tasks):
                     # The deadline is checked between endpoints, never inside
                     # one: a request already in flight cannot be interrupted.
@@ -499,6 +1171,8 @@ class HuaweiRouter5GAPI:
                     # critical block.
                     if index and time.monotonic() - started > FETCH_DEADLINE:
                         skipped = [name for name, _ in fetch_tasks[index:]]
+                        for name in skipped:
+                            self._record_endpoint(name, "skipped")
                         _LOGGER.warning(
                             "Fetch reached its %ss deadline after %d of %d "
                             "endpoints; returning what was collected. "
@@ -510,24 +1184,48 @@ class HuaweiRouter5GAPI:
                         )
                         break
 
+                    added = LIBRARY_ADDED_ENDPOINTS.get(key)
+                    if added is not None and not library_supports(added[2]):
+                        # Not a fault: the loaded library predates the method.
+                        # Recorded apart from `unavailable`, with no rejection
+                        # and no entry in `data`, so health does not count it
+                        # as a lost capability.
+                        self._record_endpoint(key, "unsupported")
+                        self._log_unsupported_once()
+                        continue
+
                     try:
+                        started_at = time.monotonic()
                         data[key] = fetcher()
-                    except ResponseErrorLoginRequiredException as err:
-                        _LOGGER.debug(
-                            "Session expired during fetch of %s (%s). Re-logging.",
+                        if poll.generation == self._generation:
+                            self._answered.add(key)
+                        self._record_endpoint(
                             key,
-                            err,
+                            "answered",
+                            result=data[key],
+                            elapsed_ms=int((time.monotonic() - started_at) * 1000),
                         )
-                        raise HuaweiAuthError(f"Session expired: {err}") from err
                     except ResponseErrorException as err:
-                        if str(err.code) in ("125002", "125003"):
-                            _LOGGER.debug(
-                                "Session expired during fetch of %s (%s). "
-                                "Forcing re-login.",
-                                key,
-                                err,
+                        code = str(err.code)
+                        judged: str | None = None
+                        if isinstance(
+                            err, ResponseErrorLoginRequiredException
+                        ) or code in ("125002", "125003"):
+                            judged = self._judge_session_signal(
+                                key, err, code, client, poll, data
                             )
-                            raise HuaweiAuthError(f"Session expired: {err}") from err
+
+                        # Every path below this line is a rejection, and two of
+                        # the three swallow their own error — the endpoint goes
+                        # missing from `data` and nothing is raised. Recording
+                        # here rather than at the raise is what makes those two
+                        # visible in the download at all.
+                        self._record_verdict(
+                            "refused", code=str(err.code), key=key, payload=data
+                        )
+                        self._record_endpoint(key, "refused", str(err.code))
+                        if judged is not None:
+                            self.endpoint_outcomes[key]["judged"] = judged
 
                         if key == "device_information":
                             _LOGGER.warning("Critical fetch %s failed: %s", key, err)
@@ -540,6 +1238,18 @@ class HuaweiRouter5GAPI:
                         else:
                             _LOGGER.debug("Failed to fetch %s: %s", key, err)
                     except Exception as err:
+                        # No error code to carry: the failure came from the
+                        # transport or the library rather than from the router
+                        # stating a refusal, so the verdict says only that the
+                        # endpoint could not be read.
+                        self._record_verdict(
+                            "unavailable",
+                            key=key,
+                            error=type(err).__name__,
+                            payload=data,
+                        )
+                        self._record_endpoint(key, "unavailable")
+
                         if key == "device_information":
                             _LOGGER.warning("Critical fetch %s failed: %s", key, err)
                             raise HuaweiConnectionError(
@@ -553,6 +1263,14 @@ class HuaweiRouter5GAPI:
                 return data
 
             res = None
+            # Cleared before the attempt, not after it. `_fetch` records its
+            # own rejections as it goes and two of them do not raise, so
+            # clearing on the way out would erase the evidence the poll had
+            # just collected. A poll that records nothing therefore leaves this
+            # `None`, which is `zte_router_5g`'s "cleared by a live verdict"
+            # expressed against a fetch loop that can partially succeed.
+            self._record_verdict("live")
+            self.endpoint_outcomes = {}
             try:
                 res = await asyncio.to_thread(_fetch)
                 self._last_activity = datetime.now(UTC)

@@ -4,8 +4,6 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 import voluptuous as vol
-from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
@@ -20,6 +18,8 @@ from custom_components.huawei_router_5g.config_flow import (
     _user_schema,
     _validate_credentials,
 )
+from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
+from homeassistant.data_entry_flow import AbortFlow, FlowResultType
 
 # ---------------------------------------------------------------------------
 # _clean_host / _merge_credentials
@@ -1040,6 +1040,35 @@ async def test_a_full_user_flow_reaches_the_router_and_creates_the_entry(
     assert result["type"] == FlowResultType.CREATE_ENTRY
     assert result["data"]["mac"] == "001122aabbcc"
     flow.async_set_unique_id.assert_awaited_once_with("001122aabbcc")
+
+
+@pytest.mark.asyncio
+async def test_a_refused_optional_endpoint_does_not_fail_the_setup(router_transport):
+    """Issue 50: the login works and one optional endpoint answers 100003.
+
+    The other tests in this file replace the API object or patch the
+    validation, so they cannot show this. Here `_validate_credentials` runs for
+    real over the fake transport, the router refuses one non-critical read on a
+    live session, and the entry is created and not rejected as `invalid_auth`.
+    """
+    router_transport.refuse("sms/sms-list")
+    flow = HuaweiRouter5GConfigFlow()
+    flow.hass = MagicMock()
+    flow.context = {}
+    flow.async_set_unique_id = AsyncMock()
+    flow._abort_if_unique_id_configured = MagicMock()
+
+    result = await flow.async_step_user(
+        {
+            CONF_HOST: "http://192.168.8.1",
+            CONF_USERNAME: "admin",
+            CONF_PASSWORD: "password",
+        }
+    )
+
+    assert result["type"] == FlowResultType.CREATE_ENTRY
+    assert result["data"]["mac"] == "001122aabbcc"
+    assert router_transport.anonymous_info_reads == 1
 
 
 @pytest.mark.asyncio

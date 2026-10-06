@@ -16,14 +16,14 @@ import json
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.config_entries import ConfigEntry
-from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
-from homeassistant.core import HomeAssistant
 
 from custom_components.huawei_router_5g.diagnostics import (
     REDACTED,
     async_get_config_entry_diagnostics,
 )
+from homeassistant.config_entries import ConfigEntry
+from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
+from homeassistant.core import HomeAssistant
 
 # Every value below is something a real router returns and a maintainer must
 # never receive. They are deliberately distinctive strings so a substring search
@@ -657,3 +657,27 @@ async def test_an_empty_value_under_a_redacted_key_stays_empty(entry):
 
     assert result["data"]["device_information"]["Imei"] == ""
     assert result["data"]["current_plmn"]["Spn"] is None
+
+
+@pytest.mark.asyncio
+async def test_the_download_carries_the_premise_and_the_lost_session_count(entry):
+    """Dev16 plan I1 and I4: how a refusal was judged, and what the sweep saw."""
+    entry.runtime_data.api.premise_result = {"outcome": "refused", "code": "100003"}
+    entry.runtime_data.api.sweep_sessions_lost = 1
+
+    result, _ = await _dump(entry)
+
+    assert result["premise"] == {"outcome": "refused", "code": "100003"}
+    assert result["probe_sessions_lost"] == 1
+
+
+@pytest.mark.asyncio
+async def test_the_download_says_when_no_premise_was_needed(entry):
+    """A router that refused nothing never made the premise check, and the count reads 0."""
+    entry.runtime_data.api.premise_result = None
+    entry.runtime_data.api.sweep_sessions_lost = 0
+
+    result, _ = await _dump(entry)
+
+    assert result["premise"] == {"outcome": "not_made", "code": None}
+    assert result["probe_sessions_lost"] == 0

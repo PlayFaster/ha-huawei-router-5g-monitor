@@ -4,8 +4,6 @@ from datetime import UTC
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.const import UnitOfDataRate, UnitOfInformation, UnitOfTime
-from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.sensor import (
@@ -14,6 +12,8 @@ from custom_components.huawei_router_5g.sensor import (
     HuaweiSensorEntityDescription,
     async_setup_entry,
 )
+from homeassistant.const import UnitOfDataRate, UnitOfInformation, UnitOfTime
+from homeassistant.util import dt as dt_util
 from tests.conftest import assert_is_root, assert_links_to_parent, without_about
 
 # ---------------------------------------------------------------------------

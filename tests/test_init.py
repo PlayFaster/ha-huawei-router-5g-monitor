@@ -2,10 +2,8 @@
 
 from unittest.mock import AsyncMock, MagicMock, patch
 
-import pytest
-from homeassistant.core import HomeAssistant, ServiceCall
-from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 from huawei_lte_api.enums.sms import BoxTypeEnum
+import pytest
 
 from custom_components.huawei_router_5g import (
     DOMAIN,
@@ -20,6 +18,8 @@ from custom_components.huawei_router_5g.const import (
     SMS_MAX_CHARS_UNICODE,
 )
 from custom_components.huawei_router_5g.helpers import is_gsm7
+from homeassistant.core import HomeAssistant, ServiceCall
+from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
 
 
 @pytest.fixture
@@ -59,7 +59,12 @@ async def test_async_setup_registers_services(mock_hass):
     """Test that async_setup registers all expected services."""
     mock_hass.services.has_service.return_value = False
 
-    result = await async_setup(mock_hass, {})
+    # The guard is exercised in `test_library_guard.py`; here it is only started.
+    with patch(
+        "custom_components.huawei_router_5g.async_ensure_library",
+        new_callable=MagicMock,
+    ):
+        result = await async_setup(mock_hass, {})
 
     assert result is True
     assert mock_hass.services.async_register.call_count == 5
@@ -363,7 +368,11 @@ async def test_async_setup_registers_and_calls_services(mock_hass):
     """Test that async_setup registers services and they can be called."""
     mock_hass.services.has_service.return_value = False
 
-    result = await async_setup(mock_hass, {})
+    with patch(
+        "custom_components.huawei_router_5g.async_ensure_library",
+        new_callable=MagicMock,
+    ):
+        result = await async_setup(mock_hass, {})
     assert result is True
 
     registered_callbacks = {}
@@ -398,9 +407,8 @@ async def test_async_setup_registers_and_calls_services(mock_hass):
 @pytest.mark.asyncio
 async def test_async_setup_entry_and_unload(mock_hass):
     """Test async_setup_entry and async_unload_entry."""
-    from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
-
     from custom_components.huawei_router_5g import async_setup_entry, async_unload_entry
+    from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 
     mock_entry = MagicMock()
     mock_entry.options = {
@@ -435,6 +443,9 @@ async def test_async_setup_entry_and_unload(mock_hass):
             "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
         ) as mock_coord_class,
     ):
+        # Setup awaits the uptime store load before spawning the background
+        # task, so a patched coordinator class needs that one method awaitable.
+        mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
         # Test setup
         result = await async_setup_entry(mock_hass, mock_entry)
         assert result is True
@@ -525,6 +536,9 @@ async def test_supported_net_modes_is_read_before_the_first_refresh(mock_hass):
             "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
         ) as mock_coord_class,
     ):
+        # Setup awaits the uptime store load before spawning the background
+        # task, so a patched coordinator class needs that one method awaitable.
+        mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
         await async_setup_entry(mock_hass, mock_entry)
         bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
 
@@ -581,6 +595,9 @@ async def test_a_failed_mode_list_read_cannot_block_the_first_refresh(mock_hass)
             "custom_components.huawei_router_5g.HuaweiRouter5GDataUpdateCoordinator"
         ) as mock_coord_class,
     ):
+        # Setup awaits the uptime store load before spawning the background
+        # task, so a patched coordinator class needs that one method awaitable.
+        mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
         await async_setup_entry(mock_hass, mock_entry)
         bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
 
@@ -675,6 +692,54 @@ async def test_clear_repairs_deletes_each_entry_scoped_id(mock_hass, mock_config
     deleted = {call.args[2] for call in delete.call_args_list}
     assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}
     assert all(call.args[1] == DOMAIN for call in delete.call_args_list)
+
+
+@pytest.mark.asyncio
+async def test_removing_the_last_entry_also_clears_the_library_repair(
+    mock_config_entry,
+):
+    """The library repair is domain-level, so only the last entry's removal clears it.
+
+    After the last entry is gone the integration is no longer set up on later
+    starts, and nothing else would delete the issue.
+    """
+    from custom_components.huawei_router_5g import async_remove_entry
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_LIBRARY_RESTART,
+        REPAIR_NAMES,
+    )
+
+    hass = MagicMock()
+    hass.config_entries.async_entries.return_value = []
+
+    with patch("custom_components.huawei_router_5g.ir.async_delete_issue") as delete:
+        await async_remove_entry(hass, mock_config_entry)
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {
+        *(f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES),
+        REPAIR_LIBRARY_RESTART,
+    }
+
+
+@pytest.mark.asyncio
+async def test_removing_a_non_last_entry_leaves_the_library_repair(mock_config_entry):
+    """Another entry still needs the repair, so only the per-entry ids go."""
+    from custom_components.huawei_router_5g import async_remove_entry
+    from custom_components.huawei_router_5g.const import (
+        REPAIR_LIBRARY_RESTART,
+        REPAIR_NAMES,
+    )
+
+    hass = MagicMock()
+    hass.config_entries.async_entries.return_value = [MagicMock()]
+
+    with patch("custom_components.huawei_router_5g.ir.async_delete_issue") as delete:
+        await async_remove_entry(hass, mock_config_entry)
+
+    deleted = {call.args[2] for call in delete.call_args_list}
+    assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}
+    assert REPAIR_LIBRARY_RESTART not in deleted
 
 
 @pytest.mark.asyncio

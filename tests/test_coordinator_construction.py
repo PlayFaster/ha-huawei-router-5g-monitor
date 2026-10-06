@@ -27,12 +27,12 @@ cannot be set up at all.
 from unittest.mock import MagicMock
 
 import pytest
-from homeassistant.util import dt as dt_util
 
 from custom_components.huawei_router_5g.const import DEFAULT_SCAN_INTERVAL
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
 )
+from homeassistant.util import dt as dt_util
 
 # The six keys `__init__` restores, paired with the attribute each lands on.
 # Split by the kind of parsing they do, because the two groups suppress
@@ -130,7 +130,7 @@ def test_the_health_snapshot_starts_unknown_and_empty(mock_hass) -> None:
     """Section 19's published attribute names **and values** are a contract.
 
     Users write templates against `severity`, `issues`, `degraded_capabilities`,
-    `drift` and `last_good_update`. A key renamed at construction — even in
+    `not_served`, `drift` and `last_good_update`. A key renamed at construction — even in
     case — silently breaks every template written for it, and nothing errors.
 
     **`severity` starts `"unknown"`, not `None`.** Nothing has been fetched at
@@ -144,12 +144,14 @@ def test_the_health_snapshot_starts_unknown_and_empty(mock_hass) -> None:
         "severity",
         "issues",
         "degraded_capabilities",
+        "not_served",
         "drift",
         "last_good_update",
     }
     assert snapshot["severity"] == "unknown"
     assert snapshot["issues"] == []
     assert snapshot["degraded_capabilities"] == []
+    assert snapshot["not_served"] == []
     assert snapshot["drift"] == []
     assert snapshot["last_good_update"] is None
 
@@ -223,14 +225,25 @@ def test_a_stored_timestamp_latch_is_restored(mock_hass, key: str, attr: str) ->
 
 
 @pytest.mark.parametrize(("key", "attr"), _COUNTER_LATCHES)
-def test_a_stored_counter_latch_is_restored_as_an_int(
+def test_a_stored_counter_latch_is_not_restored_from_the_entry(
     mock_hass, key: str, attr: str
 ) -> None:
-    """Stored as a string by the registry, needed as an int for comparison."""
+    """The counter must come from the store, never from `entry.data`.
+
+    **This test asserted the opposite until 2026-09-08, and the behaviour it
+    asserted was the defect.** `entry.data` is written only when a latch
+    happens, so the stored counter froze at whatever the router reported one
+    poll after a boot - 61 s on the development instance - and the reset
+    comparison `live < stored - UPTIME_REBOOT_MARGIN` could never fire again.
+    A reboot inside a Home Assistant gap then went undetected for as long as
+    the installation lasted.
+
+    Inverted rather than deleted: it is now the guard against wiring the
+    frozen copy back in.
+    """
     coordinator = _build(mock_hass, data={key: "3600"})
 
-    assert getattr(coordinator, attr) == 3600
-    assert isinstance(getattr(coordinator, attr), int)
+    assert getattr(coordinator, attr) is None
 
 
 @pytest.mark.parametrize(("key", "attr"), _COUNTER_LATCHES)
@@ -285,13 +298,16 @@ def test_an_absent_latch_key_leaves_the_attribute_unset(
     assert getattr(coordinator, attr) is None
 
 
-def test_a_zero_counter_latch_is_restored_rather_than_skipped(mock_hass) -> None:
-    """Zero is a real uptime and must survive the guard.
+def test_a_zero_counter_latch_is_not_restored_either(mock_hass) -> None:
+    """Zero is a real reading, and it is still not restored from the entry.
 
-    The check is `is not None`, deliberately, because `if v:` would discard a
-    stored `0` — a router that has just rebooted — and silently re-latch on the
-    next reading.
+    It had its own case because `if v:` would discard a stored `0` — a router
+    that has just rebooted — while `is not None` would keep it. That
+    distinction now lives in the store's restore path. Here the point is only
+    that `entry.data` is no longer a source for any counter, and zero is the
+    value most likely to be reintroduced by someone restoring the guard
+    rather than the source.
     """
     coordinator = _build(mock_hass, data={"last_system_uptime": 0})
 
-    assert coordinator._last_system_uptime == 0
+    assert coordinator._last_system_uptime is None

@@ -1,10 +1,10 @@
 """Sensor platform for Huawei Router 5G."""
 
-import ipaddress
-import logging
 from collections.abc import Callable
 from dataclasses import dataclass
 from datetime import datetime
+import ipaddress
+import logging
 from typing import Any, Final, cast
 
 from homeassistant.components.sensor import (
@@ -24,7 +24,6 @@ from homeassistant.const import (
     UnitOfTime,
 )
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 from homeassistant.util import dt as dt_util
@@ -39,10 +38,10 @@ from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
     ABOUT_UNRECORDED,
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     _parse_complex_float,
     _parse_complex_int,
     _safe_int,
-    build_device_info,
     cycle_bounds,
     get_network_type_label,
     parse_signal_value,
@@ -2433,6 +2432,7 @@ async def async_setup_entry(
 
 class HuaweiRouterSensor(
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     SensorEntity,
 ):
@@ -2608,8 +2608,3 @@ class HuaweiRouterSensor(
             )
 
         return self._with_about(None) or {}
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, self.entity_description.group)

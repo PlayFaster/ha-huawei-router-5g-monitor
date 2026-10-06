@@ -2,7 +2,7 @@
 
 This file provides guidance to AI coding agents when working with code in this repository.
 
-> **Read the shared conventions first:** [`.shared/dev_std/agent_conventions.md`](.shared/dev_std/agent_conventions.md) — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-huawei-router-5g-monitor**.
+> **Read the shared conventions first:** `.shared/dev_std/agent_conventions.md` — commands (tests, lint, mypy, validation), the Windows-host `docker exec` workflow, devcontainer access, HAB/MCP for interrogating the running HA instance, the post-modification SCOPE table, code conventions, and the markdown/Python rules. That file is the single source of truth for everything shared across the integration projects; this file covers only what is specific to **ha-huawei-router-5g-monitor**.
 >
 > **[!] Note:** If you edit files inside directory junctions (`.notes/` or `.shared/`), do not run container validation on them. Validate them on the Windows host from the `shared/` folder.
 
@@ -10,7 +10,7 @@ This file provides guidance to AI coding agents when working with code in this r
 
 > [!CAUTION]
 >
-> **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: [`agent_conventions.md`](.shared/dev_std/agent_conventions.md).
+> **Never run `git checkout`, `git restore`, `git reset`, `git stash` or `git clean`. Ask first, every time — no exceptions, whoever's changes you think they are.** Reading git (`status`, `diff`, `log`, `show`) is always fine. Full rule and the incident behind it: `agent_conventions.md` (`.shared/dev_std/agent_conventions.md`).
 
 ## What This Integration Does
 
@@ -20,9 +20,13 @@ Entities are grouped into six logical sub-devices: **System**, **Signal**, **Dat
 
 > **Entity and service inventory lives in [`docs/all_sensors.md`](docs/all_sensors.md)** — it is authoritative and synchronized from code descriptions via `python .workbench/check_sensor_manifest.py --sync-docs` (and validated against live HA via `--verify-ha`). This file deliberately carries no entity counts or service descriptions.
 
+---
+
+> **Home Assistant version compatibility lives in [`docs/ha_compatibility.md`](docs/ha_compatibility.md)** — supported version floors and active core API deprecation statuses for this integration are tracked there per `agent_conventions.md` §4 (`.shared/dev_std/agent_conventions.md`).
+
 ## Commands
 
-Standard for all integration projects — see [shared conventions §2](.shared/dev_std/agent_conventions.md). Nothing about this project's commands differs.
+Standard for all integration projects — see shared conventions §2 (`.shared/dev_std/agent_conventions.md`). Nothing about this project's commands differs.
 
 ## Architecture
 
@@ -44,7 +48,8 @@ platform files (sensor.py, binary_sensor.py, switch.py, etc.)
   → all extend CoordinatorEntity
   → PARALLEL_UPDATES set per write path: 1 on button/switch/select
     (they command the router), 0 elsewhere — see "Parallel Updates" below
-  → use build_device_info() from helpers.py to target one of the six sub-devices
+  → inherit helpers.HuaweiDeviceEntity; it resolves the sub-device from the
+    description's group, or from a class-level _device_group
 ```
 
 ### Declarative Entity Pattern
@@ -53,7 +58,7 @@ All sensors are defined as `EntityDescription` dataclasses with a `value_fn: Cal
 
 ### Sub-Device Organization
 
-Entities are assigned to one of six sub-devices via `build_device_info(coordinator, group)` in `helpers.py`. Every non-system sub-device links to the System sub-device as its parent, but **not via a hard-coded key** — the link goes through `_compat.via_device_link()`, which emits `via_device_id` on HA 2026.8+ and the legacy `via_device` tuple on 2026.7 and earlier. The tuple is deprecated in 2026.8 and **removed in 2027.8**; the shim keeps the integration floor-free.
+Entities are assigned to one of six sub-devices by **inheriting `HuaweiDeviceEntity` from `helpers.py`**, which resolves the group from the entity description and calls `build_device_info(coordinator, group)`. **No platform declares its own `device_info`**, and `test_device_info_is_declared_once` fails if one starts: seven platform bases each carried a copy, and in `zte_router_5g` the same shape produced an entity with none, which reached users. `device_tracker` has no entity description and sets `_device_group = "clients"` at class level. Every non-system sub-device links to the System sub-device as its parent, but **not via a hard-coded key** — the link goes through `_compat.via_device_link()`, which emits `via_device_id` on HA 2026.8+ and the legacy `via_device` tuple on 2026.7 and earlier. The tuple is deprecated in 2026.8 and **removed in 2027.8**; the shim keeps the integration floor-free.
 
 **Never assert `info["via_device"]` in a test** — it is green only on the HA version that happens to take that branch. Use `assert_links_to_parent()` / `assert_is_root()` from `tests/conftest.py`, which assert the link's presence and exclusivity rather than which key carries it.
 
@@ -102,12 +107,13 @@ Rather than hardcoded radio indices, `switch.py` / `binary_sensor.py` fetch all 
 - `parse_signal_value(val)`: Strips unit suffixes (dBm, dB, MHz, etc.) before numeric conversion
 - `_parse_complex_int` / `_parse_complex_float`: Returns raw string for multi-carrier values like `"DL:500 UL:18500"` to avoid partial-parse errors
 - `parse_sms_list(data)`: Handles varied router response structures (list vs. dict, metadata offset)
-- `build_device_info(coordinator, group)`: Builds `DeviceInfo` targeting the correct sub-device
+- `HuaweiDeviceEntity`: the one `device_info` implementation — inherit it, never redeclare the property
+- `build_device_info(coordinator, group)`: Builds `DeviceInfo` targeting the correct sub-device; called by the mixin, not by platforms
 - `find_ssid_by_path` / `is_ssid_on`: Dynamic WiFi radio discovery by path fragment
 
 ## Key Patterns & Conventions
 
-Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`, the centralized `icons.json` architecture, exception tuple syntax, `or 0` precedence, markdown emoji rules) are in [shared conventions §4–5](.shared/dev_std/agent_conventions.md). Project-specific additions:
+Shared conventions (ruff/mypy strictness, `PARALLEL_UPDATES`, `translation_key`, the centralized `icons.json` architecture, exception tuple syntax, `or 0` precedence, markdown emoji rules) are in shared conventions §4–5 (`.shared/dev_std/agent_conventions.md`). Project-specific additions:
 
 ### Frequency Field Scaling
 
@@ -137,6 +143,21 @@ Four things to know before editing it:
 
 New checks must record evidence, not just a verdict, and must restore what they changed with the restore itself recorded as a row.
 
+### The diagnostics check, and the one rule that governs sweeps
+
+`scripts/diag_check.py` is the second script that needs the router and never runs in CI. It builds a real coordinator, calls the real `async_get_config_entry_diagnostics`, asserts over the **produced file** rather than the producer, and runs twice to diff. `--sabotage` ends the session mid-poll so a real expiry is classified by real firmware. It writes `.reports/diag_check.txt` and is wired into the shared `tasks.json` as **Hardware: Check Diagnostics Download**.
+
+It exists because the unit suite asserts on what the API client holds while the user receives what `diagnostics.py` publishes. `zte_router_5g` shipped a field that five green tests asserted and no download ever carried.
+
+Three things to know before editing it or anything it exercises:
+
+- **Never sweep endpoints through `_execute_with_retry`.** `huawei-lte-api` raises `ResponseErrorLoginRequiredException` for `100003` and for no other code, and `100003` is a refusal on this firmware rather than an expiry — so that wrapper re-logs in on every refusal. Measured 2026-09-07: two logins per `100003` against one for any other outcome, and a 46-endpoint sweep through it left the router answering `LoginErrorAlreadyLoginException` and then refusing connections, turning the rest of the run into artefacts. `api.probe_diagnostic_endpoints` calls directly on one established session for this reason. `docs/huawei_how_to_access.md` carries the mechanism and had already warned that bulk sweeps produce false `100003` results — twice before this.
+- **A `100003`, `125002` or `125003` from a non-critical endpoint is not an expiry on that signal alone.** The fetch loop in `api.py` tells a refusal from an expiry with an anonymous premise check, a re-read of `device_information` and the history of the run, and the diagnostics sweep reads `device_information` after any probe that does not answer. Do not restore an unconditional raise on those codes. The rule, its bounds and its known limits are in `docs/huawei_how_to_access.md` under "Telling a refusal from an expiry", and the plan is `v123_dev16_plan.md`.
+- **A probe publishes key names and counts, never values.** A value from an endpoint nobody here has seen has no entry in `diagnostics.py`'s key lists and would be published intact by a sanitizer that matches on exact key names.
+- **An endpoint left out of the probe set says why**, in `api.PROBES_EXCLUDED`, so nobody adds it back blind. `system.onlinestate` is there because the endpoint returns a list and the library calls `.get()` on it; the two `diagnosis` calls are there because they make the router _perform_ a network operation rather than report one.
+
+The stability comparison in the script tolerates values the device changes on its own — radio measurements, counters, timings, populated counts. **Widening that tolerance is a change to what the check can still catch**, so a new entry needs its reason beside it.
+
 ## Before you write a test for new behavior
 
 Four questions, because the first six of the ten analysis categories are each scoped to one function and the defects that survive 100% branch coverage are not.
@@ -148,7 +169,7 @@ Four questions, because the first six of the ten analysis categories are each sc
 
 **Faking the transport here means `requests_mock`, not `aioclient_mock`.** This project reaches the network through `huawei-lte-api`, which holds its own `requests.Session`, so `async_get_clientsession` is never involved. The fake router is [`tests/transport.py`](tests/transport.py) and the worked examples are in [`tests/test_transport_seam.py`](tests/test_transport_seam.py); the design record is `.shared/issues/x_project/fault_injection_options.md` §3.
 
-Long form, all ten categories: [`.shared/dev_std/testing_when_writing.md`](.shared/dev_std/testing_when_writing.md) — these four are **SEQ / LIFE / REACH / PUB**.
+Long form, all ten categories: `.shared/dev_std/testing_when_writing.md` — these four are **SEQ / LIFE / REACH / PUB**.
 
 ## Tests that will stop you
 
@@ -158,41 +179,36 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 >
 > **If one of these fails, it has found something. Do not reach for the allow-list first.** Every allow-list below is currently **empty**, and each entry is meant to be a reviewable act with a written reason. A sweep that has been quietly widened is worth less than no sweep at all.
 
-| Test | Guards | Why it exists |
+| Add or change this | This fails | Do this |
 | :-- | :-- | :-- |
-| `test_no_sensor_uses_the_total_state_class` | `ALLOWED_TOTAL_STATE_CLASS` (empty) | Four resetting counters shipped as `SensorStateClass.TOTAL` with no `last_reset`, so every daily and billing-month rollover was recorded as a large negative delta and walked long-term statistics backwards. Nothing failed at runtime. |
-| `test_total_state_class_sweep_is_not_vacuous` | the sweep above | The sweep passes trivially if `SENSOR_TYPES` stops carrying state classes. Pins that it inspected ≥20 sensors and that the four corrected counters are still `TOTAL_INCREASING`. |
-| `test_allowed_total_state_class_has_no_dead_entries` | the allow-list | An exemption must not outlive its sensor, where it would silently pre-approve a future sensor reusing the key. |
-| `test_every_entity_publishing_attributes_declares_unrecorded` | Section 14 | The component had **zero** `_unrecorded_attributes`, so every attribute of every entity hit the recorder on every state change — including each tracked client's SSID, once per client per poll. Discovers entity classes by inspection, so a new platform cannot slip past it. |
-| `test_unrecorded_attribute_sweep_is_not_vacuous` | the sweep above | Fails if discovery stops finding classes (e.g. a refactor moving `extra_state_attributes` onto a shared base). |
-| `test_every_entity_description_carries_an_about_note` | Section 14 | The same `x_proj_checks` row asked for `_unrecorded_attributes` **and** `about` notes; only the first was delivered, which left the row reading as closed. Without this sweep the notes written once stay correct and every entity added after them has none. A minimum length is enforced because a restatement of the entity name reports full coverage while carrying no information. |
-| `test_the_device_tracker_carries_a_class_level_note` | the one platform with no description | A sweep over entity descriptions cannot see it, so it would be the single entity in the component with no note and nothing would fail. |
-| `test_every_entity_publishing_attributes_keeps_the_about_note_unrecorded` | Section 14 | `_unrecorded_attributes` is resolved by ordinary attribute lookup and is **not** unioned across bases, so a subclass declaring its own set silently discards the mixin's `{"about"}` — and starts recording the note on that entity alone. Invisible in a diff of the subclass. |
-| `test_an_entity_with_its_own_attributes_still_emits_the_note` | the mechanism, not the declaration | The declaration sweep passes while an entity's own `extra_state_attributes` returns a dict that never went through `_with_about`: the key is declared unrecorded and simply never emitted. |
-| `Sensor: Check Manifest` (`--check`) | `docs/about_attribute_list.md`, `all_sensors.md`, `value_min_max.md` | **Not a pytest test — a `Validate All` task.** Regenerates each document from the code and fails on any difference, which covers a missing entity, a phantom one and a reworded note alike. It replaced `test_about_attribute_list_doc_matches_the_code`, removed 2026-08-23: that test read the shipped document with a regex of its own, so the generator's output format had two parsers and only one owner. Chore `C-013`. |
-| `test_every_registered_action_has_an_icon` | Section 12 | There was no `services` block at all while four actions were registered. Reads the action list from **`services.yaml`**, not from `icons.json` — reading the thing under test to build the expectation is how a bidirectional check goes vacuous. |
-| `test_no_icon_entry_names_an_action_that_does_not_exist` | the other direction | A dead icon entry renders nothing and breaks nothing, so it accumulates unnoticed. |
-| A repair issue | `test_every_repair_issue_has_title_and_rendered_text`, `test_the_fixable_repair_is_the_one_with_a_fix_flow`, `test_no_orphan_issue_translations` | Add the key to `REPAIR_NAMES` and give it a `title` in **both** `strings.json` and `translations/en.json`, then **exactly one** of `description` or `fix_flow` — `hassfest` declares them `vol.Exclusive`, because a fixable issue renders its prose in the flow's step. **A fixable repair needs `repairs.py`**: without that platform Home Assistant substitutes `ConfirmRepairFlow`, whose Fix button deletes the card and does nothing else. |
-| `test_action_icons_use_the_current_nested_form` | format drift | The flat form works, so nothing would ever fail; only the nested object can carry per-`section` icons. |
-| `test_every_entity_description_has_an_icon_or_a_device_class` | Section 12 | Found `button.refresh` shipping with neither. Reads keys from **module source** across all seven platforms — two hand-maintained files can agree perfectly and both describe an entity that no longer exists. |
-| `test_parallel_updates_matches_the_recorded_decision` | Section 22 | The rule is that the constant is set _deliberately_, which source cannot show: a considered `0` and a copy-pasted `0` are identical. Changing a value means changing the table and reading its reasoning. |
-| `test_every_entity_platform_is_covered_by_the_decision` | the table above | Stops platform number eight shipping with whatever value it happened to get. |
-| `test_every_numeric_sensor_has_a_guard_band` | `UNGUARDED_ALLOWLIST` (empty) | A sensor carrying a unit or a state class reaches long-term statistics, where an implausible reading is permanent. **Note the rule is narrow on purpose** — a wider draft on a sibling flagged 40 sensors that were right. |
-| `test_value_min_max_doc_matches_the_code` | `docs/value_min_max.md` | The document had **never** been reconciled: it documented two bands that did not exist and omitted about twenty that did. A guard band is never published as a state or attribute, so **no live query can see one** — only this static check can. |
-| `test_integration_health_publishes_the_normative_attribute_names` | Section 19 | `severity` / `issues` / `degraded_capabilities` / `drift` / `last_good_update` are a **published contract**. Users write templates against them, so a rename silently breaks every example written for a sibling project. |
-| `test_translation_keys_resolve_in_both_files` | Section 12 check (a) | Nothing had ever compared `translation_key=` in source against the translation files. The only thing that ever had was an analysis pass run by hand, and when it ran it found two dead entity strings orphaned three months earlier. Compared against the **code**, not file-to-file: both files can carry the same stale entry and both can miss the same live entity. |
-| `test_no_translation_entry_is_dead` | the other direction | `sensor.hw_version` and `sensor.imei` sat in `strings.json` for three months after the sensors were deleted, invisible to every count-based check — a file with more entries than the code has keys reads as healthy until the sets are diffed. |
-| `test_no_live_entity_publishes_a_recorded_attribute` | Section 14, **at runtime** | The static sweep above can see a class declares _something_; it cannot see what a description-driven entity actually emits, because the keys come from a function on the description. Proven non-vacuous by adding an attribute inside the projection's `extra_state_attributes`: the static sweep passed, this one failed. Forces disabled-by-default entities on — the identity sensors ship disabled and are the most likely to publish something unreviewed. |
-| `test_every_live_entity_publishes_its_about_note` | the note reaching runtime | A note that never reaches the state machine satisfies every static check and shows the user nothing. |
-| `test_every_live_entity_resolves_its_name` | Section 12, **per platform** | A key filed under `sensor` while its entity is built on `binary_sensor` resolves fine to any check that flattens the file, and shows the user a raw key. Proven by filing a live key under the wrong platform: the source-reading check passed, this one failed. |
-| `test_every_live_entity_has_an_icon_or_derives_one` | Section 12, live | Only an `icons.json` entry or a `device_class` counts — **`_attr_icon` is deliberately not accepted**, because it satisfies the eye while defeating the check and puts the icon somewhere untranslatable. |
-| `test_every_write_is_classified` | `scripts/write_classification.py` | A write shipping with nobody having asked whether it could be exercised is how Clear Traffic reached users calling a method that does not exist. Every command must sit in exactly one tier with a written reason. |
-| `test_every_safe_write_is_exercised_by_the_hardware_check` | the tier boundary | A write classified SAFE and never actually run is a claim, not a check. |
-| `test_no_lts_excluded_sensor_declares_a_state_class` | long-term statistics | LTS is driven by `state_class`, not `device_class`. An identifier that acquires one starts accumulating statistics nobody wants and the recorder never gives that back. |
-| `test_every_read_back_endpoint_is_a_real_one` | Section 22 | A typo in the read-back map surfaces only as a control that silently never confirms — no error, no failure, just a mechanism doing nothing. |
-| `test_the_live_keys_are_exactly_the_two_read_every_cycle` | Section 9 | Adding a key to `LIVE_OPTION_KEYS` makes that setting silently stop working: written to the entry, skipped by the reload, never re-read by anything holding the old value. |
-| `test_compat.py` (all) | `_compat.py` | Forces **both** branches of each shim by patching the detection flag. The suite runs against one HA version, so the other branch would never execute — and this integration must be correct on ≤2026.7 and post-2027.8 alike. |
-| `assert_links_to_parent()` / `assert_is_root()` | device-registry link shape | **Never assert `info["via_device"]` directly.** Twelve tests did, and were green only because the installed HA took that branch. These assert the link's presence and exclusivity instead. |
+| A sensor's state class | `test_no_sensor_uses_the_total_state_class` | Use `TOTAL_INCREASING`; `ALLOWED_TOTAL_STATE_CLASS` is deliberately empty. |
+| Removing a sensor that has an allow-list, register or exclusion entry | `test_allowed_total_state_class_has_no_dead_entries`, `test_unguarded_allowlist_has_no_dead_entries`, `test_the_lts_exclusion_lists_have_no_dead_entries`, `test_the_disabled_by_decision_register_has_no_dead_entries`, `test_allowed_suppressions_has_no_dead_entries` | Remove its entry in the same change. |
+| An entity that publishes attributes | `test_every_entity_publishing_attributes_declares_unrecorded`, `test_every_entity_publishing_attributes_keeps_the_about_note_unrecorded`, `test_no_live_entity_publishes_a_recorded_attribute`, `test_integration_health_attributes_are_all_unrecorded` | Add each key to the class's `_unrecorded_attributes`, repeating `"about"` if the class declares its own set. |
+| An entity description | `test_every_entity_description_carries_an_about_note`, `test_every_live_entity_publishes_its_about_note` | Give it an `about` note that reaches the published attributes. |
+| The device tracker class | `test_the_device_tracker_carries_a_class_level_note` | Keep its class-level `about` note; the description sweep cannot see this platform. |
+| An entity with its own `extra_state_attributes` | `test_an_entity_with_its_own_attributes_still_emits_the_note` | Build the returned dict through `_with_about`. |
+| Any entity, guard band or `about` note | `Sensor: Check Manifest` (`--check`) | Regenerate the documents with the manifest tool and commit the result. |
+| An action, or removing one | `test_every_registered_action_has_an_icon`, `test_no_icon_entry_names_an_action_that_does_not_exist`, `test_action_icons_use_the_current_nested_form` | Add a `services` icon entry in the nested form, and remove it with the action. |
+| A repair issue | `test_every_repair_issue_has_title_and_rendered_text`, `test_the_fixable_repair_is_the_one_with_a_fix_flow`, `test_no_orphan_issue_translations` | Add a per-entry key to `REPAIR_NAMES`, or for a domain-level key such as `library_restart_required` give it its own constant, which `_declared_repair_keys()` also reads, and give it a `title` in **both** `strings.json` and `translations/en.json`, then **exactly one** of `description` or `fix_flow` — `hassfest` declares them `vol.Exclusive`, because a fixable issue renders its prose in the flow's step. |
+| A library method that exists only from a later `huawei-lte-api` | `test_the_added_endpoints_are_reached_only_through_the_table`, `test_each_table_entry_exists_on_a_library_at_or_above_its_first_version`, `test_a_misspelt_table_entry_on_a_new_library_is_reported` | Add it to `LIBRARY_ADDED_ENDPOINTS` with its first version and reach it only through the table. A literal call bypasses the version gate. |
+| Anything that installs a package | `_no_unexpected_library_install` (autouse in `conftest.py`), `tests/test_library_guard.py` | Supply a fake installer in the test. The autouse fixture fails, at teardown, any test that reaches the real one. |
+| An entity class | `test_every_live_entity_belongs_to_a_device`, `test_device_info_is_declared_once` | Inherit the shared base entity; never declare `device_info` on a platform class. |
+| Any entity | `test_every_entity_description_has_an_icon_or_a_device_class`, `test_every_live_entity_has_an_icon_or_derives_one` | Add an `icons.json` entry under its own platform, unless it has a `device_class`; `_attr_icon` does not count. |
+| A platform, or a `PARALLEL_UPDATES` value | `test_parallel_updates_matches_the_recorded_decision`, `test_every_entity_platform_is_covered_by_the_decision` | Change the recorded decision in the test together with the constant. |
+| A sensor with a unit or `state_class` | `test_every_numeric_sensor_has_a_guard_band` | Declare a guard band, or add the key to `UNGUARDED_ALLOWLIST` with a reason. |
+| A guard band | `test_value_min_max_doc_matches_the_code` | Update `docs/value_min_max.md` to match. |
+| A health attribute name | `test_integration_health_publishes_the_normative_attribute_names` | Keep the §19 published names; a rename breaks user templates. |
+| A `translation_key`, or removing an entity | `test_translation_keys_resolve_in_both_files`, `test_no_translation_entry_is_dead`, `test_every_live_entity_resolves_its_name` | Add the key under the entity's own platform in both translation files, and remove it with the entity. |
+| A write command | `test_every_write_is_classified`, `test_every_safe_write_is_exercised_by_the_hardware_check` | Classify it in `scripts/write_classification.py` with a reason; a `SAFE` write must run in `scripts/hardware_check.py`. |
+| An identifier sensor | `test_no_lts_excluded_sensor_declares_a_state_class`, `test_identifier_sensors_are_declared_as_text` | Leave it without a `state_class` or unit, so it stays text and out of long-term statistics. |
+| A read-back map entry | `test_every_read_back_endpoint_is_a_real_one` | Point it at a real endpoint. |
+| `LIVE_OPTION_KEYS` | `test_the_live_keys_are_exactly_the_two_read_every_cycle` | Do not add to it; an option listed there is never re-read. |
+| `_compat.py` | `test_compat.py` (all) | Test both branches by patching the detection flag. |
+| A device-registry test | `assert_links_to_parent()` / `assert_is_root()` | Use these helpers; never assert `info["via_device"]` directly. |
+| A `# type: ignore`, `# noqa` or `# pragma: no cover` | `test_every_suppression_is_on_the_reviewed_allow_list`, `test_every_allowed_suppression_states_a_reason` | Add it to the reviewed allow-list with a reason. |
+| A sensor disabled by default by decision | `test_sensors_disabled_by_decision_are_still_disabled`, `test_every_disabled_by_decision_entry_carries_a_reason` | Change the register, with a reason, in the same change. |
+
+When you add a guard test, add its row here and its rationale to [`docs/test_guards.md`](docs/test_guards.md).
 
 ## Mutation testing — what is on the list, and why
 
@@ -200,7 +216,7 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 
 `api.py`, `config_flow.py`, `switch.py`, `number.py`, `button.py`, `select.py`, `__init__.py`, `_compat.py` and `const.py` are excluded, each with its reason recorded. `coordinator.py` is a deliberate departure from `zte_router_5g`, which excludes it: the API is mocked here too, but the strike budget, the per-endpoint counters, the health snapshot, the uptime latches and the SMS dedup are real code with real boundaries.
 
-**The reasoning lives in [`.notes/test_pytest_issues/mutation_covered_not_covered.md`](.notes/test_pytest_issues/mutation_covered_not_covered.md)** — included modules with their measured results, rejected modules with the reason each, candidates with the case for and against, and the rule for deciding the next one. Read it before adding or removing a module, and record the decision there. This project has the largest mutation surface in the family at roughly 1,633 mutants and 70 minutes, so an addition is a real cost.
+**The reasoning lives in `.notes/test_pytest_issues/mutation_covered_not_covered.md`** — included modules with their measured results, rejected modules with the reason each, candidates with the case for and against, and the rule for deciding the next one. Read it before adding or removing a module, and record the decision there. This project has the largest mutation surface in the family at roughly 1,633 mutants and 70 minutes, so an addition is a real cost.
 
 **Do not project survivor volume from the source.** `sensor.py` was excluded on a count of string literals predicting over a thousand `about` note survivors, and measured at 53 survivors with no note among them. Measure the module.
 
@@ -214,7 +230,7 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 
 ## Development Environment
 
-Standard for all integration projects — see [shared conventions §3](.shared/dev_std/agent_conventions.md). Nothing about this project's environment differs.
+Standard for all integration projects — see shared conventions §3 (`.shared/dev_std/agent_conventions.md`). Nothing about this project's environment differs.
 
 ## Known Open Issues
 
@@ -224,6 +240,6 @@ Standard for all integration projects — see [shared conventions §3](.shared/d
 uv run python scripts/check_queue_format.py --open ha-huawei-router-5g-monitor
 ```
 
-**Which one a new item belongs in, and how to add, check and close it, is [`issue_tracking_workflow.md`](.shared/issues/issue_tracking_workflow.md)** — authoritative, with the summary at [shared conventions §8](.shared/dev_std/agent_conventions.md).
+**Which one a new item belongs in, and how to add, check and close it, is `issue_tracking_workflow.md` (`.shared/issues/issue_tracking_workflow.md`)** — authoritative, with the summary at shared conventions §8 (`.shared/dev_std/agent_conventions.md`).
 
 **The `FREQUENCY` unit selector issue that stood here is fixed** — the eight frequency and bandwidth entities show the selector. **The cause recorded for it was wrong and has been corrected**: the selector is controlled by the `device_class`, not by `state_class`. Checked against the installed Home Assistant on 2026-08-26 — `sensor/device_class_convertible_units` supplies the selector's units and takes `device_class` alone, `FREQUENCY` is convertible, and `DEVICE_CLASS_STATE_CLASSES[FREQUENCY]` is `{MEASUREMENT}`. Do not remove a `state_class` expecting it to restore a selector. Cross-project detail: chore `C-012`.

@@ -12,7 +12,6 @@ from homeassistant.components.binary_sensor import (
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
-from homeassistant.helpers.device_registry import DeviceInfo
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
@@ -21,7 +20,7 @@ from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
     ABOUT_UNRECORDED,
     HuaweiAboutEntity,
-    build_device_info,
+    HuaweiDeviceEntity,
     is_ssid_on,
     parse_signal_value,
 )
@@ -193,7 +192,7 @@ INTEGRATION_HEALTH_DESCRIPTION = HuaweiBinarySensorEntityDescription(
     about=(
         "Reports the health of the integration itself, flagging when polling succeeds "
         "but specific capabilities or endpoints are missing or degraded. Provides "
-        "`severity`, `issues`, `degraded_capabilities`, `drift`, and "
+        "`severity`, `issues`, `degraded_capabilities`, `not_served`, `drift`, and "
         "`last_good_update` attributes, and never goes unavailable."
     ),
     translation_key="integration_health",
@@ -467,6 +466,7 @@ async def async_setup_entry(
 
 class HuaweiBinarySensor(
     HuaweiAboutEntity,
+    HuaweiDeviceEntity,
     CoordinatorEntity[HuaweiRouter5GDataUpdateCoordinator],
     BinarySensorEntity,
 ):
@@ -487,12 +487,6 @@ class HuaweiBinarySensor(
         self.entity_description = description
         self._entry = entry
         self._attr_unique_id = f"{entry.unique_id}_{description.key}"
-        self._group = description.group
-
-    @property
-    def device_info(self) -> DeviceInfo:
-        """Return device information with sub-device support."""
-        return build_device_info(self.coordinator, self._group)
 
 
 class HuaweiBestConnectionSensor(HuaweiBinarySensor):
@@ -788,14 +782,24 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
     """
 
     # The detail belongs in attributes, and none of it is a time series — a
-    # list of current issues has no meaning as history (Section 14).
+    # list of current issues has no meaning as history (Section 14). The
+    # drift figures are a slow-moving summary of an accumulator, not a
+    # series either: recording them would write a row per poll to describe a
+    # number that moves in the third decimal place over days.
     _unrecorded_attributes = ABOUT_UNRECORDED | frozenset(
         {
             "severity",
             "issues",
             "degraded_capabilities",
+            "not_served",
             "drift",
             "last_good_update",
+            "drift_rate_pct",
+            "drift_rate_min_pct",
+            "drift_rate_max_pct",
+            "drift_intervals",
+            "drift_measured_seconds",
+            "drift_deficit_seconds",
         }
     )
 
@@ -835,8 +839,17 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
                     "degraded_capabilities": list(
                         snapshot.get("degraded_capabilities", [])
                     ),
+                    "not_served": list(snapshot.get("not_served", [])),
                     "drift": list(snapshot.get("drift", [])),
                     "last_good_update": snapshot.get("last_good_update"),
+                    # The counter-drift picture, published because every
+                    # constant in the boot-time latch was set from one device
+                    # on a sibling project. Without it a field report carries
+                    # no rate at all, and the only route to one is a recorder
+                    # extraction. **`drift` above is a different thing** — it
+                    # is the Section 19 list of data-drift findings, and the
+                    # two have never been related.
+                    **self.coordinator.uptime_diagnostics,
                 }
             )
             or {}

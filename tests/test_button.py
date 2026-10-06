@@ -3,8 +3,6 @@
 from unittest.mock import AsyncMock, MagicMock
 
 import pytest
-from homeassistant.components.button import ButtonDeviceClass
-from homeassistant.exceptions import HomeAssistantError
 
 from custom_components.huawei_router_5g.button import (
     CLEAR_TRAFFIC_DESCRIPTION,
@@ -18,6 +16,8 @@ from custom_components.huawei_router_5g.button import (
     async_setup_entry,
 )
 from custom_components.huawei_router_5g.const import DOMAIN
+from homeassistant.components.button import ButtonDeviceClass
+from homeassistant.exceptions import HomeAssistantError
 from tests.conftest import assert_is_root, assert_links_to_parent
 
 # ---------------------------------------------------------------------------

@@ -5,6 +5,22 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.3\] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
+  - [\[1.2.3-dev16\] - 2026-10-05 - Refused Endpoint Told From Expired Session (Issue 50)](#123-dev16---2026-10-05---refused-endpoint-told-from-expired-session-issue-50)
+  - [\[1.2.3-dev15\] - 2026-10-05 - Library Range, Startup Guard And Restart Repair](#123-dev15---2026-10-05---library-range-startup-guard-and-restart-repair)
+  - [\[1.2.3-dev14\] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type](#123-dev14---2026-10-04---validation-repairs-suppression-allow-list-and-repair-flow-return-type)
+  - [\[1.2.3-dev12\] - 2026-10-04 - Shared CI Bumps](#123-dev12---2026-10-04---shared-ci-bumps)
+  - [\[1.2.3-dev11\] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test\_guards.md](#123-dev11---2026-09-23---agentsmd-guard-test-table-trimmed-rationale-moved-to-docstest_guardsmd)
+  - [\[1.2.3-dev10\] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13](#123-dev10---2026-09-23---breaking-minimum-home-assistant-raised-to-202520-for-python-313)
+  - [\[1.2.3-dev9\] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed](#123-dev9---2026-09-08---uptime-anchors-reconciled-at-startup-counter-persistence-fixed)
+  - [\[1.2.3-dev8\] - 2026-09-08 - Documentation: Project Complexity \& Health Scorecard Added](#123-dev8---2026-09-08---documentation-project-complexity--health-scorecard-added)
+  - [\[1.2.3-dev7\] - 2026-09-08 - Cyclomatic Complexity Below 20; One Uptime Latch Replacing Three](#123-dev7---2026-09-08---cyclomatic-complexity-below-20-one-uptime-latch-replacing-three)
+  - [\[1.2.3-dev6\] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It](#123-dev6---2026-09-07---every-entity-belongs-to-a-device-one-inherited-device_info-and-the-sweep-that-guards-it)
+  - [\[1.2.3-dev5\] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered](#123-dev5---2026-09-07---coverage-shortfall-now-reported-by-the-summary-entity-resolution-failure-path-covered)
+  - [\[1.2.3-dev4\] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46](#123-dev4---2026-09-07---endpoint-probe-session-churn-fixed-probe-set-widened-to-46)
+  - [\[1.2.3-dev3\] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe](#123-dev3---2026-09-07---diagnostic-download-rejection-endpoint-and-entity-evidence-unpolled-endpoint-probe)
+  - [\[1.2.3-dev2\] - 2026-09-07 - CI Bumps; Doc Updates](#123-dev2---2026-09-07---ci-bumps-doc-updates)
+  - [\[1.2.3-dev1\] - 2026-09-07 - CI Bumps; Shared Local CI Improvements; Doc Updates](#123-dev1---2026-09-07---ci-bumps-shared-local-ci-improvements-doc-updates)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.2-dev7\] - 2026-08-26 - Linting: Test Import Exclusions](#122-dev7---2026-08-26---linting-test-import-exclusions)
   - [\[1.2.2-dev6\] - 2026-08-26 - Documentation: README Repairs and Health Section Alignment](#122-dev6---2026-08-26---documentation-readme-repairs-and-health-section-alignment)
@@ -16,7 +32,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering, Signal Parsing Resilience, and Default Sensor Tuning](#121---2026-08-24---release-connection-loss-repair-triggering-signal-parsing-resilience-and-default-sensor-tuning)
   - [\[1.2.1-dev17\] - 2026-08-24 - Test Suite: Polling Deadline Seam-Test Concurrency Fix](#121-dev17---2026-08-24---test-suite-polling-deadline-seam-test-concurrency-fix)
   - [\[1.2.1-dev16\] - 2026-08-24 - Device-Tracker Architecture: Client Devices via `via_device_id` Defined](#121-dev16---2026-08-24---device-tracker-architecture-client-devices-via-via_device_id-defined)
-  - [\[1.2.1-dev15\] - 2026-08-24 - Telemetry Configuration: Write-Refusal Sweeps and Rate Sensor Defaults](#121-dev15---2026-08-24---telemetry-configuration-write-refusal-sweeps-and-rate-sensor-defaults)
+  - [\[1.2.1-dev15\] - 2026-08-24 - Sensor Configuration: Write-Refusal Sweeps and Rate Sensor Defaults](#121-dev15---2026-08-24---sensor-configuration-write-refusal-sweeps-and-rate-sensor-defaults)
   - [\[1.2.1-dev14\] - 2026-08-24 - Documentation Reconciliation: Sub-Devices and Tracker Architecture Records](#121-dev14---2026-08-24---documentation-reconciliation-sub-devices-and-tracker-architecture-records)
   - [\[1.2.1-dev13\] - 2026-08-24 - Work Queue: Device-Tracker Naming Task Consolidation](#121-dev13---2026-08-24---work-queue-device-tracker-naming-task-consolidation)
   - [\[1.2.1-dev12\] - 2026-08-24 - Code Quality: US Spelling Standardization](#121-dev12---2026-08-24---code-quality-us-spelling-standardization)
@@ -30,13 +46,13 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.1-dev4\] - 2026-08-23 - CI and Tooling: Dependency Bumps and Git Ignore Rules](#121-dev4---2026-08-23---ci-and-tooling-dependency-bumps-and-git-ignore-rules)
   - [\[1.2.1-dev2\] - 2026-08-22 - CI and Compatibility: Workflow Bumps and Platform Compatibility Matrix](#121-dev2---2026-08-22---ci-and-compatibility-workflow-bumps-and-platform-compatibility-matrix)
   - [\[1.2.1-dev1\] - 2026-08-20 - Tooling: Ruff Version Bump](#121-dev1---2026-08-20---tooling-ruff-version-bump)
-  - [\[1.2.0\] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-telemetry-entities-data-projections-control-switches-and-health-monitoring)
+  - [\[1.2.0\] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-sensor-entities-data-projections-control-switches-and-health-monitoring)
   - [\[1.2.0-dev77\] - 2026-08-20 - Hardware Verification: Switch Matching and SIM Masking](#120-dev77---2026-08-20---hardware-verification-switch-matching-and-sim-masking)
   - [\[1.2.0-dev73\] - 2026-08-19 - Actions: Encoding-Aware SMS Length Limits](#120-dev73---2026-08-19---actions-encoding-aware-sms-length-limits)
   - [\[1.2.0-dev71\] - 2026-08-19 - Logging: SMS Payload and Phone Number Privacy](#120-dev71---2026-08-19---logging-sms-payload-and-phone-number-privacy)
   - [\[1.2.0-dev70\] - 2026-08-19 - Controls: Switch Write Latching and State Retention](#120-dev70---2026-08-19---controls-switch-write-latching-and-state-retention)
   - [\[1.2.0-dev65\] - 2026-08-19 - Connection Resilience: Connection Repair Strike Limit Alignment](#120-dev65---2026-08-19---connection-resilience-connection-repair-strike-limit-alignment)
-  - [\[1.2.0-dev61\] - 2026-08-19 - Telemetry Configuration: Transmit Power Guard Band Removal](#120-dev61---2026-08-19---telemetry-configuration-transmit-power-guard-band-removal)
+  - [\[1.2.0-dev61\] - 2026-08-19 - Sensor Configuration: Transmit Power Guard Band Removal](#120-dev61---2026-08-19---sensor-configuration-transmit-power-guard-band-removal)
   - [\[1.2.0-dev59\] - 2026-08-19 - Hardware Verification: Script Reporting and Contention Coverage](#120-dev59---2026-08-19---hardware-verification-script-reporting-and-contention-coverage)
   - [\[1.2.0-dev58\] - 2026-08-18 - CI and Test Infrastructure: 100% Coverage Threshold Enforcement](#120-dev58---2026-08-18---ci-and-test-infrastructure-100-coverage-threshold-enforcement)
   - [\[1.2.0-dev57\] - 2026-08-18 - Concurrency and Resilience: Bounded Writes and Salvaged Polls](#120-dev57---2026-08-18---concurrency-and-resilience-bounded-writes-and-salvaged-polls)
@@ -44,7 +60,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev54\] - 2026-08-17 - Diagnostic Health: Severity Enum and Strike Constant Alignment](#120-dev54---2026-08-17---diagnostic-health-severity-enum-and-strike-constant-alignment)
   - [\[1.2.0-dev53\] - 2026-08-17 - Documentation: Accuracy Reconciliation and Stale Guidance Cleanup](#120-dev53---2026-08-17---documentation-accuracy-reconciliation-and-stale-guidance-cleanup)
   - [\[1.2.0-dev52\] - 2026-08-17 - Test Quality: Assertion Audit and Concrete Verification](#120-dev52---2026-08-17---test-quality-assertion-audit-and-concrete-verification)
-  - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor](#120-dev51---2026-08-17---dev-workbench-shared-local-ci-drop-python-typing-update-add-source-footnotes-to-drift-auditor)
+  - [\[1.2.0-dev51\] - 2026-08-17 - Dev-Workbench Local CI python-typing-update Removal; Drift Auditor Source Footnotes](#120-dev51---2026-08-17---dev-workbench-local-ci-python-typing-update-removal-drift-auditor-source-footnotes)
   - [\[1.2.0-dev50\] - 2026-08-17 - Architecture and Roadmap: Client Tracking Opt-Out and Poll Timings](#120-dev50---2026-08-17---architecture-and-roadmap-client-tracking-opt-out-and-poll-timings)
   - [\[1.2.0-dev47\] - 2026-08-17 - Test Coverage: Full Line and Branch Coverage Restoration](#120-dev47---2026-08-17---test-coverage-full-line-and-branch-coverage-restoration)
   - [\[1.2.0-dev46\] - 2026-08-17 - Controls: Network Mode Option List Startup Ordering](#120-dev46---2026-08-17---controls-network-mode-option-list-startup-ordering)
@@ -63,7 +79,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev31\] - 2026-08-15 - Test Suite: Mutation Testing Triage and SMS Parser Fixes](#120-dev31---2026-08-15---test-suite-mutation-testing-triage-and-sms-parser-fixes)
   - [\[1.2.0-dev30\] - 2026-08-15 - Verification Pass: Live Readback Validation and Timer Callback Tests](#120-dev30---2026-08-15---verification-pass-live-readback-validation-and-timer-callback-tests)
   - [\[1.2.0-dev29\] - 2026-08-15 - Tooling: Ruff Version Bump](#120-dev29---2026-08-15---tooling-ruff-version-bump)
-  - [\[1.2.0-dev28\] - 2026-08-15 - Telemetry Configuration: Per-Entry Projection Caching and Source Root Resolvers](#120-dev28---2026-08-15---telemetry-configuration-per-entry-projection-caching-and-source-root-resolvers)
+  - [\[1.2.0-dev28\] - 2026-08-15 - Sensor Configuration: Per-Entry Projection Caching and Source Root Resolvers](#120-dev28---2026-08-15---sensor-configuration-per-entry-projection-caching-and-source-root-resolvers)
   - [\[1.2.0-dev27\] - 2026-08-15 - Dependencies: URL Normalization Dependency Removal](#120-dev27---2026-08-15---dependencies-url-normalization-dependency-removal)
   - [\[1.2.0-dev25\] - 2026-08-15 - Test Infrastructure: Entity Hygiene Sweeps and Unverified Write Refresh](#120-dev25---2026-08-15---test-infrastructure-entity-hygiene-sweeps-and-unverified-write-refresh)
   - [\[1.2.0-dev24\] - 2026-08-15 - Test Quality: Regression Proofs for Rounding and Translation Sweeps](#120-dev24---2026-08-15---test-quality-regression-proofs-for-rounding-and-translation-sweeps)
@@ -72,14 +88,14 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev21\] - 2026-08-15 - Depth Review: SMS Deduplication and Event Payload Contracts](#120-dev21---2026-08-15---depth-review-sms-deduplication-and-event-payload-contracts)
   - [\[1.2.0-dev20\] - 2026-08-15 - Diagnostics and Data Sanitization: Diagnostic Tokens and Address Redaction](#120-dev20---2026-08-15---diagnostics-and-data-sanitization-diagnostic-tokens-and-address-redaction)
   - [\[1.2.0-dev19\] - 2026-08-15 - Test Infrastructure: Mutation Testing Setup and Test Root Resolvers](#120-dev19---2026-08-15---test-infrastructure-mutation-testing-setup-and-test-root-resolvers)
-  - [\[1.2.0-dev18\] - 2026-08-15 - Telemetry: Explanatory About Attribute Notes on Every Entity](#120-dev18---2026-08-15---telemetry-explanatory-about-attribute-notes-on-every-entity)
+  - [\[1.2.0-dev18\] - 2026-08-15 - Entity Documentation: Explanatory About Attribute Notes on Every Entity](#120-dev18---2026-08-15---entity-documentation-explanatory-about-attribute-notes-on-every-entity)
   - [\[1.2.0-dev17\] - 2026-08-15 - Diagnostics: Router Diagnostics Binary Sensor](#120-dev17---2026-08-15---diagnostics-router-diagnostics-binary-sensor)
-  - [\[1.2.0-dev16\] - 2026-08-15 - Controls and Telemetry: Master WiFi Radio Switch and Voice Entities](#120-dev16---2026-08-15---controls-and-telemetry-master-wifi-radio-switch-and-voice-entities)
+  - [\[1.2.0-dev16\] - 2026-08-15 - Controls and Sensors: Master WiFi Radio Switch and Voice Entities](#120-dev16---2026-08-15---controls-and-sensors-master-wifi-radio-switch-and-voice-entities)
   - [\[1.2.0-dev15\] - 2026-08-15 - Polling Engine: Follow-Up Refresh Execution During Polling Pauses](#120-dev15---2026-08-15---polling-engine-follow-up-refresh-execution-during-polling-pauses)
   - [\[1.2.0-dev14\] - 2026-08-15 - Polling Engine: Follow-Up Refresh After Reboot and Reconnect](#120-dev14---2026-08-15---polling-engine-follow-up-refresh-after-reboot-and-reconnect)
   - [\[1.2.0-dev13\] - 2026-08-15 - Controls: Reconnect Button Fix Using Dual Dial Actions](#120-dev13---2026-08-15---controls-reconnect-button-fix-using-dual-dial-actions)
   - [\[1.2.0-dev12\] - 2026-08-15 - Dependencies: Upstream Library Pin Bump to 2.0.1](#120-dev12---2026-08-15---dependencies-upstream-library-pin-bump-to-201)
-  - [\[1.2.0-dev11\] - 2026-08-15 - Telemetry: Expanded Entity Set and Monthly Data-Usage Projections](#120-dev11---2026-08-15---telemetry-expanded-entity-set-and-monthly-data-usage-projections)
+  - [\[1.2.0-dev11\] - 2026-08-15 - Sensor Expansion: Expanded Entity Set and Monthly Data-Usage Projections](#120-dev11---2026-08-15---sensor-expansion-expanded-entity-set-and-monthly-data-usage-projections)
   - [\[1.2.0-dev10\] - 2026-08-15 - Documentation: Huawei API Access Reference](#120-dev10---2026-08-15---documentation-huawei-api-access-reference)
   - [\[1.2.0-dev9\] - 2026-08-14 - Roadmap: Roadmap Task Alignment](#120-dev9---2026-08-14---roadmap-roadmap-task-alignment)
   - [\[1.2.0-dev8\] - 2026-08-14 - Localization: Stale Translation String Removal](#120-dev8---2026-08-14---localization-stale-translation-string-removal)
@@ -90,7 +106,7 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.2.0-dev3\] - 2026-08-14 - Code Quality: Masked-Errors Suppression Audit](#120-dev3---2026-08-14---code-quality-masked-errors-suppression-audit)
   - [\[1.2.0-dev2\] - 2026-08-14 - Documentation: Historical Changelog Sequence Backfill](#120-dev2---2026-08-14---documentation-historical-changelog-sequence-backfill)
   - [\[1.2.0-dev1\] - 2026-08-14 - Architecture and Resilience: Dead Library Calls, Unique ID Scoping, and Entity Cleanup](#120-dev1---2026-08-14---architecture-and-resilience-dead-library-calls-unique-id-scoping-and-entity-cleanup)
-  - [\[1.1.3-dev17\] - 2026-08-14 - Add HA Compatibility Document](#113-dev17---2026-08-14---add-ha-compatibility-document)
+  - [\[1.1.3-dev17\] - 2026-08-14 - HA Compatibility Document Addition](#113-dev17---2026-08-14---ha-compatibility-document-addition)
   - [\[1.1.3-dev16\] - 2026-08-14 - CI Bumps Zizmor MyPy JSONSchema PHACC](#113-dev16---2026-08-14---ci-bumps-zizmor-mypy-jsonschema-phacc)
   - [\[1.1.3-dev15\] - 2026-08-14 - Documentation Phase: Repair Titles, Roadmap, Spelling, Sweep Table](#113-dev15---2026-08-14---documentation-phase-repair-titles-roadmap-spelling-sweep-table)
   - [\[1.1.3-dev14\] - 2026-08-14 - Diagnostic Health: Integration Health Sensor and Signal Guard Bands](#113-dev14---2026-08-14---diagnostic-health-integration-health-sensor-and-signal-guard-bands)
@@ -177,6 +193,456 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
 
 ---
+
+## [1.2.3] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence
+
+### Summary
+
+- **Refused Endpoint Setup Resilience**: Router models that decline optional diagnostic endpoints no longer cause integration setup or polling to fail with authentication or connection errors.
+- **Uptime and Reboot Tracking**: Router uptime and connection duration timestamps persist across Home Assistant restarts and automatically detect reboots that occurred while Home Assistant was stopped.
+- **Home Assistant Core Compatibility**: Prevents dependency conflicts when running alongside Home Assistant's built-in Huawei integration, adding an automated background update and restart notification when needed.
+- **Minimum Home Assistant Version**: Requires Home Assistant 2025.2.0 or newer to align with Python 3.13 runtime requirements.
+
+### Breaking
+
+- **Minimum Home Assistant Version**: The minimum supported Home Assistant version is now 2025.2.0 (Python 3.13+). Systems running earlier versions of Home Assistant must update Home Assistant before installing this release.
+
+### Added
+
+- **Not-Served Endpoint Tracking**: Added the `not_served` attribute to `sensor.*_integration_health`. Unsupported endpoints that the router refuses are tracked under this attribute without taking error strikes or marking integration health as degraded.
+- **Clock Drift Diagnostics**: Added clock drift attributes (`drift_rate_pct`, `drift_intervals`, and `drift_measured_seconds`) to `sensor.*_integration_health` and diagnostic downloads to monitor counter accuracy.
+- **Library Restart Repair Notification**: Added a fixable Home Assistant Repair issue (`library_restart_required`) that notifies the user to restart Home Assistant after an automated library update.
+
+### Changed
+
+- **Coexistence with Built-In Huawei Integration**: Widened the `huawei-lte-api` requirement range to `>=1.11.0,<2.0.2` in `manifest.json`. This avoids package conflicts on installations running Home Assistant Core's built-in Huawei integration while installing 2.0.1 when safe.
+- **Diagnostic Download Reporting**: Diagnostic downloads now include endpoint response classifications, router error codes, entity evaluation statuses, and capability probe results for unpolled endpoints.
+
+### Fixed
+
+- **Refused Endpoint Polling and Setup Resilience**: Non-critical endpoints that return router error codes (such as `100003`, `125002`, or `125003`) no longer fail integration setup or regular polling cycles. The integration checks session validity to distinguish an endpoint refusal from an expired session.
+- **Uptime Timestamp Persistence Across Restarts**: Router uptime and connection timestamps are now stored persistently across Home Assistant restarts. Reboots occurring during Home Assistant downtime are detected on startup, preventing `sensor.*_uptime` and `sensor.*_connection_uptime` from showing frozen or stale timestamps.
+
+## [1.2.3-dev16] - 2026-10-05 - Refused Endpoint Told From Expired Session (Issue 50)
+
+Plan `v123_dev16_plan.md`. A B529s-23a (Magenta Austria, firmware 11.182.63.00.1409) failed setup with `invalid_auth` although the login worked. `api.py` read a `100003`, `125002` or `125003` from any endpoint as an expired session, so one refused optional endpoint failed the poll. The fetch loop now tells a refusal from an expiry, the diagnostics download records how it was judged, and Integration Health no longer reports a standing refusal as a lost capability.
+
+### Fixed
+
+- **A refused optional endpoint no longer fails the poll or the setup.** A non-critical endpoint that raises `100003`, `125002` or `125003` is adjudicated. A one-time anonymous read of `device.information` confirms that the router refuses it without a login. `device_information` is then read again on the session, and an answer means the session is live, so the endpoint is recorded `refused` with `judged: live_session` and the poll continues. Where the premise is not confirmed, or more than 10 s of the 30 s are used, the history of the run decides: an endpoint that has never answered is a refusal and one that answered earlier is an expiry. `device_information` is never adjudicated.
+- **The premise and the history are guarded against a reset.** A client generation counter, incremented by every reset, discards a write made by a worker thread that the coordinator's timeout orphaned. The premise is cleared by a reset and the history is not.
+
+### Added
+
+- **Integration Health attribute `not_served`.** An endpoint the router refuses with its own code on a poll, and that has never answered in the run, is listed under `not_served` and takes no strike, so severity stays `ok`. An endpoint that answered earlier and now refuses still reads `degraded`, and a timeout is not a router code. The attribute joins the unrecorded set and both snapshot defaults, and the README attribute table and the template note now name only attributes the sensor publishes.
+- **Download evidence.** `premise` (the outcome and code of the anonymous read, or `not_made`), `probe_sessions_lost`, the `judged` value on a refused endpoint, and the probe outcomes `not_run` and `session_lost`.
+- **Probe sweep session check.** The sweep holds the API lock, reads `device_information` after any probe that does not answer, logs in again through `_login_internal` after a `100003` from that read and repeats the probe, at most twice per sweep, and stops at a deadline of 20 s, after a failed login, after a third loss or if the client was reset under it. A connection error from the read is unknown and causes no login.
+- **`scripts/diag_check.py` modes.** `--mid-poll`, `--refusal`, `--refusal-expired`, `--polls N` with `--expect-not-served`, `--entry` to name the entry (the redaction secrets come from the same entry), a login counter with a bound of 12 that also stops at the first `LoginErrorAlreadyLoginException`, and `check_probes` accepting `not_run` and `session_lost`. The existing `--sabotage` mode is unchanged.
+- **Tests.** `tests/test_refused_endpoint.py`, with the transport extended to model a login-only `device/information`, an ended session, a refusal per endpoint, an anonymous connection error and a mid-poll hook; new cases in `tests/test_config_flow.py` (the real validation with a refused endpoint), `tests/test_integration_health.py`, `tests/test_diagnostic_capture.py`, `tests/test_diagnostics.py`, `tests/test_diag_check_stability.py`, `tests/test_entity_hygiene.py` and `tests/test_coordinator_construction.py`.
+- **Documentation.** The rule, its bounds, the known limits and the per-model measurements of the H165-383 and the B315s-22 in `docs/huawei_how_to_access.md`, a success pattern in `docs/DEVELOPMENT.md`, a README Compatibility line, an `AGENTS.md` pointer, and a correction of recommendation 3 of the ecosystem review.
+
+### Changed
+
+- **`test_get_data_mid_fetch_auth_error`** now takes the premise as confirmed and has the re-read refused, which is the case in which a signal from a non-critical endpoint is still an expiry.
+- **The two exact-attribute tests** include `not_served`, and `NOT_SERVED_ATTRIBUTE` is held to the same unrecorded rule as the others.
+- **The docstring of `probe_diagnostic_endpoints`** states the lock and the single login after a lost session. Its dated measurements of 2026-09-07, including the 42 calls, are unchanged.
+
+### Defects found during the build
+
+- **The fake transport did not carry the session.** `requests_mock` does not carry the library's cookie jar and the library sends its token header only when it holds one token, so a session marker based on either failed after the library's own reload on `125002`. The premise check's connection is now the one built with `PREMISE_TIMEOUT`, which marks an anonymous client.
+- **The fake transport never served `user/state-login`**, so the library never logged in and every request ran without a session. `user/state-login` is now in the default payloads.
+- **Complexity reached 20 in `get_data`** and the session-signal handling was moved into its own method, which brings the maximum to 18.
+- **Coverage fell to 99.60%** on the premise connection failure, the re-read failures and three sweep login paths, and each was given a test.
+- **New suppressions failed the reviewed allow-list** (`N818` and three `type: ignore` in tests) and were removed by renaming the stop exception and by writing the instance attributes through `__dict__`.
+
+### Verified
+
+- 1311 tests, coverage 100.00%, Mypy strict (17 source files), Ruff, McCabe complexity (maximum 18 in `get_data`), Assertion Audit, Test Depth, IQS Static, Repo Links, Sensor Manifest in sync, Prettier, Markdown lint and Codespell on the changed documents.
+- Mutation proofs for the unconditional raise, the re-read, the premise check, the history, the clear on reset, both generation checks, the canary, the lock, the unlocked login, the sweep deadline and the reset check, each failing the matching test, and for the never-answered and router-code conditions of `not_served`.
+- Live checks (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/refused_endpoint_live_check.md`). H165-383: `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, and the Integration Health reading after three polls 22 of 22 with `not_served` empty, 13 logins in all. B315s-22: `--sabotage` 10 of 10, and every dev16 check passed in the other four runs, including `not_served` holding the five endpoints the router refuses and none degraded, 13 logins, with polling paused. Two clean-pass checks of `diag_check.py` that assume a router answering `voice_volte` and `onekey_diag`, and one that assumes no rejection remains, fail on the B315s-22 by design and were not changed. **The router's own refusal of a polled endpoint was not observed.** `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/refused_endpoint_live_check.md`): `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, with 12 logins in all. **The router's own refusal was not observed.** The B315s-22 checks and the Integration Health reading after three polls have not been run.
+
+## [1.2.3-dev15] - 2026-10-05 - Library Range, Startup Guard And Restart Repair
+
+Plan `v123_dev15_plan.md`. Resolves the GitHub hassfest failure caused by `huawei-lte-api==2.0.1` against Home Assistant core's pin of 1.11.0, keeps the integration working on either version, installs 2.0.1 when it is safe to, and records the behavior of each version in `docs/library_versions.md`.
+
+### Added
+
+- **Requirement range `huawei-lte-api>=1.11.0,<2.0.2`** in `manifest.json` and `.validate/requirements_custom.txt`, carried into `.validate/requirements_test.txt` by the sync. Hassfest reports `Invalid integrations: 0` with the range. The negative control, run once with `huawei-lte-api==2.0.1` temporarily in the manifest, reported `Invalid integrations: 1` with the requirement conflict against core's `==1.11.0`, and the manifest was restored.
+- **Version gate for two endpoints.** `voice.volte` and `monitoring.onekey_diag` exist only from library 2.0.1. `LIBRARY_ADDED_ENDPOINTS` in `const.py` lists them with their first version, and `api.py` skips them with the new outcome `unsupported` when `huawei_lte_api.__version__`, the version of the modules in memory, is older. The gate is the loaded version and not whether the method exists, so a misspelt or renamed method on a library that should have it is recorded `unavailable` and fails the contract test. A skipped endpoint writes no rejection, is excluded from the degraded-capability count in `coordinator.py`, and is logged once at INFO.
+- **Startup library guard**, `library_guard.py`. A background task started last in `async_setup` installs `huawei-lte-api>=2.0.1,<2.0.2` when no core `huawei_lte` entry exists, the installed version is older, and `skip_pip` and `skip_pip_packages` allow it. The installer call is shielded with a 180 s timeout, a timeout or cancellation is an unknown outcome, and every failure is logged with its traceback.
+- **Restart repair.** `library_restart_required` is a domain-level, fixable repair raised only after a verified install. Its flow in `repairs.py` restarts Home Assistant on submit and aborts with `restart_failed` if the restart service raises. It is cleared at any start where a core entry exists or the loaded library is 2.0.1 or later, and when the last entry is removed.
+- **Reference document** `docs/library_versions.md`: behavior per version, how the range, guard, gate and repair interact, the measurements, accepted limits, and numbered procedures for core moving to 2.0.1, core moving to 2.0.2 or above, and the library releasing 2.0.2 or above.
+- **Tests.** `tests/test_unsupported_endpoints.py`, `tests/test_library_guard.py`, new cases in `tests/test_library_contract.py`, `tests/test_diag_check_stability.py`, `tests/test_repairs.py`, `tests/test_init.py`, and an autouse fixture in `tests/conftest.py` that fails any test reaching the real installer at teardown.
+
+### Changed
+
+- **`scripts/diag_check.py`** accepts `unsupported` only for the two added endpoints and only when the loaded library is older than their first version, requires both to read `answered` on a library that has them, and its sabotage check no longer counts `unsupported` as a disturbed endpoint, so it cannot pass on 1.11.0 when the sabotage did not take effect. The Diag Check passes 34 of 34 on 1.11.0 and 38 of 38 on 2.0.1.
+- **Existing tests updated.** Two diag-check payload-accounting tests now declare an old library, because the new check requires the two added endpoints on a new one. `test_the_fixable_repair_is_the_one_with_a_fix_flow` expects both fixable keys, `_declared_repair_keys()` reads the new constant, the removal tests in `test_init.py` gain last-entry and non-last-entry cases, and two mock-hass setup tests patch the guard.
+- **Documentation.** README (a short reference under Compatibility & Tested Devices, a new "Running Alongside Home Assistant's Huawei LTE Integration" section under Under the Hood, and the Repairs section), `docs/DEVELOPMENT.md`, `docs/ha_compatibility.md`, `AGENTS.md` and `docs/test_guards.md`.
+
+### Defects found during the build
+
+- **Plan defects, before any code.** Five reviews of the plan found 35 findings, all applied before the build, among them a Diag Check that rejected `unsupported`, a repair-key sweep tied to `REPAIR_NAMES`, a version gate that read the disk instead of the loaded modules, and an autouse fixture that the guard's own handler would have defeated.
+- **A new strings block was first written with literal newlines**, which is invalid JSON; it was caught by loading the file and rewritten.
+- **The contract test's regex lost its `\b` boundary** in an escaped write, so the literal-call test could not fail; the mutation proof showed it passing with a literal call added, and it was corrected and proven.
+- **The guard's exception test bypassed the real handler** by patching the outer function, and raised an unretrieved task exception; it now patches the inner function.
+- **Ruff removed the guard's `noqa: BLE001` comments as unused**, because the handler logs the traceback, which left a dead allow-list entry; the entry was removed.
+- **The new required checks in `diag_check.py` broke two existing payload tests**, which now declare an old library.
+- **Coverage and test depth.** `installed_library_version` was never run unpatched and `library_restart_required` was never driven beside a poll; three tests and one polling test were added, and an unreachable branch in `_log_unsupported_once` was removed.
+- **Repo Links.** Three links to the new, uncommitted document were replaced with plain file names.
+
+### Verified
+
+- Full validation on the final state, core entry absent and library 2.0.1: 1162 tests, coverage 100.00%, Test Depth, Mypy strict (17 source files), Ruff, complexity (max 17), Hassfest 0 invalid, Repo Links 130 links, Zizmor, Hardware Check 8 of 8, Diag Check 38 of 38, and the Diagnostics Recovery task 8 of 8.
+- Mypy strict passes on library 1.11.0 and on 2.0.1, the contract tests pass on both, and the dev container was restored to 2.0.1.
+- Mutation proofs: replacing the version gate with an existence check, adding a literal call to `api.py`, disabling the core-entry check, the post-install re-read, the `skip_pip` return, the exception handling, the shield, the background task, the last-entry clearing, the factory dispatch and the restart-failure abort each fail the matching test.
+- Live check (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/library_coexistence_live_check.md`): the guard installed 2.0.1 at start, raised the repair, and submitting it restarted Home Assistant onto 2.0.1 with both endpoints `answered`. With a core entry present, two restarts left the library on 1.11.0 with both endpoints `unsupported`, health `ok`, no repair and no log errors.
+
+## [1.2.3-dev14] - 2026-10-04 - Validation Repairs: Suppression Allow-List and Repair Flow Return Type
+
+### Fixed
+
+- **`test_every_suppression_is_on_the_reviewed_allow_list` failed on `diag_check.py:75` and `hardware_check.py:79`.** C-036 added `import homeassistant  # noqa: F401` to both scripts, and neither was on `ALLOWED_SUPPRESSIONS`. Two entries added to `tests/test_entity_hygiene.py` with the reason, worded as in `zte_router_5g`. The reason was checked: `__init__.py` imports `voluptuous` before any `homeassistant` import.
+- **Mypy Strict reported two `return-value` errors at `repairs.py:54` and `:56`.** `async_create_entry` and `async_show_form` on `RepairsFlow` return `RepairsFlowResult`, and the steps were annotated `data_entry_flow.FlowResult`. Both steps now return `RepairsFlowResult`, imported from `homeassistant.components.repairs`, which is what `zte_router_5g/repairs.py` uses. The `data_entry_flow` import was removed. The errors were not caused by the C-037 overrides.
+
+### Verified
+
+- `tests/test_entity_hygiene.py` and the repairs tests: 40 passed. `Mypy: Strict Check`: no issues in 16 source files.
+
+## [1.2.3-dev12] - 2026-10-04 - Shared CI Bumps
+
+### Bumps
+
+- **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.16 to v2.0.17
+
+- **Validate Bump**: Update `zizmor` from 1.30.0 to 1.30.1
+- **Validate Bump**: Update `mypy` from 2.3.1 to 2.4.0
+- **Validate Bump**: Update `ruff` from 0.16.5 to 0.16.9
+- **Validate Bump**: Update `check-jsonschema` from 0.38.0 to 0.38.2
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.364 to 0.13.367
+
+### Changed
+
+- **`pyproject_common.toml`**: added `[lint.isort]` with HA core's four settings (`force-sort-within-sections = true`, `known-first-party = ["homeassistant"]`, `combine-as-imports = true`, `split-on-trailing-comma = false`), and added `"ICN002"` to `select`. HA core pairs `ICN002` with a `probatio` → `vol` banned alias; that alias was not adopted, so the rule currently flags nothing.
+
+- \*\*Import order: `force-sort-within-sections` sorts plain `import x` and `from x import y` statements together alphabetically within each section, so `from pathlib import Path` now precedes `import sys`. `split-on-trailing-comma = false` joins wrapped import lists that fit on one line.
+
+## [1.2.3-dev11] - 2026-09-23 - AGENTS.md: Guard Test Table Trimmed; Rationale Moved to docs/test_guards.md
+
+### Summary
+
+`AGENTS.md` aligned with the updated `agents_md_index.md` specification. The "Tests that will stop you" table is trimmed to one line per row, with each row's rationale moved verbatim to a new `docs/test_guards.md`. Junction paths are no longer written as markdown links, and the Home Assistant compatibility ledger pointer is added. No code or test changes.
+
+### Changed
+
+- **Tests that will stop you**: 35 rows grouped into 24, each `Add or change this | This fails | Do this`; the section shrinks from 1,607 to 679 words. The heading drops "and why they exist", and the section ends with the instruction to add a new guard's row here and its rationale to `docs/test_guards.md`. The table moved from `Test | Guards | Why it exists` to the standard three columns; tests guarding the same change share a row, and the two vacuity guards (`test_total_state_class_sweep_is_not_vacuous`, `test_unrecorded_attribute_sweep_is_not_vacuous`) are recorded in `docs/test_guards.md` only.
+- **Guard tests added to the table**: 10 tests that fail on an ordinary change (adding, changing or removing an entity, action, translation, repair issue, option or write) and were not listed. Their docstrings are recorded as rationale in `docs/test_guards.md`.
+- **Junction links**: 9 markdown links to `.shared/` and `.notes/` converted to inline code. `AGENTS.md` is committed to the public repository, where those junctions do not exist, so the links were broken for GitHub readers.
+- **Compatibility ledger pointer**: the mandatory block pointing to `docs/ha_compatibility.md` added after the entity inventory pointer.
+
+### Added
+
+- **`docs/test_guards.md`**: rationale for every guard test in the table, in two sections: the former rationale column copied verbatim, and the docstrings of the tests added to the table.
+
+### Notes
+
+- **Source**: `agents_md_align` run of 2026-09-23 (`shared/SharedNotes/prompts/prompt_run_logs/agents_md_align/agents_md_align_20260923_1638.md`).
+
+## [1.2.3-dev10] - 2026-09-23 - Breaking: Minimum Home Assistant Raised to 2025.2.0 for Python 3.13
+
+### Summary
+
+The minimum supported Home Assistant version rises from 2024.6.0 to 2025.2.0. Home Assistant 2025.2.0 is the first release that requires Python 3.13, so this change makes Python 3.13 the minimum runtime. No integration code changes.
+
+### Changed, breaking
+
+- **Minimum Home Assistant version**: `hacs.json` `homeassistant` raised from `2024.6.0` to `2025.2.0`. HACS treats this key as the minimum required Home Assistant version, so installations on earlier releases are not offered this version.
+- **README requirements**: minimum Home Assistant `2025.2`, minimum Python `3.13+`.
+
+### Documentation
+
+- **`docs/ha_compatibility.md`**: Minimum, Enforced-by and Python rows updated to 2025.2.0 and Python 3.13; the planned-floor milestone removed.
+
+### Notes
+
+- **Rationale**: the previous floor implied Python 3.12 (Home Assistant 2024.6 to 2025.1), which was verified by compilation only. Tests run on Python 3.14, Ruff targets `py313`, and `pyproject.toml` declares `requires-python >=3.13`. The new floor makes the declared, linted and packaged Python minimums agree.
+- **Impact**: Home Assistant public analytics (2026-09-23, 687,049 opted-in installations) place 4.6% of installations below 2025.2.0.
+- **Functional floor unchanged**: the features the code depends on predate 2025.2.0, and `_compat.py` is unaffected because its branches detect 2026.8 device-registry features. The cross-project rationale is in `ha_minimum_version_matrix.md` §6 and §7.5.
+
+## [1.2.3-dev9] - 2026-09-08 - Uptime Anchors Reconciled at Startup; Counter Persistence Fixed
+
+### Summary
+
+The boot-time latches held a stale anchor indefinitely after a reboot Home Assistant did not observe. The development instance showed it while this was written: `entry.data` held `last_system_uptime` = **61** against a live counter of **213,412**, so the reset comparison `live < stored - UPTIME_REBOOT_MARGIN` demanded a reading below 31 seconds and could never fire again. The router had rebooted two days earlier; the Uptime sensor read three weeks, and Connection Uptime read two.
+
+**The cause was where the counter was persisted, not how it was compared.** `entry.data` is written only when a latch happens, so the stored counter froze one poll after a boot and stayed frozen. It now lives in a `Store` written on an interval, and each latch reconciles against it on the first poll after a restart.
+
+### Added
+
+- **A store-backed reconciliation at startup**, with the family's shared names: `async_load_stored_uptime`, `_apply_uptime`, `_apply_runtime_uptime`, `_reconcile_startup_uptime`, `_shortfall_test`, `_cold_start_implausible`, `_check_anchor_plausible`, `_derived_boot`, `_record_drift_sample`, `_drift_rate`, `_finish_startup`, `_log_reconciliation`, `_latch_boot_time`, `_maybe_persist_counter`, `_write_counter`, and the `uptime_diagnostics` / `uptime_state` properties. Awaited in `async_setup_entry` before the background initialization task, and never raising: an unreadable store resolves to "nothing learned".
+- **Per-installation drift measurement for the counters that are clocks**, from consecutive polls, with duration-weighted accumulators persisted across restarts, a thirty-day cap, and the anchor derived as `now - counter / (1 - rate)`. **This device does not drift** — measured 0.00% over eleven minutes against the reference ZTE MC7010's 4.34% — and the machinery ships anyway, because the rate is a property of the hardware in front of the user rather than of the model.
+- **The drift picture on Integration Health and in the diagnostics download**: `drift_rate_pct`, `drift_rate_min_pct`, `drift_rate_max_pct`, `drift_intervals`, `drift_measured_seconds`, `drift_deficit_seconds`, plus an `uptime` block carrying all three latches' state. Every constant in the latch was set from one device on a sibling project; without this a field report carries no rate at all.
+- **`tests/fixtures/huawei_reconnect_trace.json`** — a real WAN reconnect, sampled either side of the press.
+
+### Changed
+
+- **The three counters are no longer treated alike, and the difference is measured.** `device_information.uptime` and `CurrentConnectTime` advance whenever they exist: a dropped link ends the session and resets the session counter rather than freezing it, so within one session it tracks wall time exactly — 9 s to 216 s over 207 s of wall in the captured reconnect. Both carry the full mechanism. **`TotalConnectTime` stops whenever the session is down**: the same reconnect cost it exactly the 2.3 s the link was out, and it has lost 3.8 hours to accumulated downtime since April. Legitimate downtime makes it under-run wall time with nothing wrong, so it carries a floor rule instead — it moves backwards only on a statistics clear.
+- **The counter no longer round-trips through `entry.data`.** `last_system_uptime`, `last_conn_uptime` and `last_total_conn_time` are dropped from the entry at the first latch and never read again. The anchors stay there, where the sensors' restore path expects them.
+- **The three latches became `_UptimeLatch` objects**, one per counter, holding the anchor, the last reading, the stored record and the accumulators. Nothing is shared between them: their counters reset on different events, so a rate or a stored counter borrowed from one is evidence about a different question. The six long-standing attribute names remain as views onto that state, so the platforms, the diagnostic scripts and the suite are untouched.
+
+### Fixed
+
+- **A reboot inside a Home Assistant gap is detected.** The shortfall test asks whether the counter continued across the gap at this device's own rate, with a margin of `max(300 s, 2% of the gap)`.
+- **An anchor that has _become_ wrong is corrected without a restart**, by a plausibility check on every poll against the counter's own measured rate.
+
+### Tests
+
+- **1055 → 1115.** A new `tests/test_uptime_latch.py` drives a simulated three-counter router whose rate is a parameter, so "no false alarm across a simulated month at 12% drift" is assertable offline. The drift sweep runs at 0%, 4.34%, 8%, 12% and −2% — rates above `PLAUSIBILITY_TOLERANCE` included, because a suite stopping at the rate it measured passed a defective build on the reference project.
+- **The defect was written as a test first and failed against the unmodified coordinator**, reproducing the live instance: stored counter 61, live 213,412, a nineteen-day-old anchor.
+- **Five existing tests asserted the old behaviour and were repointed, not weakened.** Three were predicted by the cross-project item: the counter restore from `entry.data` (now inverted, and the guard against wiring it back in), a naive stored timestamp in a fixture (the coordinator only ever writes aware values, and a naive one raises on subtraction), and two margin cases that reached the running comparison only because no startup path existed to take.
+
+### Verified
+
+- **Eighteen mutations across the new decision points, all eighteen caught**, each run under a timeout with a checksummed restore on every exit path. Three survived the first pass and were genuine gaps in the new tests: nothing exercised `_drift_rate`'s own refusal for a pausing counter independently of the accumulator guard that makes it moot, and nothing exercised the shortfall margin — neither its proportional term nor its floor — so a restart inside the margin would have re-latched with the suite green. All three now have cases.
+- Full validation green via `.workbench/run_task.py`: 1115 tests at 100% line and branch coverage, mypy strict, Ruff, hassfest, the sweeps, and the hardware and diagnostics checks.
+
+### Notes
+
+- **The reconnect was pressed deliberately, with the owner's agreement, to settle one question.** Whether `TotalConnectTime` pauses or keeps counting while the link is down could not be answered by reading, and it decides whether the restart comparison for that counter is a floor test or a rate test. A 2.3-second outage cost the counter 2.3 seconds.
+- **Whether the cumulative counter resets on anything other than a statistics clear is not measured.** The floor rule is safe either way — a counter that pauses still never moves backwards — and the design does not depend on the answer.
+- `_async_update_data` is 17 against the family target of 20; the project maximum is `api.get_data` at 16, unchanged.
+
+---
+
+## [1.2.3-dev8] - 2026-09-08 - Documentation: Project Complexity & Health Scorecard Added
+
+### Added
+
+- **`docs/project_complexity.md` architectural health scorecard**: Added a tracked project scorecard documenting current structural complexity metrics, including PlayFaster Health Index score, unmasked McCabe cyclomatic complexity ($V(G)$), routine statement length distributions, module sizes, entity platform declarative efficiency, test surface, and code suppressions.
+
+---
+
+## [1.2.3-dev7] - 2026-09-08 - Cyclomatic Complexity Below 20; One Uptime Latch Replacing Three
+
+### Summary
+
+`coordinator._async_update_data` scored 25 against Ruff's `max-complexity = 25` ceiling, passing it with nothing to spare and failing the family target of 20. It is now **16**. One extraction did it: the three uptime reboot-detection latches were textually near-identical, and collapsing them into a single helper called three times removed ten points. No rule changed — every branch moved verbatim, and the three latches keep the independent state their differing reset semantics require.
+
+**Reaching the target without touching the latch code was measured impossible.** Extracting the two hold-last-known-values preambles, the hardware-metadata block and the recovery block together — four extractions, three of them larger in diff — leaves the function at 21.
+
+### Changed
+
+- **`coordinator._async_update_data` 25 → 16.** The three latch blocks for `system_boot_time`, `conn_start_time` and `total_conn_start_time` became three calls to the new `_apply_uptime`, which scores 4. The parse guard, the negative-reading rejection, the reboot-margin comparison and the `entry.data` write are unchanged; the three call sites keep their own state, so no latch can move another.
+- **The three per-latch debug messages become one parameterized message.** `"%s: System boot time latched: %s"` and its two siblings are now `"%s: %s latched: %s"` with the label as an argument. The rendered line is byte-identical, which is what the existing assertions on `caplog.text` check.
+
+### Tests
+
+- **1037 → 1055.** Eighteen added, all parameterized over the three latches. Nine characterize branches the suite executed but asserted nothing about: a missing, unparsable or negative reading holds the latched timestamp **and** leaves the last-seen counter at the last value the router actually reported; and a drop one second inside `UPTIME_REBOOT_MARGIN` is jitter rather than a reboot. All nine were written first and required to pass against the unmodified function.
+- **Six close two genuine coverage gaps found by mutation**, both pre-existing and neither introduced here. Nothing asserted the latched instant is truncated to the second — every other latch test freezes `now()` on a whole second, so the truncation was invisible to all of them — and nothing asserted the last-seen counter reaches `entry.data`, only that `async_update_entry` had been called at all. A payload carrying the timestamp and not the counter satisfied every test that existed, and restores a boot time the next session has no way to check for staleness.
+
+### Verified
+
+- **Six mutations applied to `_apply_uptime`, all six caught**, each file restored to its pre-mutation checksum and each run under a timeout. Two survived the first pass — the microsecond truncation and the counter write — and both survived the full 1049-test suite, not merely a filtered selection; the tests above were written for them and re-mutation confirms both now fail.
+- Measured with `ruff check --select C901 --config "lint.mccabe.max-complexity=1" custom_components/`, which reports every function rather than only those over the ceiling.
+
+### Notes
+
+- **The project maximum is now `api.get_data` at 16**, with `_compute_health` 14, `diagnostics._sanitize` 13, `binary_sensor.is_on` 13 and `api._fetch` 13 behind it. All are under the target and none is touched here.
+- **`_hold_last_values` was not extracted, unlike `zte_router_5g`.** ZTE's three call sites opened with a textually identical preamble, which is what made that extraction verbatim and therefore safe. The two here differ in format string and argument list — one names the cause, the other carries the exception — so every available unification either rewrites a log line or moves `update_health` ahead of its own warning. Recorded as a permitted difference in the cross-project item.
+- **This extraction is the seam `fix_uptime_timestamp_gets_stuck.md` needs**, not an obstacle to it: that item requires the drift-corrected anchor to go through one shared helper, and there is now one place where the anchor is computed instead of three.
+- The project carries no `# noqa: C901` suppression, before or after.
+
+---
+
+## [1.2.3-dev6] - 2026-09-07 - Every Entity Belongs to a Device: One Inherited `device_info`, and the Sweep That Guards It
+
+### Summary
+
+Home Assistant does not require `device_info`. An entity registered without it belongs to the config entry and to no device — present in the entity list, counted in the integration's total, shown on none of the six sub-device cards, and visible only to someone adding the cards up. Seven platform bases each declared the property here. None was wrong; in `zte_router_5g` the same shape put ten copies across six modules and the eleventh class was written without one, which reached users. This closes both halves of the cross-project item: one inherited implementation, and a sweep over live entities that reports a class bypassing it.
+
+**No deviceless entity existed in this integration.** Measured, not assumed: all 161 live entities resolve a device with identifiers, across all six sub-devices.
+
+### Added
+
+- **`helpers.HuaweiDeviceEntity`** — the single `device_info` implementation. It resolves the sub-device from `entity_description.group`, or from a class-level `_device_group` where a platform has no description. The contract it depends on but does not create — `coordinator`, and one of the two group sources — is declared as annotations, so a class inheriting it without either fails type checking rather than failing at first state write.
+- **`test_every_live_entity_belongs_to_a_device`** in `tests/test_entity_hygiene.py`. Swept over live entities from a real setup with disabled-by-default entities forced on, asserting each reports a device with non-empty `identifiers`.
+- **`test_device_info_is_declared_once`**, over all seven platform modules. The sweep catches the omission; this stops it being available.
+
+### Changed
+
+- **All seven platform bases inherit the mixin and declare nothing.** `HuaweiBinarySensor`, `HuaweiButton`, `HuaweiPollingInterval`, `HuaweiRouterSelect`, `HuaweiRouterSensor`, `HuaweiSwitch` and `HuaweiRouterDeviceTracker`. The now-dead `self._group = description.group` assignments in `binary_sensor.py`, `number.py` and `switch.py` are removed, along with the `build_device_info` and `DeviceInfo` imports the platforms no longer use.
+- **`device_tracker` is included rather than exempted.** It is the one platform creating entities dynamically, one per discovered client, and so the one where a deviceless entity would be least visible. It sets `_device_group = "clients"`; clients remain entities on the Clients sub-device rather than devices of their own, which is the precondition for the `stale-devices` exemption in `quality_scale.yaml`.
+- **The `type: ignore[misc]` for the `@final` override moves to the class statement**, which is where strict mypy reports a final override once the property is inherited. Verified against mypy rather than assumed; `warn_unused_ignores` confirms it is still doing work. Its allow-list reason is amended to say the override now arrives by inheritance.
+
+### Tests
+
+- **1037 passing, coverage 100.00% line and branch.** Both branches of the group resolution are exercised — `device_tracker` covers `_device_group`, the other six cover the description path.
+- **The sweep was mutation-checked, twice.** Replacing the shared property with one returning `None` failed it naming 27 classes. That mutation also revealed a gap the plan had not anticipated: with `device_info` returning `None`, `ScannerEntity` does not register at all, so the two trackers were **not** among the 27 — the entity count fell from 161 to 159 and the count floor of 150 would not have seen it. The sweep now asserts the `device_tracker` platform is present, and that assertion was itself mutation-checked by clearing `_device_group` alone.
+- **The count floor is 150 against a measured 161**, matching the reasoning already written out for the Section 14 runtime sweep rather than a token value.
+- **Scoped mutation testing: 1769 mutants, 238 survivors, and none in `HuaweiDeviceEntity`.** Every mutant of the new property and its group resolution was killed. The `helpers.py` survivors are all in pre-existing parsing functions, and the one in `build_device_info` mutates `cast(dict[str, Any], info)` to `cast(None, info)` — `typing.cast` is a runtime no-op whatever its first argument, so no test can kill it. Against the recorded 2026-08-15 baseline of 1633 mutants and 231 survivors, the deltas are attributable to three weeks of intervening work rather than to this change.
+
+### Refactored
+
+- **`_live_entities` and its three dependencies move to `tests/conftest.py`** — the autouse `_enable_custom_integrations`, the `live_entry` fixture and `SWEEP_DATA`. Two files need them now, and none works without the others: without the autouse fixture `async_setup` answers "Integration not found", and without `live_entry`'s schema version HA refuses the entry. `tests/test_recorder_runtime.py` imports them and its four sweeps are unchanged.
+
+### Documentation
+
+- **`docs/DEVELOPMENT.md`** gains a pitfall entry: a device tracker without `device_info` is not registered at all, so it disappears rather than reporting as deviceless. Measured, and the reason the sweep asserts the platform is present.
+- **Two citations repointed.** The allow-list reason and the `quality_scale.yaml` `stale-devices` comment both named `docs/ha_compatibility.md` as holding the record of the tracker override. The record is in the cross-project matrix `ha_minimum_version_matrix.md` §3.1; they now say so. Nothing was added to `ha_compatibility.md` — `@final` has no deprecation or removal version, so it does not belong in a deprecation ledger.
+- **`AGENTS.md`** — the sub-device section, the entity-pattern block and the key-helpers list say entities inherit the mixin rather than calling `build_device_info` per platform, and both new tests are in the test register.
+
+### Verified
+
+- Strict mypy clean across 16 source files, with one suppression in `device_tracker.py` and none in `helpers.py`.
+- The twenty existing `entity.device_info` call sites across ten test files are unaffected; the property still resolves through the MRO.
+- Both new tests were run **before** the code change: the sweep passed, confirming nothing was broken here, and `test_device_info_is_declared_once` failed naming all seven bases.
+
+## [1.2.3-dev5] - 2026-09-07 - Coverage Shortfall Now Reported by the Summary; Entity Resolution Failure Path Covered
+
+### Summary
+
+The shared `Show: Results Summary` task reported Pytest as green while coverage was failing at 99.90%. One report file carries both verdicts and only one row read it, so the row matched " passed", found it, and never inspected the coverage result two lines above. A second row now reads the same file for the coverage outcome, and the three statements that were uncovered — the branch recording an entity description that throws — are tested.
+
+### Fixed
+
+- **`Show: Results Summary` now reports a coverage shortfall.** A `Pytest Coverage` row reads `.reports/pytest_coverage.txt` for `% reached`, which appears only on success: a failure prints `100.0% not reached`, so the substring cannot match and the row goes red without hard-coding a percentage that `fail_under` might change. Added to both summary tasks — `Show: Results Summary` and `Show: Results Summary (Fix and Validate)` — since two rollups disagreeing about the same file is the defect in a different place. **Edited in `dev-workbench/workbench/tasks.json` and synced**, never in the project clone.
+- **The existing `Pytest` row is unchanged.** It answers whether the tests passed, which is a different question; removing it would let a coverage shortfall mask a genuine test failure.
+
+### Tests
+
+- **1035 passing, coverage 100.00%**, up from 1033 and 99.90%.
+- **`diagnostics.py` is at 100%**, from 98%. The uncovered statements were the `except` in `_entity_resolution` that records a description whose `value_fn` raises — the one outcome in that block reporting a defect on this integration's side rather than the firmware's, and the one an unfamiliar payload shape would provoke. Two tests cover it: the key is recorded with its exception class, and one raising description does not cost the rest of the map.
+
+### Documentation
+
+- **`AGENTS.md`** gains a section on `scripts/diag_check.py` beside the hardware-check one, carrying the rule that governs sweeps: never call through `_execute_with_retry`, with the measurement behind it. Also records that a probe publishes names and counts but never values, that an excluded endpoint must state its reason, and that widening the stability tolerance narrows what the check can catch.
+- **`docs/huawei_how_to_access.md`** — the `Readable, never reviewed` table now carries measured results for the five endpoints the probe added, and the not-supported section records that the list is measured on every download. **`sms.config` answers the question that table was carrying, in the negative**: 16 keys, 14 populated, and no character limit among them, so the outgoing SMS ceilings taken from the router's web interface stand. `smscharlang` and `smsisusepdu` bear on GSM-7 versus UCS-2 selection and are worth a separate look.
+- **`docs/DEVELOPMENT.md`** — `diagnostics.py` added to the core-file list, which had never named it, and a `Scripts (scripts/)` subsection covering all three scripts.
+- **`README.md`** — a compatibility-section note inviting owners of other models to share a diagnostics download, aligned to the `zte_router_5g` wording and corrected where the two projects differ: this integration probes a fixed set of endpoints rather than mining parameter names, and the download completes in under two seconds on the reference device, so the duration warning that entry needs was dropped rather than restated.
+
+### Verified
+
+- **The new row was verified failing before it was verified passing.** Against the 99.90% state it reported `✖ Pytest Coverage`; after the gap was closed, `✔ Required test coverage of 100.0% reached. Total coverage: 100.00%`. A check that has only ever passed is not evidence.
+- Run through `python3 .workbench/run_task.py`, not ad-hoc, so the `.reports/` artefact the row reads is the one the task produced.
+
+### Known
+
+- **A failing coverage row prints an unhelpful detail.** `chk` falls back to the file's last line, and the coverage task appends its `Coverage exclusions:` note after pytest's output, so a shortfall shows that line rather than `FAIL Required test coverage`. The red mark itself is correct and unambiguous. Not changed, because `chk`'s fallback is generic to every row in the summary.
+
+## [1.2.3-dev4] - 2026-09-07 - Endpoint Probe Session Churn Fixed; Probe Set Widened to 46
+
+### Summary
+
+The unpolled-endpoint probe added in `[1.2.3-dev3]` called each endpoint through `_execute_with_retry`, which re-logs in on `ResponseErrorLoginRequiredException`. `huawei-lte-api` raises that exception for `100003` and no other code, and `100003` is a refusal on this firmware rather than an expiry — so every refused endpoint cost a logout and a login, and a full sweep left the router refusing connections part way through. The probe now runs on one established session, and the deferred items from that entry are closed.
+
+### Fixed
+
+- **The probe no longer provokes session churn.** Calls go directly to the client on a single session established once for the sweep. A refusal is the finding the probe exists to record, so nothing about one should trigger session recovery.
+
+### Added
+
+- **Five endpoints from the survey's `Readable, never reviewed` table**, which `docs/huawei_how_to_access.md` names as where the next person should start: `diagnosis.time_reboot`, `security.get_firewall_switch`, `led.appctrlled`, `online_update.status` and `sms.config`. The probe set is now 46.
+- **`PROBES_EXCLUDED`**, naming endpoints deliberately absent and why, so none is added back blind. Three entries: `system.onlinestate`, and the two `diagnosis` calls that make the router _perform_ a network operation rather than report one.
+- **Seven unit tests for `probe_diagnostic_endpoints`** — one login for the whole sweep, a refusal carrying the router's code, one failure never stopping the sweep, key names published without values, a scalar answer reporting its type, and both list invariants.
+
+### Removed
+
+- **The `system_onlinestate` probe.** The endpoint returns a list and `huawei-lte-api` calls `.get()` on it, raising `AttributeError` inside the library. Probing it would report a library defect as a property of the router.
+
+### Changed
+
+- **Two stale test expectations corrected** — the `diag_check.py` fixture predated the `probes` key, and the probe's broad `except` needed its reason recorded in `ALLOWED_SUPPRESSIONS`.
+- **`diag_check.py` tolerates two more values that move between runs**: `nrrank`, a radio measurement, and an endpoint's `populated` count, which changes when a radio field blanks. The outcome, type, key count and key names beside them do not move and are still compared.
+
+### Tests
+
+- 1033 passing, none failing. The two failures carried by `[1.2.3-dev3]` are closed.
+
+### Verified
+
+- **On the reference H165-383, 2026-09-07.** `diag_check.py` **34/34 on two consecutive runs**, `--sabotage` **8/8**, `hardware_check.py` **8/8** with the corrected banner.
+- **The sweep now returns 31 answered and 15 refused, with no failure outside the router's own answer.** Before the fix the same sweep produced ten `HuaweiConnectionError` artefacts and left the next run unable to connect at all. Every refusal carries the router's code: eleven `100002`, four `100003`.
+- **A download taken from Home Assistant itself matches the one `diag_check.py` produces** — same eight top-level keys, same 46 probes with the same outcomes, same 26 endpoints, same 119/124 and 10/10 entity resolution. The script builds its own coordinator, so agreement is what shows it exercises the real path.
+- **Redaction checked on the Home Assistant download**: host tokenized, password redacted, no raw MAC, and the three IPv4-shaped strings are firmware and OS version numbers rather than addresses. The probe block publishes 271 key names and no values.
+
+### Notes
+
+- **`global_.module_switch` answers 94 keys**, the largest capability block on the device, and `sms.config` answers 16 — the block the survey flagged as most likely to carry the outgoing SMS length ceilings currently taken from the router's web interface rather than the API. Neither is read by any entity; both are now visible in a download.
+- **No probe on this device answered with an empty block, and none returned a non-mapping.** Those two signals are quiet on hardware this integration already supports, which is what they are for.
+
+## [1.2.3-dev3] - 2026-09-07 - Diagnostic Download Rejection, Endpoint and Entity Evidence; Unpolled Endpoint Probe
+
+### Summary
+
+The diagnostics download previously carried the coordinator's last payload and nothing about what the router refused, so a report from an unfamiliar Huawei model could not be read: an endpoint missing from `data` might have been refused, skipped at the fetch deadline, or swallowed by a handler, and all three looked identical. Four blocks now answer that — what was rejected, what each endpoint served, which entity descriptions the payload populates, and what the router does with the endpoints this integration never polls.
+
+**Work is paused mid-task and is not complete.** Two tests fail, the probe still uses the retry wrapper it must not use, and the probe list has not been reconciled against the endpoint survey in `docs/huawei_how_to_access.md`. The remaining items are listed under **Deferred**.
+
+### Added
+
+- **`last_rejection` in the download.** The response behind a failure, held on the API client, bounded to the most recent, cleared before each poll, and published through the existing sanitizer. Carries the router's own error code where it gave one and the exception class where it did not. Recorded at five sites — the expiry classification in `_execute_with_retry` and all four per-endpoint handlers in `get_data`, **including the two that log and continue without raising**, which is where an absence previously became untraceable.
+- **`endpoints` in the download.** Every endpoint of the most recent poll, as `answered`, `refused` with the router's code, `expired`, `unavailable`, or `skipped` at the fetch deadline. An answered entry also carries the returned type, the key count and how many of those keys hold a value — `answered` alone cannot separate a full block from a polite empty one, which is the common case on unfamiliar firmware.
+- **`entity_resolution` in the download.** Each of the 134 description-driven entities evaluated against the live payload and reported as resolved, `no_value`, or `raised`. A description whose `value_fn` throws is a defect in this integration and was previously invisible — the entity simply showed nothing.
+- **`probes` in the download.** Forty-two endpoints this integration does not poll, called once per download and recorded in the same vocabulary. Reads only, no arguments, key names and counts but never values.
+- **`scripts/diag_check.py`**, and the **Hardware: Check Diagnostics Download** task that has been present in the shared `tasks.json` and skipped in this project until now. Builds a real coordinator against the router, calls the real `async_get_config_entry_diagnostics`, asserts over the produced file, and runs twice to diff. `--sabotage` ends the session mid-poll so a real expiry is classified by real firmware.
+
+### Fixed
+
+- **`hardware_check.py` reported a passing run as a failure.** It printed `All 8 checks passed.` while the shared `Show: Results Summary` task greps every project's `hardware_check.txt` for `Hardware check: PASSED`. Now prints `zte_router_5g`'s wording verbatim, with the banner in the script rather than the task because `tee >(...)` reports `tee`'s exit status.
+- **`login.authenticated` renamed to `username_configured`.** A live download read `"result": "ok"` beside `"authenticated": false` on an entry configured without a username, which reads as a failed login to anyone who did not write the code.
+
+### Tests
+
+- 1024 passing, **2 failing**: `test_a_complete_document_passes_the_shape_check` (the fixture predates the `probes` key) and `test_every_suppression_is_on_the_reviewed_allow_list` (`api.py:653` needs its reason recorded). Both are stale expectations against this entry's own changes.
+- New: `tests/test_diagnostic_capture.py` on the captures, `tests/test_diagnostics_artefact.py` asserting on the produced file rather than the producer, and `tests/test_diag_check_stability.py` on the script's own judgement.
+
+### Verified
+
+- **On the reference H165-383, 2026-09-07.** `diag_check.py` 28/28 twice; `--sabotage` 8/8 three times, classifying the induced loss as `expired` each time.
+- **`voice_busy` returns the string `Idle`, not a mapping** — found by the new type field, and previously unrecorded anywhere.
+- **`device_signal` answers 55 keys with 41 populated** on a device considered fully supported, which is the "answered but not really" case the counts exist to expose.
+- **A 42-endpoint sweep through `_execute_with_retry` provoked enough logout/login churn to leave the router refusing connections.** The same 42 calls on one session without the wrapper completed in about 900 ms with every endpoint returning an outcome.
+
+### Notes
+
+- **`100003` costs an extra login, and is a refusal rather than an expiry here.** Measured: `100003` → 2 logins through `_execute_with_retry`, `100002` → 1, a good read → 1. The library raises `ResponseErrorLoginRequiredException` for `100003` and no other code, so the `isinstance` test in that method fires on it alone and re-logs in before the code list is consulted. The mechanism is recorded in `docs/huawei_how_to_access.md`, whose Authentication section already warned that bulk sweeps produce false `100003` results — this entry explains why.
+- **`system.onlinestate` cannot be probed.** The endpoint returns a list and `huawei-lte-api` calls `.get()` on it, raising `AttributeError` inside the library.
+
+### Declined
+
+- **`device_basic_information` was not added to the poll.** Called on the reference device it returns seven keys, of which `devicename`, `spreadname_en` and `spreadname_zh` duplicate `device_information` and `classify` duplicates `monitoring_status`. It would populate no entity and cost a round trip every cycle. `docs/huawei_how_to_access.md` had already reached this conclusion in its endpoint survey.
+- **The `100003` classification in `api.py` was not changed.** No polled endpoint returns it, so normal operation is unaffected, and the code is ambiguous: on firmware where a lapsed session answers `100003` to everything, the present retry is correct.
+
+### Deferred
+
+- The probe must call on one session **without** `_execute_with_retry`; it currently does not, and that is the cause of the churn measured above.
+- The two failing tests.
+- Reconciling the probe list against the **Readable, never reviewed** table in `docs/huawei_how_to_access.md`, which names `diagnosis.time_reboot`, `security.get_firewall_switch`, `diagnosis.diagnose_ping` and `led.appctrlled` and is where the survey said to start.
+- Dropping or guarding the `system_onlinestate` probe.
+- Unit tests for `probe_diagnostic_endpoints`.
+- The cross-project status cell in `improve_diagnostics_on_bad_payload_data.md`, which describes the capture alone and not the three blocks added since.
+
+## [1.2.3-dev2] - 2026-09-07 - CI Bumps; Doc Updates
+
+### Bumps
+
+- **Validate Bump**: Update `zizmor` from 1.29.0 to 1.30.0
+
+### Changed
+
+- **README**: Added a note to `README.md` to clarify that the integrations data use sensors come directly from the router, and are not independent. Included a pointer towards a `Utility Meter` helper if a separate independent data tracker, that would be immune to router resets or changes, is required.
+
+## [1.2.3-dev1] - 2026-09-07 - CI Bumps; Shared Local CI Improvements; Doc Updates
+
+### Bumps
+
+- **Validate Bump**: Update `ruff` from 0.16.3 to 0.16.5
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.357 to 0.13.364
+
+### Changed
+
+- **SHared Local CI**: Updated `tasks.json` shared internal CI to run all fixes and validations as a single operation, with an end summary.
+- **Changelog(s)**: Updated `CHANGELOG.md` and `docs/changelog_local.md` for clarity and readability (removed verbiage, internal/CI notes in user changelog etc.)
 
 ## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
 
@@ -399,7 +865,7 @@ Documentation only. No source code changes. Aligns the tracker naming architectu
 
 ---
 
-## [1.2.1-dev15] - 2026-08-24 - Telemetry Configuration: Write-Refusal Sweeps and Rate Sensor Defaults
+## [1.2.1-dev15] - 2026-08-24 - Sensor Configuration: Write-Refusal Sweeps and Rate Sensor Defaults
 
 ### Summary
 
@@ -709,9 +1175,9 @@ Bumped Ruff linter dependency.
 
 ### Bumps
 
-- **Validate Bump**: Update `ruff` from 0.16.2 to 0.16.2
+- **Validate Bump**: Update `ruff` from 0.16.2 to 0.16.3
 
-## [1.2.0] - 2026-08-20 - Release: New Telemetry Entities, Data Projections, Control Switches, and Health Monitoring
+## [1.2.0] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring
 
 ### Highlights
 
@@ -876,7 +1342,7 @@ Found while aligning the **Under the Hood** sections of this README against `zte
 - **Not run for this change**: mypy, and the assertion audit.
 - Two `README.md` items found in the same review are **not** fixed here: the Session Handling intro repeats its own first detail sentence verbatim, and Huawei has no counterpart to ZTE's "Polling Loop" bullet.
 
-## [1.2.0-dev61] - 2026-08-19 - Telemetry Configuration: Transmit Power Guard Band Removal
+## [1.2.0-dev61] - 2026-08-19 - Sensor Configuration: Transmit Power Guard Band Removal
 
 ### Summary
 
@@ -1089,7 +1555,7 @@ Caught by **Validate All → Tests: Assertion Audit**, which failed with two tes
 - **Not allow-listed, and that was the right call.** An allow-list entry would have recorded the gap rather than closed it, on the same day plan item 10 took this project from four zero-assertion tests to zero. Audit now reports **0 of 694**.
 - The two were written to close a coverage gap, and they did — coverage counts a line as covered when it executes, whether or not anything checks the result. **Coverage and assertion count measure different things, and passing one says nothing about the other.** Both tests ran the code they targeted; neither would have failed if the behavior had been wrong.
 
-## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Shared Local CI Drop python-typing-update; Add Source Footnotes to Drift Auditor
+## [1.2.0-dev51] - 2026-08-17 - Dev-Workbench Local CI python-typing-update Removal; Drift Auditor Source Footnotes
 
 ### Summary
 
@@ -1448,7 +1914,7 @@ Bumped Ruff linter dependency.
 
 - **Validate Bump**: Update `ruff` from 0.16.1 to 0.16.2
 
-## [1.2.0-dev28] - 2026-08-15 - Telemetry Configuration: Per-Entry Projection Caching and Source Root Resolvers
+## [1.2.0-dev28] - 2026-08-15 - Sensor Configuration: Per-Entry Projection Caching and Source Root Resolvers
 
 ### Summary
 
@@ -1645,7 +2111,7 @@ Configured mutation testing framework and fixed test suite source path resolutio
 
 ---
 
-## [1.2.0-dev18] - 2026-08-15 - Telemetry: Explanatory About Attribute Notes on Every Entity
+## [1.2.0-dev18] - 2026-08-15 - Entity Documentation: Explanatory About Attribute Notes on Every Entity
 
 ### Summary
 
@@ -1690,7 +2156,7 @@ Added router diagnostics binary sensor surfacing router-reported connection heal
 
 ---
 
-## [1.2.0-dev16] - 2026-08-15 - Controls and Telemetry: Master WiFi Radio Switch and Voice Entities
+## [1.2.0-dev16] - 2026-08-15 - Controls and Sensors: Master WiFi Radio Switch and Voice Entities
 
 ### Summary
 
@@ -1776,7 +2242,7 @@ Pinned huawei-lte-api library dependency to version 2.0.1 and verified library c
 
 ---
 
-## [1.2.0-dev11] - 2026-08-15 - Telemetry: Expanded Entity Set and Monthly Data-Usage Projections
+## [1.2.0-dev11] - 2026-08-15 - Sensor Expansion: Expanded Entity Set and Monthly Data-Usage Projections
 
 ### Summary
 
@@ -1991,7 +2457,7 @@ That is the argument for running this prompt last rather than first, made concre
 - Suite **540 tests passing** (was 515), 100% line and 100% branch coverage, 0 partial branches, assertion audit PASSED, `ruff` lint and format clean, mypy standard and strict clean.
 - **Clear Traffic Statistics is fixed but not yet exercised against hardware** — deferred to month-end at the owner's request, since it resets counters. The Reboot change is likewise unexercised by choice.
 
-## [1.1.3-dev17] - 2026-08-14 - Add HA Compatibility Document
+## [1.1.3-dev17] - 2026-08-14 - HA Compatibility Document Addition
 
 ### Changes
 
@@ -2054,7 +2520,7 @@ Added Integration Health sensor with drift detection and reconciled value min/ma
 
   What it reports:
   - **Capability degradation** — an endpoint absent for three consecutive polls, named in plain language (`SMS messages`, `WiFi clients`), not by raw endpoint key. Strike-budgeted so a single dropped poll raises no alarm.
-  - **Contract drift** — a `device_signal` block that is present and non-empty but carries **none** of `rsrp`, `rsrq`, `rssi`, `sinr`. That is the direct catch for a firmware field rename, and it is the highest-value check in the section. One recognized field is enough to clear it: a weak signal is not a renamed field.
+  - **Missing router data** — a `device_signal` block that is present and non-empty but carries **none** of `rsrp`, `rsrq`, `rssi`, `sinr`. That is the direct catch for a firmware field rename, and it is the highest-value check in the section. One recognized field is enough to clear it: a weak signal is not a renamed field.
   - **Total outage** — flagged on the **first** failure at cold start (there are no held values, so waiting out the budget would leave the user with a wholly unavailable integration and no explanation), and on the **third** at runtime.
 
   Three properties worth stating because each is easy to get wrong:
