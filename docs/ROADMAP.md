@@ -30,9 +30,11 @@ Items that were on this roadmap and were then built. **Membership is by provenan
 
 Behavior on a router that takes its internet from its WAN Ethernet port and has no cellular link: setup succeeds, the cellular entities read unknown and never raise, and the Integration Health sensor reports no signal-block drift for a signal block that is empty because there is no cellular link.
 
-**Detail.** The router is then a router and not a modem, so the polled cellular reads return nothing or an error shape. Measured 2026-10-05 on a B315s-22 with an Ethernet WAN and no SIM (`local_only/b315_session_checks_20261005.md`): the signal block holds none of `rsrp`, `rsrq`, `rssi` and `sinr`, so the health sensor reads `warning` with a drift message that blames a firmware rename; `net.current_plmn` returns the string `FAILED`, and three sensor value functions raise on it (task `tasks/current_plmn_failed_string_crashes_sensors.md`); 53 of 124 entities read unknown. With a SIM installed the same router answered normally (`local_only/b315_with_sim_checks_20261005.md`), so the difference is the mode and not the firmware.
+**Detail.** The router is then a router and not a modem, so the polled cellular reads return nothing or an error shape. Measured 2026-10-05 on a B315s-22 with an Ethernet WAN and no SIM (`local_only/b315_session_checks_20261005.md`): the signal block holds none of `rsrp`, `rsrq`, `rssi` and `sinr`, so the health sensor reads `warning` with a drift message that blames a firmware rename; `net.current_plmn` returns the string `FAILED`, and three sensor value functions raise on it (task `tasks/current_plmn_failed_string_crashes_sensors.md`); six listener errors were logged per start. The count of unknown entities in this state was not recorded: the figure of 53 of 124 read unknown belongs to the same router with a SIM fitted. With a SIM installed the same router answered normally (`local_only/b315_with_sim_checks_20261005.md`), so the difference is the mode and not the firmware.
 
 What it needs: a pass over every entity description against a router in this mode, to list which entities read unknown, which raise, and which health findings fire, then the changes that follow from that list. The reference H165-383 has not been run in an Ethernet mode, so whether it behaves as the B315s-22 did is unmeasured.
+
+**Overlap with the entity defaults and polling design, to be decided.** The pass this item asks for, one description at a time against a router in this mode, is the same measurement the design's value-evidence layer needs, and the download already carries it as `entity_resolution`. The two are not combined at this stage and they are linked: the mode is a state that can change while the integration runs, so evidence taken only at setup, and a default that Home Assistant reads once at first registration, cannot cover it. Which of the two owns an operating-state signal, where that signal comes from, and whether the cellular endpoints are gated by it at runtime are undecided. The record is `info/entity_defaults_and_polling_design.md` §7.8 in the Huawei project's notes, and the task `tasks/per_model_entity_defaults.md`.
 
 - **Value**: ⭐⭐
 - **Effort**: Medium
@@ -51,6 +53,8 @@ Strengthened 2026-08-16 by the ecosystem review in `.notes/info/other_huawei_pro
 - `100002` and `100003` are distinguishable from a transient failure, so suppression can key off the response code rather than guessing from a strike count. `_endpoint_strikes` in `coordinator.py` already counts consecutive per-endpoint misses; the counter exists, nothing consumes it for backoff.
 
 Any suppression must re-probe periodically — `100003` can change with a firmware update or a re-login at a different auth level.
+
+Related, 2026-10-07: this entry, the persisted never-answered history and the poll narrowing are one design. Core excludes a refused endpoint for the run with no re-probe, and ZTE stores an answered set keyed to the firmware. The comparison is in `.notes/info/other_huawei_projects/core_huawei_lte_behavior_comparison.md` §6.
 
 - **Value**: ⭐⭐
 - **Effort**: Medium
@@ -155,6 +159,16 @@ So the first task is **discovery, not implementation**: watch the router's own w
 - **Effort**: Medium — small once the endpoint is known; the whole cost is the probe.
 - **Trigger**: A capture of the endpoint and payload the router's own GUI posts for this dropdown.
 
+### HTTPS routers with a self-signed certificate
+
+Let the user connect to a router over HTTPS and choose whether its certificate is verified. Core's Huawei integration offers a verify-SSL choice at setup and, when it is off, uses a session that does not verify the certificate. This integration strips any protocol from the host entry and builds `http://` addresses (`config_flow.py:29-36`), so a router that serves only HTTPS cannot be added.
+
+Not known: whether any router this integration targets serves HTTPS only or redirects to it, and whether `huawei-lte-api` 2.0.1 completes its login over HTTPS with an unverified session. The closed task `core_config_flow_gaps.md` named verify-SSL as the one field this project lacks and gave it no disposition; this entry is that disposition.
+
+- **Value**: ⭐⭐
+- **Effort**: Medium — small once the library is confirmed to log in over HTTPS; the cost is the setup field, the stored option and its migration.
+- **Trigger**: A report or a capture from a router that serves HTTPS only.
+
 ---
 
 ## Blocked
@@ -214,6 +228,7 @@ Recorded against cross-project chore `C-030`, whose requirement is the scan and 
 | Opt out of client tracking at setup    | ⭐⭐   | Medium         |
 | Separate 2.4GHz and 5GHz WiFi switches | ⭐⭐   | Medium         |
 | 5G Mode select and read-back sensor    | ⭐⭐   | Medium         |
+| HTTPS routers with a self-signed certificate | ⭐⭐ | Medium     |
 
 ---
 
@@ -221,6 +236,9 @@ Recorded against cross-project chore `C-030`, whose requirement is the scan and 
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v3.5.2 | 2026-10-07 | Recorded on _Router Ethernet mode support_ that it overlaps the entity defaults and polling design and that the overlap is to be decided. |
+| v3.5.1 | 2026-10-07 | **Corrected the _Router Ethernet mode support_ detail.** The 53 of 124 unknown entities were measured with a SIM fitted and not in Ethernet mode; the count with no SIM was not recorded. The v3.4.0 version row is history and is left as written. |
+| v3.5.0 | 2026-10-07 | **Added _HTTPS routers with a self-signed certificate_ under Maybe**, from the comparison with core's Huawei integration, and a pointer from _Per-endpoint strike budgets_ to the polling design. |
 | v3.4.0 | 2026-10-05 | **Added _Router Ethernet mode support_ under To Be Done**, at the owner's request. Measured on a B315s-22 with an Ethernet WAN and no SIM: an empty signal block reads as drift, `net.current_plmn` returns `FAILED`, and 53 of 124 entities read unknown. The reference H165-383 has not been run in this mode. |
 | v3.3.0 | 2026-08-24 | **The _Renaming entities that repeat their sub-device word_ entry corrected from four entities to eight**, and the keeps recorded as a table. The entry had named `total_data`, `signal_bars`, `signal_bars_nr` and `sms_storage_full` since v2.0.0. A full scan on 2026-08-24 — every one of the 159 entity descriptions, matching its `strings.json` name against its group's `SUB_DEVICE_LABELS` label rather than against the description key — found four more: `data_allowance`, `data_plan_enabled`, `poor_signal` and the `wifi` switch, whose name is the label itself. **The decision is unchanged**; all eight are keeps for the same reason, and nothing is renamed. This is the deliverable of cross-project chore `C-030`, which asks for the scan and the recorded keeps rather than a rename, and it is what let that chore's Huawei cell settle. |
 | v3.2.0 | 2026-08-19 | **Added _5G Mode select, and a sensor to read it back_** under Maybe, at the owner's request. The router GUI offers SA+NSA / NSA / SA and exposes it whether Preferred Network Mode is Auto or 5G Only. **The write path was validated before the entry was written and does not exist**: `huawei-lte-api` 2.0.1 has no method for it anywhere in the package, and the polled `net/net-mode` block returns only `NetworkMode`, `NetworkBand`, `LTEBand`, `networkOption` and `LTEBandOption` — so there is no read path either, and no sensor could be populated from the current poll. The entry therefore leads with discovery: capture what the router's own web interface posts, the method that established `dialup/dial` and `wlan/status-switch-settings` once the library proved insufficient. **One correction to the request as made**: it asked for read-back sensors for both Preferred Network Mode and 5G Mode, and the first already exists — a diagnostic reading `net_mode.NetworkMode` whose `about` note already covers the control-versus-state disagreement. Only the 5G Mode sensor is new. |

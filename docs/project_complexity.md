@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-huawei-router-5g-monitor
 
-**Last Measured:** 2026-10-05T23:44:40.000503+00:00 · **Release:** `1.2.3` · **Dev Version:** `1.2.3-dev16`
+**Last Measured:** 2026-10-09T04:27:33.653454+00:00 · **Release:** `1.2.3` · **Dev Version:** `1.2.3`
 
 ## 1. Executive Summary
 
@@ -27,7 +27,7 @@
 | **Platform SLOC / Entity** | **23.6 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
 | **Test-to-Source Ratio** | **1.82×** | 13,162 test lines ($\ge 1.5×$ recommended) |
 | **Pytest Coverage** | **100%** | 1312 tests executed |
-| **Pytest Duration** | **204.91s** | Full test suite wall-clock execution time |
+| **Pytest Duration** | **255.90s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 

@@ -1,6 +1,12 @@
 # Changelog
 
-## [1.2.3] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence
+## [1.2.3] - 2026-10-06 - Pre-Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence
+
+### Highlights
+
+- **Setup Resilience**: Routers refusing optional diagnostics no longer fail setup or polling.
+- **Persistent Uptime**: Boot and connection timestamps survive Home Assistant restarts.
+- **Core Coexistence**: Runs alongside Home Assistant's built-in Huawei integration without conflicts.
 
 ### Summary
 
@@ -15,19 +21,25 @@
 
 ### Added
 
-- **Not-Served Endpoint Tracking**: Added the `not_served` attribute to `sensor.*_integration_health`. Unsupported endpoints that the router refuses are tracked under this attribute without taking error strikes or marking integration health as degraded.
-- **Clock Drift Diagnostics**: Added clock drift attributes (`drift_rate_pct`, `drift_intervals`, and `drift_measured_seconds`) to `sensor.*_integration_health` and diagnostic downloads to monitor counter accuracy.
-- **Library Restart Repair Notification**: Added a fixable Home Assistant Repair issue (`library_restart_required`) that notifies the user to restart Home Assistant after an automated library update.
+- **Not-Served Endpoint Tracking**: *(enhances Integration Health Diagnostics, introduced in 1.2.0)*: Added the `not_served` attribute to `sensor.*_integration_health`. Unsupported endpoints that the router refuses are tracked under this attribute without taking error strikes or marking integration health as degraded.
+- **Clock Drift Diagnostics**: *(enhances Integration Health Diagnostics, introduced in 1.2.0)*: Added clock drift attributes (`drift_rate_pct`, `drift_intervals`, and `drift_measured_seconds`) to `sensor.*_integration_health` and diagnostic downloads to monitor counter accuracy.
+- **Library Restart Repair Notification**: *(extends Repairs Platform, introduced in 1.2.0)*: Added a fixable Home Assistant Repair issue (`library_restart_required`) that notifies the user to restart Home Assistant after an automated library update.
 
 ### Changed
 
-- **Coexistence with Built-In Huawei Integration**: Widened the `huawei-lte-api` requirement range to `>=1.11.0,<2.0.2` in `manifest.json`. This avoids package conflicts on installations running Home Assistant Core's built-in Huawei integration while installing 2.0.1 when safe.
-- **Diagnostic Download Reporting**: Diagnostic downloads now include endpoint response classifications, router error codes, entity evaluation statuses, and capability probe results for unpolled endpoints.
+- **Coexistence with Built-In Huawei Integration**: *(refines Library Dependency Pinning, introduced in 1.0.1, updated in 1.2.0)*: Widened the `huawei-lte-api` requirement range to `>=1.11.0,<2.0.2` in `manifest.json`. This avoids package conflicts on installations running Home Assistant Core's built-in Huawei integration while installing 2.0.1 when safe.
+- **Diagnostic Download Reporting**: *(enhances Diagnostic Downloads, introduced in 1.1.0)*: Diagnostic downloads now include endpoint response classifications, router error codes, entity evaluation statuses, and capability probe results for unpolled endpoints.
 
 ### Fixed
 
 - **Refused Endpoint Polling and Setup Resilience**: Non-critical endpoints that return router error codes (such as `100003`, `125002`, or `125003`) no longer fail integration setup or regular polling cycles. The integration checks session validity to distinguish an endpoint refusal from an expired session.
-- **Uptime Timestamp Persistence Across Restarts**: Router uptime and connection timestamps are now stored persistently across Home Assistant restarts. Reboots occurring during Home Assistant downtime are detected on startup, preventing `sensor.*_uptime` and `sensor.*_connection_uptime` from showing frozen or stale timestamps.
+- **Uptime Timestamp Persistence Across Restarts**: *(enhances Uptime & Reboot Tracking, introduced in 1.1.1, extended in 1.2.0)*: Router uptime and connection timestamps are now stored persistently across Home Assistant restarts. Reboots occurring during Home Assistant downtime are detected on startup, preventing `sensor.*_uptime` and `sensor.*_connection_uptime` from showing frozen or stale timestamps.
+
+### Under the hood
+
+- Expanded test suite to 1,311 tests maintaining 100% statement and branch coverage.
+- Reduced coordinator cyclomatic complexity below 20 and established the project complexity scorecard.
+- Upgraded the development test transport with stateful session and endpoint refusal simulation.
 
 ## [1.2.2] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring
 
@@ -40,12 +52,12 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 ### Fixed
 
-- **Authentication Failure Repair Fix Flow**: Added an interactive fix flow to the `auth_failed` Repair card. Submitting the fix now launches the integration's reauthentication dialog directly, resolving an issue where the Fix button dismissed the notification card without updating the stored credentials.
+- **Authentication Failure Repair Fix Flow**: *(enhances Reauthentication Repair, introduced in 1.2.0)*: Added an interactive fix flow to the `auth_failed` Repair card. Submitting the fix now launches the integration's reauthentication dialog directly, resolving an issue where the Fix button dismissed the notification card without updating the stored credentials.
 
 ### Changed
 
-- **SMS Storage Full Entity Default**: Enabled `binary_sensor.*_sms_storage_full` by default on new setups so full router SMS storage states are automatically tracked without requiring manual entity activation.
-- **Repairs Reference Documentation**: Updated the Repairs documentation, separating persistent Repairs (`auth_failed`, `conn_error`) from transient errors.
+- **SMS Storage Full Entity Default**: *(refines SMS Storage Monitoring, introduced in 1.2.0)*: Enabled `binary_sensor.*_sms_storage_full` by default on new setups so full router SMS storage states are automatically tracked without requiring manual entity activation.
+- **Repairs Reference Documentation**: *(updates Repairs Documentation, introduced in 1.2.0)*: Updated the Repairs documentation, separating persistent Repairs (`auth_failed`, `conn_error`) from transient errors.
 
 ### Under the hood
 
@@ -59,7 +71,7 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 ### Fixed
 
-- **Connection Error Repair on Refused Connections**: The `conn_error` Repair ("Huawei router is not responding") now triggers on refused socket connections (e.g. router powered off, cable unplugged, or changed IP address) after the strike budget is spent, rather than only on timeouts.
+- **Connection Error Repair on Refused Connections**: *(enhances Connection Loss Repair, introduced in 1.2.0)*: The `conn_error` Repair ("Huawei router is not responding") now triggers on refused socket connections (e.g. router powered off, cable unplugged, or changed IP address) after the strike budget is spent, rather than only on timeouts.
 
 ## [1.2.0] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring
 
@@ -83,9 +95,9 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 - **New Router & Signal Entities**: Added 38 entities across eight router endpoints, including identity sensors, System metrics, VoLTE and binary sensors, Signal diagnostics, and a **Router Diagnostics** connection status sensor.
 - **Projected Data Usage**: Added a data usage forecast sensor that calculates projected monthly bandwidth consumption with credibility and confidence attributes.
-- **Master Wi-Fi Switch**: Added a master Wi-Fi radio control switch that safely toggles the 2.4 GHz and 5 GHz hardware radios.
-- **Reconnect Button**: Added a button to re-establish cellular data sessions on demand.
-- **Entity Cleanup Action**: Added a `cleanup_unused_entities` action (with dry-run preview by default) to remove stale device tracker entities left behind by transient guest devices.
+- **Master Wi-Fi Switch**: *(enhances Wi-Fi Management, introduced in 1.0.2)*: Added a master Wi-Fi radio control switch that safely toggles the 2.4 GHz and 5 GHz hardware radios.
+- **Reconnect Button**: *(complements Reboot Control, introduced in 1.1.1)*: Added a button to re-establish cellular data sessions on demand.
+- **Entity Cleanup Action**: *(enhances Device Tracking, introduced in 1.0.2)*: Added a `cleanup_unused_entities` action (with dry-run preview by default) to remove stale device tracker entities left behind by transient guest devices.
 - **Integration Health Diagnostic Sensor**: Added a diagnostic problem sensor monitoring endpoint availability, standardized 5-state severity (`ok`, `degraded`, `warning`, `error`, `unknown`), and unexpected firmware-driven changes.
 - **Action Icons & Context**: Added full icon translations for all registered actions across automation and script editors.
 
@@ -94,7 +106,7 @@ Routine maintenance update refining Repair notifications with no changes to dail
 - **Dynamic Network Mode Discovery**: The Preferred Network Mode select entity now queries the router for its exact supported modes (e.g. `Auto`, `5G Only`, `4G Only`) rather than offering static, unsupported presets.
 - **Entity Details Guidance**: Reviewed and polished all 160 entity `about` attribute descriptions across Home Assistant entity dialogs to provide clear, standardized operational guidance and threshold interpretations.
 - **Underlying Client Library**: Updated the underlying `huawei-lte-api` library to 2.0.1, ensuring compatibility with modern SCRAM authentication and future firmware releases.
-- **Follow-Up Refresh Automation**: Pressing Reboot or Reconnect now automatically schedules an asynchronous follow-up poll when the router reconnects, including while background polling is paused.
+- **Follow-Up Refresh Automation**: *(enhances Reboot & Polling Lifecycle, introduced in 1.1.1)*: Pressing Reboot or Reconnect now automatically schedules an asynchronous follow-up poll when the router reconnects, including while background polling is paused.
 - **Bounded Writes & Fetch Deadlines**: Write actions and concurrency locks are strictly bounded to prevent background stalls, and polling loops enforce internal deadlines to preserve collected endpoint data during slow responses.
 - **HACS Minimum Version Requirement**: Enforced the minimum Home Assistant version requirement (2025.1.0) in HACS package metadata.
 
@@ -102,27 +114,36 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 - **5G Network Mode Mapping & Band Safety**: Added full mapping for 5G-Only mode (`08`), handled transient radio re-registration responses, moved confirmation read-backs outside locks, and ensured mode changes preserve active cellular band selections.
 - **Connection Recovery on Timeout**: Automatically resets and closes underlying HTTP sessions on coordinator timeouts, clearing stale sockets and rebuilding fresh client sessions without requiring a Home Assistant restart.
-- **Device Tracker Multi-Router Conflicts**: Migrated device tracker unique IDs to be scoped per configuration entry, preventing entity collisions and missing client devices on setups with multiple Huawei routers.
+- **Device Tracker Multi-Router Conflicts**: *(refines Device Tracker Unique IDs, introduced in 1.1.0)*: Migrated device tracker unique IDs to be scoped per configuration entry, preventing entity collisions and missing client devices on setups with multiple Huawei routers.
 - **Session Logout & Traffic Reset Calls**: Corrected library method bindings for session logout and traffic counter clearing, ensuring active sessions are properly closed on reload.
-- **SMS Parsing Resilience**: Hardened inbox parsing to handle empty message indices without dropping remaining inbox items.
-- **Repair Issue Titles**: Added vendor-prefixed translation strings for authentication failure and connection loss repairs in the Home Assistant Repairs dashboard.
+- **SMS Parsing Resilience**: *(refines SMS Parser, introduced in 1.0.2)*: Hardened inbox parsing to handle empty message indices without dropping remaining inbox items.
+- **Repair Issue Titles**: *(enhances Repairs Platform, introduced in 1.0.3)*: Added vendor-prefixed translation strings for authentication failure and connection loss repairs in the Home Assistant Repairs dashboard.
+
+### Under the hood
+
+- Enforced 100% line and branch test coverage threshold across all platforms.
+- Introduced automated mutation testing to verify assertion quality across command and parser logic.
 
 ## [1.1.2] - 2026-07-03 - Release: Manual Refresh Controls, Display Precision Units, and Configuration Hardening
 
+### Summary
+
+- **Manual Controls & Presentation**: Adds a Refresh Now button, configures display precision and custom units across 23 sensors, and hardens configuration screens against credential exposure.
+
 ### Added
 
-- **Refresh Now Button**: New System button that triggers an immediate data refresh, complementing the existing Pause Polling switch and configurable polling interval.
+- **Refresh Now Button**: *(complements Polling Options, introduced in 1.0.1)*: New System button that triggers an immediate data refresh, complementing the existing Pause Polling switch and configurable polling interval.
 
 ### Changed
 
-- **Display Units & Precision**: 23 sensors now display configured units and precision (GB, Mbit/s, hours, rounded signal/frequency values) without altering native values used for long-term statistics.
+- **Display Units & Precision**: *(enhances Sensor Presentation, introduced in 1.0.1)*: 23 sensors now display configured units and precision (GB, Mbit/s, hours, rounded signal/frequency values) without altering native values used for long-term statistics.
 - **Polling Toggle Future Ready**: Turning off "Enable polling for changes" in the entry's system options now reliably stops scheduled polling and will satisfy the upcoming HA requirement (implicit `ContextVar` detection is being removed in HA 2026.8).
-- **Disabled-by-Default Sensors**: User Capacity, Month Download (GB), and Month Upload (GB) are now disabled by default for new installs.
+- **Disabled-by-Default Sensors**: *(tunes Sensor Defaults, introduced in 1.0.1)*: User Capacity, Month Download (GB), and Month Upload (GB) are now disabled by default for new installs.
 
 ### Fixed
 
-- **Edit screen credential security**: Configured the password field on configuration screens to be masked and blank by default, preventing the stored password from being pre-filled or exposed.
-- **Host URL sanitization**: Host input is now automatically sanitized to strip redundant prefixes or trailing slashes, preventing malformed device links.
+- **Edit screen credential security**: *(hardens Config Flow, introduced in 1.0.1)*: Configured the password field on configuration screens to be masked and blank by default, preventing the stored password from being pre-filled or exposed.
+- **Host URL sanitization**: *(hardens Config Flow, introduced in 1.0.1)*: Host input is now automatically sanitized to strip redundant prefixes or trailing slashes, preventing malformed device links.
 
 ## [1.1.1] - 2026-06-07 - Release: Startup Timing Resilience, Session Lifecycle, and Uptime Timestamp Drift
 
@@ -134,43 +155,70 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 - **Startup dependency resilience**: Replaced the external URL normalization dependency with a standard-library helper to prevent transient import race failures during cold Home Assistant starts.
 - **Device tracker import paths**: Aligned `ScannerEntity` imports with canonical Home Assistant components paths to prevent deprecation warnings and ensure compatibility with future releases.
-- **SMS session handling**: Implemented proactive session resets and automatic retries on expired logins to prevent authorization errors during sporadic SMS service calls.
-- **Uptime tracking stability**: Latched the boot time calculation to prevent timestamp drift from independently ticking clocks, updating it only when a physical reboot drops the counter.
+- **SMS session handling**: *(refines SMS Session Lifecycle, introduced in 1.0.2)*: Implemented proactive session resets and automatic retries on expired logins to prevent authorization errors during sporadic SMS service calls.
+- **Uptime tracking stability**: *(refines Boot Time Calculation, introduced in 1.0.1)*: Latched the boot time calculation to prevent timestamp drift from independently ticking clocks, updating it only when a physical reboot drops the counter.
 - **Schema configuration compliance**: Added the required `CONFIG_SCHEMA` declaration to satisfy integration setup validation checks.
-- **Button error propagation**: Configured the Reboot and Clear Traffic buttons to propagate API failures to the UI and automations rather than swallowing errors silently.
-- **Device tracker stability**: Replaced broad exception blocks with target-specific guards to prevent potential tracker platform initialization crashes.
-- **Diagnostics query safety**: Added fallback guards to diagnostics generation to prevent potential crashes if queried before the initial integration coordinator update completes.
+- **Button error propagation**: *(enhances Button Platform, introduced in 1.0.1)*: Configured the Reboot and Clear Traffic buttons to propagate API failures to the UI and automations rather than swallowing errors silently.
+- **Device tracker stability**: *(hardens Device Tracker Setup, introduced in 1.0.2)*: Replaced broad exception blocks with target-specific guards to prevent potential tracker platform initialization crashes.
+- **Diagnostics query safety**: *(refines Diagnostics Platform, introduced in 1.1.0)*: Added fallback guards to diagnostics generation to prevent potential crashes if queried before the initial integration coordinator update completes.
 
 ### Changed
 
-- **Dynamic entity icons**: All entity icons migrated to HA's `icons.json` translation system. Signal bars (1–3), battery (10–100%), and SMS unread sensors now display context-aware icons that change automatically based on sensor value or state.
-- **Long-term statistics cleanup**: Removed `state_class` from 32 sensors (frequency, bandwidth, SMS counts, connection durations, and data rates) that report instantaneous values not suited for long-term statistics.
+- **Dynamic entity icons**: *(migrates Entity Icons to translation system, introduced in 1.0.1)*: All entity icons migrated to HA's `icons.json` translation system. Signal bars (1–3), battery (10–100%), and SMS unread sensors now display context-aware icons that change automatically based on sensor value or state.
+- **Long-term statistics cleanup**: *(refines Statistics State Classes, introduced in 1.0.1)*: Removed `state_class` from 32 sensors (frequency, bandwidth, SMS counts, connection durations, and data rates) that report instantaneous values not suited for long-term statistics.
+
+### Under the hood
+
+- Achieved 100% statement test coverage across coordinator and platform suites.
+- Adopted strict MyPy type checking across all custom component modules.
 
 ## [1.1.0] - 2026-05-07 - Release: MAC-Based Unique Identifier Migration and Code Hygiene
 
+### Summary
+
+- **Entity Identity & Hygiene**: Migrates entity unique identifiers from IP to MAC address for stable identification across DHCP changes, modernizes automation examples, and performs comprehensive internal code clean-up.
+
 ### Changed
 
-- **Under the Hood**: Significant internal code clean-up.
-- **MAC-Based Unique IDs**: Migrated entity unique IDs from IP address to MAC address to ensure stable entity identity across network reconfigurations.
-- **Automation Examples**: Updated and modernized example automations.
+- **MAC-Based Unique IDs**: *(refines Entity Identity, introduced in 1.0.1)*: Migrated entity unique IDs from IP address to MAC address to ensure stable entity identity across network reconfigurations.
+- **Automation Examples**: *(updates Automations Guide, introduced in 1.0.1)*: Updated and modernized example automations.
+
+### Under the hood
+
+- Executed comprehensive internal code clean-up across core modules and helper suites.
 
 ## [1.0.2] - 2026-05-05 - Release: SMS Management Actions, WiFi Sub-Device Hierarchy, and Client Tracking
 
+### Highlights
+
+- **SMS Actions**: Read, delete single, or batch delete SMS messages via actions.
+- **Wi-Fi Sub-Device**: Wi-Fi controls and status organized in a dedicated sub-device.
+- **Client Counts**: Sensors tracking active wired, wireless, and total clients.
+- **5G Signal Metrics**: 5G signal bars and ENDC status reported directly by the router.
+
+### Summary
+
+- **SMS Actions & Device Structure**: Introduces SMS inbox management actions, groups Wi-Fi entities under a dedicated sub-device, and adds client count and 5G connection sensors.
+
 ### Added
 
-- **SMS Management**: Improved SMS management significantly with services to list all, delete all and delete individual SMS messages.
-- **WiFi Sub-Device**: Moved all WiFi related entities into a WiFi sub-device.
+- **SMS Management**: *(expands SMS Capabilities, introduced in 1.0.1)*: Improved SMS management significantly with services to list all, delete all and delete individual SMS messages.
+- **WiFi Sub-Device**: *(organizes Wi-Fi Entities, introduced in 1.0.1)*: Moved all WiFi related entities into a WiFi sub-device.
 - **Wired Device Count**: Added sensors to track the number of wired and total (wired plus wifi) active clients.
 - **WiFi Single SSID Mode**: Added a sensor to track the status of single SSID mode (2.4GHz and 5GHz WiFi using the same SSID - "5GHz Preferred").
 - **5G ENDC Active**: Added sensor to track the status of ENDC connectivity.
-- **5G Signal Bars**: Added a sensor for 5G signal bars, in addition to the existing Signal Bars. These are both as-reported by the router, not calculated.
+- **5G Signal Bars**: *(complements Signal Bars, introduced in 1.0.1)*: Added a sensor for 5G signal bars, in addition to the existing Signal Bars. These are both as-reported by the router, not calculated.
 
 ### Changed
 
 - **SMS Inbox Management**: Added actions for reading, sending, and deleting SMS messages.
-- **WiFi Sub-Device**: Grouped Wi-Fi management and status entities under a dedicated Wi-Fi sub-device.
+- **WiFi Sub-Device**: *(organizes Wi-Fi Entities, introduced in 1.0.1)*: Grouped Wi-Fi management and status entities under a dedicated Wi-Fi sub-device.
 
 ## [1.0.1] - 2026-05-03 - Release: Connection Quality Sensors and SMS Messaging Actions
+
+### Summary
+
+- **Connection Diagnostics & SMS Display**: Adds a 3-stage quality gate Best Connection sensor for accurate 5G status reporting and a sensor displaying the most recent incoming SMS message.
 
 ### Added
 
@@ -188,7 +236,7 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
-  - [\[1.2.3\] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
+  - [\[1.2.3\] - 2026-10-06 - Pre-Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---pre-release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering](#121---2026-08-24---release-connection-loss-repair-triggering)
   - [\[1.2.0\] - 2026-08-20 - Release: New Sensor Entities, Data Projections, Control Switches, and Health Monitoring](#120---2026-08-20---release-new-sensor-entities-data-projections-control-switches-and-health-monitoring)
