@@ -147,10 +147,10 @@ def test_sensor_month_upload_gb(mock_coordinator, mock_config_entry):
 
 def test_sensor_plmn(mock_coordinator, mock_config_entry):
     """Test PLMN numeric code is returned."""
-    mock_coordinator.data = {"current_plmn": {"Numeric": "27205"}}
+    mock_coordinator.data = {"current_plmn": {"Numeric": "00103"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "plmn")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.native_value == "27205"
+    assert sensor.native_value == "00103"
 
 
 def test_sensor_operator_missing(mock_coordinator, mock_config_entry):

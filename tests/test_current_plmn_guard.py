@@ -16,7 +16,7 @@ from custom_components.huawei_router_5g.sensor import SENSOR_TYPES
 OPERATOR_KEYS = ("operator", "plmn", "operator_search_mode")
 
 # The shape the H165-383 returns, with the operator's values replaced.
-PLMN = {"FullName": "Test Carrier", "Numeric": "27201", "State": "0"}
+PLMN = {"FullName": "Test Carrier", "Numeric": "00101", "State": "0"}
 
 
 def _value_fn(key: str):
@@ -41,7 +41,7 @@ def test_the_mapping_the_router_returns_still_resolves() -> None:
     """The guard changes nothing for a router that answers normally."""
     data = {"current_plmn": PLMN}
     assert _value_fn("operator")(data) == "Test Carrier"
-    assert _value_fn("plmn")(data) == "27201"
+    assert _value_fn("plmn")(data) == "00101"
     assert _value_fn("operator_search_mode")(data) == "Auto"
     assert _value_fn("operator_search_mode")({"current_plmn": {"State": "1"}}) == (
         "Manual"

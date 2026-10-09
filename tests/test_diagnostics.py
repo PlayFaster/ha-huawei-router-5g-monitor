@@ -45,14 +45,14 @@ SECRETS = [
     "2001:db8::1",
     "+441234567890",  # an SMS sender — a third party
     "Your verification code is 998877",  # an SMS body
-    "Three",  # carrier
+    "ExampleTel",  # carrier
     # --- added after the 2026-08-14 live-capture audit (§P-2) ----------------
     # Every one of these was published in full, or was covered only under a key
     # name the router never sends. None was caught by reading the module.
-    "27203",  # Mccmnc — the operator, reached by a second key name
-    "3 Ireland",  # Spn — the list said lowercase `spn`; the router sends `Spn`
-    "40122",  # tac — serving tracking area, a metro-sized region
-    "36199",  # scc_pci — secondary-carrier cell identifier
+    "00102",  # Mccmnc — the operator, reached by a second key name
+    "ExampleTel Spn",  # Spn — the list said lowercase `spn`; the router sends `Spn`
+    "11111",  # tac — serving tracking area, a metro-sized region
+    "22222",  # scc_pci — secondary-carrier cell identifier
     "31337",  # sc — UMTS scrambling code, null on an LTE attach
     "hunter2WifiKey",  # WifiWpapsk — the household's WiFi password
     "wep0011223344",  # WifiWepKey1
@@ -71,7 +71,7 @@ def _payload() -> dict:
             "WanIPAddress": "10.1.2.3",
             "WanIPv6Address": "2001:db8::1",
             "uptime": "123456",
-            "Mccmnc": "27203",
+            "Mccmnc": "00102",
         },
         "monitoring_status": {
             "ConnectionStatus": "901",
@@ -84,16 +84,16 @@ def _payload() -> dict:
             "sinr": "6dB",
             "cell_id": "5A6B3",
             # Populated on the live B535 and published in full.
-            "tac": "40122",
-            "scc_pci": "36199",
+            "tac": "11111",
+            "scc_pci": "22222",
             # Null on an LTE/NR attach, populated on a 3G or GSM fallback.
             "sc": "31337",
         },
         "current_plmn": {
-            "FullName": "Three",
-            "ShortName": "3",
-            "Numeric": "27205",
-            "Spn": "3 Ireland",
+            "FullName": "ExampleTel",
+            "ShortName": "ET",
+            "Numeric": "00103",
+            "Spn": "ExampleTel Spn",
         },
         # The device_tracker surface — no sibling project has this.
         "lan_host_info": {

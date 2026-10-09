@@ -36,7 +36,7 @@ Base URL is normalized by `_normalize_router_url` in `api.py`; a bare host such 
 
 The router accepts a single username and password — **there is no separate `admin` account or elevated tier.** One credential is the whole authentication model; the evidence for that is at the end of this section.
 
-**The session rule, stated once.** More than one session can be open at a time: on 2026-10-05 a second login was made while a first session was read for 30 s, and both sessions answered throughout, on the H165-383 and on the B315s-22. A cap on open sessions exists and its size is unmeasured. Reaching it shows as `LoginErrorAlreadyLoginException` (code `108003`), which a 42-endpoint sweep with repeated logins provoked on 2026-09-07 before the router began refusing connections. The docstrings in `api.py` and the comments in `coordinator.py` refer here and do not restate the rule.
+**The session rule, stated once.** More than one session can be open at a time: on 2026-10-05 a second login was made while a first session was read for 30 s, and both sessions answered throughout, on the H165-383 and on the B315s-22. A newer login does not end an older session. The cap on open sessions is 10 on the H165-383, measured 2026-10-09, and unmeasured on other models; reaching it shows as `LoginErrorAlreadyLoginException` (code `108003`), which a 42-endpoint sweep with repeated logins also provoked on 2026-09-07. An idle session expires after about 180 s on the H165-383, `user/heartbeat` does not renew it, and a session dropped without a logout holds its place until then. The measurements are in [H165-383 measurements, 2026-10-09](#-h165-383-measurements-2026-10-09). The docstrings in `api.py` and the comments in `coordinator.py` refer here and do not restate the rule.
 
 **"Busy" is a different limit.** The router answers `110001` ("Busy") to simultaneous requests, which is a limit on requests in flight and not on sessions. `api.py` serializes every call behind one lock for that reason.
 
@@ -73,7 +73,7 @@ Re-verify any of these on a fresh session before treating a refusal as permanent
 | `100003: No rights (needs login)` | Either the router refuses this one read, or the session has ended | `api.py` tells the two apart; see [Telling a refusal from an expiry](#telling-a-refusal-from-an-expiry--the-rule-as-built-123-dev16) |
 | `108001` | Username wrong (`LoginErrorUsernameWrongException`) | `HuaweiAuthError`: `invalid_auth` in the dialogs, reauth once the strike budget is spent |
 | `108002` | Password wrong (`LoginErrorPasswordWrongException`) | `HuaweiAuthError`, as `108001` |
-| `108003` | Already logged in (`LoginErrorAlreadyLoginException`), the symptom of the session cap | Not a credentials failure. The liveness probe reads it as a refused second session |
+| `108003` | Already logged in (`LoginErrorAlreadyLoginException`): the session table is full, 10 sessions on the H165-383 | Not a credentials failure and not a takeover. The liveness probe reads it as a refused second session |
 | `108006` | Username and password wrong (`LoginErrorUsernamePasswordWrongException`) | `HuaweiAuthError`, as `108001` |
 | `108007` | Password overrun, the lockout after repeated failures (`LoginErrorUsernamePasswordOverrunException`) | `HuaweiLockoutError`: `login_attempts_exceeded` in the dialogs, no repair and no reauth. The threshold is unmeasured |
 | `115002` | Password modify, the router asks for a password change (`LoginErrorUsernamePasswordModifyException`) | Not caught as a credentials failure; it reads as a connection failure |
@@ -90,7 +90,7 @@ Re-verify any of these on a fresh session before treating a refusal as permanent
 >
 > **`net_mode.NetworkMode` is confirmed present.** The hardware check reads it back on every run (`read-back net_mode.NetworkMode`), so a firmware rename of the key that `confirm_write` compares would surface immediately instead of turning every network-mode write into a permanent _unverified_.
 >
-> **`-1` is occasional, not guaranteed.** On 2026-08-19 the hardware check wrote `03` from `00` and the router accepted it outright. The 2026-08-16 observation was the other direction. What decides it has not been isolated, so code must handle both and no run should be assumed to have exercised the `-1` path. A refused mode change answers `-1` as well and is caught by the same read-back disagreeing.
+> **`-1` is occasional, not guaranteed.** On 2026-08-19 the hardware check wrote `03` from `00` and the router accepted it outright. The 2026-08-16 observation was the other direction. What decides it has not been isolated, so code must handle both and no run should be assumed to have exercised the `-1` path. A refused mode change answers `-1` as well and is caught by the same read-back disagreeing: on 2026-10-09 a write of `02`, which is not in the H165-383's list, answered `-1` and left the mode unchanged.
 
 ### Logout — the failure that hid for a whole release line
 
@@ -371,14 +371,14 @@ An expiry therefore presents as `100003` on every login-only read at once, and t
 
 ### Reboot timeline
 
-On the B315s-22 the router was unreachable from about 18 s to 44 s after the reboot command, the old session read `100003` at 46 s, a new login answered, and the integration logged one fetch failure and raised no repair. The H165-383 was not rebooted, by the owner's direction.
+On the B315s-22 the router was unreachable from about 18 s to 44 s after the reboot command, the old session read `100003` at 46 s, a new login answered, and the integration logged one fetch failure and raised no repair. The H165-383 was rebooted three times on 2026-10-09: it was silent from about 10 s to about 70 s, its data connection was up at about 52 s, and the old session read `100003` (see [Reconnect and reboot](#reconnect-and-reboot)).
 
 ### `net.current_plmn` and the SIM state
 
 | State | B315s-22 |
 | :-- | :-- |
 | No SIM, Ethernet WAN | `net.current_plmn` returns the string `FAILED`, with and without a login. `sms.get_sms_list` called with no argument answers `125003` on a live session |
-| SIM fitted and registered on LTE, 5 signal bars, operator code 27205 | `net.current_plmn` returns a dictionary. `sms.get_sms_list` answers and needs a login. 6 of 243 reads differ between the two states |
+| SIM fitted and registered on LTE, 5 signal bars | `net.current_plmn` returns a dictionary. `sms.get_sms_list` answers and needs a login. 6 of 243 reads differ between the two states |
 
 On the B315s-22 the Integration Health sensor read `warning` with six degraded capabilities and a signal-block drift without a SIM, and `degraded` with five degraded capabilities and no drift with one. The sensor code does not expect the string `FAILED`; the task `current_plmn_failed_string_crashes_sensors` records the three sensor sites. A router with its WAN on Ethernet shows an empty signal block, a `FAILED` operator string and 53 of 124 entities unknown, and the integration has not been tested in that mode, which is a roadmap item.
 
@@ -392,6 +392,75 @@ On the B315s-22 the Integration Health sensor read `warning` with six degraded c
 The five `100003` probes on the H165-383 are `device_autorun_version`, `device_antenna_status`, `device_antenna_settings`, `monitoring_wifi_month_setting` and `dial_up_auto_apn`, each followed by a read of `device.information` that answered, except the last. After the last probe that read raised a connection error and not a `100003`, so the session was not shown to be dead, and the connect time of 9793 s afterwards shows the sweep did not restart the data connection. A canary that raises a connection error is therefore treated as unknown.
 
 On the B315s-22, four connection errors in a read matrix coincided with the integration's own poll, and whether load or the SIM caused them is not established. Overlapping requests made it drop connections, so checks against it pause the integration's polling first.
+
+## 📏 H165-383 measurements, 2026-10-09
+
+Measured from the development container with `huawei-lte-api` 2.0.1, with the integration's polling stopped and no other client logged in. The owner released the H165-383 for this run, including reboots and SMS deletion. Writes, Reconnect and Reboot went through the integration's own `HuaweiRouter5GAPI` methods, so the figures are what the integration meets. The full method, the raw output and the per-run tables are kept with the project notes and are not published.
+
+### Sessions
+
+| Measure | Result |
+| :-- | :-- |
+| Sessions open at once | 10. The 11th login answers `108003` (`LoginErrorAlreadyLoginException`); every open session keeps answering, and a login succeeds once one is logged out |
+| A second login | Does not end the first session. Eight `sms.set_read` writes on the first session straight after the second login were all accepted |
+| Idle lifetime | Alive at 180.5 s idle, expired by 185.3 s, so about 180 s. An expired session answers `100003` on every login-only read, and a logout on it answers `100003` |
+| `user/heartbeat` | Answers, and does not keep a session alive: a session that sent one every 30 s had expired by 600 s |
+| `user/state-login` | Per session: `State` reads 0 on every logged-in session and -1 without one, so it carries no takeover signal |
+| Connection drops | After about one refusal in ten the router closes the TCP connection without a response (`RemoteDisconnected`). The next request on the same session answers, so a dropped connection is not a lost session. The library's `Connection.close()` raises on a dropped connection, and a login made about 0.3 s after another once failed the same way |
+
+A session discarded without a logout keeps its place until it expires, so ten discarded sessions within about three minutes lock out every further login until the oldest expires. The integration resets an idle session after 100 s (`_ensure_client`), inside the measured lifetime.
+
+### Refusals do not lift on a fresh login
+
+The 38 reads the H165-383 refused with `100003` on a live session on 2026-10-05 were read again on one session and then each on its own fresh login. All 38 refused on the live session and all 38 refused on the fresh login. **A re-login never makes a refused endpoint answer on this firmware**, so a re-login on a `100003` from one of these endpoints costs a login and changes nothing.
+
+### Reads with and without a login
+
+| Read | Without a login | With a login |
+| :-- | :-- | :-- |
+| `global_module_switch`, `device_feature_switch`, `net_feature_switch`, `monitoring_statistic_feature_switch`, `system_devcapacity`, `dial_up_feature_switch` | Answered, same values | Answered |
+| `sms_feature_switch`, `voice_featureswitch`, `security_feature_switch`, `dhcp_feature_switch`, `cradle_feature_switch` | `100003` | Answered |
+| `sntp/timeinfo`, `device/boot_time`, `net/net-mode`, `net/net-mode-list` | `100003` | Answered |
+| `device/nbrcellinfo`, `device/seccellinfo` (not wrapped by the library; read through `Connection.get`) | `100003` | Answered |
+
+**Neighbor and secondary cells.** `device/nbrcellinfo` returns `nbrcell_ltelist` and `nbrcell_nrlist`, and `device/seccellinfo` returns `lteseccell_list` and `nrseccell_list`. Each is a string of records separated by `;`, each record of fields separated by `,`: seven fields for a neighbor cell and eight for a secondary cell, which adds a bandwidth after the band. The field order was measured on 2026-10-10 by reading both lists beside `device.signal`, whose fields are named: channel number (EARFCN or NR-ARFCN, matching the `band` string), band, bandwidth (secondary cells only), PCI (matching `scc_pci` and the PCIs listed in `nei_cellid`), RSRP and RSRQ (matching `nrrsrp` and `nrrsrq` for the NR secondary cell), RSSI, and SINR (matching `nrsinr`). RSSI is the remaining field by elimination, because `device.signal` reported no NR RSSI. A neighbor record's last field is the SINR position and reads `--`. The neighbor list includes the secondary carrier's own cell. `nbrcell_nrlist` was null on every reading.
+
+**Time.** `sntp/timeinfo` returns `currentlocaltime` as local time with no offset, `localtimezonename` as a POSIX time-zone rule including the daylight-saving rule, `currenttimezone` as the standard offset (unchanged during daylight saving), and `syncstatus`. The current offset is therefore derived from the rule and the date, or from `currentlocaltime` against UTC; `currenttimezone` alone gives the wrong offset in summer.
+
+### How often the figures change
+
+One session read `device.signal`, `monitoring.traffic_statistics` and `monitoring.status` once a second for 299 s. The traffic counters, including `CurrentConnectTime`, advanced every 2 s. The per-second link figures (`txpower`, `nrtxpower`, the CQI and MCS fields) changed at nearly every read, and `rsrq`, `rssi`, `sinr` and `nrsinr` every 2 to 4 s. Cell identity, band, frequencies and every `monitoring.status` field did not change. No polled figure holds a value long enough for a poll interval to be derived from it.
+
+### SMS
+
+| Measure | Result |
+| :-- | :-- |
+| `Date` on a received message | Local time, `YYYY-MM-DD HH:MM:SS`, no offset, within 1 s of the send time |
+| `Date` on a sent message | The same form, in the sent box |
+| `Smstat` | 0 unread and 1 read in the inbox; 3 in the sent box |
+| A send | Accepted, received 5 to 7 s later, and moved `LocalOutbox` up by one with `LocalDraft` unchanged, on three sends |
+| Arrival | A received message was in the local inbox at the first read, 2.3 s after the send, on three messages |
+| A delete | Taken effect by the time the router replies: the message was gone at the first read, within 30 ms, in 8 inbox and 10 sent-box deletes |
+| Deleted-message box | None: `LocalDeleted` stayed 0 |
+
+The integration's checked delete and its delete all were run against the router and passed. Delete all reading a second page was not exercised, because the inbox held fewer than 50 messages.
+
+### Network mode
+
+A write of `02`, which is not in the router's list `00`, `08`, `03`, answered `-1` and left the mode at `00`. A write of `03`, in the list, was applied within 2 s, with `ConnectionStatus` 902 at 2.2 s and 901 at 3.3 s. Restoring `00` took 17 to 19 s through the integration, which matches its read-back wait after a `-1`, so the restores were probably answered `-1` and applied. **A mode outside the router's list is refused, not applied.**
+
+### Reconnect and reboot
+
+| Command | Runs | Outage | Data up | Session held across it |
+| :-- | --: | :-- | :-- | :-- |
+| Reconnect (`dialup/dial` `Action` 0, then `dial()`) | 2 | `CurrentConnectTime` reset by 0.77 s; 900 seen once | 901 by 1.1 s | Answered throughout |
+| Reboot (`set_control(ControlModeEnum.REBOOT)`) | 3 | Last answer 5 to 7 s after the command, silent by 10 to 12 s, first answer again at 68.5 to 72.6 s | About 52 s after the command, before the web interface answers | `100003`: the session is gone |
+
+The first login after a reboot was refused with a dropped connection at 68.5 s and accepted at 73.7 s. `device/boot_time` placed the restart of the uptime clock about 14 s after the command. The command call itself returned in 0.2 s for Reconnect and 0.56 s for Reboot.
+
+### Not measured on 2026-10-09
+
+The lockout threshold, the code a wrong password returns and the behavior of `lockstatus` and `remainwaittime` during a lock were not measured. Delete all across more than one inbox page, a write refused with `100003`, and a request that draws no answer were not produced.
 
 ---
 

@@ -76,7 +76,7 @@ async def test_the_sms_debug_log_carries_shape_and_never_contents(
                     "Message": [
                         {
                             "Index": "40001",
-                            "Phone": "+353871234567",
+                            "Phone": "+15550100123",
                             "Content": "meet me at the usual place",
                             "Date": "2026-08-19 10:00:00",
                         }
@@ -98,7 +98,7 @@ async def test_the_sms_debug_log_carries_shape_and_never_contents(
     assert "Content" in caplog.text and "Phone" in caplog.text
 
     # The values are not - at any level.
-    assert "+353871234567" not in caplog.text
+    assert "+15550100123" not in caplog.text
     assert "meet me at the usual place" not in caplog.text
 
 
@@ -120,7 +120,7 @@ async def test_the_sms_shape_log_counts_a_lone_message_sent_as_a_dict(
                 "Messages": {
                     "Message": {
                         "Index": "40003",
-                        "Phone": "+353871234567",
+                        "Phone": "+15550100123",
                         "Content": "single",
                         "Date": "2026-08-19 11:00:00",
                     }
@@ -136,7 +136,7 @@ async def test_the_sms_shape_log_counts_a_lone_message_sent_as_a_dict(
     await coordinator._async_update_data()
 
     assert "1 message(s)" in caplog.text
-    assert "+353871234567" not in caplog.text
+    assert "+15550100123" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -162,7 +162,7 @@ async def test_a_new_sms_is_announced_without_the_senders_number(
                     "Message": [
                         {
                             "Index": "40002",
-                            "Phone": "+353871234567",
+                            "Phone": "+15550100123",
                             "Content": "bring milk",
                             "Date": "2026-08-19 10:00:00",
                         }
@@ -173,11 +173,11 @@ async def test_a_new_sms_is_announced_without_the_senders_number(
     )
 
     assert "New SMS received" in caplog.text
-    assert "+353871234567" not in caplog.text
+    assert "+15550100123" not in caplog.text
 
     # The event still carries what an automation needs.
     _, args, _ = mock_hass.bus.async_fire.mock_calls[0]
-    assert args[1]["phone"] == "+353871234567"
+    assert args[1]["phone"] == "+15550100123"
     assert args[1]["content"] == "bring milk"
 
 

@@ -204,7 +204,7 @@ SAMPLE_ROUTER_DATA = {
     "current_plmn": {
         "FullName": "Three",
         "ShortName": "3",
-        "Numeric": "27205",
+        "Numeric": "00103",
     },
     "sms_count": {
         "LocalUnread": "2",
@@ -314,7 +314,7 @@ SWEEP_DATA: dict = {
         "DataLimit": "2000GB",
         "MonthThreshold": "80",
     },
-    "current_plmn": {"FullName": "Test Carrier", "Numeric": "27201"},
+    "current_plmn": {"FullName": "Test Carrier", "Numeric": "00101"},
     "net_mode": {"NetworkMode": "03", "NetworkBand": "3FFFFFFF"},
     "sms_count": {
         "LocalUnread": "1",
@@ -327,7 +327,7 @@ SWEEP_DATA: dict = {
             "Message": [
                 {
                     "Index": "1",
-                    "Phone": "+353871234567",
+                    "Phone": "+15550100123",
                     "Content": "hello",
                     "Date": "2026-08-15 10:00:00",
                     "Smstat": "0",

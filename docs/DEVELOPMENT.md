@@ -142,7 +142,7 @@ A success reply did not prove a delete on `zte_router_5g`, and `async_delete_sms
 
 The known limits:
 
-- **The wait is provisional.** Three reads two seconds apart is below the 15 s ZTE waits. How long a Huawei router takes to drop a deleted message from its list is unmeasured; an attended delete that times it sets the final values.
+- **The wait is provisional.** Three reads two seconds apart is below the 15 s ZTE waits. On the H165-383 on 2026-10-09 every delete had taken effect by the time the router replied, and the first read confirmed it in 18 of 18 deletes, so the wait is never used there. Other models are unmeasured, and the values stay until one is.
 - **The single-delete check reads the first page of the local inbox only.** A message beyond that page, or in another box, passes the check.
 - **Delete all covers the local inbox only.** The SIM inbox, the outbox and the drafts are not read.
 
@@ -212,7 +212,7 @@ Home Assistant core pins `huawei-lte-api==1.11.0` for its own `huawei_lte` integ
 - **`asyncio.timeout` cannot cancel `asyncio.to_thread`.** It cancels the _await_, so the worker keeps running with nobody listening and is never reclaimed. Two consequences were handled separately. On the **fetch**, expiry also discarded all 26 endpoints already collected, so `_fetch` now carries its own `FETCH_DEADLINE`, checked between endpoints, and returns what it has — `device_information` is fetched first, so the critical block is always present, and the rest degrade through the existing per-endpoint machinery. On a **write**, there was no outer timeout at all, so a hung worker held the API lock with nothing able to release it; `WRITE_TIMEOUT` now bounds the wait, and cancellation unwinds through `_locked`, whose `finally` frees the lock.
 - **Derive the budgets from each other.** `FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT`, because the deadline is checked _between_ endpoints and one request may still take its full timeout afterwards. That makes the outer `asyncio.timeout` a backstop that should never fire, rather than a limit a healthy router can cross — three endpoints each hitting `REQUEST_TIMEOUT` used to break the batch budget while every individual request behaved correctly.
 - **A write timeout is not a write failure.** The command has already reached the router; only the waiting stopped. `_write_deadline` therefore logs and returns rather than raising — Section 22's third outcome, the same reasoning `confirm_write` uses for `None`. Raising would report a successful write as broken and invite the user to repeat a command that already applied.
-- **A single-session device makes a liveness probe ambiguous.** `probe_liveness` returns `True` / `False` / `None`: a router that refuses a second login is plainly alive — alive enough to refuse — so reading that as "unreachable" would invert the verdict the probe exists to give.
+- **A refused second login makes a liveness probe ambiguous.** The H165-383 holds up to 10 sessions and refuses a login with `108003` only when its session table is full (measured 2026-10-09). `probe_liveness` returns `True` / `False` / `None`: a router that refuses a second login is plainly alive — alive enough to refuse — so reading that as "unreachable" would invert the verdict the probe exists to give.
 
 ### A Check That Skips Itself Never Runs, and a Script That Only Prints Cannot Be Reviewed (v1.2.0-dev59)
 
@@ -331,7 +331,7 @@ Home Assistant core pins `huawei-lte-api==1.11.0` for its own `huawei_lte` integ
   - _Fix_: Implemented a robust parser in `helpers.py` that handles metadata offsets and varied structure.
 - **Partial Entity Failure (v1.0.1-dev4)**: Transient session timeouts mid-fetch could cause some sensors (like SMS or System Info) to become 'Unknown' while others (like Data) stayed active.
   - _Fix_: Implemented mid-fetch error detection for session codes 125002/125003 in `api.py` and a **Critical Data Guard** in the coordinator to reject partial data objects.
-- **Predictable Session Expiration (v1.0.1-dev8)**: Router sessions often have a fixed TTL (e.g., 6 minutes), leading to periodic auth failures during polling.
+- **Predictable Session Expiration (v1.0.1-dev8)**: Router sessions expire, leading to periodic auth failures during polling. The expiry is on idle time: about 180 s on the H165-383, measured 2026-10-09, and `user/heartbeat` does not renew it.
   - _Fix_: Implemented an immediate retry mechanism in the coordinator. If a `HuaweiAuthError` is caught, the fetch is retried once immediately, masking the recovery from the user and ensuring data continuity.
 - **Numeric Sanitization**: The Huawei API often returns strings with technical suffixes (e.g., "120dBm", "20MHz").
   - _Fix_: Implemented `parse_signal_value` helper in `helpers.py` to strip these suffixes before numeric conversion across all platforms.
@@ -375,7 +375,7 @@ Home Assistant core pins `huawei-lte-api==1.11.0` for its own `huawei_lte` integ
   - _Status, corrected 2026-08-26_: **fixed — the selector is present.** This entry's warning that `state_class` is not the root cause was right and stands: the selector is controlled by the `device_class`, verified against `homeassistant/components/sensor/websocket_api.py`. Do not remove a `state_class` expecting it to restore a selector.
 - **IPv6 DNS Gaps (v1.0.1-dev22)**: While IPv4 DNS was tracked, IPv6 DNS was missing, leading to incomplete network visibility on modern dual-stack connections.
   - _Fix_: Added `primary_ipv6_dns` and `secondary_ipv6_dns` sensors reading from the `monitoring_status` endpoint.
-- **Session Expiration during Service Calls (v1.1.1-dev21)**: Calling SMS or other device services after ~2 minutes of inactivity resulted in a `100003: No rights (needs login)` error due to the router's session expiring.
+- **Session Expiration during Service Calls (v1.1.1-dev21)**: Calling SMS or other device services after a few minutes of inactivity (the H165-383 expires an idle session after about 180 s, measured 2026-10-09) resulted in a `100003: No rights (needs login)` error due to the router's session expiring.
   - _Fix_: Implemented proactive inactivity-based session resetting (100-second threshold) in `_ensure_client()` and a reactive retry wrapper `_execute_with_retry` that catches `ResponseErrorLoginRequiredException` and codes `125002`/`125003`/`100003`, resets the client, and automatically retries the operation once.
 - **`asyncio.to_thread` Mock Compatibility (v1.1.1-dev21)**: Unit test mocks that stub `asyncio.to_thread` with custom lambda syntax (e.g. `lambda fn, **kwargs: fn(**kwargs)`) would fail with `TypeError` when `asyncio.to_thread` was invoked with extra positional arguments like `asyncio.to_thread(func, client)`.
   - _Fix_: Wrapped the client function in a zero-argument lambda: `asyncio.to_thread(lambda: func(client))`. This ensures exactly one positional argument is passed, preserving compatibility with all unit test mocking styles.
