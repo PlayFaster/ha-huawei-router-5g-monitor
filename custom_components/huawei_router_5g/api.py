@@ -20,8 +20,8 @@ from huawei_lte_api.enums.device import ControlModeEnum
 from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
     LoginErrorAlreadyLoginException,
-    LoginErrorPasswordWrongException,
-    LoginErrorUsernameWrongException,
+    LoginErrorInvalidCredentialsException,
+    LoginErrorUsernamePasswordOverrunException,
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
@@ -29,6 +29,8 @@ from packaging.version import InvalidVersion, Version
 
 from .const import (
     ADJUDICATION_BUDGET,
+    CAPABILITY_BASIC_INFO_KEYS,
+    CAPABILITY_PROBES,
     FETCH_DEADLINE,
     LIBRARY_ADDED_ENDPOINTS,
     LOCK_TIMEOUT,
@@ -104,6 +106,26 @@ class HuaweiConnectionError(Exception):
 
 class HuaweiAuthError(Exception):
     """Raised when login credentials are rejected."""
+
+
+class HuaweiSessionExpiredError(HuaweiAuthError):
+    """Raised when a session the router had accepted has ended.
+
+    A subclass, so every handler of `HuaweiAuthError` still catches it. It
+    exists so the coordinator can retry an expired session, which a fresh login
+    repairs, without retrying a rejected login, which a second attempt cannot
+    repair and which counts toward the router's lockout.
+    """
+
+
+class HuaweiLockoutError(Exception):
+    """Raised when the router refuses a login after too many failed attempts.
+
+    Code 108007, `LoginErrorUsernamePasswordOverrunException`. Deliberately
+    **not** a `HuaweiAuthError`: the stored credentials may be right, and a
+    reauth flow would send the user to retype a password that was never the
+    problem. The lockout threshold and duration are unmeasured on any unit held.
+    """
 
 
 @dataclass
@@ -347,10 +369,13 @@ class HuaweiRouter5GAPI:
                 self._connection = conn
                 self._client = client
                 self._last_activity = datetime.now(UTC)
-            except (
-                LoginErrorPasswordWrongException,
-                LoginErrorUsernameWrongException,
-            ) as err:
+            except LoginErrorUsernamePasswordOverrunException as err:
+                self._connection = None
+                self._client = None
+                raise HuaweiLockoutError(f"Login locked out: {err}") from err
+            # The parent class, so a wrong pair (108006) is a credentials
+            # failure as well as a wrong username (108001) or password (108002).
+            except LoginErrorInvalidCredentialsException as err:
                 self._connection = None
                 self._client = None
                 raise HuaweiAuthError(f"Authentication failed: {err}") from err
@@ -441,8 +466,9 @@ class HuaweiRouter5GAPI:
         reported everything unavailable with nothing to say which end was at
         fault.
 
-        Three outcomes, and the third exists because this router permits one
-        login:
+        Three outcomes, and the third exists because the router caps the
+        sessions it holds open (`docs/huawei_how_to_access.md`, "A login is
+        required"):
 
         | Return | Meaning |
         | :-- | :-- |
@@ -458,8 +484,9 @@ class HuaweiRouter5GAPI:
 
         **Does not take the lock**, for the same reason as `invalidate`: the
         lock is one of the things being diagnosed. It logs out and closes the
-        session it opens, because this router permits one login and a probe
-        that leaked sessions would cause the outage it is investigating. Called
+        session it opens, because the router caps its open sessions (the same
+        section) and a probe that leaked sessions would cause the outage it is
+        investigating. Called
         once per exhausted strike budget, never per poll.
         """
 
@@ -537,10 +564,12 @@ class HuaweiRouter5GAPI:
             self._client = client
             self._last_activity = datetime.now(UTC)
             self._record_login_metadata("ok")
-        except (
-            LoginErrorPasswordWrongException,
-            LoginErrorUsernameWrongException,
-        ) as err:
+        except LoginErrorUsernamePasswordOverrunException as err:
+            self._connection = None
+            self._client = None
+            self._record_login_metadata("lockout", type(err).__name__)
+            raise HuaweiLockoutError(f"Login locked out: {err}") from err
+        except LoginErrorInvalidCredentialsException as err:
             self._connection = None
             self._client = None
             self._record_login_metadata("auth_failed", type(err).__name__)
@@ -737,7 +766,7 @@ class HuaweiRouter5GAPI:
             )
             self._record_verdict("expired", code=code, key=key, payload=data)
             self._record_endpoint(key, "expired", code)
-            raise HuaweiAuthError(f"Session expired: {err}") from err
+            raise HuaweiSessionExpiredError(f"Session expired: {err}") from err
         if (key, code) not in self._refusal_warned:
             self._refusal_warned.add((key, code))
             _LOGGER.warning(
@@ -814,6 +843,7 @@ class HuaweiRouter5GAPI:
         ("security_feature_switch", lambda c: c.security.feature_switch()),
         ("dhcp_feature_switch", lambda c: c.dhcp.feature_switch()),
         ("cradle_feature_switch", lambda c: c.cradle.feature_switch()),
+        ("dial_up_feature_switch", lambda c: c.dial_up.dialup_feature_switch()),
         # --- Identity and firmware, where the polled reads are restricted ----
         ("device_basic_information", lambda c: c.device.basic_information()),
         ("device_vendorname", lambda c: c.device.vendorname()),
@@ -953,9 +983,13 @@ class HuaweiRouter5GAPI:
             return await self._probe_sweep()
 
     async def _probe_one(
-        self, call: Callable[[Client], Any], client: Client
+        self, call: Callable[[Client], Any], client: Client, key: str = ""
     ) -> dict[str, Any]:
-        """Call one probe and describe the outcome. Never raises."""
+        """Call one probe and describe the outcome. Never raises.
+
+        For a capability probe the record also keeps the raw values, under
+        `values`; `diagnostics.py` decides what of them is published.
+        """
         started_at = time.monotonic()
         try:
             value = await asyncio.to_thread(call, client)
@@ -973,6 +1007,12 @@ class HuaweiRouter5GAPI:
             record["populated"] = sum(
                 1 for v in value.values() if v not in (None, "", {}, [])
             )
+            if key in CAPABILITY_PROBES:
+                record["values"] = dict(value)
+            elif key == "device_basic_information":
+                record["values"] = {
+                    k: value[k] for k in CAPABILITY_BASIC_INFO_KEYS if k in value
+                }
         return record
 
     async def _session_is_lost(self, client: Client) -> bool:
@@ -1035,7 +1075,7 @@ class HuaweiRouter5GAPI:
             if (reason := unusable()) is not None:
                 stop_at(index, reason)
                 break
-            record = await self._probe_one(call, client)
+            record = await self._probe_one(call, client, key)
             results[key] = record
             if record["outcome"] == "answered":
                 continue
@@ -1059,7 +1099,7 @@ class HuaweiRouter5GAPI:
             # Our own login replaced the client, so what counts as a reset
             # under the sweep starts from here.
             generation = self._generation
-            repeated = await self._probe_one(call, client)
+            repeated = await self._probe_one(call, client, key)
             repeated["session_lost"] = True
             results[key] = repeated
         return results

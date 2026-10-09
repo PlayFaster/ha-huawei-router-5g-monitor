@@ -20,7 +20,7 @@ The integration follows the standard Home Assistant Custom Component pattern, op
 - **`number.py`**: Provides UI control over the refresh interval with persistent storage in `ConfigEntry` options. The write is debounced by two seconds and **flushed rather than canceled** on removal — a reload lands inside that window (an options change is enough), and canceling discarded the value silently.
 - **`config_flow.py`**: Manages initial setup and reconfiguration, implementing the "Flat Identity" pattern by persisting hardware metadata (Model, MAC, Version) at boot. Normalizes the host input (`_clean_host`) before storage, and on edit screens leaves credential fields blank (masked, never pre-filled) — restoring the stored password on a blank submit via `_merge_credentials`, so the password can be re-set without ever being displayed.
 - **`helpers.py`**: Contains robust parsers for SMS lists and technical metric sanitization (e.g., stripping 'dBm', 'MHz' suffixes).
-- **`diagnostics.py`**: Builds the config-entry diagnostics download. Sanitizes the payload by walking it — key-name matches for known identifier classes, a shape-based sweep for everything else — and publishes four evidence blocks beside it: `last_rejection` (the response behind the most recent failure, with the router's error code), `endpoints` (every polled endpoint's outcome, with key and populated counts, and for a refusal on a live session the `judged` value `live_session` or `history`), `entity_resolution` (which entity descriptions this payload populates, and which raise), and `probes` (46 endpoints the integration does not poll, called once per download, with the outcomes `not_run` and `session_lost` where the sweep was cut short or a session ended under a probe). Two records say how a refusal was judged: `premise` (the outcome and code of the anonymous read of `device.information`, or `not_made` where no endpoint drew a session signal) and `probe_sessions_lost` (the sessions the probe sweep found lost and replaced, 0 where none). The three blocks after the first exist so a report from an unfamiliar Huawei model can be read: an endpoint absent from the payload now says whether it was refused, skipped or unreachable. The known limits are under the pattern "A Refusal Is Told From An Expiry By A Read That Needs A Login" in section 4.
+- **`diagnostics.py`**: Builds the config-entry diagnostics download. Sanitizes the payload by walking it — key-name matches for known identifier classes, a shape-based sweep for everything else — and publishes four evidence blocks beside it: `last_rejection` (the response behind the most recent failure, with the router's error code), `endpoints` (every polled endpoint's outcome, with key and populated counts, and for a refusal on a live session the `judged` value `live_session` or `history`), `entity_resolution` (which entity descriptions this payload populates, and which raise), and `probes` (47 endpoints the integration does not poll, called once per download, with the outcomes `not_run` and `session_lost` where the sweep was cut short or a session ended under a probe, and for the capability probes of `CAPABILITY_PROBES` their values: numbers as they are, text only under `CAPABILITY_TEXT_KEYS`, and any other text replaced by a marker naming its type). Two records say how a refusal was judged: `premise` (the outcome and code of the anonymous read of `device.information`, or `not_made` where no endpoint drew a session signal) and `probe_sessions_lost` (the sessions the probe sweep found lost and replaced, 0 where none). The three blocks after the first exist so a report from an unfamiliar Huawei model can be read: an endpoint absent from the payload now says whether it was refused, skipped or unreachable. The known limits are under the pattern "A Refusal Is Told From An Expiry By A Read That Needs A Login" in section 4.
 
 ### Scripts (`scripts/`)
 
@@ -115,6 +115,45 @@ The known limits:
 - **The never-answered history is kept in memory.** A capability lost while Home Assistant is not running reads as never served after the next start.
 - **`_execute_with_retry` still treats `100003` as an expiry.** A control the router refuses costs a login. The change is a task, because it affects controls and not setup.
 - **The history fallback is more permissive than failing closed.** Where the premise is not confirmed, a session lost before any endpoint answered reads as a refusal. It is to be reviewed against the author's diagnostics download.
+
+### A Lockout Is Neither An Outage Nor Wrong Credentials (v1.2.4-dev1)
+
+The library raises a different exception for each login code. `api.py` catches the parent class `LoginErrorInvalidCredentialsException`, so a wrong username (108001), a wrong password (108002) and a wrong pair (108006) all raise `HuaweiAuthError` and show `invalid_auth`. A lockout after repeated failures (108007) raises `HuaweiLockoutError`, which is not a `HuaweiAuthError`: the stored credentials may be right, and a reauth flow would send the user to retype them. The setup, reauth, reconfigure and options dialogs show `login_attempts_exceeded` for it, and the login record of the diagnostics download says `lockout`.
+
+**A lockout follows the strike rule of every other failure.** The coordinator holds the last values for the same three failed polls and then fails the poll with a message that names the lockout. It raises no repair, because the router is reachable, and no reauth, because the credentials may be right.
+
+**Only an expired session is retried.** The fetch path raises `HuaweiSessionExpiredError`, a subclass of `HuaweiAuthError`, for a session the router has ended, and the coordinator retries that once. A rejected login is not retried: a second attempt cannot succeed and each attempt counts toward the router's lockout, so a rejected login is tried once per poll.
+
+The known limits:
+
+- **The lockout path is not tested on a router.** Each failed attempt counts toward a lockout whose threshold is unmeasured on any unit held. The task `read_the_lockout_counters_by_creating_a_lockout.md` measures it.
+- **A lockout is retried at the next poll interval.** The router's `lockstatus` and `remainwaittime` fields are not read and no timed hold is applied, because their meaning has not been observed.
+- **A lockout at startup is logged as a generic initialization failure.** The startup login in `__init__.py` is not changed; the next poll classifies the lockout.
+
+### A Phone Number Is Matched By The Whole Value, Whatever Its Key (v1.2.4-dev1)
+
+The download tokenized a phone number only under the five keys in `PHONE_KEYS`, so one under any other key, including a key a future firmware invents, was published as written. `_sweep` in `diagnostics.py` now tokenizes, with the prefix `phone`, a string that is wholly an international number (`+` and 8 to 15 digits) or a national number (10 or 11 digits starting with `0`), the rule `zte_router_5g` adopted after publishing a number for three releases. A value that holds other text is not touched, `NEVER_SWEPT_KEYS` is honoured, and the key lists stay.
+
+The known limit: **the rule is a shape.** A field of another kind that is 10 or 11 digits starting with `0`, or a future identifier of the international form, is tokenized as a phone number. The fifteen held downloads hold no such value; their all-digit values are byte counters, band masks and traffic limits, and none starts with `0`.
+
+### An SMS Delete Is Checked By Reading The Inbox Again (v1.2.4-dev1)
+
+A success reply did not prove a delete on `zte_router_5g`, and `async_delete_sms` here deleted and reported success without looking. It now reads the first page of the local inbox again, at once and then up to `SMS_DELETE_CHECK_ATTEMPTS` reads in all, `SMS_DELETE_CHECK_INTERVAL` seconds apart, and raises naming the index while the message is still listed. `async_delete_all_sms` read one page of 50 and reported success; it now reads the whole local inbox page by page, deletes beyond the newest `keep_last`, reads again, and stops and raises when a pass leaves no fewer messages than it started with, so it cannot loop on a router that keeps its messages.
+
+The known limits:
+
+- **The wait is provisional.** Three reads two seconds apart is below the 15 s ZTE waits. How long a Huawei router takes to drop a deleted message from its list is unmeasured; an attended delete that times it sets the final values.
+- **The single-delete check reads the first page of the local inbox only.** A message beyond that page, or in another box, passes the check.
+- **Delete all covers the local inbox only.** The SIM inbox, the outbox and the drafts are not read.
+
+### Capability Flag Values Are Recorded, And Text Among Them Is Masked (v1.2.4-dev1)
+
+The Huawei API declares what a router supports through feature-switch and module-switch endpoints, and the download probed them recording key names only. For the probes in `CAPABILITY_PROBES`, the ten capability reads and `dial_up.dialup_feature_switch`, and for `classify` and `multimode` of `device_basic_information`, the probe record now keeps the values, so a download from a model nobody here holds supplies the evidence for gating entities and polling on what the router declares. `diagnostics.py` publishes a value after the sanitizer: a number as it is, text only under a key in `CAPABILITY_TEXT_KEYS`, which holds `classify`, and any other text as a marker naming its type.
+
+The known limits:
+
+- **The meaning of each flag is inferred** from its key name and one router, the H165-383, from a probe of 2026-05-10.
+- **Four of the endpoints have never answered with a value** on any router held: the `sms`, `voice`, `security` and `dhcp` feature switches answered `100003` in that probe. A text value there is masked until a download shows what it is.
 
 ### `huawei-lte-api` 1.11.0 And 2.0.1 In One Environment (v1.2.3-dev15)
 

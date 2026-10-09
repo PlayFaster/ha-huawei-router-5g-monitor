@@ -149,6 +149,18 @@ def _block(data: dict[str, Any] | None, block: str, key: str) -> Any:
     return data.get(block, {}).get(key) if data else None
 
 
+def _current_plmn(data: dict[str, Any] | None) -> dict[str, Any]:
+    """Return `current_plmn` as a mapping, or an empty one.
+
+    A router with no SIM answers `net.current_plmn` with the string `FAILED`
+    (B315s-22, measured 2026-10-05), and `.get` on it raised in all three
+    operator sensors at every start. Anything that is not a mapping reads as
+    no value, so the three sensors read unknown.
+    """
+    value = data.get("current_plmn") if data else None
+    return value if isinstance(value, dict) else {}
+
+
 # Identifiers are digits that are not quantities. Returned as `str` with no
 # unit, no device class and no display precision — see the LTS note in
 # `SENSOR_TYPES` — because any of those makes Home Assistant coerce the value,
@@ -711,9 +723,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="operator",
         entity_category=EntityCategory.DIAGNOSTIC,
         group="signal",
-        value_fn=lambda data: (
-            data.get("current_plmn", {}).get("FullName") if data else None
-        ),
+        value_fn=lambda data: _current_plmn(data).get("FullName") if data else None,
     ),
     HuaweiSensorEntityDescription(
         key="plmn",
@@ -724,9 +734,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         ),
         translation_key="plmn",
         group="signal",
-        value_fn=lambda data: (
-            data.get("current_plmn", {}).get("Numeric") if data else None
-        ),
+        value_fn=lambda data: _current_plmn(data).get("Numeric") if data else None,
         entity_category=EntityCategory.DIAGNOSTIC,
     ),
     HuaweiSensorEntityDescription(
@@ -738,9 +746,7 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         translation_key="operator_search_mode",
         group="signal",
         value_fn=lambda data: (
-            {"0": "Auto", "1": "Manual"}.get(
-                str(data.get("current_plmn", {}).get("State"))
-            )
+            {"0": "Auto", "1": "Manual"}.get(str(_current_plmn(data).get("State")))
             if data
             else None
         ),

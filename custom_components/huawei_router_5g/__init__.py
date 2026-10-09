@@ -1,5 +1,6 @@
 """The Huawei Router 5G Monitor integration."""
 
+import asyncio
 from collections.abc import Mapping
 import logging
 from typing import Any, cast
@@ -27,6 +28,9 @@ from .const import (
     DOMAIN,
     REPAIR_NAMES,
     SERVICE_CLEANUP,
+    SMS_DELETE_CHECK_ATTEMPTS,
+    SMS_DELETE_CHECK_INTERVAL,
+    SMS_LIST_PAGE_SIZE,
     SMS_MAX_CHARS_GSM7,
     SMS_MAX_CHARS_UNICODE,
     SMS_SEGMENTS_MAX,
@@ -166,36 +170,105 @@ async def async_send_sms(hass: HomeAssistant, call: ServiceCall) -> None:
         raise HomeAssistantError(f"Failed to send SMS: {err}") from err
 
 
+async def _inbox_page(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, page: int
+) -> list[dict[str, Any]]:
+    """Read one page of the local inbox, newest first."""
+    response = await coordinator.api.get_sms_list(
+        page=page, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=SMS_LIST_PAGE_SIZE
+    )
+    return parse_sms_list(response)
+
+
+async def _local_inbox(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator,
+) -> list[dict[str, Any]]:
+    """Read the whole local inbox, page by page, newest first.
+
+    Stops at a short page, and at a page that brings no index not already read,
+    so a router that ignores the page number cannot hold the loop.
+    """
+    messages: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    page = 1
+    while True:
+        batch = await _inbox_page(coordinator, page)
+        fresh = [m for m in batch if m["index"] not in seen]
+        messages.extend(fresh)
+        seen.update(m["index"] for m in fresh)
+        if len(batch) < SMS_LIST_PAGE_SIZE or not fresh:
+            return messages
+        page += 1
+
+
+async def _confirm_deleted(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, index: int
+) -> None:
+    """Raise when `index` is still on the first page of the local inbox."""
+    for attempt in range(SMS_DELETE_CHECK_ATTEMPTS):
+        if attempt:
+            await asyncio.sleep(SMS_DELETE_CHECK_INTERVAL)
+        if all(m["index"] != index for m in await _inbox_page(coordinator, 1)):
+            return
+    raise HomeAssistantError(
+        f"SMS {index} is still listed after the router accepted the delete"
+    )
+
+
+async def _delete_beyond(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, keep_last: int
+) -> None:
+    """Delete the local inbox beyond its newest `keep_last`, pass by pass.
+
+    A pass that leaves no fewer messages than it started with raises, so the
+    loop cannot run more passes than there are messages to delete.
+    """
+    messages = await _local_inbox(coordinator)
+    while len(messages) > keep_last:
+        for msg in messages[keep_last:]:
+            await coordinator.api.delete_sms(msg["index"])
+        remaining = await _local_inbox(coordinator)
+        if len(remaining) >= len(messages):
+            raise HomeAssistantError(
+                f"{len(remaining) - keep_last} SMS still listed after the "
+                "router accepted the deletes"
+            )
+        messages = remaining
+
+
 async def async_delete_sms(hass: HomeAssistant, call: ServiceCall) -> None:
-    """Service to delete an SMS."""
+    """Service to delete an SMS, and check that it went.
+
+    A success reply did not prove a delete on `zte_router_5g`. The first page of
+    the local inbox is read again, up to `SMS_DELETE_CHECK_ATTEMPTS` times, and a
+    message still listed is reported. A message beyond the first page, or in
+    another box, is not seen by the check; that limit is in `docs/DEVELOPMENT.md`.
+    """
     coordinator = _get_coordinator(hass, call.data)
     index = call.data["index"]
 
     try:
         await coordinator.api.delete_sms(index)
+        await _confirm_deleted(coordinator, index)
         await coordinator.async_force_refresh()
     except Exception as err:
         raise HomeAssistantError(f"Failed to delete SMS: {err}") from err
 
 
 async def async_delete_all_sms(hass: HomeAssistant, call: ServiceCall) -> None:
-    """Service to delete all SMS messages."""
+    """Service to delete the local inbox, keeping the newest `keep_last`.
+
+    Reads the whole inbox, deletes the messages beyond `keep_last`, and reads
+    again until only the kept messages remain. A pass that leaves no fewer
+    messages than it started with stops the loop and raises, so a router that
+    answers success and keeps its messages cannot hold it. The SIM inbox, the
+    outbox and the drafts are not covered.
+    """
     coordinator = _get_coordinator(hass, call.data)
     keep_last = call.data.get("keep_last", 0)
 
     try:
-        # Fetch current list to identify messages to delete
-        response = await coordinator.api.get_sms_list(
-            page=1, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=50
-        )
-        messages = parse_sms_list(response)
-
-        # Skip the most recent 'keep_last' messages
-        to_delete = messages[keep_last:] if keep_last > 0 else messages
-
-        for msg in to_delete:
-            await coordinator.api.delete_sms(msg["index"])
-
+        await _delete_beyond(coordinator, keep_last)
         await coordinator.async_force_refresh()
     except Exception as err:
         raise HomeAssistantError(f"Failed to delete all SMS: {err}") from err

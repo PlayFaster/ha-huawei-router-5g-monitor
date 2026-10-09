@@ -231,12 +231,13 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 - **Purpose**: Generates diagnostic exports for troubleshooting without leaking sensitive network credentials or private data.
 - **Entities & Interfaces**: Home Assistant Diagnostics platform (`async_get_config_entry_diagnostics`).
 - **Technical Guarantees**:
-  - Multi-pass sanitization redacts passwords, Wi-Fi keys, IP addresses, MAC addresses, and tokenizes phone numbers.
-  - Probes 46 diagnostic endpoints on demand while enforcing internal session churn limits.
+  - Multi-pass sanitization redacts passwords, Wi-Fi keys, IP addresses, MAC addresses, and tokenizes phone numbers, including a value that is wholly a phone number under any key.
+  - Probes 47 diagnostic endpoints on demand while enforcing internal session churn limits, and records the values of the capability probes: numbers as they are, text only under known keys.
 - **Lifecycle Timeline**:
   - `v1.0.3`: Diagnostics platform baseline.
   - `v1.2.0`: Added diagnostic tokenization and privacy filters for phone numbers.
   - `v1.2.3`: Widened diagnostic probe set to 46 endpoints and added endpoint classification reporting.
+  - `v1.2.4-dev1`: Phone numbers matched by value shape under any key; capability flag values recorded; probe set at 47 endpoints.
 
 ### Dual-Platform Library Coexistence Guard
 

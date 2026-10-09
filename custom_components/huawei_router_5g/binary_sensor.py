@@ -739,8 +739,36 @@ class HuaweiSimStatusSensor(HuaweiBinarySensor):
         return str(sim_status) != "1"
 
 
+# The states between connected and disconnected, named for the attribute below.
+# The wording is core's `huawei_lte` for 900, 903, 904, 905 and 906; core names no
+# state for 902, and `Disconnected` is added here. 901, connected, has none.
+CONNECTION_STATE_TEXT: Final[dict[str, str]] = {
+    "900": "Connecting",
+    "902": "Disconnected",
+    "903": "Disconnecting",
+    "904": "Connect failed",
+    "905": "Status not available",
+    "906": "Status error",
+}
+
+
 class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
-    """Binary sensor that is True when mobile connection is active."""
+    """Binary sensor that is True when mobile connection is active.
+
+    The on and off state is unchanged by the attribute: only 901 is on, and
+    `assumed_state` is not set, because changing the state would change what
+    existing automations see (plan `v124_dev1_plan.md`, D10).
+    """
+
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset({"additional_state"})
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Name the intermediate connection state, through `_with_about`."""
+        data = self.coordinator.data or {}
+        value = (data.get("monitoring_status") or {}).get("ConnectionStatus")
+        text = CONNECTION_STATE_TEXT.get(str(value)) if value is not None else None
+        return self._with_about({"additional_state": text} if text else None)
 
     @property
     def is_on(self) -> bool | None:

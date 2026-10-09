@@ -167,6 +167,39 @@ ENDPOINT_NAMES: dict[str, str] = {
 # was written to catch. Below the first version the endpoint is skipped and
 # recorded `unsupported`; at or above it the call is made and any failure is an
 # ordinary `unavailable`.
+# --- Capability flag values in the diagnostics download ----------------------
+#
+# The download probes these endpoints and, for these alone, keeps the values as
+# well as the key names: they are the router stating what it supports, which a
+# download from a model nobody here holds is the only source of. Their meaning
+# is inferred from the key names and one router (H165-383, probe of 2026-05-10).
+# `sms_config` (the service-centre number) and `system_deviceinfoex` (the serial
+# number) are probed and are not here, so they stay key names only.
+CAPABILITY_PROBES: frozenset[str] = frozenset(
+    {
+        "global_module_switch",
+        "system_devcapacity",
+        "device_feature_switch",
+        "net_feature_switch",
+        "monitoring_statistic_feature_switch",
+        "sms_feature_switch",
+        "voice_featureswitch",
+        "security_feature_switch",
+        "dhcp_feature_switch",
+        "cradle_feature_switch",
+        "dial_up_feature_switch",
+    }
+)
+# From `device_basic_information` only these two keys are kept; the rest of that
+# block carries the device name.
+CAPABILITY_BASIC_INFO_KEYS: tuple[str, ...] = ("classify", "multimode")
+# A capability value is published as it is when it is a number. Text is
+# published only under these keys, after the sanitizer, and any other text is
+# replaced by a marker naming its type: the sanitizer matches shapes, and a text
+# value on an unseen model could be a name. Four of the endpoints above have
+# never answered with a value on any router held.
+CAPABILITY_TEXT_KEYS: frozenset[str] = frozenset({"classify"})
+
 LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str]] = {
     "voice_volte": ("voice", "volte", "2.0.1"),
     "onekey_diag": ("monitoring", "onekey_diag", "2.0.1"),
@@ -385,6 +418,21 @@ PROJECTION_CONFIDENCE_MEDIUM = 0.75
 SMS_SEGMENTS_MAX = 4
 SMS_MAX_CHARS_GSM7 = 612
 SMS_MAX_CHARS_UNICODE = 268
+
+# --- SMS delete check ---------------------------------------------------------
+#
+# A success reply did not prove a delete on `zte_router_5g`, so a delete is
+# checked by reading the local inbox again: once at once, and then up to
+# `SMS_DELETE_CHECK_ATTEMPTS` reads in all, `SMS_DELETE_CHECK_INTERVAL` seconds
+# apart. **Provisional.** ZTE waits up to 15 s; how long a Huawei router takes to
+# drop a deleted message from its list is unmeasured, and an attended delete
+# that times it sets the final values (plan `v124_dev1_plan.md`, open item O1).
+SMS_DELETE_CHECK_ATTEMPTS = 3
+SMS_DELETE_CHECK_INTERVAL = 2
+
+# Messages per page when the local inbox is read in full. The router serves the
+# list in pages, and delete all read one page of this size before 1.2.4-dev1.
+SMS_LIST_PAGE_SIZE = 50
 
 # The one action that removes entities rather than commanding the router.
 # Defaults to a dry run: a client that is merely powered off is still usually

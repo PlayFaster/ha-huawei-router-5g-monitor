@@ -19,7 +19,12 @@ from homeassistant.helpers.selector import (
     TextSelectorType,
 )
 
-from .api import HuaweiAuthError, HuaweiConnectionError, HuaweiRouter5GAPI
+from .api import (
+    HuaweiAuthError,
+    HuaweiConnectionError,
+    HuaweiLockoutError,
+    HuaweiRouter5GAPI,
+)
 from .const import CONF_NAME, DEFAULT_NAME, DOMAIN
 from .helpers import get_router_model
 
@@ -146,6 +151,8 @@ class HuaweiRouter5GConfigFlow(
                 raise
             except HuaweiAuthError:
                 errors["base"] = "invalid_auth"
+            except HuaweiLockoutError:
+                errors["base"] = "login_attempts_exceeded"
             except HuaweiConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:
@@ -191,6 +198,8 @@ class HuaweiRouter5GConfigFlow(
 
             except HuaweiAuthError:
                 errors["base"] = "invalid_auth"
+            except HuaweiLockoutError:
+                errors["base"] = "login_attempts_exceeded"
             except HuaweiConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:
@@ -226,6 +235,8 @@ class HuaweiRouter5GConfigFlow(
 
             except HuaweiAuthError:
                 errors["base"] = "invalid_auth"
+            except HuaweiLockoutError:
+                errors["base"] = "login_attempts_exceeded"
             except HuaweiConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:
@@ -281,6 +292,8 @@ class HuaweiRouter5GOptionsFlow(config_entries.OptionsFlow):
 
             except HuaweiAuthError:
                 errors["base"] = "invalid_auth"
+            except HuaweiLockoutError:
+                errors["base"] = "login_attempts_exceeded"
             except HuaweiConnectionError:
                 errors["base"] = "cannot_connect"
             except Exception:

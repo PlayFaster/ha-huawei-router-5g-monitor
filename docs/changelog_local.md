@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev1\] - 2026-10-09 - Login, Privacy and SMS: Lockout Outcome, Phone-Shape Sweep, Checked SMS Delete and Capability Values](#124-dev1---2026-10-09---login-privacy-and-sms-lockout-outcome-phone-shape-sweep-checked-sms-delete-and-capability-values)
   - [\[1.2.4-dev0\] - 2026-10-09 - Documentation: Capabilities Dossier Creation and Comprehensive Changelog Remediation](#124-dev0---2026-10-09---documentation-capabilities-dossier-creation-and-comprehensive-changelog-remediation)
   - [\[1.2.3\] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
   - [\[1.2.3-dev16\] - 2026-10-05 - Polling Engine: Distinguish Endpoint Refusals from Session Expiry](#123-dev16---2026-10-05---polling-engine-distinguish-endpoint-refusals-from-session-expiry)
@@ -207,6 +208,50 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev1] - 2026-10-09 - Login, Privacy and SMS: Lockout Outcome, Phone-Shape Sweep, Checked SMS Delete and Capability Values
+
+Plan `v124_dev1_plan.md`, the first build of 1.2.4, from the assessment of the Huawei extended issue queue and the 31 ZTE techniques.
+
+### Fixed
+
+- **A wrong username and password together, and a lockout, read as an unreachable router.** `api.py` caught the wrong-username (108001) and wrong-password (108002) exceptions only. It now catches their parent class, so a wrong pair (108006) is a credentials failure too, and a lockout after repeated failures (108007) raises `HuaweiLockoutError`. The setup, reauth, reconfigure and options dialogs show `login_attempts_exceeded` for it, the login record of the download says `lockout`, and the coordinator holds the last values for 3 failed polls and then fails the poll naming the lockout, with no repair and no reauth.
+- **A rejected login was tried twice per poll.** The coordinator retried `get_data` on any `HuaweiAuthError`, so a rejected login made a second attempt in the same poll toward a lockout whose threshold is unmeasured. The fetch path now raises `HuaweiSessionExpiredError`, a subclass, for an expired session, and only that is retried.
+- **Three operator sensors raised on a router with no SIM.** `net.current_plmn` answers the string `FAILED` there; the three value functions now read anything that is not a mapping as no value, and the download lists them under `no_value`.
+- **A phone number under an unnamed key was published.** The shape sweep tokenizes a value that is wholly an international number (`+` and 8 to 15 digits) or a national one (10 or 11 digits starting with `0`), whatever its key.
+- **An SMS delete was reported successful without being checked, and delete all read one page of 50.** The delete is checked by reading the first page of the local inbox again, up to three reads two seconds apart, and fails naming the index while the message is listed. Delete all reads the whole local inbox page by page, deletes beyond `keep_last`, reads again, and fails when a pass leaves no fewer messages than it started with.
+
+### Added
+
+- **Capability flag values in the download.** The ten capability probes, a new `dial_up_feature_switch` probe, and `classify` and `multimode` of `device_basic_information` keep their values. A number is published as it is, text only under `CAPABILITY_TEXT_KEYS`, and any other text as a marker naming its type. The probe set is 47.
+- **Connection state attribute.** The Mobile Connection sensor carries `additional_state` for 900, 902, 903, 904, 905 and 906, unrecorded and through `_with_about`; its on and off state is unchanged.
+- **Tests.** `tests/test_login_errors.py`, `tests/test_current_plmn_guard.py`, `tests/test_api_lock_concurrency.py`, `tests/test_capability_values.py`, phone-shape cases in `tests/test_diagnostics.py`, attribute cases in `tests/test_binary_sensor.py`, and SMS delete cases in `tests/test_init.py` over a stateful local inbox added to `tests/transport.py`.
+- **Documentation.** The login error table with six codes, the session rule stated once under "A login is required" and "Busy" kept apart from it in `docs/huawei_how_to_access.md`; four success patterns with their known limits in `docs/DEVELOPMENT.md`; the lockout, the SMS check and the attribute in the README; the probe count and phone rule in `docs/CAPABILITIES.md`.
+
+### Changed
+
+- **`test_a_session_expiry_is_retried_once_before_counting`** raises `HuaweiSessionExpiredError` as its first answer, because only an expired session is now retried.
+- **The two delete tests of `tests/test_init.py`** that drove a mocked coordinator whose list never changed are replaced by tests over the stateful inbox, because a checked delete reads such a list as a delete that did not take.
+- **The `probe_liveness` docstring and a `coordinator.py` comment** no longer say the router permits one login; they point to the session rule in `docs/huawei_how_to_access.md`.
+
+### Defects found during the build
+
+- **The concurrency test could not see overlap in the fake transport.** `requests_mock` sends every request under one process-wide lock (`requests_mock/mocker.py`, `_send_lock`), so a counter inside the transport read 1 with or without the API lock, and all three lock-removal mutants survived. The count moved to the worker-thread boundary, where `api.py` makes every library call through `asyncio.to_thread`, and a positive control shows two unlocked calls as 2. The plan's acceptance for the API lock item named a count inside the transport.
+- **Two `raise` statements inside `try` blocks** failed Ruff `TRY301` in the SMS delete services and were moved into helpers.
+- **`test_coordinator_seamless_retry`** in `tests/test_reliability_ext.py` encoded the retry of any `HuaweiAuthError` and failed the first full run; it now raises `HuaweiSessionExpiredError`.
+- **Coverage fell to 99.89%** on two new lines of `diagnostics.py`, a number already parsed to a number type and a sweep result that is not a mapping, and each was given a test.
+
+### Verified
+
+- **Validation Suite**: `Fix and Validate All` passed 33 of 35 steps: 1390 tests, coverage 100.00%, Mypy strict (17 source files), Ruff, McCabe complexity (maximum 19 in `_async_update_data`), Assertion Audit, Test Depth, IQS Static, Hassfest, Repo Links and Sensor Manifest. `Manifest Version` failed on the 1.2.4 changelog headers against manifest 1.2.3, which the dev-build rule leaves unedited, and `Markdown Links` failed on HTTP 504 answers from GitHub for external links.
+- **Mutation Verification**: Each new test was shown to fail with its fix removed, and each file was restored by copy with a matching checksum.
+- **Hardware Verification**: H165-383: Hardware Check 8/8 and Diag Check 39/39. A kept download records 47 probes and the capability values `coulometer_enabled` 0, `nrProductEnable` 1, `volte_enabled` 0 and `daily_statistic_limit_enable` 0, with `classify` `cpe` and `multimode` 0.
+
+### Not run
+
+- **No live lockout test**, because each failed attempt counts toward a lockout whose threshold is unmeasured.
+- **No live check on the B315s-22**, which was not available: the operator sensors with no SIM, and the capability values from that unit, wait for it.
+- **No live SMS delete** in this build.
 
 ## [1.2.4-dev0] - 2026-10-09 - Documentation: Capabilities Dossier Creation and Comprehensive Changelog Remediation
 

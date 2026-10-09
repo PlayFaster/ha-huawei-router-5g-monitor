@@ -460,6 +460,8 @@ This integration provides **159 entities** (depending on your firmware) organize
 >
 > That is where the acronyms are decoded: **RSRP**, **RSRQ**, **SINR**, **PCI**, **eNodeB**, **ENDC**, **APN** and the rest each explain themselves in place, so you do not have to look them up to read your own dashboard.
 >
+> The **Mobile Connection** binary sensor also carries an **`additional_state`** attribute while the router is between states: `Connecting`, `Disconnected`, `Disconnecting`, `Connect failed`, `Status not available` or `Status error`. It is absent while connected, and the sensor's on and off state is unchanged by it.
+>
 > These **About** notes — and all other attributes this integration publishes — are set **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps bulky or purely-informational values from bloating your database, while maintaining visibility to the current information.
 
 ---
@@ -833,6 +835,8 @@ response_variable: inbox
 
 Delete a single SMS by its storage index. Use the `index` field from `get_sms_list` or from the `huawei_router_5g_sms_received` event.
 
+The action checks that the message has gone: it reads the first page of the local inbox again, up to three times two seconds apart, and fails with an error naming the index if the message is still listed. A message beyond the first page, or in another box, is not seen by the check.
+
 | Parameter | Required | Description |
 | :-- | :-- | :-- |
 | `entry_id` | No | The router to use. Defaults to your only router; required if more than one is configured. |
@@ -861,6 +865,8 @@ data:
 </summary><br>
 
 > The `delete_all_sms` service action below provides programmatic cleanup of your inbox, and accepts a `keep_last` parameter to preserve recent messages.
+>
+> It reads the whole local inbox page by page, deletes everything beyond the newest `keep_last`, and reads again until only those remain. If a pass leaves as many messages as it started with, it stops and fails with an error, rather than reporting success. Only the local inbox is covered; the SIM inbox, the outbox and the drafts are not.
 
 | Parameter | Required | Default | Range | Description |
 | :-- | :-- | :-- | :-- | :-- |
@@ -1903,6 +1909,7 @@ Three conditions raise a card in Home Assistant's **Repairs** panel: the router 
 | **Authentication Failed** | Router rejects stored credentials | **Repairs card** (`auth_failed`) & Integration Health (`error`) | Click **Fix** to re-enter username/password |
 | **Sustained Outage** | 10 consecutive failed polls | **Repairs card** (`conn_error`) & Integration Health (`error`) | Check power, network path, or configured IP address |
 | **Library Upgrade Pending** | The router API library has an update. The new version loads after a restart | **Repairs card** | Click **Fix** to restart Home Assistant, or leave it until your next restart. See [Running Alongside Home Assistant's Huawei LTE Integration](#-running-alongside-home-assistants-huawei-lte-integration) |
+| **Login Locked Out** | The router refuses every login after too many failed attempts (code 108007) | Integration Health (`error` after 3 held polls); the setup and reauth dialogs say the router has locked logins | Wait for the router's lock to expire. No Repairs card is raised, because the router is reachable and the credentials may be right |
 | **Transient Glitch / Reboot** | 1–3 failed poll cycles | Integration Health (`error` during outage) | None (auto-clears on next successful poll) |
 | **Firmware Schema Change** | Unrecognized or missing API fields | Integration Health (`severity: warning`, `drift` attr) | Check for integration updates or report issue |
 
@@ -2007,6 +2014,8 @@ If you log into the router's web interface, you can pause polling with the **Pau
 - Confirm the username and password are correct. The username is optional and varies by model and firmware.
   - The username and password are the same as you use to log in to the router via its web UI.
   - Username can be changed in the web UI, as well as password, so ensure you are using the current version of both.
+  - A wrong username, a wrong password and a wrong pair all show **Invalid credentials**.
+- If the dialog says the router **has locked logins after too many failed attempts**, wait for the lock to expire before trying again. Each further attempt may count toward the lock.
 - Ensure the router is powered on and reachable from your Home Assistant instance.
 
 ---

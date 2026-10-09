@@ -268,6 +268,14 @@ class RouterTransport:
         self.anonymous_info_reads = 0
         # Authenticated reads of `device/information`, the re-read's request.
         self.authenticated_info_reads = 0
+        # A stateful local inbox, for the SMS delete tests. `None` keeps the
+        # static empty `sms/sms-list` of `payloads`. When set, the list is served
+        # page by page, newest (highest index) first, and a delete removes the
+        # message unless its index is in `kept_on_delete`, which models a router
+        # that answers success and keeps the message.
+        self.inbox: list[dict[str, Any]] | None = None
+        self.kept_on_delete: set[int] = set()
+        self.deletes = 0
 
         mocker.get(re.compile(r"/$"), text=_HOMEPAGE)
         mocker.post(re.compile(r"/api/user/login$"), text=self._login)
@@ -409,7 +417,39 @@ class RouterTransport:
                     self.expire_after = None
                     self.logged_out = True
 
+        if self.inbox is not None and endpoint in ("sms/sms-list", "sms/delete-sms"):
+            return self._inbox_answer(endpoint, request)
+
         for name, payload in self.payloads.items():
             if _key(name) == endpoint:
                 return _xml(payload)
         return _error_xml(ERROR_NO_SUPPORT)
+
+    def fill_inbox(self, count: int) -> None:
+        """Hold `count` messages in the local inbox, indexes 1 to `count`."""
+        self.inbox = [
+            {"Index": index, "Phone": "+10000000000", "Content": f"message {index}"}
+            for index in range(1, count + 1)
+        ]
+
+    def _inbox_answer(self, endpoint: str, request: Any) -> str:
+        """Answer the SMS list and delete requests from `inbox`."""
+        inbox = self.inbox or []
+        body = xmltodict.parse(request.text or "<request/>").get("request") or {}
+        if endpoint == "sms/delete-sms":
+            self.deletes += 1
+            index = int(body.get("Index") or 0)
+            if index not in self.kept_on_delete:
+                self.inbox = [m for m in inbox if m["Index"] != index]
+            return _xml("OK")
+        page = int(body.get("PageIndex") or 1)
+        count = int(body.get("ReadCount") or 20)
+        newest_first = sorted(inbox, key=lambda m: m["Index"], reverse=True)
+        chunk = newest_first[(page - 1) * count : page * count]
+        messages = [{**m, "Date": "2026-10-09 10:00:00", "Smstat": "1"} for m in chunk]
+        return _xml(
+            {
+                "Count": str(len(inbox)),
+                "Messages": {"Message": messages} if messages else None,
+            }
+        )

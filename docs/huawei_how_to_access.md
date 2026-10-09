@@ -32,9 +32,13 @@ Base URL is normalized by `_normalize_router_url` in `api.py`; a bare host such 
 
 ## 🔧 Authentication
 
-### One login — and it is required
+### A login is required
 
 The router accepts a single username and password — **there is no separate `admin` account or elevated tier.** One credential is the whole authentication model; the evidence for that is at the end of this section.
+
+**The session rule, stated once.** More than one session can be open at a time: on 2026-10-05 a second login was made while a first session was read for 30 s, and both sessions answered throughout, on the H165-383 and on the B315s-22. A cap on open sessions exists and its size is unmeasured. Reaching it shows as `LoginErrorAlreadyLoginException` (code `108003`), which a 42-endpoint sweep with repeated logins provoked on 2026-09-07 before the router began refusing connections. The docstrings in `api.py` and the comments in `coordinator.py` refer here and do not restate the rule.
+
+**"Busy" is a different limit.** The router answers `110001` ("Busy") to simultaneous requests, which is a limit on requests in flight and not on sessions. `api.py` serializes every call behind one lock for that reason.
 
 `Connection(url, username=..., password=...)` logs in during construction. The config entry stores an **empty username with a real password**, and the library authenticates on the password alone — so this is an **authenticated session, not an anonymous one**.
 
@@ -67,7 +71,12 @@ Re-verify any of these on a fresh session before treating a refusal as permanent
 | :-- | :-- | :-- |
 | `100002: No support` | The hardware or firmware does not implement it | Nothing. Do not retry, do not add a sensor |
 | `100003: No rights (needs login)` | Either the router refuses this one read, or the session has ended | `api.py` tells the two apart; see [Telling a refusal from an expiry](#telling-a-refusal-from-an-expiry--the-rule-as-built-123-dev16) |
-| `108003` / `108006` | Wrong username / password | Surfaces as `HuaweiAuthError` → `ConfigEntryAuthFailed` → reauth flow |
+| `108001` | Username wrong (`LoginErrorUsernameWrongException`) | `HuaweiAuthError`: `invalid_auth` in the dialogs, reauth once the strike budget is spent |
+| `108002` | Password wrong (`LoginErrorPasswordWrongException`) | `HuaweiAuthError`, as `108001` |
+| `108003` | Already logged in (`LoginErrorAlreadyLoginException`), the symptom of the session cap | Not a credentials failure. The liveness probe reads it as a refused second session |
+| `108006` | Username and password wrong (`LoginErrorUsernamePasswordWrongException`) | `HuaweiAuthError`, as `108001` |
+| `108007` | Password overrun, the lockout after repeated failures (`LoginErrorUsernamePasswordOverrunException`) | `HuaweiLockoutError`: `login_attempts_exceeded` in the dialogs, no repair and no reauth. The threshold is unmeasured |
+| `115002` | Password modify, the router asks for a password change (`LoginErrorUsernamePasswordModifyException`) | Not caught as a credentials failure; it reads as a connection failure |
 | `-1: Unknown` | **Ambiguous — never treat it as a refusal on its own** | Read the state back and let that decide. See below |
 
 > [!IMPORTANT]
@@ -265,7 +274,7 @@ Returned `100002: No support`. **Do not add, do not retry.**
 
 > [!NOTE]
 >
-> **This list is now measured on every diagnostics download.** `api.DIAGNOSTIC_PROBES` calls 46 unpolled endpoints once per download and records each as answered, refused with the router's own code, or unavailable. On this hardware, 2026-09-07: **31 answered, 15 refused, none unavailable** — eleven `100002` and four `100003`. The point is not this device, which is already understood, but a report from a model nobody here has seen: an endpoint missing from the payload now says which of those it was.
+> **This list is now measured on every diagnostics download.** `api.DIAGNOSTIC_PROBES` calls 47 unpolled endpoints once per download and records each as answered, refused with the router's own code, or unavailable; the capability probes also record their values (1.2.4-dev1). On this hardware, 2026-09-07, of the 46 then probed: **31 answered, 15 refused, none unavailable** — eleven `100002` and four `100003`. The point is not this device, which is already understood, but a report from a model nobody here has seen: an endpoint missing from the payload now says which of those it was.
 
 `monitoring.daily_data_limit` · `monitoring.month_statistics_wlan` · `wlan.station_information` · `wlan.basic_settings` · `ntwk.celllock` · `system.deviceinfo` · `statistic.feature_roam_statistic` · `user.remember_pwd`
 
@@ -314,7 +323,7 @@ Two consequences:
 
 **The probe sweep of the diagnostics download** holds the API lock for its duration and reads `device_information` after any probe that does not answer. A `100003` from that read is a lost session: the sweep logs in once through `_login_internal`, which does not take the lock, and repeats the probe, at most twice per sweep. A connection error from the read is unknown and causes no login. The sweep stops at 20 s, after a failed login, after a third loss, or if the client was reset under it, and marks the remaining probes `not_run`. The download records the premise result and the number of sessions lost.
 
-**Reads that start something.** `net.plmn_list` starts a network scan. On the H165-383 it timed out in a read sweep and was followed by a brief data-connection restart on two runs, so it is the likely cause. It is not among the 46 `DIAGNOSTIC_PROBES`, and a read sweep of the library excludes it, together with `net.reconnect`, `accept`, `compress`, `operate` and `toggle` methods.
+**Reads that start something.** `net.plmn_list` starts a network scan. On the H165-383 it timed out in a read sweep and was followed by a brief data-connection restart on two runs, so it is the likely cause. It is not among the 47 `DIAGNOSTIC_PROBES`, and a read sweep of the library excludes it, together with `net.reconnect`, `accept`, `compress`, `operate` and `toggle` methods.
 
 **Known limits.**
 
@@ -358,7 +367,7 @@ The 14 polled reads that need a login on the H165-383 are `device.information`, 
 | Garbage token, and an emptied token list | All three reads answered | All three reads answered |
 | A second login, the first session read for 30 s | Answered throughout | Answered throughout |
 
-An expiry therefore presents as `100003` on every login-only read at once, and the token is not what carries the session. Two sessions coexist on both routers, so a login made by the sweep after a lost session does not end the session of another client.
+An expiry therefore presents as `100003` on every login-only read at once, and the token is not what carries the session. Sessions coexist on both routers (see [A login is required](#a-login-is-required)), so a login made by the sweep after a lost session does not end the session of another client.
 
 ### Reboot timeline
 

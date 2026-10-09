@@ -4,6 +4,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 from huawei_lte_api.enums.sms import BoxTypeEnum
 import pytest
+import requests_mock as requests_mock_module
 
 from custom_components.huawei_router_5g import (
     DOMAIN,
@@ -13,13 +14,17 @@ from custom_components.huawei_router_5g import (
     async_send_sms,
     async_setup,
 )
+from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
 from custom_components.huawei_router_5g.const import (
+    SMS_DELETE_CHECK_ATTEMPTS,
     SMS_MAX_CHARS_GSM7,
     SMS_MAX_CHARS_UNICODE,
 )
 from custom_components.huawei_router_5g.helpers import is_gsm7
 from homeassistant.core import HomeAssistant, ServiceCall
 from homeassistant.exceptions import HomeAssistantError, ServiceValidationError
+
+from .transport import RouterTransport
 
 
 @pytest.fixture
@@ -203,43 +208,125 @@ async def test_the_sms_length_limit_follows_the_encoding(
     )
 
 
-@pytest.mark.asyncio
-async def test_async_delete_sms_service(mock_hass, mock_coordinator, mock_config_entry):
-    """Test the delete_sms service handler."""
-    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
-    mock_coordinator.api.delete_sms = AsyncMock()
+# ---------------------------------------------------------------------------
+# SMS delete, through a stateful fake inbox (plan v124_dev1_plan.md, I7)
+#
+# These replace two tests that drove a mocked coordinator whose list never
+# changed: once a delete is checked against a fresh read, such a list makes every
+# delete look as if it did not take. The router here is the fake transport with
+# a local inbox that removes a message on delete, and the wait between re-reads
+# is patched out.
+# ---------------------------------------------------------------------------
 
+
+@pytest.fixture(name="inbox_router")
+def inbox_router_fixture():
+    """Serve a router with a stateful local inbox, and a coordinator over it."""
+    with requests_mock_module.Mocker() as mocker:
+        transport = RouterTransport(mocker)
+        coordinator = MagicMock()
+        coordinator.api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
+        coordinator.async_force_refresh = AsyncMock()
+        with (
+            patch(
+                "custom_components.huawei_router_5g._get_coordinator",
+                return_value=coordinator,
+            ),
+            patch(
+                "custom_components.huawei_router_5g.asyncio.sleep", new=AsyncMock()
+            ) as sleep,
+        ):
+            yield transport, coordinator, sleep
+
+
+def _call(data: dict) -> MagicMock:
     call = MagicMock(spec=ServiceCall)
-    call.data = {"index": 5}
-
-    await async_delete_sms(mock_hass, call)
-
-    mock_coordinator.api.delete_sms.assert_awaited_once_with(5)
-    mock_coordinator.async_force_refresh.assert_awaited_once()
+    call.data = data
+    return call
 
 
 @pytest.mark.asyncio
-async def test_async_delete_all_sms_service(
-    mock_hass, mock_coordinator, mock_config_entry
+async def test_a_delete_that_removes_the_message_succeeds_on_the_first_read(
+    mock_hass, inbox_router
 ):
-    """Test the delete_all_sms service handler."""
-    mock_hass.config_entries.async_entries.return_value = [mock_config_entry]
-    mock_coordinator.api.get_sms_list = AsyncMock(
-        return_value={
-            "Messages": {"Message": [{"Index": "1"}, {"Index": "2"}, {"Index": "3"}]}
-        }
-    )
-    mock_coordinator.api.delete_sms = AsyncMock()
+    """The message is gone at the first re-read, so no wait and no error."""
+    transport, coordinator, sleep = inbox_router
+    transport.fill_inbox(3)
 
-    # Keep last 1, so delete 2 and 3
-    # (messages are usually newest first in our parse_sms_list)
-    call = MagicMock(spec=ServiceCall)
-    call.data = {"keep_last": 1}
+    await async_delete_sms(mock_hass, _call({"index": 2}))
 
-    await async_delete_all_sms(mock_hass, call)
+    assert [m["Index"] for m in transport.inbox] == [1, 3]
+    sleep.assert_not_awaited()
+    coordinator.async_force_refresh.assert_awaited_once()
 
-    assert mock_coordinator.api.delete_sms.call_count == 2
-    mock_coordinator.async_force_refresh.assert_awaited_once()
+
+@pytest.mark.asyncio
+async def test_a_delete_that_leaves_the_message_listed_is_reported(
+    mock_hass, inbox_router
+):
+    """The router answers success and keeps the message: the call raises."""
+    transport, coordinator, sleep = inbox_router
+    transport.fill_inbox(3)
+    transport.kept_on_delete = {2}
+
+    with pytest.raises(HomeAssistantError, match="SMS 2 is still listed"):
+        await async_delete_sms(mock_hass, _call({"index": 2}))
+
+    assert sleep.await_count == SMS_DELETE_CHECK_ATTEMPTS - 1
+    coordinator.async_force_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_all_reaches_past_the_first_page(mock_hass, inbox_router):
+    """120 messages are more than one page of 50, and all of them go."""
+    transport, _, _ = inbox_router
+    transport.fill_inbox(120)
+
+    await async_delete_all_sms(mock_hass, _call({"keep_last": 0}))
+
+    assert transport.inbox == []
+
+
+@pytest.mark.asyncio
+async def test_delete_all_keeps_exactly_the_newest(mock_hass, inbox_router):
+    """`keep_last` keeps the newest messages, across pages."""
+    transport, _, _ = inbox_router
+    transport.fill_inbox(120)
+
+    await async_delete_all_sms(mock_hass, _call({"keep_last": 5}))
+
+    assert sorted(m["Index"] for m in transport.inbox) == [116, 117, 118, 119, 120]
+
+
+@pytest.mark.asyncio
+async def test_delete_all_raises_when_the_router_keeps_one_message(
+    mock_hass, inbox_router
+):
+    """One message the router will not drop is reported, not looped on."""
+    transport, coordinator, _ = inbox_router
+    transport.fill_inbox(10)
+    transport.kept_on_delete = {4}
+
+    with pytest.raises(HomeAssistantError, match="1 SMS still listed"):
+        await async_delete_all_sms(mock_hass, _call({"keep_last": 0}))
+
+    assert [m["Index"] for m in transport.inbox] == [4]
+    coordinator.async_force_refresh.assert_not_awaited()
+
+
+@pytest.mark.asyncio
+async def test_delete_all_stops_after_one_pass_when_nothing_goes(
+    mock_hass, inbox_router
+):
+    """A router that keeps every message stops the loop after the first pass."""
+    transport, _, _ = inbox_router
+    transport.fill_inbox(120)
+    transport.kept_on_delete = set(range(1, 121))
+
+    with pytest.raises(HomeAssistantError, match="120 SMS still listed"):
+        await async_delete_all_sms(mock_hass, _call({"keep_last": 0}))
+
+    assert transport.deletes == 120
 
 
 @pytest.mark.asyncio

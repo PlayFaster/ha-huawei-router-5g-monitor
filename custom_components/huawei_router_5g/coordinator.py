@@ -17,7 +17,12 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import HuaweiAuthError, HuaweiRouter5GAPI
+from .api import (
+    HuaweiAuthError,
+    HuaweiLockoutError,
+    HuaweiRouter5GAPI,
+    HuaweiSessionExpiredError,
+)
 from .const import (
     CONF_SCAN_INTERVAL,
     CONF_STOP_POLLING,
@@ -209,9 +214,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # Liveness-probe state. `_fault_is_local` is None until a probe has
         # run, True when a fresh connection succeeded while the pooled one kept
         # failing (our fault), False when both failed (the router's). The latch
-        # keeps the probe to once per exhausted strike budget — this router
-        # permits one login, so a probe per poll would cause outages rather
-        # than diagnose them.
+        # keeps the probe to once per exhausted strike budget — the router caps
+        # its open sessions (`docs/huawei_how_to_access.md`, "A login is
+        # required"), so a probe per poll would cause outages rather than
+        # diagnose them.
         # `True` the fault is ours, `False` the router is unreachable, and
         # `None` either not yet probed or the router refused a second session —
         # alive, but with nothing to say about which end is at fault.
@@ -699,7 +705,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             async with asyncio.timeout(FETCH_TIMEOUT):
                 try:
                     data = await self.api.get_data()
-                except HuaweiAuthError:
+                # An expired session only. A rejected login cannot succeed on a
+                # second try, and each attempt counts toward the router's lockout,
+                # whose threshold is unmeasured.
+                except HuaweiSessionExpiredError:
                     _LOGGER.debug(
                         "%s: Session expired mid-fetch, retrying once.",
                         self.entry.title,
@@ -755,6 +764,33 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             _LOGGER.exception("%s: %s", self.entry.title, error_msg)
             self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed(error_msg) from err
+
+        except HuaweiLockoutError as err:
+            # The router refusing every login for a while, not an unreachable
+            # router and not wrong credentials: the strike rule of every other
+            # failure applies, but no connectivity repair and no reauth, because
+            # neither would describe it. The next poll makes one login attempt.
+            self.consecutive_failures += 1
+            if (
+                self.data is not None
+                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
+            ):
+                _LOGGER.warning(
+                    "%s: Router login locked out (failure %d/3), "
+                    "holding last known values: %s",
+                    self.entry.title,
+                    self.consecutive_failures,
+                    err,
+                )
+                self.update_health(None, failed=True, cold_start=False)
+                return self.data
+            _LOGGER.error(
+                "%s: Router login locked out after repeated failed logins: %s",
+                self.entry.title,
+                err,
+            )
+            self.update_health(None, failed=True, cold_start=self.data is None)
+            raise UpdateFailed(f"Router login locked out: {err}") from err
 
         except Exception as err:
             self.consecutive_failures += 1

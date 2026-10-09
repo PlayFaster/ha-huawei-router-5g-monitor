@@ -644,6 +644,51 @@ def test_mobile_connection_no_data(mock_coordinator, mock_config_entry):
     assert sensor.is_on is None
 
 
+@pytest.mark.parametrize(
+    ("status", "text"),
+    [
+        ("900", "Connecting"),
+        ("901", None),
+        ("902", "Disconnected"),
+        ("903", "Disconnecting"),
+        ("904", "Connect failed"),
+        ("905", "Status not available"),
+        ("906", "Status error"),
+    ],
+)
+def test_mobile_connection_names_the_intermediate_state(
+    mock_coordinator, mock_config_entry, status, text
+):
+    """The attribute names the state; the on and off state does not change.
+
+    Plan `v124_dev1_plan.md` item I9: 901 alone is on, `assumed_state` stays
+    false, and the `about` note survives the entity's own attributes.
+    """
+    mock_coordinator.data = {"monitoring_status": {"ConnectionStatus": status}}
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    attrs = sensor.extra_state_attributes or {}
+    assert attrs.get("additional_state") == text
+    assert ("additional_state" in attrs) is (text is not None)
+    assert attrs.get("about") == MOBILE_CONN_DESCRIPTION.about
+    assert sensor.is_on is (status == "901")
+    assert sensor.assumed_state is False
+    assert "additional_state" in sensor._unrecorded_attributes
+
+
+def test_mobile_connection_has_no_state_attribute_without_data(
+    mock_coordinator, mock_config_entry
+):
+    """No payload, or no status, gives no `additional_state`."""
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    for data in (None, {"monitoring_status": {}}, {"monitoring_status": None}):
+        mock_coordinator.data = data
+        assert "additional_state" not in (sensor.extra_state_attributes or {})
+
+
 # ---------------------------------------------------------------------------
 # Setup
 # ---------------------------------------------------------------------------

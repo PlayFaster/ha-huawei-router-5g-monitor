@@ -19,6 +19,8 @@ import pytest
 
 from custom_components.huawei_router_5g.diagnostics import (
     REDACTED,
+    _sanitize,
+    _Tokenizer,
     async_get_config_entry_diagnostics,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -681,3 +683,78 @@ async def test_the_download_says_when_no_premise_was_needed(entry):
 
     assert result["premise"] == {"outcome": "not_made", "code": None}
     assert result["probe_sessions_lost"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Phone numbers under a key the lists do not name (plan v124_dev1_plan.md, I6)
+# ---------------------------------------------------------------------------
+
+
+def _swept(payload: dict) -> dict:
+    """Run a payload through the sanitizer with one tokenizer."""
+    return _sanitize(payload, _Tokenizer())
+
+
+def test_a_phone_number_under_a_made_up_key_is_tokenized() -> None:
+    """The gap ZTE published a number through: no key list names this one."""
+    result = _swept(
+        {
+            "a_future_block": {
+                "forwarding_target": "+447911123456",
+                "note": "07911123456",
+            }
+        }
+    )
+    block = result["a_future_block"]
+    assert block["forwarding_target"].startswith("phone-")
+    assert block["note"].startswith("phone-")
+    assert "+447911123456" not in str(result)
+    assert "07911123456" not in str(result)
+
+
+def test_the_same_number_gets_the_same_token() -> None:
+    """Tokens stay stable within one download, so a reader can follow a number."""
+    result = _swept({"a": "+447911123456", "b": "+447911123456", "c": "+447911123457"})
+    assert result["a"] == result["b"]
+    assert result["a"] != result["c"]
+
+
+def test_values_of_other_kinds_are_left_as_the_other_sweeps_leave_them() -> None:
+    """IMEI-shaped, serial, port, version and timestamp values are not phone numbers."""
+    payload = {
+        "x_ipv4": "10.1.2.3",
+        "x_ipv6": "2001:db8::1",
+        "x_mac": "AA:BB:CC:DD:EE:01",
+        "SoftwareVersion": "11.0.1.1(H192SP1C983)",
+        "Date": "2026-08-09 10:00:00",
+        "x_imei_shape": "860123456789012",
+        "x_serial": "SN0123ABCD4567",
+        "x_port": "8080",
+        "x_counter": "1234567890123",
+    }
+    result = _swept(payload)
+    assert result["SoftwareVersion"] == "11.0.1.1(H192SP1C983)"
+    assert result["Date"] == "2026-08-09 10:00:00"
+    for key in ("x_imei_shape", "x_serial", "x_port", "x_counter"):
+        assert result[key] == payload[key]
+    for key in ("x_ipv4", "x_ipv6", "x_mac"):
+        assert not result[key].startswith("phone-")
+
+
+@pytest.mark.parametrize(
+    ("value", "tokenized"),
+    [
+        ("+1234567", False),  # `+` and 7 digits
+        ("+1234567890123456", False),  # `+` and 16 digits
+        ("012345678", False),  # 9 digits starting with 0
+        ("012345678901", False),  # 12 digits starting with 0
+        ("+12345678", True),  # `+` and 8 digits
+        ("+123456789012345", True),  # `+` and 15 digits
+        ("0123456789", True),  # 10 digits starting with 0
+        ("01234567890", True),  # 11 digits starting with 0
+        ("call 07911123456 today", False),  # not wholly a number
+    ],
+)
+def test_the_shape_matches_at_its_edges_and_not_beyond(value, tokenized) -> None:
+    """Near misses stay as they are; the values at the edges are tokenized."""
+    assert _swept({"unnamed": value})["unnamed"].startswith("phone-") is tokenized

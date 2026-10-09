@@ -73,6 +73,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
+from .const import CAPABILITY_TEXT_KEYS
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 REDACTED = "**REDACTED**"
@@ -218,6 +219,15 @@ _IPV6_RE = re.compile(
     r"|\b(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}\b"
 )
 
+# A phone number has no delimiter to anchor on inside free text, so only a value
+# that is wholly one is matched: an international number (`+` and 8 to 15
+# digits) or a national one (10 or 11 digits starting with `0`), the rule
+# `zte_router_5g` adopted after publishing a number for three releases. A byte
+# counter or a band mask is a run of digits too, and none seen in the held
+# downloads starts with `0`; a field of another kind that does is the known
+# limit, recorded in `docs/DEVELOPMENT.md`.
+_PHONE_RE = re.compile(r"\+\d{8,15}|0\d{9,10}")
+
 
 class _Tokenizer:
     """Assigns stable pseudonyms to identifier values.
@@ -250,8 +260,12 @@ def _sweep(value: str, tokenizer: _Tokenizer) -> str:
     against a list of real values: that would put PII in the source tree and
     would not work for anybody else's router.
 
-    MACs are swept before IPv6 because the two shapes overlap.
+    MACs are swept before IPv6 because the two shapes overlap. A value that is
+    wholly a phone number is tokenized whatever its key, so one under a key the
+    lists do not name is not published.
     """
+    if _PHONE_RE.fullmatch(value):
+        return tokenizer.token("phone", value)
     value = _MAC_RE.sub(lambda m: tokenizer.token("mac", m.group(0)), value)
     value = _IPV4_RE.sub(lambda m: tokenizer.token("ip", m.group(0)), value)
     return _IPV6_RE.sub(lambda m: tokenizer.token("ip6", m.group(0)), value)
@@ -391,6 +405,48 @@ def _entity_resolution(payload: dict[str, Any]) -> dict[str, Any]:
     return out
 
 
+_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _capability_value(key: str, value: Any, tokenizer: _Tokenizer) -> Any:
+    """Publish one capability value: a number as it is, other text masked.
+
+    The value goes through the sanitizer first, so an address or a phone number
+    under a known text key is tokenized. A number, an empty value or a text value
+    under a key in `CAPABILITY_TEXT_KEYS` is then published; anything else is
+    replaced by a marker naming its type, because a text value on an unseen
+    model could be a name the shape sweep does not recognize.
+    """
+    clean = _sanitize(value, tokenizer, key)
+    if clean in (None, ""):
+        return clean
+    if isinstance(clean, (int, float)) and not isinstance(clean, bool):
+        return clean
+    if isinstance(clean, str) and (
+        _NUMBER_RE.fullmatch(clean) or key in CAPABILITY_TEXT_KEYS
+    ):
+        return clean
+    return f"<{type(clean).__name__}>"
+
+
+def _publish_probes(probes: Any, tokenizer: _Tokenizer) -> Any:
+    """Return the probe records with any capability values made publishable."""
+    if not isinstance(probes, dict):
+        return probes
+    out: dict[str, Any] = {}
+    for name, record in probes.items():
+        if isinstance(record, dict) and isinstance(record.get("values"), dict):
+            record = {
+                **record,
+                "values": {
+                    k: _capability_value(str(k), v, tokenizer)
+                    for k, v in record["values"].items()
+                },
+            }
+        out[name] = record
+    return out
+
+
 async def async_get_config_entry_diagnostics(
     hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
 ) -> dict[str, Any]:
@@ -468,8 +524,9 @@ async def async_get_config_entry_diagnostics(
         # download. An entry reading `refused` with a code is the router
         # stating it does not serve that endpoint; `answered` with key names
         # is a capability this device has and the integration does not read.
-        # Names and counts only — see `api.probe_diagnostic_endpoints`.
-        "probes": probes,
+        # Names and counts, and for the capability probes alone their values,
+        # published by `_capability_value` — see `api.probe_diagnostic_endpoints`.
+        "probes": _publish_probes(probes, tokenizer),
         # How the refusal-or-expiry question was settled on this router
         # (dev16 plan I1): whether it refuses `device_information` without a
         # login, which is what lets a 100003 from an optional endpoint be read as
