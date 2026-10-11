@@ -40,7 +40,11 @@ from typing import Any
 import pytest
 import requests_mock as requests_mock_module
 
-from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
+from custom_components.huawei_router_5g.api import (
+    RETRIED_ON_REFUSAL,
+    HuaweiRouter5GAPI,
+    HuaweiWriteRefusedError,
+)
 
 from .transport import RouterTransport
 
@@ -114,12 +118,12 @@ def _public_writes() -> set[str]:
 async def test_a_refused_write_raises(method_name: str, transport) -> None:
     """A write the router refuses must raise, not return.
 
-    `endpoint_error` is `100002`, deliberately, and the choice is load-bearing.
-    `_execute_with_retry` treats `125002`, `125003` and `100003` as session
-    expiry and re-logs in, so a refusal served with any of those exercises the
-    retry rather than the refusal. `100002` is not in that set, so it reaches
-    the caller as the router declining the command — which is the case this
-    property is about.
+    `endpoint_error` is `100002`, deliberately. `_execute_with_retry` treats
+    `125002`, `125003` and `100003` from a write as a refusal that
+    `_retry_once_on_refusal` may send again after a fresh login, so a refusal
+    served with any of those exercises the retry, which §5 covers. `100002` is
+    not in that set, so it reaches the caller as the router declining the
+    command, which is the case this property is about.
 
     The fault is not scoped to an endpoint, so it also covers the writes that
     read before they write: `set_wifi` reads the radio block, `set_net_mode`
@@ -265,3 +269,53 @@ def test_the_sweep_is_not_vacuous() -> None:
         f"only {len(_CALLS)} writes in the sweep; api.py has "
         f"{len(_public_writes())} public writes"
     )
+
+
+# --- 5. A write refused with a session code ----------------------------------
+
+
+async def test_a_refused_write_is_sent_once_more_after_a_fresh_login(
+    transport,
+) -> None:
+    """A wrapped write refused with 100003 is rebuilt and sent again, once.
+
+    The rule of `zte_router_5g`'s `_retry_once_on_refusal`: the refusal means
+    nothing was carried out, so a second send after a fresh login cannot do
+    anything the first did not.
+    """
+    sends: list[str] = []
+    transport.on_request = lambda endpoint: sends.append(endpoint)
+    transport.arm("no_rights", endpoint="dialup/mobile-dataswitch", answers=1)
+    api = _api()
+
+    await api.set_mobile_data(True)
+
+    assert transport.faults_served == 1
+    assert sends.count("dialup/mobile-dataswitch") == 1
+    assert transport.logins == 2
+
+
+async def test_an_unwrapped_write_refused_with_a_session_code_is_not_resent(
+    transport,
+) -> None:
+    """SMS send, SMS delete and Reboot raise on a refusal and are not resent."""
+    transport.arm("no_rights", endpoint="sms/send-sms")
+    api = _api()
+
+    with pytest.raises(HuaweiWriteRefusedError):
+        await api.send_sms(["+15551234567"], "a message")
+
+    assert transport.faults_served == 1
+    assert transport.logins == 1
+
+
+def test_the_retry_registry_holds_only_complete_state_writes() -> None:
+    """The registry names every wrapped write and none of the excluded ones."""
+    assert {
+        "clear_traffic_statistics",
+        "set_guest_wifi",
+        "set_mobile_data",
+        "set_net_mode",
+        "set_wifi",
+    } == RETRIED_ON_REFUSAL
+    assert not RETRIED_ON_REFUSAL & {"send_sms", "delete_sms", "reboot", "reconnect"}

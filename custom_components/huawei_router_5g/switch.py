@@ -13,6 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import HuaweiExpectedUnavailableError
 from .const import CONF_STOP_POLLING, DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
@@ -367,6 +368,11 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         action = "Enable" if enable else "Disable"
         try:
             await self.coordinator.api.set_mobile_data(enable)
+        except HuaweiExpectedUnavailableError as err:
+            _LOGGER.warning(
+                "%s: %s mobile data refused: %s", self._entry.title, action, err
+            )
+            raise HomeAssistantError(str(err)) from err
         except Exception as err:
             _LOGGER.exception("%s: %s mobile data failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} mobile data failed: {err}") from err
@@ -418,6 +424,9 @@ class HuaweiWifiSwitch(HuaweiSwitch):
         action = "Enable" if enable else "Disable"
         try:
             await self.coordinator.api.set_wifi(enable)
+        except HuaweiExpectedUnavailableError as err:
+            _LOGGER.warning("%s: %s WiFi refused: %s", self._entry.title, action, err)
+            raise HomeAssistantError(str(err)) from err
         except Exception as err:
             _LOGGER.exception("%s: %s WiFi failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} WiFi failed: {err}") from err
@@ -473,6 +482,11 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         action = "Enable" if enable else "Disable"
         try:
             await self.coordinator.api.set_guest_wifi(enable)
+        except HuaweiExpectedUnavailableError as err:
+            _LOGGER.warning(
+                "%s: %s guest WiFi refused: %s", self._entry.title, action, err
+            )
+            raise HomeAssistantError(str(err)) from err
         except Exception as err:
             _LOGGER.exception("%s: %s guest WiFi failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} guest WiFi failed: {err}") from err

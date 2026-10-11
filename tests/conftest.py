@@ -108,6 +108,8 @@ def mock_coordinator(mock_config_entry):
     # are stubbed: a test asserting the wrong one would otherwise pass against
     # an auto-created MagicMock attribute and prove nothing.
     coordinator.async_force_refresh = AsyncMock()
+    # Not yet read, as on a real coordinator before the first login.
+    coordinator.supported_net_modes = None
     coordinator.model = "B535s-232"
     coordinator.sw_version = "11.0.1.1(H192SP1C983)"
     coordinator.hw_version = "Ver.A"

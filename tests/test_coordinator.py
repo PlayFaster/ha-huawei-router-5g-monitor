@@ -1,6 +1,6 @@
 """Tests for the Huawei Router 5G DataUpdateCoordinator."""
 
-from datetime import timedelta
+from datetime import UTC, datetime
 import logging
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -152,7 +152,7 @@ async def test_a_new_sms_is_announced_without_the_senders_number(
         mock_hass, mock_config_entry, MagicMock()
     )
     # Past the first-run baseline, so the next message fires an event.
-    coordinator.last_sms_timestamp = "2026-08-19 09:00:00"
+    coordinator.sms_baseline_taken = True
 
     caplog.set_level(logging.INFO)
     coordinator._check_new_sms(
@@ -213,8 +213,11 @@ async def test_coordinator_sms_tracking_first_run(mock_hass, mock_config_entry):
     with patch.object(mock_hass.bus, "async_fire") as mock_fire:
         coordinator._check_new_sms(data)
 
+    # Updated for 1.2.4-dev2: the baseline holds every message's identity,
+    # index and content hash, where it held only those at the latest date.
+    assert coordinator.sms_baseline_taken is True
     assert coordinator.last_sms_timestamp == "2024-05-01 10:05:00"
-    assert "10_2024-05-01 10:05:00" in coordinator.fired_sms_hashes
+    assert len(coordinator.fired_sms_hashes) == 2
     mock_fire.assert_not_called()
 
 
@@ -225,8 +228,11 @@ async def test_coordinator_sms_event_firing(mock_hass, mock_config_entry):
     coordinator = HuaweiRouter5GDataUpdateCoordinator(
         mock_hass, mock_config_entry, mock_api
     )
-    coordinator.last_sms_timestamp = "2024-05-01 10:00:00"
-    coordinator.fired_sms_hashes = {"10_2024-05-01 10:00:00"}
+    # Updated for 1.2.4-dev2: the seen set holds identities, not dates.
+    coordinator.sms_baseline_taken = True
+    coordinator.fired_sms_hashes = {
+        _identity({"index": 10, "phone": "123", "content": "Old"})
+    }
 
     data = {
         "sms_list": {
@@ -334,8 +340,11 @@ async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
     coordinator = HuaweiRouter5GDataUpdateCoordinator(
         mock_hass, mock_config_entry, mock_api
     )
-    coordinator.last_sms_timestamp = "2024-05-01 10:00:00"
-    coordinator.fired_sms_hashes = {"10_2024-05-01 10:00:00"}
+    # Updated for 1.2.4-dev2: the seen set holds identities, not dates.
+    coordinator.sms_baseline_taken = True
+    coordinator.fired_sms_hashes = {
+        _identity({"index": 10, "phone": "123", "content": "Old"})
+    }
 
     data = {
         "sms_list": {
@@ -362,8 +371,12 @@ async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
         coordinator._check_new_sms(data)
 
     assert coordinator.last_sms_timestamp == "2024-05-01 10:01:00"
-    assert "11_2024-05-01 10:01:00" in coordinator.fired_sms_hashes
-    assert "12_2024-05-01 10:01:00" in coordinator.fired_sms_hashes
+    assert _identity({"index": 11, "phone": "123", "content": "New1"}) in (
+        coordinator.fired_sms_hashes
+    )
+    assert _identity({"index": 12, "phone": "456", "content": "New2"}) in (
+        coordinator.fired_sms_hashes
+    )
     assert mock_fire.call_count == 2
 
 
@@ -814,219 +827,191 @@ async def test_uptime_latches_hold_across_a_steady_second_poll(
 
 
 # ---------------------------------------------------------------------------
-# Follow-up refresh after a disruptive button
+# Expected-outage window after Reboot and Reconnect (dev2 plan I7)
 # ---------------------------------------------------------------------------
 
 
-def _refresh_coordinator(hass):
-    """Build a coordinator with a writable `options`, which MockConfigEntry lacks."""
+def _outage_coordinator(hass, reason: str = "reboot", cap: float = 240.0):
+    """Build a coordinator holding data, its API with a window open."""
+    from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
+
     entry = MagicMock()
     entry.entry_id = "test"
     entry.title = "My Huawei Router"
     entry.options = {}
     entry.data = {}
-    coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry, MagicMock())
-    coordinator.update_interval = timedelta(seconds=1200)
-    return coordinator
+    api = HuaweiRouter5GAPI("http://192.168.8.1", "", "password")
+    api.get_data = AsyncMock(return_value={"device_information": {}})
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry, api)
+    coordinator.data = {"device_information": {"held": True}}
+    api.open_expected_outage(reason, cap)
+    return coordinator, api
 
 
 @pytest.mark.asyncio
-async def test_a_disruptive_write_schedules_one_follow_up_refresh(
-    mock_hass, mock_config_entry
+async def test_a_poll_inside_the_window_is_skipped_with_no_strike(mock_hass):
+    """No request, no warning, no failure count and no health change."""
+    coordinator, api = _outage_coordinator(mock_hass)
+
+    with patch.object(coordinator, "update_health") as health:
+        data = await coordinator._async_update_data()
+
+    assert data == {"device_information": {"held": True}}
+    api.get_data.assert_not_called()
+    health.assert_not_called()
+    assert coordinator.consecutive_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_a_poll_that_meets_a_window_opened_while_it_waited_is_skipped(
+    mock_hass,
 ):
-    """The reading straight after a reboot or reconnect is stale by definition.
+    """The gate's refusal of a queued poll is a skip, not a failure."""
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
 
-    Without this the entities sit wrong until the next scheduled poll, which is
-    twenty minutes by default.
-    """
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.update_interval = timedelta(seconds=1200)
+    coordinator, api = _outage_coordinator(mock_hass)
+    api.close_expected_outage()
+    api.get_data = AsyncMock(side_effect=HuaweiExpectedUnavailableError("reboot", 200))
 
-    with patch(
-        "custom_components.huawei_router_5g.coordinator.async_call_later"
-    ) as later:
-        coordinator.async_schedule_refresh(20)
+    with patch.object(coordinator, "update_health") as health:
+        data = await coordinator._async_update_data()
 
-    later.assert_called_once()
-    assert later.call_args[0][1] == 20
+    assert data == {"device_information": {"held": True}}
+    health.assert_not_called()
+    assert coordinator.consecutive_failures == 0
 
 
 @pytest.mark.asyncio
-async def test_firing_the_scheduled_callback_actually_refreshes(mock_hass):
-    """The timer must do the thing, not merely be set.
-
-    Every other test around `async_schedule_refresh` patches `async_call_later`
-    and asserts it was **called** with the right delay. None of them ever ran
-    the callback, so the whole mechanism could have scheduled a function that
-    did nothing and the suite would have stayed green — the follow-up refresh
-    after Reboot and Reconnect is the only way a user sees the result of the
-    button they pushed, and with polling paused it is the only fetch at all.
-
-    Captures the scheduled callable and invokes it, which is what Home
-    Assistant does when the delay elapses.
-    """
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.async_force_refresh = AsyncMock()
-
-    with patch(
-        "custom_components.huawei_router_5g.coordinator.async_call_later"
-    ) as later:
-        coordinator.async_schedule_refresh(20)
-
-    # async_call_later(hass, delay, action) — the action is the third argument.
-    action = later.call_args[0][2]
-    await action(None)
-
-    coordinator.async_force_refresh.assert_awaited_once()
-
-
-@pytest.mark.asyncio
-async def test_the_pending_handle_is_cleared_when_the_callback_fires(mock_hass):
-    """A fired timer must not leave a handle that unload would then cancel.
-
-    `async_cancel_scheduled_refresh` calls the stored handle. If firing left it
-    in place, unload would invoke an already-spent cancel callback — and worse,
-    a second button press would believe a refresh was still pending and replace
-    a timer that had already run.
-    """
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.async_force_refresh = AsyncMock()
-
-    with patch(
-        "custom_components.huawei_router_5g.coordinator.async_call_later"
-    ) as later:
-        coordinator.async_schedule_refresh(60)
-
-    assert coordinator._pending_refresh is not None
-    await later.call_args[0][2](None)
-    assert coordinator._pending_refresh is None
-
-
-@pytest.mark.asyncio
-async def test_the_follow_up_refresh_fires_even_while_polling_is_paused(mock_hass):
-    """Section 13: an explicit user action must not be swallowed by the pause.
-
-    The follow-up is part of the button press, not background polling — and
-    with polling paused it is the *only* way the user ever sees the result of
-    the button they pushed. Every other write path here already forces through
-    the pause; this one was the exception until 2026-08-15.
-    """
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.entry.options = {"stop_polling": True}
-
-    with patch(
-        "custom_components.huawei_router_5g.coordinator.async_call_later"
-    ) as later:
-        coordinator.async_schedule_refresh(20)
-
-    later.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_a_paused_integration_ignores_the_interval_shortcut(mock_hass):
-    """While paused there is no scheduled poll to defer to.
-
-    The interval check exists to avoid a redundant fetch. Paused, the poll it
-    would defer to returns cached data, so deferring would mean the user never
-    sees the result at all.
-    """
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.update_interval = timedelta(seconds=30)
-    coordinator.entry.options = {"stop_polling": True}
-
-    with patch(
-        "custom_components.huawei_router_5g.coordinator.async_call_later"
-    ) as later:
-        coordinator.async_schedule_refresh(60)
-
-    later.assert_called_once()
-
-
-@pytest.mark.asyncio
-async def test_no_follow_up_when_the_poll_interval_already_covers_it(
-    mock_hass, mock_config_entry
+async def test_the_first_answer_runs_a_closing_poll_and_closes_the_window(
+    mock_hass,
 ):
-    """On a short interval the ordinary poll gets there first.
+    """A Reboot window checks every interval and closes on the first answer."""
+    from custom_components.huawei_router_5g.const import OUTAGE_CHECK_INTERVAL
 
-    This is the owner's "if the polling interval is greater than a minute"
-    condition, generalised: schedule only when the follow-up would land before
-    the next poll would.
-    """
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.update_interval = timedelta(seconds=30)
-
+    coordinator, api = _outage_coordinator(mock_hass)
     with patch(
         "custom_components.huawei_router_5g.coordinator.async_call_later"
     ) as later:
-        coordinator.async_schedule_refresh(60)
+        coordinator.async_start_outage_checks()
+    assert later.call_args[0][1] == OUTAGE_CHECK_INTERVAL
 
-    later.assert_not_called()
+    api.outage_probe = AsyncMock(return_value=True)
+    bypassed: list[bool] = []
+
+    async def _refresh():
+        from custom_components.huawei_router_5g.api import _OUTAGE_BYPASS
+
+        bypassed.append(_OUTAGE_BYPASS.get())
+        coordinator.last_update_success_time = datetime.now(UTC)
+
+    with patch.object(coordinator, "async_refresh", side_effect=_refresh):
+        await coordinator._async_outage_check()
+
+    assert bypassed == [True]
+    assert api.expected_outage is None
+    assert coordinator._outage_unsub is None
 
 
 @pytest.mark.asyncio
-async def test_a_second_press_replaces_the_pending_refresh(
-    mock_hass, mock_config_entry
-):
-    """Two presses must not queue two fetches."""
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.update_interval = timedelta(seconds=1200)
+async def test_a_silent_router_keeps_the_window_open(mock_hass):
+    """No answer schedules the next check and runs no closing poll."""
+    coordinator, api = _outage_coordinator(mock_hass)
+    coordinator.async_start_outage_checks()
+    api.outage_probe = AsyncMock(return_value=False)
 
-    first = MagicMock()
-
-    with patch(
-        "custom_components.huawei_router_5g.coordinator.async_call_later",
-        side_effect=[first, MagicMock()],
+    with (
+        patch.object(coordinator, "async_refresh") as refresh,
+        patch(
+            "custom_components.huawei_router_5g.coordinator.async_call_later"
+        ) as later,
     ):
-        coordinator.async_schedule_refresh(20)
-        coordinator.async_schedule_refresh(20)
+        await coordinator._async_outage_check()
 
-    first.assert_called_once_with()
+    refresh.assert_not_called()
+    later.assert_called_once()
+    assert api.expected_outage is not None
 
 
 @pytest.mark.asyncio
-async def test_the_scheduled_refresh_forces_past_a_pause_set_later(
-    mock_hass, mock_config_entry
+async def test_a_reconnect_window_closes_at_the_hold_when_no_drop_occurs(
+    mock_hass,
 ):
-    """It routes through `async_force_refresh`, not `async_request_refresh`.
+    """A router that keeps answering through a Reconnect had no outage."""
+    from custom_components.huawei_router_5g.const import OUTAGE_HOLD, OUTAGE_PROBE_FAST
 
-    If the user pauses polling between the press and the timer firing, a plain
-    request would be swallowed by the pause short-circuit at exactly the moment
-    the data is known to be stale.
-    """
-    coordinator = _refresh_coordinator(mock_hass)
-    coordinator.update_interval = timedelta(seconds=1200)
-
-    coordinator.async_force_refresh = AsyncMock()
-
-    captured = {}
-
-    def _capture(_hass, _delay, action):
-        captured["fire"] = action
-        return MagicMock()
-
+    coordinator, api = _outage_coordinator(mock_hass, "reconnect", 60.0)
     with patch(
-        "custom_components.huawei_router_5g.coordinator.async_call_later",
-        side_effect=_capture,
-    ):
-        coordinator.async_schedule_refresh(20)
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        coordinator.async_start_outage_checks()
+        assert later.call_args[0][1] == OUTAGE_PROBE_FAST
+        api.outage_probe = AsyncMock(return_value=True)
 
-    await captured["fire"](None)
-    coordinator.async_force_refresh.assert_awaited_once()
-    assert coordinator._pending_refresh is None
+        async def _refresh():
+            coordinator.last_update_success_time = datetime.now(UTC)
+
+        with patch.object(
+            coordinator, "async_refresh", side_effect=_refresh
+        ) as refresh:
+            await coordinator._async_outage_check()
+            refresh.assert_not_called()
+            assert api.expected_outage is not None
+
+            coordinator._outage_opened_mono -= OUTAGE_HOLD
+            await coordinator._async_outage_check()
+
+    refresh.assert_called_once()
+    assert api.expected_outage is None
 
 
 @pytest.mark.asyncio
-async def test_cancelling_a_pending_refresh_is_idempotent(mock_hass):
-    """Unload calls this unconditionally, whether or not one is pending."""
-    coordinator = _refresh_coordinator(mock_hass)
+async def test_a_router_silent_at_the_cap_is_reported(mock_hass, caplog):
+    """The cap closes the window, logs it, and returns to normal polling."""
+    coordinator, api = _outage_coordinator(mock_hass, cap=0.0)
+    coordinator.async_request_refresh = AsyncMock()
+
+    with caplog.at_level(logging.WARNING):
+        await coordinator._async_outage_check()
+
+    assert api.expected_outage is None
+    coordinator.async_request_refresh.assert_awaited_once()
+    assert "did not answer within" in caplog.text
+
+
+@pytest.mark.asyncio
+async def test_a_window_past_its_cap_is_treated_as_closed(mock_hass):
+    """A lost timer cannot hold polls skipped or requests refused for ever."""
+    coordinator, api = _outage_coordinator(mock_hass, cap=0.0)
+
+    assert coordinator.outage_active is False
+    api.refuse_during_outage()
+
+
+@pytest.mark.asyncio
+async def test_a_failed_closing_poll_counts_no_strike(mock_hass):
+    """A router still starting answers badly; the window stays open."""
+    coordinator, api = _outage_coordinator(mock_hass)
+    api.get_data = AsyncMock(side_effect=Exception("still booting"))
+    coordinator._outage_closing = True
+
+    data = await coordinator._async_update_data()
+
+    assert data == {"device_information": {"held": True}}
+    assert coordinator.consecutive_failures == 0
+
+
+@pytest.mark.asyncio
+async def test_the_check_timer_is_cancelled_on_unload(mock_hass):
+    """Unload disarms the timer; a second call is harmless."""
+    coordinator, _ = _outage_coordinator(mock_hass)
     handle = MagicMock()
-    coordinator._pending_refresh = handle
+    coordinator._outage_unsub = handle
 
-    coordinator.async_cancel_scheduled_refresh()
-    coordinator.async_cancel_scheduled_refresh()
+    coordinator.async_cancel_outage_check()
+    coordinator.async_cancel_outage_check()
 
     handle.assert_called_once_with()
-    assert coordinator._pending_refresh is None
+    assert coordinator._outage_unsub is None
 
 
 # ---------------------------------------------------------------------------
@@ -1270,3 +1255,272 @@ async def test_a_latch_persists_both_the_instant_and_the_counter(
     block = coordinator._store_record()[last_attr.lstrip("_")]
     assert block["last_uptime"] == 3600
     assert block["written_at"] is not None
+
+
+# ---------------------------------------------------------------------------
+# Never-answered history kept across a restart (dev2 plan I8)
+# ---------------------------------------------------------------------------
+
+
+def _store_coordinator(hass, stored):
+    """Build a coordinator and load `stored` as its uptime store record."""
+    entry = MagicMock()
+    entry.entry_id = "test"
+    entry.title = "My Huawei Router"
+    entry.options = {}
+    entry.data = {}
+    api = MagicMock()
+    api.answered_endpoints = frozenset()
+    api.endpoint_outcomes = {}
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry, api)
+    return coordinator, api, stored
+
+
+async def _load(coordinator, stored):
+    with patch("custom_components.huawei_router_5g.coordinator.Store") as store_class:
+        store_class.return_value.async_load = AsyncMock(return_value=stored)
+        await coordinator.async_load_stored_uptime()
+    return store_class.return_value
+
+
+@pytest.mark.asyncio
+async def test_an_endpoint_that_answered_before_a_restart_reads_degraded(mock_hass):
+    """A capability lost while Home Assistant was stopped is not `not_served`."""
+    from custom_components.huawei_router_5g.const import ENDPOINT_NAMES
+
+    from .conftest import SAMPLE_ROUTER_DATA
+
+    coordinator, api, _ = _store_coordinator(mock_hass, None)
+    await _load(coordinator, {"answered_endpoints": ["security_sip"]})
+    api.endpoint_outcomes = {"security_sip": {"outcome": "refused", "code": "100003"}}
+    data = {k: v for k, v in SAMPLE_ROUTER_DATA.items() if k != "security_sip"}
+
+    for _ in range(3):
+        coordinator.update_health(data, failed=False, cold_start=False)
+
+    snapshot = coordinator.health_snapshot
+    assert ENDPOINT_NAMES["security_sip"] in snapshot["degraded_capabilities"]
+    assert ENDPOINT_NAMES["security_sip"] not in snapshot["not_served"]
+
+
+@pytest.mark.asyncio
+async def test_a_restored_name_never_reaches_the_refusal_judgement(mock_hass):
+    """The API's own history stays the current run's, so no login is forced."""
+    from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
+
+    entry = MagicMock()
+    entry.entry_id = "test"
+    entry.title = "My Huawei Router"
+    entry.options = {}
+    entry.data = {}
+    api = HuaweiRouter5GAPI("http://192.168.8.1", "", "password")
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(mock_hass, entry, api)
+    await _load(coordinator, {"answered_endpoints": ["security_sip"]})
+
+    assert api.answered_endpoints == frozenset()
+    assert (
+        api._judge_signal("security_sip", MagicMock(), _no_budget_poll()) == "history"
+    )
+
+
+def _no_budget_poll():
+    """A poll whose adjudication budget is spent, so the history decides."""
+    from custom_components.huawei_router_5g.api import _PollState
+
+    return _PollState(started=-1e9, generation=0)
+
+
+@pytest.mark.asyncio
+async def test_the_store_is_saved_when_the_set_alone_changes(mock_hass):
+    """A newly answering endpoint is saved without waiting for an uptime write."""
+    coordinator, api, _ = _store_coordinator(mock_hass, None)
+    store = await _load(coordinator, {"answered_endpoints": ["device_signal"]})
+
+    coordinator._persist_answered()
+    assert store.async_delay_save.call_count == 0
+
+    api.answered_endpoints = frozenset({"device_signal", "security_sip"})
+    coordinator._persist_answered()
+
+    assert store.async_delay_save.call_count == 1
+    record = store.async_delay_save.call_args[0][0]()
+    assert record["answered_endpoints"] == ["device_signal", "security_sip"]
+
+
+@pytest.mark.asyncio
+async def test_the_upgrade_sequence_keeps_the_uptime_record_and_adds_the_set(
+    mock_hass,
+):
+    """A store written before the change loads, then round-trips with the set.
+
+    `code_first_dev_cycle.md` §6.1: run 1 loads an old record with no set and
+    starts empty; run 2 writes the record with the set beside the uptime
+    blocks; run 3 restores both.
+    """
+    old = {
+        "last_system_uptime": {
+            "last_uptime": 4321,
+            "written_at": "2026-09-01T10:00:00+00:00",
+            "sum_wall": 0.0,
+            "sum_counter": 0.0,
+            "interval_count": 0,
+        }
+    }
+    first, api, _ = _store_coordinator(mock_hass, None)
+    store = await _load(first, old)
+    assert first._answered_restored == frozenset()
+    assert first._system_latch.stored_counter == 4321
+
+    api.answered_endpoints = frozenset({"device_information"})
+    first._persist_answered()
+    written = store.async_delay_save.call_args[0][0]()
+    assert written["last_system_uptime"]["last_uptime"] == 4321
+    assert written["answered_endpoints"] == ["device_information"]
+
+    second, second_api, _ = _store_coordinator(mock_hass, None)
+    await _load(second, written)
+    assert second._answered_restored == frozenset({"device_information"})
+    assert second._system_latch.stored_counter == 4321
+    assert second_api.answered_endpoints == frozenset()
+
+
+# ---------------------------------------------------------------------------
+# New-message detection independent of the date string (dev2 plan I9)
+# ---------------------------------------------------------------------------
+
+
+def _identity(msg):
+    """The coordinator's identity of a parsed message."""
+    return HuaweiRouter5GDataUpdateCoordinator._sms_identity(msg)
+
+
+def _inbox(*messages):
+    return {
+        "sms_list": {
+            "Messages": {
+                "Message": [
+                    {"Index": i, "Phone": "+15550100123", "Content": c, "Date": d}
+                    for i, c, d in messages
+                ]
+            }
+        }
+    }
+
+
+@pytest.mark.asyncio
+async def test_a_message_in_a_repeated_hour_is_found(mock_hass, mock_config_entry):
+    """The second 01:15 of a repeated hour sorts before the first 01:45.
+
+    The router's date carries no offset (H165-383, 2026-10-09). A message that
+    arrives in the repeated hour reads earlier than one before the clock went
+    back, so date-string order misses it; identity by index and content does
+    not.
+    """
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, MagicMock()
+    )
+    first = ("40001", "before the change", "2026-10-25 01:45:00")
+    second = ("40002", "after the change", "2026-10-25 01:15:00")
+
+    with patch.object(mock_hass.bus, "async_fire") as fire:
+        coordinator._check_new_sms(_inbox(first))
+        coordinator._check_new_sms(_inbox(first, second))
+        coordinator._check_new_sms(_inbox(first, second))
+
+    assert fire.call_count == 1
+    assert fire.call_args[0][1]["content"] == "after the change"
+
+
+@pytest.mark.asyncio
+async def test_a_reused_index_with_new_content_is_a_new_message(
+    mock_hass, mock_config_entry
+):
+    """A deleted message's index taken by a new one still fires."""
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, MagicMock()
+    )
+
+    with patch.object(mock_hass.bus, "async_fire") as fire:
+        coordinator._check_new_sms(_inbox(("40001", "one", "2026-10-09 10:00:00")))
+        coordinator._check_new_sms(_inbox(("40001", "two", "2026-10-09 10:00:00")))
+
+    assert fire.call_count == 1
+
+
+@pytest.mark.asyncio
+async def test_an_empty_inbox_takes_the_baseline(mock_hass, mock_config_entry):
+    """The first message into an inbox that started empty fires."""
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        mock_hass, mock_config_entry, MagicMock()
+    )
+
+    with patch.object(mock_hass.bus, "async_fire") as fire:
+        coordinator._check_new_sms({"sms_list": {"Messages": None}})
+        coordinator._check_new_sms(_inbox(("40001", "first", "2026-10-09 10:00:00")))
+
+    assert fire.call_count == 1
+
+
+def test_an_unreadable_sms_index_sorts_first():
+    """An index that is not a number orders as 0 rather than raising."""
+    from custom_components.huawei_router_5g.coordinator import _safe_index
+
+    assert _safe_index("40001") == 40001
+    assert _safe_index("x") == 0
+    assert _safe_index(None) == 0
+
+
+@pytest.mark.asyncio
+async def test_starting_checks_with_no_window_arms_nothing(mock_hass):
+    """A button whose command opened no window leaves no timer behind."""
+    coordinator, api = _outage_coordinator(mock_hass)
+    api.close_expected_outage()
+
+    coordinator.async_start_outage_checks()
+    await coordinator._async_outage_check()
+
+    assert coordinator._outage_unsub is None
+
+
+@pytest.mark.asyncio
+async def test_a_reconnect_drop_moves_the_window_to_waiting_for_the_return(
+    mock_hass,
+):
+    """No answer while waiting for the drop is the drop."""
+    coordinator, api = _outage_coordinator(mock_hass, "reconnect", 60.0)
+    coordinator.async_start_outage_checks()
+    api.outage_probe = AsyncMock(return_value=False)
+
+    with patch(
+        "custom_components.huawei_router_5g.coordinator.async_call_later"
+    ) as later:
+        await coordinator._async_outage_check()
+
+    assert coordinator._outage_awaiting_drop is False
+    later.assert_called_once()
+    assert api.expected_outage is not None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("error", ["timeout", "auth", "lockout"])
+async def test_a_closing_poll_failure_of_any_kind_counts_no_strike(mock_hass, error):
+    """Every failure handler holds the data during a closing poll."""
+    from custom_components.huawei_router_5g.api import (
+        HuaweiAuthError,
+        HuaweiLockoutError,
+    )
+
+    raised = {
+        "timeout": TimeoutError(),
+        "auth": HuaweiAuthError("rejected"),
+        "lockout": HuaweiLockoutError("locked"),
+    }[error]
+    coordinator, api = _outage_coordinator(mock_hass)
+    api.get_data = AsyncMock(side_effect=raised)
+    api.invalidate = AsyncMock()
+    coordinator._outage_closing = True
+
+    data = await coordinator._async_update_data()
+
+    assert data == {"device_information": {"held": True}}
+    assert coordinator.consecutive_failures == 0

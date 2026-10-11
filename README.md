@@ -52,7 +52,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 **📟 Router Hardware:**
 
 - **Fully Tested**:
-  - **Huawei 5G CPE Pro 6 (H165-383)** — tested firmware: `4.4.0.1(H1600SP2Cxxxx)`
+  - **Huawei 5G CPE Pro 6 (H165-383)** — tested firmware: `4.4.0.1(H1600SP2xxxx)`
   - _This is currently the primary model verified on live hardware._
 
 - **Expected Compatible (Huawei HiLink XML API Family)**:
@@ -605,8 +605,8 @@ Several settings are exposed as control entities so you can drive them from dash
 - **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Halt all polling when you need exclusive access to the router's web UI.
 - **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
 - **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch). **This works even while Pause Polling is on** — an explicit action always fetches, while scheduled polls stay paused.
-- **Reboot Router** (`button.huawei_5g_system_reboot`): Reboot the router on demand.
-- **Reconnect Cellular** (`button.huawei_5g_system_reconnect`): Re-establish the cellular data connection on demand.
+- **Reboot Router** (`button.huawei_5g_system_reboot`): Reboot the router on demand. Once the router stops answering, polls are paused and other controls are refused with the seconds left until it answers again, up to 240 s, and one poll then brings the entities up to date.
+- **Reconnect Cellular** (`button.huawei_5g_system_reconnect`): Re-establish the cellular data connection on demand. Polls are paused and other controls refused for up to 20 s, or until the router answers after dropping, up to 60 s.
 - **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
 
 > [!NOTE]
@@ -631,7 +631,7 @@ Several settings are exposed as control entities so you can drive them from dash
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware.
+- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware. A mode in force that the router's own list omits is shown and offered, and choosing it is refused with the router's list, since the router refuses such a write.
 
 ![System Config with Dropdown](.github/images/huawei_5g_system_config_dropdown.png)
 
@@ -895,14 +895,14 @@ data:
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Detail:
 </summary><br>
 
-Fires automatically when a new incoming SMS is detected. Use as an automation trigger.
+Fires automatically when a new incoming SMS is detected. Use as an automation trigger. A message is new when its storage index and content have not been seen since Home Assistant started; the messages held at the first poll are the baseline and fire nothing. The router's date is not used to detect a message, so a clock change cannot hide one.
 
 | Field | Type | Description |
 | :-- | :-- | :-- |
 | `entry_id` | Text | Config entry ID of the router that received the message. |
 | `phone` | Text | Sender's phone number. |
 | `content` | Text | Message body. |
-| `date` | Text | Date/time of the message. |
+| `date` | Text | Date/time of the message, in the router's local time with no offset. |
 | `index` | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
 
 See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
@@ -2057,7 +2057,7 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 | `severity` | `ok` · `degraded` (a capability was lost) · `warning` (the data may be wrong) · `error` (unreachable) · `unknown` (nothing fetched yet). **Never blank** — see below |
 | `issues` | Plain-language descriptions of what is wrong; empty when healthy |
 | `degraded_capabilities` | Which parts of the router stopped answering, by name |
-| `not_served` | Which parts of the router it refuses with its own error code and has never answered since Home Assistant started, by name. These are not counted as a problem, because there was nothing to lose |
+| `not_served` | Which parts of the router it refuses with its own error code and has never answered on this integration entry, by name, including across restarts. These are not counted as a problem, because there was nothing to lose |
 | `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
 | `last_good_update` | When the last fully successful poll completed |
 

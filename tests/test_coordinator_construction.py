@@ -109,7 +109,7 @@ def test_a_fresh_coordinator_starts_with_the_right_scalars(mock_hass) -> None:
 
     assert coordinator.consecutive_failures == 0
     assert coordinator._force_refresh_once is False
-    assert coordinator._pending_refresh is None
+    assert coordinator._outage_unsub is None
     assert coordinator.projection_cache is None
 
 

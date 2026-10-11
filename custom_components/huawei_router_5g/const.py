@@ -286,18 +286,35 @@ REPAIR_CONN_STRIKE_LIMIT = 10
 # `HEALTH_STRIKE_LIMIT` doing both jobs until 2026-08-17.
 HEALTH_DRIFT_STRIKE_LIMIT = 3
 
-# Seconds to wait before the follow-up refresh a disruptive button schedules.
+# --- Expected-outage window --------------------------------------------------
 #
-# Both controls take the router away and bring it back, so the reading straight
-# afterwards is stale by definition and the entities would sit wrong until the
-# next scheduled poll - twenty minutes by default. These are measured, not
-# guessed: a reconnect was back inside five seconds on the reference B535, and
-# a reboot takes well under a minute to start answering again. Both carry
-# headroom.
+# Reboot and Reconnect take the router away for a known reason. While the
+# window is open, polls are skipped and every other router request is refused
+# at once with the reason and the seconds left. The mechanism and its values
+# follow `zte_router_5g` (`const.py` there); the H165-383 timings that bear on
+# them were measured on 2026-10-09.
 #
-# Both fire even while polling is paused - the follow-up is part of the button
-# press, not background polling (Section 13). Neither fires when it would land
-# after the next scheduled poll anyway - see `async_schedule_refresh`.
+# The check reads `user/state-login`, which the H165-383 answers without a
+# session, every `OUTAGE_CHECK_INTERVAL` seconds with a short timeout, and the
+# first answer runs the closing poll. A Reconnect window first waits for the
+# router to drop, probing every `OUTAGE_PROBE_FAST` seconds, and closes at
+# `OUTAGE_HOLD` when it does not: the H165-383 kept answering through a
+# Reconnect, its data back in about 1.1 s. The Reboot window opens only once
+# the router has been seen silent, checked every `REBOOT_VERIFY_INTERVAL`
+# seconds for up to `REBOOT_VERIFY_SECONDS`: the H165-383 still answered 5 to
+# 7 s after the command and was silent by 10 to 12 s, so the verify time is
+# margin over that. It answered again at 68.5 to 72.6 s; the caps are ZTE's.
+OUTAGE_CHECK_INTERVAL = 5.0
+OUTAGE_CHECK_TIMEOUT = 2
+OUTAGE_PROBE_FAST = 1.0
+OUTAGE_HOLD = 20.0
+OUTAGE_CAP_REBOOT = 240.0
+OUTAGE_CAP_RECONNECT = 60.0
+OUTAGE_REASON_REBOOT = "reboot"
+OUTAGE_REASON_RECONNECT = "reconnect"
+REBOOT_VERIFY_SECONDS = 20.0
+REBOOT_VERIFY_INTERVAL = 1.0
+
 # --- Network mode -----------------------------------------------------------
 #
 # Code to label for `net_mode.NetworkMode`. **One table, used by both the select
@@ -368,8 +385,6 @@ def network_mode_label(code: str | None) -> str | None:
 # used for the reconnect path, which exercises the same re-registration.
 NET_MODE_SETTLE = 15
 
-RECONNECT_REFRESH_DELAY = 20
-REBOOT_REFRESH_DELAY = 60
 
 # --- Data-usage projection tuning (status_plan §T-2) -------------------------
 #
@@ -422,13 +437,15 @@ SMS_MAX_CHARS_UNICODE = 268
 # --- SMS delete check ---------------------------------------------------------
 #
 # A success reply did not prove a delete on `zte_router_5g`, so a delete is
-# checked by reading the local inbox again: once at once, and then up to
-# `SMS_DELETE_CHECK_ATTEMPTS` reads in all, `SMS_DELETE_CHECK_INTERVAL` seconds
-# apart. **Provisional.** ZTE waits up to 15 s; how long a Huawei router takes to
-# drop a deleted message from its list is unmeasured, and an attended delete
-# that times it sets the final values (plan `v124_dev1_plan.md`, open item O1).
-SMS_DELETE_CHECK_ATTEMPTS = 3
-SMS_DELETE_CHECK_INTERVAL = 2
+# checked by reading the local inbox again: at once, and then every
+# `SMS_DELETE_VERIFY_INTERVAL` seconds until `SMS_DELETE_VERIFY_SECONDS` have
+# been waited, which is three reads 2 s apart. The form is ZTE's, a total wait
+# and an interval. Measured on the H165-383 on 2026-10-09: in 8 inbox and 10
+# sent-box deletes the message was gone at the first read, within 30 ms of the
+# reply, so the wait is spent only on a slower model. ZTE's 15 s was measured
+# on the MC7010.
+SMS_DELETE_VERIFY_SECONDS = 4
+SMS_DELETE_VERIFY_INTERVAL = 2
 
 # Messages per page when the local inbox is read in full. The router serves the
 # list in pages, and delete all read one page of this size before 1.2.4-dev1.

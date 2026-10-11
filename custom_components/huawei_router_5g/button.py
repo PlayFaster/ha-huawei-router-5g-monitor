@@ -16,7 +16,7 @@ from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
-from .const import REBOOT_REFRESH_DELAY, RECONNECT_REFRESH_DELAY
+from .api import HuaweiExpectedUnavailableError
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity, _stale_tracker_entities
 
@@ -76,9 +76,9 @@ REBOOT_DESCRIPTION = HuaweiButtonEntityDescription(
     key="reboot",
     about=(
         "Restarts the router. Everything on the network loses its connection "
-        "for a minute or two. A follow-up refresh is scheduled about sixty "
-        "seconds later so the entities recover without waiting for the next "
-        "poll."
+        "for a minute or two. Once the router stops answering, polls are "
+        "paused and other controls are refused until it answers again, and "
+        "then one poll brings the entities up to date."
     ),
     translation_key="reboot",
     device_class=ButtonDeviceClass.RESTART,
@@ -91,8 +91,9 @@ RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
         "Drops the mobile data session and dials it again, which often "
         "re-homes the router to a different cell. The LAN and WiFi stay up. "
         "The router refuses the library's dedicated reconnect call, so this "
-        "issues a disconnect followed by a connect, and schedules a follow-up "
-        "refresh about twenty seconds later."
+        "issues a disconnect followed by a connect. Polls are paused and other "
+        "controls refused for up to twenty seconds while the connection "
+        "settles, and then one poll brings the entities up to date."
     ),
     translation_key="reconnect",
     # Deliberately NOT ButtonDeviceClass.RESTART - that belongs to Reboot, and
@@ -102,7 +103,7 @@ RECONNECT_DESCRIPTION = HuaweiButtonEntityDescription(
     no_confirmation=(
         "Re-establishing the data session is the whole point of this button, "
         "so the router is expected to answer abnormally immediately after it. "
-        "A follow-up refresh twenty seconds later reports the outcome instead."
+        "The closing poll of its expected-outage window reports the outcome."
     ),
 )
 
@@ -182,7 +183,16 @@ class HuaweiRefreshButton(HuaweiButton):
     """Button to trigger an immediate data refresh."""
 
     async def async_press(self) -> None:
-        """Handle the button press — trigger an immediate coordinator refresh."""
+        """Handle the button press — trigger an immediate coordinator refresh.
+
+        Refused during an expected outage rather than skipped: a skipped poll
+        returns the held values, so the press would appear to work and fetch
+        nothing.
+        """
+        try:
+            self.coordinator.api.refuse_during_outage()
+        except HuaweiExpectedUnavailableError as err:
+            raise HomeAssistantError(str(err)) from err
         await self.coordinator.async_force_refresh()
 
 
@@ -193,11 +203,13 @@ class HuaweiRebootButton(HuaweiButton):
         """Handle the button press — trigger a device reboot."""
         try:
             await self.coordinator.api.reboot()
+        except HuaweiExpectedUnavailableError as err:
+            raise HomeAssistantError(str(err)) from err
         except Exception as err:
             raise HomeAssistantError(f"Reboot failed: {err}") from err
-        # Only after the write succeeded. Scheduling first would refresh
-        # against a router that was never asked to restart.
-        self.coordinator.async_schedule_refresh(REBOOT_REFRESH_DELAY)
+        # `reboot()` opens the window only once the router has stopped
+        # answering, so the outage is confirmed rather than assumed.
+        self.coordinator.async_start_outage_checks()
 
 
 class HuaweiReconnectButton(HuaweiButton):
@@ -207,9 +219,11 @@ class HuaweiReconnectButton(HuaweiButton):
         """Handle the button press - re-establish the data connection."""
         try:
             await self.coordinator.api.reconnect()
+        except HuaweiExpectedUnavailableError as err:
+            raise HomeAssistantError(str(err)) from err
         except Exception as err:
             raise HomeAssistantError(f"Reconnect failed: {err}") from err
-        self.coordinator.async_schedule_refresh(RECONNECT_REFRESH_DELAY)
+        self.coordinator.async_start_outage_checks()
 
 
 class HuaweiClearTrafficButton(HuaweiButton):
@@ -220,6 +234,8 @@ class HuaweiClearTrafficButton(HuaweiButton):
         try:
             await self.coordinator.api.clear_traffic_statistics()
             await self.coordinator.async_force_refresh()
+        except HuaweiExpectedUnavailableError as err:
+            raise HomeAssistantError(str(err)) from err
         except Exception as err:
             raise HomeAssistantError(f"Clear traffic statistics failed: {err}") from err
 

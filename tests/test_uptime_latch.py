@@ -606,6 +606,9 @@ async def test_the_store_record_carries_every_latch(hass_stub):
 
     record = coordinator._store_record()
 
+    # Updated for 1.2.4-dev2: the record also carries the answered-endpoint
+    # set beside the three latch blocks.
+    assert isinstance(record.pop("answered_endpoints"), list)
     assert set(record) == set(_COUNTER_KEYS)
     for block in record.values():
         assert set(block) >= {

@@ -28,8 +28,8 @@ from .const import (
     DOMAIN,
     REPAIR_NAMES,
     SERVICE_CLEANUP,
-    SMS_DELETE_CHECK_ATTEMPTS,
-    SMS_DELETE_CHECK_INTERVAL,
+    SMS_DELETE_VERIFY_INTERVAL,
+    SMS_DELETE_VERIFY_SECONDS,
     SMS_LIST_PAGE_SIZE,
     SMS_MAX_CHARS_GSM7,
     SMS_MAX_CHARS_UNICODE,
@@ -204,12 +204,19 @@ async def _local_inbox(
 async def _confirm_deleted(
     coordinator: HuaweiRouter5GDataUpdateCoordinator, index: int
 ) -> None:
-    """Raise when `index` is still on the first page of the local inbox."""
-    for attempt in range(SMS_DELETE_CHECK_ATTEMPTS):
-        if attempt:
-            await asyncio.sleep(SMS_DELETE_CHECK_INTERVAL)
+    """Raise when `index` is still on the first page of the local inbox.
+
+    Read at once and then every `SMS_DELETE_VERIFY_INTERVAL` seconds until
+    `SMS_DELETE_VERIFY_SECONDS` have been waited.
+    """
+    waited = 0
+    while True:
         if all(m["index"] != index for m in await _inbox_page(coordinator, 1)):
             return
+        if waited + SMS_DELETE_VERIFY_INTERVAL > SMS_DELETE_VERIFY_SECONDS:
+            break
+        await asyncio.sleep(SMS_DELETE_VERIFY_INTERVAL)
+        waited += SMS_DELETE_VERIFY_INTERVAL
     raise HomeAssistantError(
         f"SMS {index} is still listed after the router accepted the delete"
     )
@@ -240,7 +247,7 @@ async def async_delete_sms(hass: HomeAssistant, call: ServiceCall) -> None:
     """Service to delete an SMS, and check that it went.
 
     A success reply did not prove a delete on `zte_router_5g`. The first page of
-    the local inbox is read again, up to `SMS_DELETE_CHECK_ATTEMPTS` times, and a
+    the local inbox is read again for up to `SMS_DELETE_VERIFY_SECONDS`, and a
     message still listed is reported. A message beyond the first page, or in
     another box, is not seen by the check; that limit is in `docs/DEVELOPMENT.md`.
     """
@@ -576,9 +583,9 @@ async def async_unload_entry(
 
     coordinator = entry.runtime_data
 
-    # Before the logout: a pending follow-up refresh would otherwise fire
+    # Before the logout: an expected-outage check would otherwise fire
     # against a coordinator whose session has just been closed.
-    coordinator.async_cancel_scheduled_refresh()
+    coordinator.async_cancel_outage_check()
 
     with contextlib.suppress(Exception):
         await coordinator.api.logout()

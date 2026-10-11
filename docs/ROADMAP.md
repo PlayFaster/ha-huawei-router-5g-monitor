@@ -191,6 +191,14 @@ SSID write operations for guest network configurations where multi-SSID setups a
 
 - **Trigger**: A second test unit with guest SSID hardware configurations is added to the dev setup.
 
+### Variant API paths for other models
+
+Not built: on a model that refuses a resource's usual path but answers a variant spelling of it, the entities fed by that resource would read their values through the variant path.
+
+The H165-383's web script names more than one path for some resources (`system/devcapacity` and `devcapacity/devcapacity`; `system/deviceinfoex`, `system/deviceinfo` and `deviceInfo/deviceInfo`; `device/device-feature-switch` and `device/device-feature-switchion`), and on the H165-383 only the first of each answers (sweep of 2026-10-10). The integration calls each resource by one path, so a model answering only a variant would show those entities as unknown. The build would be a table of usual path and variants, tried in order on a `100002` or `100003` through the `LIBRARY_ADDED_ENDPOINTS` mechanism, with the path that answered remembered per model. `zte_router_5g`'s `get_first` does the same for key names inside one response.
+
+- **Trigger**: a diagnostics download or sweep from a model other than the H165-383 shows a usual path refused and a variant answering. The only held B315s-22 download has no signal block, so no second model has been compared.
+
 ---
 
 ## Declined
@@ -236,6 +244,7 @@ Recorded against cross-project chore `C-030`, whose requirement is the scan and 
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v3.6.0 | 2026-10-10 | Added _Variant API paths for other models_ to Revisit, from the H165-383 endpoint sweep. Recorded on _Router Ethernet mode support_ the decision of 2026-10-09: linked to the entity defaults and polling design on the operating-state signal only, built separately, neither in 1.2.4-dev2. Carrier names removed from _Per-endpoint strike budgets_. |
 | v3.5.2 | 2026-10-07 | Recorded on _Router Ethernet mode support_ that it overlaps the entity defaults and polling design and that the overlap is to be decided. |
 | v3.5.1 | 2026-10-07 | **Corrected the _Router Ethernet mode support_ detail.** The 53 of 124 unknown entities were measured with a SIM fitted and not in Ethernet mode; the count with no SIM was not recorded. The v3.4.0 version row is history and is left as written. |
 | v3.5.0 | 2026-10-07 | **Added _HTTPS routers with a self-signed certificate_ under Maybe**, from the comparison with core's Huawei integration, and a pointer from _Per-endpoint strike budgets_ to the polling design. |

@@ -40,21 +40,23 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 - **Entities & Interfaces**: `button.<name>_reconnect`.
 - **Technical Guarantees**:
   - Re-establishes WAN session via dual dial actions without dropping local LAN/Wi-Fi clients.
-  - Automatically schedules asynchronous follow-up refresh when the cellular connection settles.
+  - Opens an expected-outage window: polls are skipped and other controls refused until the router answers, or for up to 20 s when it keeps answering, and a closing poll then refreshes the entities.
 - **Lifecycle Timeline**:
   - `v1.2.0`: Introduced Reconnect button with dual dial action sequence.
+  - `v1.2.4`: The follow-up refresh replaced by the expected-outage window.
 
-### Device Reboot & Follow-Up Refresh Automation
+### Device Reboot & Expected-Outage Window
 
 - **Purpose**: Reboots the router hardware safely from Home Assistant with automated polling recovery.
 - **Entities & Interfaces**: `button.<name>_reboot`.
 - **Technical Guarantees**:
   - API errors during reboot submission are propagated directly to the UI rather than swallowed.
-  - Schedules an asynchronous follow-up poll when the router completes rebooting, including when background polling is paused.
+  - Opens an expected-outage window once the router has stopped answering: polls are skipped and other controls refused with the seconds left, a check every 5 s closes it on the router's first answer through a closing poll, including when background polling is paused, and a router still silent at 240 s is reported.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Basic reboot action added.
   - `v1.1.1`: Exception propagation hardened to surface API errors.
   - `v1.2.0`: Automated follow-up polling refresh scheduled upon reboot completion.
+  - `v1.2.4`: The follow-up refresh replaced by the expected-outage window.
 
 ### Configurable Polling Interval & Polling Suspension
 
@@ -71,6 +73,7 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
   - `v1.0.1`: Initial polling interval slider and pause polling switch.
   - `v1.1.2`: Added Refresh Now button; debounced interval adjustments with safe removal flushing.
   - `v1.2.0`: Follow-up refresh actions after reboots and reconnects execute even while polling is paused.
+  - `v1.2.4`: The closing poll of a Reboot or Reconnect window runs even while polling is paused.
 
 ---
 

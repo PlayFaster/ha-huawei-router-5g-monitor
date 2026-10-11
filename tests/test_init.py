@@ -16,7 +16,8 @@ from custom_components.huawei_router_5g import (
 )
 from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
 from custom_components.huawei_router_5g.const import (
-    SMS_DELETE_CHECK_ATTEMPTS,
+    SMS_DELETE_VERIFY_INTERVAL,
+    SMS_DELETE_VERIFY_SECONDS,
     SMS_MAX_CHARS_GSM7,
     SMS_MAX_CHARS_UNICODE,
 )
@@ -269,10 +270,19 @@ async def test_a_delete_that_leaves_the_message_listed_is_reported(
     transport.fill_inbox(3)
     transport.kept_on_delete = {2}
 
+    reads: list[str] = []
+    transport.on_request = lambda endpoint: (
+        reads.append(endpoint) if endpoint == "sms/sms-list" else None
+    )
+
     with pytest.raises(HomeAssistantError, match="SMS 2 is still listed"):
         await async_delete_sms(mock_hass, _call({"index": 2}))
 
-    assert sleep.await_count == SMS_DELETE_CHECK_ATTEMPTS - 1
+    # The sleeps follow from the total and the interval; 4 s at 2 s is two
+    # sleeps and three reads after the delete.
+    assert sleep.await_count == SMS_DELETE_VERIFY_SECONDS // SMS_DELETE_VERIFY_INTERVAL
+    assert (SMS_DELETE_VERIFY_SECONDS, SMS_DELETE_VERIFY_INTERVAL) == (4, 2)
+    assert len(reads) == 3
     coordinator.async_force_refresh.assert_not_awaited()
 
 

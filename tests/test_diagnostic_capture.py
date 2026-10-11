@@ -134,6 +134,10 @@ async def test_an_expiry_is_recorded_before_the_retry_that_recovers_it() -> None
     would leave nothing behind in the common case where the retry succeeds.
     """
     api = _make_api()
+    # A router that serves `device_information` anonymously: the wrapper
+    # cannot show the session live, so the signal is an expiry, with no
+    # premise request leaving the test.
+    api._premise_cache = "served"
     client = MagicMock()
     calls: list[int] = []
 
@@ -160,6 +164,10 @@ async def test_an_expiry_is_recorded_before_the_retry_that_recovers_it() -> None
 async def test_each_expiry_code_is_recorded_as_expired(code: str) -> None:
     """The three codes this router uses for expiry all read as one verdict."""
     api = _make_api()
+    # A router that serves `device_information` anonymously: the wrapper
+    # cannot show the session live, so the signal is an expiry, with no
+    # premise request leaving the test.
+    api._premise_cache = "served"
     client = MagicMock()
     calls: list[int] = []
 

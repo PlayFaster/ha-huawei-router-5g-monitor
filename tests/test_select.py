@@ -164,3 +164,74 @@ def test_an_unrecognized_label_falls_back_to_auto():
     from custom_components.huawei_router_5g.select import _label_to_code
 
     assert _label_to_code("Not A Mode") == "00"
+
+
+# ---------------------------------------------------------------------------
+# A current network mode absent from the router's list (dev2 plan I11)
+# ---------------------------------------------------------------------------
+
+
+def test_a_current_mode_outside_the_list_is_added_and_shown(
+    mock_coordinator, mock_config_entry
+):
+    """Home Assistant shows `unknown` for an option not in the options."""
+    mock_coordinator.supported_net_modes = ["00", "08", "03"]
+    mock_coordinator.data = {"net_mode": {"NetworkMode": "02"}}
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+
+    assert select.current_option == "3G Only"
+    assert select.options == ["Auto", "5G Only", "4G Only", "3G Only"]
+
+
+def test_with_no_list_the_fallback_set_gains_the_current_mode(
+    mock_coordinator, mock_config_entry
+):
+    """A router that publishes no list keeps every known mode, plus its own."""
+    mock_coordinator.supported_net_modes = None
+    mock_coordinator.data = {"net_mode": {"NetworkMode": "99"}}
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+
+    assert len(select.options) == 10
+    assert "Auto" in select.options
+    assert select.options[-1] == "Unknown (99)"
+
+
+@pytest.mark.asyncio
+async def test_a_write_of_the_added_mode_is_refused_naming_the_list(
+    mock_coordinator, mock_config_entry
+):
+    """The router refuses a mode outside its list, so nothing is sent."""
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_coordinator.supported_net_modes = ["00", "08", "03"]
+    mock_coordinator.data = {"net_mode": {"NetworkMode": "02"}}
+    mock_coordinator.api.set_net_mode = AsyncMock()
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+
+    with pytest.raises(HomeAssistantError, match="Auto, 5G Only, 4G Only"):
+        await select.async_select_option("3G Only")
+
+    mock_coordinator.api.set_net_mode.assert_not_called()
+
+
+@pytest.mark.asyncio
+async def test_a_mode_change_inside_a_window_is_refused_with_a_warning(
+    mock_coordinator, mock_config_entry
+):
+    """The gate's refusal is logged as a warning, without a traceback."""
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+    from homeassistant.exceptions import HomeAssistantError
+
+    mock_coordinator.api.set_net_mode = AsyncMock(
+        side_effect=HuaweiExpectedUnavailableError("reboot", 42)
+    )
+    select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
+
+    with (
+        patch("custom_components.huawei_router_5g.select._LOGGER") as logger,
+        pytest.raises(HomeAssistantError, match="about 42s remaining"),
+    ):
+        await select.async_select_option("4G Only")
+
+    logger.warning.assert_called_once()
+    logger.exception.assert_not_called()

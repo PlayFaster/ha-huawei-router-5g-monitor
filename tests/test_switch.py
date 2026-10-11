@@ -715,3 +715,38 @@ async def test_a_poll_missing_the_key_holds_the_last_position(
     mock_coordinator.data = {}
     switch._handle_coordinator_update()
     assert switch.is_on is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("switch_class", "description", "method"),
+    [
+        (HuaweiMobileDataSwitch, MOBILE_DATA_DESCRIPTION, "set_mobile_data"),
+        (HuaweiWifiSwitch, WIFI_DESCRIPTION, "set_wifi"),
+        (HuaweiGuestWifiSwitch, GUEST_WIFI_DESCRIPTION, "set_guest_wifi"),
+    ],
+)
+async def test_a_switch_inside_a_window_is_refused_with_a_warning(
+    mock_coordinator, mock_config_entry, switch_class, description, method
+):
+    """The gate's refusal is logged as a warning, without a traceback."""
+    from unittest.mock import patch
+
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+
+    setattr(
+        mock_coordinator.api,
+        method,
+        AsyncMock(side_effect=HuaweiExpectedUnavailableError("reboot", 42)),
+    )
+    switch = switch_class(mock_coordinator, mock_config_entry, description)
+    switch.hass = MagicMock()
+
+    with (
+        patch("custom_components.huawei_router_5g.switch._LOGGER") as logger,
+        pytest.raises(HomeAssistantError, match="about 42s remaining"),
+    ):
+        await switch.async_turn_on()
+
+    logger.warning.assert_called_once()
+    logger.exception.assert_not_called()

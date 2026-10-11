@@ -209,6 +209,70 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.4-dev2] - 2026-10-10 - Sessions, Retries and Outage Window: No Login on a Confirmed Refusal; Reboot and Reconnect Windows; Access Reference by Topic
+
+### Summary
+
+Second build of 1.2.4, from plan `v124_dev2_plan.md`. A read refused on a live session no longer costs a login, a dropped request is sent once more, and a live session is logged out before it is discarded. Reboot and Reconnect open an expected-outage window on the `zte_router_5g` mechanism. The answered-endpoint history survives a restart, a new SMS is found by index and content rather than by its date string, and a network mode missing from the router's list is shown. The access reference is reorganized by topic with a behavior table per model. Validated on the H165-383; the B315s-22 was unavailable.
+
+### Fixed
+
+- **Read refused on a live session raises with no login**: `_execute_with_retry` logged in again on every 100003, 125002 or 125003, and the H165-383 refuses 38 reads on a live session whatever the login. A read outside a poll is now adjudicated as the fetch loop does it, by the premise and a re-read of `device_information`, each bounded by `PREMISE_TIMEOUT` (`_read_refused_on_live_session`); a live session raises the refusal with no login and no repeat, and anything else logs in once and repeats.
+- **Dropped request sent once more**: a dropped request lost its endpoint for the whole poll; about one refusal in ten on the H165-383 is followed by a TCP close without a response. A non-critical endpoint that fails with `requests.ConnectionError` or `requests.Timeout` is sent once more within `ADJUDICATION_BUDGET` (`_call_once_more_if_dropped`), and the re-read of `device_information` after a refusal is retried the same way, so a drop after a refusal no longer fails the poll. A refusal is never retried. A recovered endpoint carries `retried: true` in the download's endpoint outcomes.
+- **Live session logged out before a reset**: the idle reset in `_ensure_client`, the reset after Reconnect and a login over an existing client dropped a session the H165-383 keeps for about 180 s, of 10 at most. They now go through `_release_session`, which logs out in a worker thread bounded by `_RELEASE_TIMEOUT` (3 s) and then resets; a failed or slow logout never stops the reset. The resets after an expiry, an unreachable router or a Reboot make no logout.
+- **New SMS detected by index and content, independent of the date**: `_check_new_sms` found new messages by comparing `Date` strings, which the H165-383 gives as local time with no offset, so a message received in the hour repeated at a clock change read as older than the last one seen. A message's identity is now its index and a hash of its sender and content (`_sms_identity`); the first poll's baseline stays, an inbox that starts empty takes the baseline, and seen identities are kept, so a message that returns to the 20 read after a delete does not fire again. The event payload is unchanged.
+- **Network mode outside the router's list shown in the select**: a current mode outside the list read unknown, because Home Assistant reports a select whose current option is not among its options as `unknown`. The current mode is added to the options, with the router's list or the full fallback set, and a write of that added mode is refused with an error naming the router's list, with no request sent.
+
+### Added
+
+- **Expected-outage window after Reboot and Reconnect**: `HuaweiExpectedUnavailableError` (a `HuaweiConnectionError`), `ExpectedOutage`, `open_expected_outage`, `close_expected_outage`, `outage_bypass` (a context variable), `refuse_during_outage` and `outage_probe` in `api.py`, and `async_start_outage_checks`, `_async_outage_check`, `_async_closing_poll`, `async_cancel_outage_check` and `outage_active` in `coordinator.py`. `_locked` refuses every request inside a window, on entry and once the lock is held, so a poll queued behind the command is refused rather than sent; the coordinator skips a poll inside a window, or one the gate refused, with no warning, strike or health change. The check reads `user/state-login` without a session every `OUTAGE_CHECK_INTERVAL` (5 s) and closes the window on the first answer through a closing poll, which passes the gate, runs while polling is paused, and counts no strike when it fails. `reboot()` opens its window only after `user/state-login` draws no answer within `REBOOT_VERIFY_SECONDS` (20 s) and raises when the router is still answering. A Reconnect window opens at once, probes every `OUTAGE_PROBE_FAST` (1 s) for a drop and closes at `OUTAGE_HOLD` (20 s) when none comes. The caps are `OUTAGE_CAP_REBOOT` (240 s) and `OUTAGE_CAP_RECONNECT` (60 s); a window past its cap counts as closed, a router silent at the cap is logged as a warning, and unload cancels the check timer. Refresh Now, Clear Traffic, the switches and the select refuse inside a window with the seconds left, the switches and select logging a warning without a traceback.
+- **One rebuilt retry of a refused write**: `HuaweiWriteRefusedError` (a `HuaweiConnectionError`) marks a write refused with a session code, and `_retry_once_on_refusal` sends the write once more after a fresh login, as `zte_router_5g` does. `RETRIED_ON_REFUSAL` names the wrapped writes: `clear_traffic_statistics`, `set_mobile_data`, `set_net_mode`, `set_wifi` and `set_guest_wifi`. SMS send, SMS delete, Reboot and Reconnect are not wrapped and raise. Every write path passes `write=True` to `_execute_with_retry`.
+- **Answered-endpoint history persisted**: the coordinator saves the set of endpoints that have answered under `answered_endpoints` in the entry's uptime store whenever the set changes (`_persist_answered`). The restored set is held apart from `api.answered_endpoints`: the health sensor reads the union, and the refusal judgement reads only the current run's set. A store written before this build loads and starts empty.
+
+### Changed
+
+- **McCabe complexity below 16**: `get_data` (18) is split into `_fetch_tasks`, `_fetch_one` and `_fetch_all`, and `_async_update_data` (19) into `_fetch_with_session_retry`, `_handle_auth_or_timeout`, `_handle_lockout` and `_handle_fetch_failure`, with no change of behavior. The maximum is 15.
+- **Reboot and Reconnect `about` texts describe the window**: the button texts and their rows in `docs/about_attribute_list.md` replace the follow-up refresh with the outage window.
+- **SMS delete check constants in ZTE's form**: `SMS_DELETE_CHECK_ATTEMPTS` and `SMS_DELETE_CHECK_INTERVAL` become `SMS_DELETE_VERIFY_SECONDS` (4) and `SMS_DELETE_VERIFY_INTERVAL` (2), a total wait and an interval, which keep three reads 2 s apart. The comment and `docs/DEVELOPMENT.md` cite the H165-383 measurement of 2026-10-09 in place of "provisional".
+- **Tests that encoded the old behavior**: the nine follow-up-refresh tests in `tests/test_coordinator.py` are replaced by outage-window tests; the SMS tracking tests seed identities, not dates; `test_reboot_success` and the reboot logout test stub the silence check; `test_the_store_record_carries_every_latch` allows the `answered_endpoints` key; `tests/test_coordinator_construction.py` checks `_outage_unsub`; the two expiry-capture tests in `tests/test_diagnostic_capture.py` set a served premise so no premise request leaves the test; the `mock_coordinator` fixture sets `supported_net_modes` to `None`, as on a coordinator before login.
+
+### Removed
+
+- **Follow-up refresh after Reboot and Reconnect**: `async_schedule_refresh` and `async_cancel_scheduled_refresh` removed from `coordinator.py`; the window's closing poll replaces them, and unload cancels the outage check instead.
+- **Refresh delay constants**: `REBOOT_REFRESH_DELAY` and `RECONNECT_REFRESH_DELAY` removed from `const.py`.
+
+### Tests
+
+- **`tests/test_api.py`**: a refused read on a live session makes no login; an expired session logs in once and repeats; a dropped request is retried and recorded; a refusal is not retried; a drop of the re-read after a refusal is not a lost session; the idle reset and the reset after Reconnect log out; an expired session and a Reboot make no logout; a hanging logout does not delay the reset; no Reboot window before the router is silent; the window opens once it is; Reconnect opens its window at once; every request inside a window is refused before it is sent; the bypass lets the closing poll through; logout is never refused.
+- **`tests/test_write_refusal.py`**: a refused wrapped write is sent once more after a fresh login; an unwrapped write refused with a session code is not resent; the registry holds only the complete-state writes.
+- **`tests/test_coordinator.py`**: nine outage-window tests (poll skipped, queued poll skipped, closing on the first answer through the bypass, silent router, Reconnect hold, cap reported, cap treated as closed, failed closing poll, timer cancelled on unload); four answered-history tests (degraded after a restart, restored name kept from the judgement, save on a change to the set alone, upgrade sequence over an old store); three SMS tests (repeated hour, reused index, empty inbox baseline).
+- **`tests/test_select.py`**, **`tests/test_button.py`**, **`tests/test_init.py`**: the added current mode and its refused write; the buttons start the outage checks and Refresh Now is refused inside a window; the delete check's sleeps follow from the total and the interval with three reads.
+- **Mutation verification**: each new behavior's test failed with the change removed: the read adjudication, the write retry, the dropped-request retry, the session release, the poll skip, the request gate, the health union with the restored set, the identity-based SMS detection (the old function restored from the last commit), the added select option and a fourth delete read. Each file was restored by copy and its bytecode deleted.
+
+### Documentation
+
+- **`docs/huawei_how_to_access.md`**: rewritten by topic (how the API is reached; connection and sessions; error codes; reads; writes and commands; SMS; field formats; library versions; not measured), each topic with a behavior table carrying a column per model and a source column. Every fact of the previous version is mapped to a section or recorded as dropped in an inventory kept with the project notes. Removed as accounts of how facts were found, with the facts kept: that an earlier revision of the document claimed the integration ran anonymously; that `Connection.logout()` hid a session leak behind a `type: ignore` for a release line; that the Clear Traffic button could not have worked before `set_clear_traffic`; that an earlier proposal would have exposed `insertstatus` in place of `type`; and that a review listed `ImeiSvn` for redaction before it was withdrawn. A country code and an operator name were removed. Section links from `docs/DEVELOPMENT.md`, a task file and the `extra_fields` notes were updated for the renamed sections "Error codes", "Connection and sessions" and "The voice group is readable".
+- **`docs/DEVELOPMENT.md`**, **`AGENTS.md`**: the wrapper's adjudication and write retry, the session release, the outage window, the persisted history, the delete-check values and the added select option.
+- **`README.md`**, **`docs/CAPABILITIES.md`**: the Reboot and Reconnect windows, the SMS event's detection and date, the `not_served` attribute across restarts, and the network mode select.
+
+### Verified
+
+- **Validation Suite**: `Fix and Validate All` of 2026-10-10 passed 35 of 35 steps: 1439 tests, coverage 100.00%, Mypy strict (17 source files), Ruff, McCabe complexity (maximum 15, `_compute_health`), Assertion Audit, Test Depth, IQS Static, Hassfest, Repo Links, Markdown Links, Sensor Manifest, Hardware Check 8/8 and Diag Check 39/39. The first run that day failed on coverage (99.17%, the new error paths) and on one test with no assertion; tests were added for each uncovered line.
+- **Live checks on the H165-383**: polling and health unchanged after the refactor (health `ok`); a refused read through the wrapper made 0 logins with the premise `refused`; after a burst of 10 logins 8 sessions opened before `108003`, so 2 were held; Reconnect refused Refresh Now with about 60 s left and closed its window through its closing poll at about 24 s; two Reboots returned once the router was silent (10.5 and 11.3 s), refused Refresh Now with about 240 s left and closed at 77.5 and 72.2 s, health `ok` throughout; a message sent from the MC7010 arrived in 2.4 s and fired one event, and two forced refreshes fired none; its delete through the service returned in 1.24 s with no wait; the select read `Auto` with the router's three options.
+
+### Notes
+
+- **Reboot window opened under the lock**: `reboot()` and `reconnect()` open their window before releasing the API lock, so a poll queued behind the command meets the gate. A window opened by the button after the call returned, as in `zte_router_5g`, would have let that poll reach a router going away.
+- **No reset follows a network-mode change**: the plan named it among the resets that discard a live session; `set_net_mode` makes none, so it has no logout.
+- **Uptime latch warning after a Reboot run 50 s after a Reconnect**: the stored connection counter was 21 s and the live counter after the reboot 25 s, so the latch logged its "moved without a counter drop" diagnostic and re-anchored correctly. A second Reboot with the counter at about 17 minutes logged no warning.
+- **Fake transport**: `dialup/dial` and `device/control` answer `100002` unless a test serves `OK`, which the new Reconnect and Reboot tests do.
+
+### Known
+
+- **No live check on the B315s-22**: the unit was offline; `Sensor: Verify HA` reports 116 issues, all on the B315 entry, and none on the H165-383 entry.
+- **The dropped-request retry is not exercised live**: a drop cannot be provoked on demand; it is covered by the fake transport.
+- **A write refused with a session code has not been seen on any model**: the wrapped retry is covered by the fake transport.
+
 ## [1.2.4-dev1] - 2026-10-09 - Login, SMS and Diagnostics: Lockout Outcome Separated; SMS Delete Checked; Phone Tokenization and Capability Values Added
 
 ### Summary
@@ -316,7 +380,7 @@ First build of 1.2.4, from plan `v124_dev1_plan.md` and the assessment of the Hu
 
 ## [1.2.3-dev16] - 2026-10-05 - Polling Engine: Distinguish Endpoint Refusals from Session Expiry
 
-Plan `v123_dev16_plan.md`. A B529s-23a (Magenta Austria, firmware 11.182.63.00.1409) failed setup with `invalid_auth` although the login worked. `api.py` read a `100003`, `125002` or `125003` from any endpoint as an expired session, so one refused optional endpoint failed the poll. The fetch loop now tells a refusal from an expiry, the diagnostics download records how it was judged, and Integration Health no longer reports a standing refusal as a lost capability.
+Plan `v123_dev16_plan.md`. A B529s-23a (Magenta Austria, firmware 11.182...) failed setup with `invalid_auth` although the login worked. `api.py` read a `100003`, `125002` or `125003` from any endpoint as an expired session, so one refused optional endpoint failed the poll. The fetch loop now tells a refusal from an expiry, the diagnostics download records how it was judged, and Integration Health no longer reports a standing refusal as a lost capability.
 
 ### Fixed
 

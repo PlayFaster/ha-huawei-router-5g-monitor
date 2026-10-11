@@ -771,8 +771,12 @@ async def test_reboot_success():
     api._client = mock_client
     api._connection = MagicMock()
 
-    with patch(
-        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    with (
+        patch(
+            "asyncio.to_thread",
+            new=AsyncMock(side_effect=lambda fn, *args: fn(*args)),
+        ),
+        patch.object(api, "_router_stopped_answering", AsyncMock(return_value=True)),
     ):
         await api.reboot()
 
@@ -2270,3 +2274,372 @@ async def test_probe_liveness_calls_a_refused_second_session_inconclusive():
 
     # The session it opened is still released.
     conn.requests_session.close.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# A refused read outside a poll costs no login (dev2 plan I4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(name="router")
+def router_fixture():
+    """Serve the fake router of `transport.py`."""
+    import requests_mock as requests_mock_module
+
+    from .transport import RouterTransport
+
+    with requests_mock_module.Mocker() as mocker:
+        yield RouterTransport(mocker)
+
+
+async def test_a_read_refused_on_a_live_session_makes_no_login(router) -> None:
+    """A 100003 on a live session is a refusal: no login and no repeat.
+
+    The H165-383 refuses 38 reads on a live session and a fresh login changes
+    none of them, so the login the wrapper used to make was wasted.
+    """
+    router.refuse("net/net-mode")
+    api = _make_api()
+
+    assert await api.read_back("net_mode") is None
+
+    assert router.logins == 1
+    assert router.authenticated_info_reads == 1
+    assert api.last_rejection == {"verdict": "refused", "code": "100003"}
+
+
+async def test_an_expired_session_on_a_read_logs_in_once_and_repeats(router) -> None:
+    """A 100003 on an ended session is an expiry: one login and one repeat."""
+    api = _make_api()
+    await api.login()
+    router.log_out()
+
+    result = await api.read_back("net_mode")
+
+    assert result is not None
+    assert router.logins == 2
+    assert api.last_rejection == {"verdict": "expired", "code": "100003"}
+
+
+# ---------------------------------------------------------------------------
+# One retry of a dropped request (dev2 plan I5)
+# ---------------------------------------------------------------------------
+
+
+async def test_a_dropped_request_is_sent_once_more_and_recorded(router) -> None:
+    """A connection the router closed is retried once, and the retry is visible."""
+    router.arm("unreachable", endpoint="monitoring/status", answers=1)
+    api = _make_api()
+
+    data = await api.get_data()
+
+    assert router.faults_served == 1
+    assert "monitoring_status" in data
+    assert api.endpoint_outcomes["monitoring_status"]["outcome"] == "answered"
+    assert api.endpoint_outcomes["monitoring_status"]["retried"] is True
+
+
+async def test_a_refusal_is_not_retried(router) -> None:
+    """A router refusal is an answer, so it is never sent again."""
+    router.arm("endpoint_error", endpoint="monitoring/status")
+    api = _make_api()
+
+    data = await api.get_data()
+
+    assert router.faults_served == 1
+    assert "monitoring_status" not in data
+    assert "retried" not in api.endpoint_outcomes["monitoring_status"]
+
+
+async def test_a_drop_after_a_refusal_is_not_a_lost_session(router) -> None:
+    """The re-read after a refusal is retried once when the router drops it.
+
+    About one refusal in ten is followed by the router closing the connection
+    (H165-383, 2026-10-09). Without the retry the re-read fails and the whole
+    poll fails with it.
+    """
+    import requests
+
+    router.refuse("net/net-mode")
+    info_reads: list[str] = []
+
+    # The poll's read, the anonymous premise check, then the re-read.
+    def _drop_the_reread(endpoint: str) -> None:
+        if endpoint == "device/information":
+            info_reads.append(endpoint)
+            if len(info_reads) == 3:
+                raise requests.ConnectionError("Remote end closed connection")
+
+    router.on_request = _drop_the_reread
+    api = _make_api()
+
+    data = await api.get_data()
+
+    assert "net_mode" not in data
+    assert api.endpoint_outcomes["net_mode"]["judged"] == "live_session"
+    assert len(info_reads) == 4
+
+
+# ---------------------------------------------------------------------------
+# A live session logged out before it is discarded (dev2 plan I6)
+# ---------------------------------------------------------------------------
+
+
+def _count_logouts(router) -> list[str]:
+    """Record every logout request the fake router receives."""
+    logouts: list[str] = []
+    router.on_request = lambda endpoint: (
+        logouts.append(endpoint) if endpoint == "user/logout" else None
+    )
+    return logouts
+
+
+async def test_the_idle_reset_logs_the_session_out(router) -> None:
+    """A session reset for idleness is still live, so it is logged out."""
+    logouts = _count_logouts(router)
+    api = _make_api()
+    await api.login()
+    api._last_activity = datetime.now(UTC) - timedelta(seconds=101)
+
+    await api.read_back("net_mode")
+
+    assert logouts == ["user/logout"]
+    assert router.logins == 2
+
+
+async def test_the_reset_after_reconnect_logs_the_session_out(router) -> None:
+    """The session survives a Reconnect, so the reset after it logs it out."""
+    logouts = _count_logouts(router)
+    router.payloads["dialup/dial"] = "OK"
+    api = _make_api()
+
+    await api.reconnect()
+
+    assert logouts == ["user/logout"]
+    assert api._client is None
+
+
+async def test_an_expired_session_is_reset_without_a_logout(router) -> None:
+    """A session that has ended has nothing to log out."""
+    logouts = _count_logouts(router)
+    api = _make_api()
+    await api.login()
+    router.log_out()
+
+    await api.read_back("net_mode")
+
+    assert logouts == []
+
+
+async def test_the_reset_after_reboot_makes_no_logout(router) -> None:
+    """The router ends the session itself when it restarts."""
+    logouts = _count_logouts(router)
+    router.payloads["device/control"] = "OK"
+    api = _make_api()
+
+    with patch.object(api, "_router_stopped_answering", AsyncMock(return_value=True)):
+        await api.reboot()
+
+    assert logouts == []
+
+
+async def test_a_logout_that_hangs_does_not_delay_the_reset(router) -> None:
+    """The logout is bounded; the reset goes ahead when the bound passes."""
+    import time
+
+    router.on_request = lambda endpoint: (
+        time.sleep(1.0) if endpoint == "user/logout" else None
+    )
+    api = _make_api()
+    await api.login()
+    started = time.monotonic()
+
+    with patch("custom_components.huawei_router_5g.api._RELEASE_TIMEOUT", 0.1):
+        await api._release_session()
+
+    assert time.monotonic() - started < 0.8
+    assert api._client is None
+
+
+# ---------------------------------------------------------------------------
+# Expected-outage window in the API (dev2 plan I7)
+# ---------------------------------------------------------------------------
+
+
+async def test_no_reboot_window_before_the_router_is_seen_silent(router) -> None:
+    """A router still answering after the verify time did not restart."""
+    router.payloads["device/control"] = "OK"
+    api = _make_api()
+
+    with (
+        patch.object(api, "_router_stopped_answering", AsyncMock(return_value=False)),
+        pytest.raises(HuaweiConnectionError, match="still answering"),
+    ):
+        await api.reboot()
+
+    assert api.expected_outage is None
+
+
+async def test_the_reboot_window_opens_once_the_router_is_silent(router) -> None:
+    """The silence is watched through `user/state-login`, with no session."""
+    import requests
+
+    router.payloads["device/control"] = "OK"
+    api = _make_api()
+    probes: list[str] = []
+
+    def _silent_after_two(endpoint: str) -> None:
+        if endpoint == "user/state-login":
+            probes.append(endpoint)
+            if len(probes) > 2:
+                raise requests.ConnectionError("router restarting")
+
+    router.on_request = _silent_after_two
+    with patch("custom_components.huawei_router_5g.api.REBOOT_VERIFY_INTERVAL", 0):
+        await api.reboot()
+
+    assert api.expected_outage is not None
+    assert api.expected_outage.reason == "reboot"
+
+
+async def test_reconnect_opens_its_window_at_once(router) -> None:
+    """A Reconnect window opens when the command returns without error."""
+    router.payloads["dialup/dial"] = "OK"
+    api = _make_api()
+
+    await api.reconnect()
+
+    assert api.expected_outage is not None
+    assert api.expected_outage.reason == "reconnect"
+
+
+async def test_every_request_inside_the_window_is_refused_before_it_is_sent(
+    router,
+) -> None:
+    """A poll or a write is refused with the reason and the seconds left."""
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+
+    api = _make_api()
+    api.open_expected_outage("reboot", 240.0)
+    sent_before = router.request_count
+
+    with pytest.raises(HuaweiExpectedUnavailableError) as poll:
+        await api.get_data()
+    with pytest.raises(HuaweiExpectedUnavailableError):
+        await api.set_mobile_data(True)
+
+    assert router.request_count == sent_before
+    assert poll.value.reason == "reboot"
+    assert 0 < poll.value.seconds_remaining <= 240
+
+
+async def test_the_bypass_lets_the_closing_poll_through(router) -> None:
+    """The window's own closing poll passes the gate."""
+    api = _make_api()
+    api.open_expected_outage("reboot", 240.0)
+
+    with api.outage_bypass():
+        data = await api.get_data()
+
+    assert "device_information" in data
+
+
+async def test_logout_is_never_refused_by_the_window(router) -> None:
+    """An unload during a window must not be refused."""
+    api = _make_api()
+    await api.login()
+    api.open_expected_outage("reboot", 240.0)
+
+    await api.logout()
+
+    assert api._client is None
+
+
+async def test_a_window_opened_while_a_request_waited_refuses_it(router) -> None:
+    """The gate is checked again once the lock is held, and the lock is freed."""
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+
+    api = _make_api()
+    await api._lock.acquire()
+    waiting = asyncio.create_task(api.get_data())
+    await asyncio.sleep(0)
+    api.open_expected_outage("reboot", 240.0)
+    api._lock.release()
+
+    with pytest.raises(HuaweiExpectedUnavailableError):
+        await waiting
+    assert not api._lock.locked()
+
+
+def test_a_drop_past_the_budget_is_not_retried() -> None:
+    """A dropped request is sent again only within `ADJUDICATION_BUDGET`."""
+    import requests
+
+    from custom_components.huawei_router_5g.api import _PollState
+
+    api = _make_api()
+    poll = _PollState(started=-1e9, generation=0)
+    calls: list[int] = []
+
+    def _drop():
+        calls.append(1)
+        raise requests.ConnectionError("Remote end closed connection")
+
+    with pytest.raises(requests.ConnectionError):
+        api._call_once_more_if_dropped(_drop, poll, "monitoring_status")
+
+    assert calls == [1]
+    assert poll.retried == set()
+
+
+@pytest.mark.parametrize(
+    ("second", "outcome"),
+    [
+        (ResponseErrorException("No support", "100002"), "refused"),
+        (OSError("still down"), "unavailable"),
+    ],
+)
+def test_a_retried_endpoint_that_still_fails_is_recorded_retried(
+    second, outcome
+) -> None:
+    """The retry is visible in the outcome however the second try ends."""
+    import requests
+
+    from custom_components.huawei_router_5g.api import _PollState
+
+    api = _make_api()
+    poll = _PollState(started=time_monotonic(), generation=0)
+    answers = [requests.ConnectionError("dropped"), second]
+
+    def _fetch():
+        raise answers.pop(0)
+
+    api._fetch_one("monitoring_status", _fetch, MagicMock(), poll, {})
+
+    assert api.endpoint_outcomes["monitoring_status"]["outcome"] == outcome
+    assert api.endpoint_outcomes["monitoring_status"]["retried"] is True
+
+
+def time_monotonic() -> float:
+    """The current monotonic time, for a poll started now."""
+    import time
+
+    return time.monotonic()
+
+
+async def test_the_outage_probe_reports_an_answering_router(router) -> None:
+    """Any answer to `user/state-login` counts."""
+    api = _make_api()
+
+    assert await api.outage_probe() is True
+
+
+async def test_a_router_that_keeps_answering_never_reads_as_stopped(router) -> None:
+    """The silence check gives up at `REBOOT_VERIFY_SECONDS`."""
+    api = _make_api()
+
+    with (
+        patch("custom_components.huawei_router_5g.api.REBOOT_VERIFY_SECONDS", 0.05),
+        patch("custom_components.huawei_router_5g.api.REBOOT_VERIFY_INTERVAL", 0.01),
+    ):
+        assert await api._router_stopped_answering() is False

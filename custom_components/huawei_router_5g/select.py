@@ -13,6 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import HuaweiExpectedUnavailableError
 from .const import NETWORK_MODE_FALLBACK, NETWORK_MODE_LABELS, network_mode_label
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity
@@ -164,11 +165,22 @@ class HuaweiRouterSelect(
 
         A router that will not publish a list keeps the full set, which is the
         pre-2026-08 behavior and no worse than it was.
+
+        **A current mode outside the list is added**, as `zte_router_5g` does.
+        Home Assistant reports a select whose current option is not among its
+        options as `unknown` (`SelectEntity.state`), so a mode set in the
+        router's own interface, or one the list omits, would otherwise not
+        show. A write of that added mode is refused in `async_select_option`.
         """
         codes = self.coordinator.supported_net_modes
         if self.entity_description.key != "network_mode" or not codes:
-            return list(self.entity_description.options or [])
-        return [network_mode_label(code) or code for code in codes]
+            options = list(self.entity_description.options or [])
+        else:
+            options = [network_mode_label(code) or code for code in codes]
+        current = self.current_option
+        if current is not None and current not in options:
+            options.append(current)
+        return options
 
     @property
     def current_option(self) -> str | None:
@@ -182,8 +194,26 @@ class HuaweiRouterSelect(
         nothing. This previously logged and returned, so a rejected network-mode
         change reported success and then silently reverted on the next poll.
         """
+        codes = self.coordinator.supported_net_modes
+        if codes and _label_to_code(option) not in codes:
+            # The current mode added to the options because the router's list
+            # omits it. The router refuses such a write (a mode outside the
+            # list answered `-1` and was not applied on the H165-383,
+            # 2026-10-09), so it is refused here with no request sent.
+            raise HomeAssistantError(
+                f"{option} is not in the router's list of network modes: "
+                + ", ".join(network_mode_label(code) or code for code in codes)
+            )
         try:
             await self.entity_description.setter_fn(self.coordinator.api, option)
+        except HuaweiExpectedUnavailableError as err:
+            _LOGGER.warning(
+                "%s: Network mode not set to %s: %s",
+                self.coordinator.entry.title,
+                option,
+                err,
+            )
+            raise HomeAssistantError(str(err)) from err
         except Exception as err:
             _LOGGER.exception(
                 "%s: Failed to set network mode to %s",
