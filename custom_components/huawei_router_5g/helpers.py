@@ -12,6 +12,7 @@ from typing import TYPE_CHECKING, Any, Protocol, cast
 
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
+from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
 from homeassistant.helpers.device_registry import DeviceInfo
 
@@ -24,6 +25,28 @@ if TYPE_CHECKING:
     from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 _LOGGER = logging.getLogger(__name__)
+
+
+class _OutageRefusal(Protocol):
+    """The fields of `api.HuaweiExpectedUnavailableError` the message needs."""
+
+    reason: str
+    seconds_remaining: int
+
+
+def expected_outage_error(err: _OutageRefusal) -> HomeAssistantError:
+    """Return the on-screen error for an action refused during an expected outage.
+
+    One translation key per reason, so the whole sentence is translatable, as
+    `zte_router_5g` does. Typed by protocol because `api` imports this module.
+    """
+    key = "router_restarting" if err.reason == "reboot" else "router_reconnecting"
+    return HomeAssistantError(
+        translation_domain=DOMAIN,
+        translation_key=key,
+        translation_placeholders={"seconds": str(err.seconds_remaining)},
+    )
+
 
 # Huawei CurrentNetworkType code → human-readable label
 _NETWORK_TYPE_MAP: dict[str, str] = {

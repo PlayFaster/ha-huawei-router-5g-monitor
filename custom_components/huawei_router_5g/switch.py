@@ -21,6 +21,7 @@ from .helpers import (
     HuaweiAboutEntity,
     HuaweiDeviceEntity,
     confirm_write,
+    expected_outage_error,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -372,7 +373,7 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
             _LOGGER.warning(
                 "%s: %s mobile data refused: %s", self._entry.title, action, err
             )
-            raise HomeAssistantError(str(err)) from err
+            raise expected_outage_error(err) from err
         except Exception as err:
             _LOGGER.exception("%s: %s mobile data failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} mobile data failed: {err}") from err
@@ -426,7 +427,7 @@ class HuaweiWifiSwitch(HuaweiSwitch):
             await self.coordinator.api.set_wifi(enable)
         except HuaweiExpectedUnavailableError as err:
             _LOGGER.warning("%s: %s WiFi refused: %s", self._entry.title, action, err)
-            raise HomeAssistantError(str(err)) from err
+            raise expected_outage_error(err) from err
         except Exception as err:
             _LOGGER.exception("%s: %s WiFi failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} WiFi failed: {err}") from err
@@ -486,7 +487,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
             _LOGGER.warning(
                 "%s: %s guest WiFi refused: %s", self._entry.title, action, err
             )
-            raise HomeAssistantError(str(err)) from err
+            raise expected_outage_error(err) from err
         except Exception as err:
             _LOGGER.exception("%s: %s guest WiFi failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} guest WiFi failed: {err}") from err

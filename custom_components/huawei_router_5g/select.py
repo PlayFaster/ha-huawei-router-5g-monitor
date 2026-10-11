@@ -14,9 +14,14 @@ from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
 from .api import HuaweiExpectedUnavailableError
-from .const import NETWORK_MODE_FALLBACK, NETWORK_MODE_LABELS, network_mode_label
+from .const import (
+    DOMAIN,
+    NETWORK_MODE_FALLBACK,
+    NETWORK_MODE_LABELS,
+    network_mode_label,
+)
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
-from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity
+from .helpers import HuaweiAboutEntity, HuaweiDeviceEntity, expected_outage_error
 
 # Section 22. `1`, not `0`.
 #
@@ -201,8 +206,14 @@ class HuaweiRouterSelect(
             # list answered `-1` and was not applied on the H165-383,
             # 2026-10-09), so it is refused here with no request sent.
             raise HomeAssistantError(
-                f"{option} is not in the router's list of network modes: "
-                + ", ".join(network_mode_label(code) or code for code in codes)
+                translation_domain=DOMAIN,
+                translation_key="network_mode_not_listed",
+                translation_placeholders={
+                    "mode": option,
+                    "modes": ", ".join(
+                        network_mode_label(code) or code for code in codes
+                    ),
+                },
             )
         try:
             await self.entity_description.setter_fn(self.coordinator.api, option)
@@ -213,7 +224,7 @@ class HuaweiRouterSelect(
                 option,
                 err,
             )
-            raise HomeAssistantError(str(err)) from err
+            raise expected_outage_error(err) from err
         except Exception as err:
             _LOGGER.exception(
                 "%s: Failed to set network mode to %s",

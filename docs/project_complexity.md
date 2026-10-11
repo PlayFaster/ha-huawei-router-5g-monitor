@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-huawei-router-5g-monitor
 
-**Last Measured:** 2026-10-11T11:51:06.082439+00:00 · **Release:** `1.2.4` · **Dev Version:** `1.2.4-dev2`
+**Last Measured:** 2026-10-11T12:31:47.383064+00:00 · **Release:** `1.2.4` · **Dev Version:** `1.2.4-dev3`
 
 ## 1. Executive Summary
 
@@ -8,7 +8,7 @@
 | :-- | :-: | :-- |
 | **PlayFaster Health Index** | **`80` / 100** | `GOOD` ($\ge 90$ Excellent · $\ge 80$ Good · $\ge 70$ Warning) |
 | **Max McCabe Complexity ($V(G)$)** | **15** | `PASS (<20)` in `_compute_health` ($< 20$ Pass · $20–23$ Warn · $\ge 24$ Fail) |
-| **Mean Complexity per Routine** | **2.81** | Across 308 routines (Ideal $< 4.0$ per routine) |
+| **Mean Complexity per Routine** | **2.81** | Across 309 routines (Ideal $< 4.0$ per routine) |
 | **Danger Routines ($\ge 20$)** | **0** | Zero tolerance (refactor or decompose) |
 | **Elevated Routines ($10–19$)** | **6** | Monitor closely; candidate for cleanup |
 | **Mean Routine Length** | **13.8 code lines** | Target $\le 15$ code lines ideal |
@@ -18,16 +18,16 @@
 | **Modules > 1,500 Code Lines** | **1** | Candidate for module decomposition |
 | **Code Suppressions (`# noqa`)** | **11** | Zero preferred; review regularly |
 | **Type Suppressions (`# type: ignore`)** | **2** | Mypy strict compliance |
-| **Source Python SLOC** | **7,715** | Across 17 files in custom_components/ (code statements) |
-| **Docstring Volume** | **1,938 lines** | Interface and contract documentation |
+| **Source Python SLOC** | **7,741** | Across 17 files in custom_components/ (code statements) |
+| **Docstring Volume** | **1,944 lines** | Interface and contract documentation |
 | **Comment Density** | **17.8%** | 1,376 inline comment lines (Healthy implementation rationale) |
-| **Platform Declarations SLOC** | **3,826 lines** | Across 7 platform files |
-| **Core Engine / Driver SLOC** | **3,889 lines** | Across 10 coordinator/API/helper files |
+| **Platform Declarations SLOC** | **3,841 lines** | Across 7 platform files |
+| **Core Engine / Driver SLOC** | **3,900 lines** | Across 10 coordinator/API/helper files |
 | **Static Entities** | **160 entities** | Scale indicator (`all_sensors.md`) |
-| **Platform SLOC / Entity** | **23.9 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
-| **Test-to-Source Ratio** | **1.85×** | 14,305 test lines ($\ge 1.5×$ recommended) |
-| **Pytest Coverage** | **100%** | 1439 tests executed |
-| **Pytest Duration** | **561.07s** | Full test suite wall-clock execution time |
+| **Platform SLOC / Entity** | **24.0 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
+| **Test-to-Source Ratio** | **1.85×** | 14,335 test lines ($\ge 1.5×$ recommended) |
+| **Pytest Coverage** | **100%** | 1441 tests executed |
+| **Pytest Duration** | **247.88s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 
@@ -86,21 +86,21 @@
 | `api.py:1378` | 14 lines | Long procedural block; consider moving architecture notes to docs |
 | `const.py:74` | 14 lines | Long procedural block; consider moving architecture notes to docs |
 | `const.py:222` | 14 lines | Long procedural block; consider moving architecture notes to docs |
-| `switch.py:164` | 14 lines | Long procedural block; consider moving architecture notes to docs |
+| `switch.py:165` | 14 lines | Long procedural block; consider moving architecture notes to docs |
 | `api.py:310` | 13 lines | Long procedural block; consider moving architecture notes to docs |
 | `const.py:24` | 13 lines | Long procedural block; consider moving architecture notes to docs |
 | `const.py:389` | 13 lines | Long procedural block; consider moving architecture notes to docs |
 | `coordinator.py:58` | 13 lines | Long procedural block; consider moving architecture notes to docs |
-| `button.py:48` | 12 lines | Long procedural block; consider moving architecture notes to docs |
-| `select.py:48` | 12 lines | Long procedural block; consider moving architecture notes to docs |
-| `select.py:94` | 12 lines | Long procedural block; consider moving architecture notes to docs |
+| `button.py:53` | 12 lines | Long procedural block; consider moving architecture notes to docs |
+| `select.py:53` | 12 lines | Long procedural block; consider moving architecture notes to docs |
+| `select.py:99` | 12 lines | Long procedural block; consider moving architecture notes to docs |
 | `sensor.py:1991` | 12 lines | Long procedural block; consider moving architecture notes to docs |
 | `sensor.py:2451` | 12 lines | Long procedural block; consider moving architecture notes to docs |
-| `switch.py:51` | 12 lines | Long procedural block; consider moving architecture notes to docs |
+| `switch.py:52` | 12 lines | Long procedural block; consider moving architecture notes to docs |
 | `api.py:1107` | 11 lines | Long procedural block; consider moving architecture notes to docs |
-| `button.py:25` | 11 lines | Long procedural block; consider moving architecture notes to docs |
-| `select.py:21` | 11 lines | Long procedural block; consider moving architecture notes to docs |
-| `switch.py:28` | 11 lines | Long procedural block; consider moving architecture notes to docs |
+| `button.py:30` | 11 lines | Long procedural block; consider moving architecture notes to docs |
+| `select.py:26` | 11 lines | Long procedural block; consider moving architecture notes to docs |
+| `switch.py:29` | 11 lines | Long procedural block; consider moving architecture notes to docs |
 | `api.py:1125` | 10 lines | Long procedural block; consider moving architecture notes to docs |
 | `binary_sensor.py:218` | 10 lines | Long procedural block; consider moving architecture notes to docs |
 | `const.py:437` | 10 lines | Long procedural block; consider moving architecture notes to docs |
@@ -111,7 +111,7 @@
 | `const.py:278` | 9 lines | Long procedural block; consider moving architecture notes to docs |
 | `diagnostics.py:149` | 9 lines | Long procedural block; consider moving architecture notes to docs |
 | `sensor.py:129` | 9 lines | Long procedural block; consider moving architecture notes to docs |
-| `switch.py:268` | 9 lines | Long procedural block; consider moving architecture notes to docs |
+| `switch.py:269` | 9 lines | Long procedural block; consider moving architecture notes to docs |
 
 ### 4.3 Routines with Comments Exceeding Code Lines
 
@@ -119,6 +119,6 @@
 | :-- | :-- | :-: | :-- |
 | `__init__` | `api.py:291` | 54 comm / 26 code | Comments exceed code statements; verify against procedural narration |
 | `__init__` | `coordinator.py:175` | 79 comm / 71 code | Comments exceed code statements; verify against procedural narration |
-| `__init__` | `switch.py:152` | 14 comm / 11 code | Comments exceed code statements; verify against procedural narration |
+| `__init__` | `switch.py:153` | 14 comm / 11 code | Comments exceed code statements; verify against procedural narration |
 | `_async_background_setup` | `__init__.py:539` | 15 comm / 14 code | Comments exceed code statements; verify against procedural narration |
 | `_record_login_metadata` | `api.py:701` | 7 comm / 6 code | Comments exceed code statements; verify against procedural narration |

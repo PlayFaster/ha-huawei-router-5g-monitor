@@ -744,9 +744,11 @@ async def test_a_switch_inside_a_window_is_refused_with_a_warning(
 
     with (
         patch("custom_components.huawei_router_5g.switch._LOGGER") as logger,
-        pytest.raises(HomeAssistantError, match="about 42s remaining"),
+        pytest.raises(HomeAssistantError) as caught,
     ):
         await switch.async_turn_on()
+
+    assert caught.value.translation_key == "router_restarting"
 
     logger.warning.assert_called_once()
     logger.exception.assert_not_called()

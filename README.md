@@ -605,8 +605,8 @@ Several settings are exposed as control entities so you can drive them from dash
 - **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Halt all polling when you need exclusive access to the router's web UI.
 - **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
 - **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch). **This works even while Pause Polling is on** — an explicit action always fetches, while scheduled polls stay paused.
-- **Reboot Router** (`button.huawei_5g_system_reboot`): Reboot the router on demand. Once the router stops answering, polls are paused and other controls are refused with the seconds left until it answers again, up to 240 s, and one poll then brings the entities up to date.
-- **Reconnect Cellular** (`button.huawei_5g_system_reconnect`): Re-establish the cellular data connection on demand. Polls are paused and other controls refused for up to 20 s, or until the router answers after dropping, up to 60 s.
+- **Reboot Router** (`button.huawei_5g_system_reboot`): Reboot the router on demand. The router is unreachable for a minute or two, and other controls show an error until it answers again. See [that error](#-the-router-is-restarting-or-the-router-is-reconnecting-its-data-connection-error).
+- **Reconnect Cellular** (`button.huawei_5g_system_reconnect`): Re-establish the cellular data connection on demand. Other controls show an error for up to twenty seconds while it completes. See [that error](#-the-router-is-restarting-or-the-router-is-reconnecting-its-data-connection-error).
 - **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
 
 > [!NOTE]
@@ -631,7 +631,7 @@ Several settings are exposed as control entities so you can drive them from dash
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware. A mode in force that the router's own list omits is shown and offered, and choosing it is refused with the router's list, since the router refuses such a write.
+- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware. See [a mode the router does not list](#-not-in-the-routers-list-of-network-modes-error).
 
 ![System Config with Dropdown](.github/images/huawei_5g_system_config_dropdown.png)
 
@@ -895,7 +895,7 @@ data:
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Detail:
 </summary><br>
 
-Fires automatically when a new incoming SMS is detected. Use as an automation trigger. A message is new when its storage index and content have not been seen since Home Assistant started; the messages held at the first poll are the baseline and fire nothing. The router's date is not used to detect a message, so a clock change cannot hide one.
+Fires automatically when a new incoming SMS is detected. Use as an automation trigger. A message is new when its storage index and content have not been seen, so a clock change cannot hide one.
 
 | Field | Type | Description |
 | :-- | :-- | :-- |
@@ -2033,6 +2033,40 @@ If you log into the router's web interface, you can pause polling with the **Pau
 - Huawei routers are generally tolerant of concurrent sessions, but some firmware models restrict simultaneous authenticated web sessions.
 - Use the **Pause Polling** switch in Home Assistant to halt background polling and free up the session.
 - Resume polling when you are done with the web UI.
+
+---
+
+</details>
+
+#### ⏳ **"The router is restarting" or "The router is reconnecting its data connection" Error**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+You see one of these messages when you use a router control while the router is briefly offline:
+
+- `The router is restarting. Try again in about N seconds.` You pressed **Reboot**. The router is unreachable for one to two minutes.
+- `The router is reconnecting its data connection. Try again in about N seconds.` You pressed **Reconnect**. The router keeps answering, and the controls are held for up to twenty seconds while the connection settles.
+
+Until the router answers again, its controls, the SMS actions and **Refresh Now** are unavailable. Sensors keep their last values. Nothing needs fixing: everything works again as soon as the router is back.
+
+---
+
+</details>
+
+#### 📶 **"Not in the router's list of network modes" Error**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- The **Preferred Network Mode** list shows the modes your router accepts, read from the router. A mode in force that the router's own list does not include is still shown, so the select never reads Unknown.
+- Choosing that mode is refused with this error, which names the router's list, because the router refuses such a change. Choose one of the listed modes instead.
 
 ---
 

@@ -208,8 +208,14 @@ async def test_a_write_of_the_added_mode_is_refused_naming_the_list(
     mock_coordinator.api.set_net_mode = AsyncMock()
     select = HuaweiRouterSelect(mock_coordinator, SELECTS[0])
 
-    with pytest.raises(HomeAssistantError, match="Auto, 5G Only, 4G Only"):
+    with pytest.raises(HomeAssistantError) as caught:
         await select.async_select_option("3G Only")
+
+    assert caught.value.translation_key == "network_mode_not_listed"
+    assert caught.value.translation_placeholders == {
+        "mode": "3G Only",
+        "modes": "Auto, 5G Only, 4G Only",
+    }
 
     mock_coordinator.api.set_net_mode.assert_not_called()
 
@@ -229,9 +235,11 @@ async def test_a_mode_change_inside_a_window_is_refused_with_a_warning(
 
     with (
         patch("custom_components.huawei_router_5g.select._LOGGER") as logger,
-        pytest.raises(HomeAssistantError, match="about 42s remaining"),
+        pytest.raises(HomeAssistantError) as caught,
     ):
         await select.async_select_option("4G Only")
+
+    assert caught.value.translation_key == "router_restarting"
 
     logger.warning.assert_called_once()
     logger.exception.assert_not_called()

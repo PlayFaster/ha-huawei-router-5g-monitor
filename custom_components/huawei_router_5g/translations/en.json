@@ -528,6 +528,15 @@
     "sms_too_long": {
       "message": "The message is {length} characters, but this router accepts at most {limit} when the text needs {encoding} encoding ({segments} segments). Shorten it, or remove any emoji and special characters to get the longer GSM-7 limit."
     },
+    "network_mode_not_listed": {
+      "message": "{mode} is not in the router's list of network modes: {modes}. Choose one of those."
+    },
+    "router_reconnecting": {
+      "message": "The router is reconnecting its data connection. Try again in about {seconds} seconds."
+    },
+    "router_restarting": {
+      "message": "The router is restarting. Try again in about {seconds} seconds."
+    },
     "write_not_confirmed": {
       "message": "The router accepted the {action} command but still reports the old setting. The change was not applied — check the router and try again."
     }
