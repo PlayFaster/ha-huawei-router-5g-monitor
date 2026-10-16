@@ -98,7 +98,7 @@ def test_the_added_endpoints_are_reached_only_through_the_table() -> None:
     source = inspect.getsource(api_module)
     literals = [
         f"{group}.{method}"
-        for _key, (group, method, _first) in LIBRARY_ADDED_ENDPOINTS.items()
+        for _key, (group, method, _first, _path) in LIBRARY_ADDED_ENDPOINTS.items()
         if re.search(rf"\.{group}\.{method}\b", source)
     ]
 
@@ -119,7 +119,7 @@ def test_each_table_entry_exists_on_a_library_at_or_above_its_first_version(
     report it as unavailable, which only this test notices when it runs on the
     new library. On an older library it has nothing to check and says so.
     """
-    group, method, first = LIBRARY_ADDED_ENDPOINTS[key]
+    group, method, first, _path = LIBRARY_ADDED_ENDPOINTS[key]
     try:
         loaded = Version(huawei_lte_api.__version__)
     except (AttributeError, InvalidVersion):
@@ -181,4 +181,29 @@ def test_named_methods_that_have_previously_been_got_wrong(group, attr) -> None:
     client = Client(MagicMock())
     assert hasattr(getattr(client, group), attr), (
         f"client.{group}.{attr} is missing from the installed huawei-lte-api"
+    )
+
+
+@pytest.mark.parametrize("key", sorted(LIBRARY_ADDED_ENDPOINTS))
+def test_each_table_path_is_the_path_its_method_reads(key: str) -> None:
+    """The path read on an older library is the one the 2.0.1 method reads.
+
+    On 1.11.0 the integration reads the router path in place of the method
+    (1.2.4-dev4, plan I7). A path that drifted from the method would read a
+    different resource on 1.11.0 than on 2.0.1, which only this test notices.
+    """
+    group, method, first, path = LIBRARY_ADDED_ENDPOINTS[key]
+    try:
+        loaded = Version(huawei_lte_api.__version__)
+    except (AttributeError, InvalidVersion):
+        pytest.skip("the loaded library version cannot be read")
+    if loaded < Version(first):
+        pytest.skip(f"library {loaded} predates {first}, so {key} has no method")
+
+    source = inspect.getsource(
+        getattr(type(getattr(Client(MagicMock()), group)), method)
+    )
+
+    assert f"'{path}'" in source or f'"{path}"' in source, (
+        f"{group}.{method} in huawei-lte-api {loaded} does not read {path!r}"
     )

@@ -71,10 +71,14 @@ async def _download(probes: dict[str, Any]) -> dict[str, Any]:
     )
 
 
-def test_the_probe_list_holds_47_entries_including_the_dial_up_switch() -> None:
-    """46 probes before 1.2.4-dev1, plus `dial_up.dialup_feature_switch`."""
+def test_the_probe_list_holds_65_entries_including_the_dial_up_switch() -> None:
+    """46 probes before 1.2.4-dev1, plus `dial_up.dialup_feature_switch`.
+
+    1.2.4-dev4 added the 18 unwrapped paths; the count moved from 47 to 65
+    intentionally (`test_diagnostic_capture` checks those 18).
+    """
     keys = [key for key, _ in _api().DIAGNOSTIC_PROBES]
-    assert len(keys) == 47
+    assert len(keys) == 65
     assert "dial_up_feature_switch" in keys
     assert set(keys) >= CAPABILITY_PROBES
 

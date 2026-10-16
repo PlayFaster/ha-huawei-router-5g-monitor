@@ -8,6 +8,7 @@ from unittest.mock import AsyncMock, MagicMock, patch
 import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
+from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
 from custom_components.huawei_router_5g.const import DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -344,6 +345,30 @@ SWEEP_DATA: dict = {
     "voice_busy": "Idle",
     "voice_volte": {"VoLTEStatus": "1"},
 }
+
+
+def pytest_configure(config: pytest.Config) -> None:
+    """Register the marker that lets a test make the real lockout read."""
+    config.addinivalue_line(
+        "markers",
+        "login_guard_read: make the real `user/state-login` read before a login",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_login_guard_read(request: pytest.FixtureRequest):
+    """Answer the pre-login lockout read with nothing reported.
+
+    `_create_connection_sync` reads `user/state-login` before every login
+    (1.2.4-dev4 I2). A test that patches `Connection` would otherwise send that
+    read to the network. The lockout tests carry `login_guard_read` and make
+    the real read against the fake transport.
+    """
+    if request.node.get_closest_marker("login_guard_read"):
+        yield
+        return
+    with patch.object(HuaweiRouter5GAPI, "_read_login_guard_sync", return_value={}):
+        yield
 
 
 @pytest.fixture(autouse=True)

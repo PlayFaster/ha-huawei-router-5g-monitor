@@ -168,7 +168,7 @@ Four questions, because the first six of the ten analysis categories are each sc
 - **Can the outcome actually happen?** Every declared finding, repair key and severity value needs one test producing it end to end, driven through a real poll with the transport faked rather than the API object replaced. `Tests: Depth Check` sweeps this.
 - **Is the value published?** Assert the string a user template compares against — `"ok"`, `"degraded"` — and prove its translation exists, not just the internal constant.
 
-**Faking the transport here means `requests_mock`, not `aioclient_mock`.** This project reaches the network through `huawei-lte-api`, which holds its own `requests.Session`, so `async_get_clientsession` is never involved. The fake router is [`tests/transport.py`](tests/transport.py) and the worked examples are in [`tests/test_transport_seam.py`](tests/test_transport_seam.py); the design record is `.shared/issues/x_project/fault_injection_options.md` §3.
+**Faking the transport here means `requests_mock`, not `aioclient_mock`.** This project reaches the network through `huawei-lte-api`, which holds its own `requests.Session`, so `async_get_clientsession` is never involved. The fake router is [`tests/transport.py`](tests/transport.py) and the worked examples are in [`tests/test_transport_seam.py`](tests/test_transport_seam.py); the design record is `.shared/issues/x_project/closed/fault_injection_options.md` §3.
 
 Long form, all ten categories: `.shared/dev_std/testing_when_writing.md` — these four are **SEQ / LIFE / REACH / PUB**.
 

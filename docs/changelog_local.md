@@ -209,6 +209,54 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.4-dev4] - 2026-10-16 - Login, Diagnostics, History and Library: Lockout Read Before Login; Unread Keys and Unwrapped Paths in the Download; Text History and Entity Reset; No Restart Repair
+
+### Summary
+
+Fourth build of 1.2.4. The lockout state is read before each login, the diagnostics download lists the payload keys no entity reads and probes 18 unwrapped paths, eight text sensors keep a transition history with change counters, and a `reset_entities` action manages which entities are enabled, the last two ported from `zte_router_5g`. The library guard installs `huawei-lte-api` 2.0.1 without the restart repair that every Home Assistant update raised. Validated on the H165-383.
+
+### Added
+
+- **Lockout read before login**: `_create_connection_sync`, used by `login` and `_login_internal`, reads `user/state-login` without a session first; with `lockstatus` 1 no login is sent and `HuaweiLockoutError` carries `remainwaittime`, and Integration Health reports the lockout at once, as `zte_router_5g` does. A missing field or a failed read lets the login proceed.
+- **Unread payload keys in the download**: `unread_keys` lists, per polled block, the key names no description reads, found by running each `value_fn` against blocks wrapped in `_KeyRecorder`; keys read outside descriptions are declared in `KEYS_READ_OUTSIDE_DESCRIPTIONS`. Names only. On the H165-383 it lists `nei_cellid`.
+- **18 unwrapped paths probed**: the paths the 2026-10-10 sweep found answering and not wrapped by the library are read by path through `_read_path`, after the existing probes, and recorded by key name; 65 probes in all.
+- **Text history and change counters**: `observations.py`, ported from `zte_router_5g`, keeps the last 20 transitions of Software Version, WAN IP Address, APN, LTE Cell ID, Operator, Carrier Build, WAN IPv6 Address and Primary DNS Server in `huawei_router_5g_<entry_id>_history`, published as unrecorded `history`, `previous_version` and `last_changed` attributes, and the populated set in `huawei_router_5g_<entry_id>_observed`. Eight `TOTAL_INCREASING` counters, only Software Version Changes enabled by default. `async_remove_entry` deletes both stores.
+- **`reset_entities` action**: ported from `zte_router_5g` with its eleven parameters, preview by default, refusals and response shape; device trackers are left out and `cleanup_unused_entities` is unchanged.
+- **Library state on Integration Health**: `library_loaded`, `library_installed`, `library_restart_pending` and `core_huawei_lte_configured`, all unrecorded.
+
+### Changed
+
+- **Library guard installs without a repair**: Home Assistant's container image ships 1.11.0, core's pin, and replaces packages an integration installed, so the guard raised `library_restart_required` after every update. It now installs 2.0.1 silently, logs one INFO line, and deletes a repair left by an earlier version at every start.
+- **2.0.1 endpoints read on any library**: below 2.0.1, `_call_added_endpoint` reads `voice/volte` and `monitoring/onekey_diag` through the library session, which is what the 2.0.1 methods do; `LIBRARY_ADDED_ENDPOINTS` gains the path as a fourth value. VoLTE and Router Diagnostics read a value on 1.11.0.
+- **`scripts/diag_check.py`**: `unsupported` is no longer a known verdict, and both added endpoints must answer on any library.
+
+### Removed
+
+- **Restart repair flow**: `LibraryRestartRepairFlow`, its strings, the `unsupported` endpoint outcome, `_log_unsupported_once` and the health sensor's `unsupported` handling.
+
+### Fixed
+
+- **Library version read on the event loop**: found during the build's live check, `library_installed` read package metadata inside the attribute, which Home Assistant logged as blocking I/O and which went stale; it reports the version the guard reads in an executor job.
+- **Tests reaching the network**: tests that patch `Connection` sent the new lockout read to the router address; an autouse fixture in `tests/conftest.py` answers it except for tests marked `login_guard_read`.
+
+### Tests
+
+- **`tests/test_login_errors.py`**: a reported lockout withholds the login on both paths; no lockout, a failed read and a missing field let it proceed; health reports the lockout at once.
+- **`tests/test_diagnostics.py`, `tests/test_diagnostic_capture.py`**: unread keys, declared readers and names only; the 18 paths probed last and recorded by name.
+- **`tests/test_text_history.py`**: transitions, the cap of 20, reload, removal, the monotonic populated set, an install with no store, and the counters.
+- **`tests/test_reset_entities.py`**: ZTE's tests against Huawei descriptions, and a device tracker untouched under four option sets.
+- **`tests/test_unsupported_endpoints.py`, `tests/test_library_guard.py`, `tests/test_library_contract.py`**: both endpoints on 1.11.0 and 2.0.1, the silent install, the four attributes and their recording, and each table path against its 2.0.1 method.
+
+### Documentation
+
+- **`README.md`**: Change History, the Reset Entities Action, the four library attributes, the lockout row, and the repairs and coexistence text without the library card.
+- **`docs/library_versions.md`, `docs/DEVELOPMENT.md`, `docs/huawei_how_to_access.md`, `docs/CAPABILITIES.md`, `docs/value_min_max.md`**: the guard and its Docker cause, the path reads, the lockout read, the unread keys, the probes, the history and the reset action, with the divergences from ZTE.
+
+### Verified
+
+- **Validation Suite**: `Fix and Validate All` of 2026-10-16 passed 35 of 35 steps: 1509 tests, coverage 100.00%, Mypy strict, Ruff, McCabe maximum 16, Sensor Manifest, Hardware Check 8 of 8 and Diag Check 39 of 39.
+- **Live checks on the H165-383 and the development instance**: listed per item in the plan's Done evidence.
+
 ## [1.2.4-dev3] - 2026-10-11 - Controls and README: Refusal Messages Translated; Troubleshooting Entries Aligned with ZTE
 
 ### Summary

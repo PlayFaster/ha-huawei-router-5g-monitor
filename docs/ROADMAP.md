@@ -36,29 +36,16 @@ What it needs: a pass over every entity description against a router in this mod
 
 **Overlap with the entity defaults and polling design, decided 2026-10-09: linked on the operating-state signal only.** The pass this item asks for, one description at a time against a router in this mode, is the same measurement the design's value-evidence layer needs, and the download already carries it as `entity_resolution`. The mode is a state that can change while the integration runs, so evidence taken only at setup, and a default that Home Assistant reads once at first registration, cannot cover it. The two share one decision: where the signal comes from that says whether the router is on a cellular link or on its WAN Ethernet port, and which layer owns it. That decision is taken once the B315s-22 diagnostics download in Ethernet mode exists. Otherwise the two are separate items and separate builds, this item first, and neither is in 1.2.4-dev2. The record is `info/entity_defaults_and_polling_design.md` §7.8 in the Huawei project's notes, and the task `tasks/per_model_entity_defaults.md`.
 
+**Long-term history for the WAN mode, once this is built.** `zte_router_5g` keeps a transition history and a change counter for its bridge or gateway mode (`opms_wan_mode`), because a reprovisioning changes it without the user acting and leaves no other trace. Huawei's text history (1.2.4-dev4) leaves that key out only because no WAN mode is read yet. When this item adds one, add it to the tracked history keys, as ZTE does.
+
 - **Value**: ⭐⭐
 - **Effort**: Medium
 
 ---
 
+**Rung 3 of the polling ladder (owner direction, 2026-10-16).** The poll rule of `.notes/tasks/poll_only_what_an_enabled_entity_reads.md` is built first and works unchanged in Ethernet mode. This entry adds one condition to it: skip the cellular endpoints while the router reports Ethernet mode, and re-probe them when it returns to mobile. A skipped endpoint uses the task's "skipped on purpose" health status. The order is that task, then the neighbor cells sensor, then this entry, then the per-model entity defaults.
+
 ## Maybe
-
-### Per-endpoint strike budgets
-
-The coordinator holds a single failure counter for the whole fetch. `api.get_data()` already tolerates individual endpoint failures by omitting them, and the Integration Health sensor now reports that — but there is no per-endpoint backoff, so a permanently dead endpoint is retried on every poll forever.
-
-Strengthened 2026-08-16 by the ecosystem review in `.notes/info/other_huawei_projects/analysis_and_learnings.md`, which reports ISP-customized firmwares from two carriers locking whole endpoint families behind `100003: No rights`. Two things make this concrete rather than theoretical:
-
-- The reference H165 already returns a permanent `100002: No support` for `monitoring.daily_data_limit`, and the fix was to **hand-remove it from the fetch list** — a manual, per-device answer to what is really a per-firmware problem. `api.py` says so in a comment.
-- `100002` and `100003` are distinguishable from a transient failure, so suppression can key off the response code rather than guessing from a strike count. `_endpoint_strikes` in `coordinator.py` already counts consecutive per-endpoint misses; the counter exists, nothing consumes it for backoff.
-
-Any suppression must re-probe periodically — `100003` can change with a firmware update or a re-login at a different auth level.
-
-Related, 2026-10-07: this entry, the persisted never-answered history and the poll narrowing are one design. Core excludes a refused endpoint for the run with no re-probe, and ZTE stores an answered set keyed to the firmware. The comparison is in `.notes/info/other_huawei_projects/core_huawei_lte_behavior_comparison.md` §6.
-
-- **Value**: ⭐⭐
-- **Effort**: Medium
-- **Trigger**: Evidence that a persistently failing endpoint is costing meaningful poll time on real hardware, **or** a user report from an ISP-locked device where a hand-edit of the fetch list is not available to them.
 
 ### New device alert
 
@@ -231,7 +218,6 @@ Recorded against cross-project chore `C-030`, whose requirement is the scan and 
 | WLAN band locking write capability     | ⭐⭐⭐ | High (Blocked) |
 | Router Ethernet mode support           | ⭐⭐   | Medium (To Be Done) |
 | New device alert                       | ⭐⭐⭐ | Medium         |
-| Per-endpoint strike budgets            | ⭐⭐   | Medium         |
 | Retire long-unseen device trackers     | ⭐⭐   | Medium         |
 | Opt out of client tracking at setup    | ⭐⭐   | Medium         |
 | Separate 2.4GHz and 5GHz WiFi switches | ⭐⭐   | Medium         |
@@ -244,6 +230,8 @@ Recorded against cross-project chore `C-030`, whose requirement is the scan and 
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| v3.8.0 | 2026-10-16 | _Per-endpoint strike budgets_ removed from Maybe: merged into the task `poll_only_what_an_enabled_entity_reads.md`, retitled "Poll only what is wanted and served". _Router Ethernet mode support_ records that it is rung 3 of the polling ladder and builds on that task's rule. |
+| v3.7.0 | 2026-10-11 | _Router Ethernet mode support_: add the WAN mode to the long-term text history once a mode is read, as ZTE tracks `opms_wan_mode`. |
 | v3.6.0 | 2026-10-10 | Added _Variant API paths for other models_ to Revisit, from the H165-383 endpoint sweep. Recorded on _Router Ethernet mode support_ the decision of 2026-10-09: linked to the entity defaults and polling design on the operating-state signal only, built separately, neither in 1.2.4-dev2. Carrier names removed from _Per-endpoint strike budgets_. |
 | v3.5.2 | 2026-10-07 | Recorded on _Router Ethernet mode support_ that it overlaps the entity defaults and polling design and that the overlap is to be decided. |
 | v3.5.1 | 2026-10-07 | **Corrected the _Router Ethernet mode support_ detail.** The 53 of 124 unknown entities were measured with a SIM fitted and not in Ethernet mode; the count with no SIM was not recorded. The v3.4.0 version row is history and is left as written. |

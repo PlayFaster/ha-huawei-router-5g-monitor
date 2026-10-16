@@ -828,6 +828,11 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
             "drift_intervals",
             "drift_measured_seconds",
             "drift_deficit_seconds",
+            # The library state (1.2.4-dev4 I7).
+            "library_loaded",
+            "library_installed",
+            "library_restart_pending",
+            "core_huawei_lte_configured",
         }
     )
 
@@ -878,6 +883,7 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
                     # is the Section 19 list of data-drift findings, and the
                     # two have never been related.
                     **self.coordinator.uptime_diagnostics,
+                    **self.coordinator.library_state,
                 }
             )
             or {}

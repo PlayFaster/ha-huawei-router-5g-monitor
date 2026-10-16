@@ -35,6 +35,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [🔍 What You Get](#-what-you-get)
   - [🔘 Controls \& Settings](#-controls--settings)
   - [💬 SMS Actions](#-sms-actions)
+  - [🧹 Reset Entities Action](#-reset-entities-action)
   - [💡 Example Automations](#-example-automations)
   - [📥 Installation](#-installation)
   - [📋 Configuration](#-configuration)
@@ -413,6 +414,39 @@ This integration features **dynamic polling**, the ability to pause polling comp
 - **Standard System Option**: Also honors Home Assistant's **System options > Enable polling for changes** toggle.
 
 ![System Configuration Controls](.github/images/huawei_5g_sensor_control_info_mini.png)
+
+---
+
+</details>
+
+<br>
+
+### 🕓 Change History
+
+Eight values keep their own record of what they changed from and when: software version, WAN IP, APN, cell ID, operator, carrier build, WAN IPv6 and primary DNS server.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+Home Assistant forgets a text value after ten days. These eight keep their history, so you can still see a software change your operator made months ago.
+
+| Sensor | Counter | Counter default |
+| :-- | :-- | :-- |
+| `Software Version` | `Software Version Changes` | **Enabled** |
+| `WAN IP Address` | `WAN IP Changes` | Disabled |
+| `APN` | `APN Changes` | Disabled |
+| `LTE Cell ID` | `Cell Changes` | Disabled |
+| `Operator` | `Operator Changes` | Disabled |
+| `Carrier Build` | `Carrier Build Changes` | Disabled |
+| `WAN IPv6 Address` | `WAN IPv6 Changes` | Disabled |
+| `Primary DNS Server` | `Primary DNS Changes` | Disabled |
+
+Each sensor on the left carries **`history`**, **`previous_version`** and **`last_changed`** attributes. Click the entity → **⋮ menu → Details** to read them.
+
+The counters put the same changes on a graph, and they reach [long-term statistics](#-long-term-statistics-lts).
 
 ---
 
@@ -914,6 +948,84 @@ See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
 </details>
 
 <br>
+
+## 🧹 Reset Entities Action
+
+`huawei_router_5g.reset_entities` manages which entities are enabled, in bulk. It exists because exploring an integration means enabling everything, and getting back to a useful set otherwise means clicking through dozens of entities or deleting and re-adding the config entry — which destroys custom names, dashboard bindings and long-term statistics.
+
+**It previews by default and changes nothing until you say so.** Every run returns what it would do; only `dry_run: false` applies it.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+### What each option does
+
+| Option | Default | Effect |
+| :-- | :-- | :-- |
+| `dry_run` | `true` | Report what would change and change nothing |
+| `reset_to_default` | `false` | Return every entity to the state this integration ships |
+| `enable_populated` | `false` | Turn on every entity your router currently supplies a value for |
+| `disable_unavailable` | `false` | Turn off entities showing Unavailable |
+| `disable_unknown` | `false` | Turn off entities showing Unknown |
+| `include_ever_populated` | `false` | Let the two Disable options also act on entities that have reported a value before |
+| `preserve_user_customized` | `false` | Leave alone any entity **you** switched off |
+| `exclude_entities` | empty | Entities to leave exactly as they are, whatever else runs |
+| `save_snapshot` | `false` | Record which entities are enabled now, as your own set |
+| `restore_snapshot` | `false` | Return to the set you saved earlier |
+
+Nothing happens with every option at its default — a choice has to be made deliberately.
+
+### The usual sequence
+
+Enable everything from the device page to see what your router offers, then:
+
+```yaml
+# 1. See what going back to the defaults would do.
+action: huawei_router_5g.reset_entities
+data:
+  reset_to_default: true
+```
+
+Read `changes.to_disable` in the response. If two of them are worth keeping, carry them through:
+
+```yaml
+# 2. Apply it, keeping the two you want.
+action: huawei_router_5g.reset_entities
+data:
+  reset_to_default: true
+  dry_run: false
+  exclude_entities:
+    - sensor.huawei_5g_system_uptime_duration
+    - sensor.huawei_5g_system_battery
+```
+
+Or, once your set is how you want it, save it and return to it whenever:
+
+```yaml
+action: huawei_router_5g.reset_entities
+data:
+  save_snapshot: true
+  dry_run: false
+```
+
+### Two protections worth knowing about
+
+**Entities that have reported a value before are not disabled** by `disable_unavailable` or `disable_unknown`. Your 5G sensors are Unavailable whenever the router drops to 4G, and turning them off then is almost never what you meant — nothing turns them back on when 5G returns. Set `include_ever_populated: true` if you genuinely want them gone.
+
+**Controls are never disabled by those options either.** A button's state is the time it was last pressed, so one you have never pressed reads Unknown — without this, `disable_unknown` would switch off Refresh Now, Reboot Router and Reconnect, including the button you would reach for to undo it.
+
+**Device trackers are never touched.** They belong to `huawei_router_5g.cleanup_unused_entities`, which removes trackers for clients the router no longer reports.
+
+### What it refuses
+
+The action stops with an error rather than guessing when the request has no single meaning: `reset_to_default` and `restore_snapshot` together, since each sets a different starting point; `save_snapshot` alongside anything that changes things, since a snapshot records what you have rather than what a call is about to make of it; `restore_snapshot` with nothing saved; and any run while the router is unreachable, since what each entity is reporting cannot be judged during an outage.
+
+</details>
+
+---
 
 ## 💡 Example Automations
 
@@ -1896,7 +2008,7 @@ It is deliberately **available at all times**, including when every other entity
 
 ### 🔨 Repairs
 
-Three conditions raise a card in Home Assistant's **Repairs** panel: the router **refusing the stored credentials**, the router **not responding** over a sustained period, and a router-library upgrade that is **waiting for a restart**. The first two need you to act before they clear. The library card clears itself at the next restart, or when you click **Fix**.
+Two conditions raise a card in Home Assistant's **Repairs** panel: the router **refusing the stored credentials**, and the router **not responding** over a sustained period. Both need you to act before they clear. A router-library upgrade waiting for a restart raises no card; Integration Health's `library_restart_pending` attribute shows it.
 
 <details>
 
@@ -1908,14 +2020,13 @@ Three conditions raise a card in Home Assistant's **Repairs** panel: the router 
 | :-- | :-- | :-- | :-- |
 | **Authentication Failed** | Router rejects stored credentials | **Repairs card** (`auth_failed`) & Integration Health (`error`) | Click **Fix** to re-enter username/password |
 | **Sustained Outage** | 10 consecutive failed polls | **Repairs card** (`conn_error`) & Integration Health (`error`) | Check power, network path, or configured IP address |
-| **Library Upgrade Pending** | The router API library has an update. The new version loads after a restart | **Repairs card** | Click **Fix** to restart Home Assistant, or leave it until your next restart. See [Running Alongside Home Assistant's Huawei LTE Integration](#-running-alongside-home-assistants-huawei-lte-integration) |
-| **Login Locked Out** | The router refuses every login after too many failed attempts (code 108007) | Integration Health (`error` after 3 held polls); the setup and reauth dialogs say the router has locked logins | Wait for the router's lock to expire. No Repairs card is raised, because the router is reachable and the credentials may be right |
+| **Login Locked Out** | The router refuses every login after too many failed attempts (code 108007) | Integration Health (`error` after 3 held polls, or at once when the router reports the lock before a login, with the seconds left); the setup and reauth dialogs say the router has locked logins | Wait for the router's lock to expire. While the router reports a lock, the integration sends no login, so it does not extend the lock. No Repairs card is raised, because the router is reachable and the credentials may be right |
 | **Transient Glitch / Reboot** | 1–3 failed poll cycles | Integration Health (`error` during outage) | None (auto-clears on next successful poll) |
 | **Firmware Schema Change** | Unrecognized or missing API fields | Integration Health (`severity: warning`, `drift` attr) | Check for integration updates or report issue |
 
 - **Actionable Issues (Repairs)**: A Repair issue is raised only when a condition persists across multiple polls and requires user intervention to resolve (such as updating credentials or checking physical router power). Non-actionable anomalies (such as API drift) report on the Integration Health sensor attributes instead.
 
-**The authentication and outage Repairs also turn the Integration Health sensor on**, so an automation watching that sensor sees these two as well, without watching the panel. The library upgrade card does not. See [Self-Diagnosis](#-self-diagnosis).
+**Both Repairs also turn the Integration Health sensor on**, so an automation watching that sensor sees them without watching the panel. See [Self-Diagnosis](#-self-diagnosis).
 
 > [!NOTE]
 >
@@ -1937,17 +2048,16 @@ You can run this integration and Home Assistant's built-in **Huawei LTE** integr
 
 | Your setup | What you will see |
 | :-- | :-- |
-| Both integrations installed | The library stays at 1.11.0, which curtails two sensors and emoji in SMS (see below). |
-| Only this integration | Nothing changes, and nothing is curtailed. If you used the core **Huawei LTE** integration before and removed it, the library it left behind is upgraded to 2.0.1 at the next start, and a **Repairs** card asks you to restart Home Assistant so the new version loads. |
+| Both integrations installed | The library stays at 1.11.0, which curtails emoji in SMS (see below). |
+| Only this integration | Nothing changes, and nothing is curtailed. If you used the core **Huawei LTE** integration before and removed it, the library it left behind is upgraded to 2.0.1 at the next start, and loads at your next restart. Nothing asks you to restart. |
 
 **What is curtailed while both are installed:**
 
-- The **VoLTE** and **Router Diagnostics** sensors show as unknown, because they need the newer library.
 - SMS messages containing emoji can arrive or send garbled. Everything else in SMS works as before.
 
-Both limits lift once the core **Huawei LTE** integration is removed: at the next start this integration upgrades the library, and the newer library handles both.
+The limit lifts once the core **Huawei LTE** integration is removed: at the next start this integration upgrades the library, and the newer library loads at your next restart. Every sensor, **VoLTE** and **Router Diagnostics** included, works on either version.
 
-**Why am I seeing a repair about a library upgrade?** The integration upgraded the router library it uses, and Home Assistant loads a new library only after a restart. Nothing is wrong. Click **Fix** to restart now, or leave the card and the upgrade takes effect the next time Home Assistant restarts. Until then the two entities above show as unknown.
+**Why does the library change after a Home Assistant update?** Each Home Assistant update ships the library at core's version, 1.11.0. This integration upgrades it again at the first start and logs one line; the upgrade loads at your next restart. Integration Health's `library_restart_pending` attribute is `true` in between. Nothing is wrong and nothing needs doing.
 
 **There is no action required here.** This integration will work, with or without the core HA Huawei LTE integration, with the API library version managed automatically. Alongside core Huawei LTE, this integration pins to the same API library version to avoid the potential for API library swapping between the two versions at restarts, with resultant log errors.
 
@@ -2094,10 +2204,14 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 | `not_served` | Which parts of the router it refuses with its own error code and has never answered on this integration entry, by name, including across restarts. These are not counted as a problem, because there was nothing to lose |
 | `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
 | `last_good_update` | When the last fully successful poll completed |
+| `library_loaded` | The `huawei-lte-api` version Home Assistant is running |
+| `library_installed` | The version on disk. Newer than `library_loaded` after the integration upgraded the library, until your next restart |
+| `library_restart_pending` | `true` when a newer library is installed and waits for your next restart. Nothing is broken meanwhile: every sensor works on either version |
+| `core_huawei_lte_configured` | `true` when Home Assistant's own Huawei LTE integration is set up, in which case this integration leaves the library at core's version |
 
 - **`severity` always has a value.** The list attributes are legitimately empty when everything is fine.
 - **Always Available**: Unlike hardware entities that drop during an outage, this sensor stays active to report the cause.
-- **Persistent Faults Only**: Flags after three consecutive failed poll cycles (or immediately on an uninitialized cold start) to avoid alerting on temporary blips.
+- **Persistent Faults Only**: Flags after three consecutive failed poll cycles (or immediately on an uninitialized cold start) to avoid alerting on temporary blips. A router that reports a login lockout is flagged at once.
 
 ---
 

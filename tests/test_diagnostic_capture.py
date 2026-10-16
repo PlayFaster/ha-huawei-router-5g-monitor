@@ -818,3 +818,60 @@ async def test_a_login_that_finishes_past_the_deadline_is_not_used() -> None:
         fresh, reason = await api._relogin_for_sweep(deadline=50.0)
 
     assert (fresh, reason) == (None, "deadline")
+
+
+# ---------------------------------------------------------------------------
+# The 18 paths the library does not wrap (1.2.4-dev4 I4)
+# ---------------------------------------------------------------------------
+
+UNWRAPPED_PATHS = (
+    "device/nbrcellinfo",
+    "device/seccellinfo",
+    "device/ri",
+    "dialup/apn-retry",
+    "monitoring/best-position-status",
+    "monitoring/best-position-result",
+    "ntwk/wlan_easymesh",
+    "lan/switch-ipmode",
+    "webserver/accessibility",
+    "security/wan-ipv6-filter",
+    "dialup/IptvProfile",
+    "dialup/voice-profiles",
+    "ntwk/childFrame",
+    "ntwk/childAppList",
+    "hilink/higame",
+    "prsite/homepage",
+    "prsite/getrandurl",
+    "appturbo/acc-list",
+)
+
+
+def _unwrapped_probes() -> list[tuple[str, Any]]:
+    probes = HuaweiRouter5GAPI.DIAGNOSTIC_PROBES
+    return [(key, call) for key, call in probes if key.startswith("path_")]
+
+
+def test_the_unwrapped_paths_are_probed_last() -> None:
+    """All 18 are probed, after every existing probe, so none is pushed out."""
+    keys = [key for key, _ in HuaweiRouter5GAPI.DIAGNOSTIC_PROBES]
+    assert len(_unwrapped_probes()) == len(UNWRAPPED_PATHS) == 18
+    assert all(key.startswith("path_") for key in keys[-18:])
+
+
+@pytest.mark.asyncio
+async def test_each_unwrapped_path_is_read_and_recorded_by_name() -> None:
+    """Each probe reads its own path on the session; only names are recorded."""
+    api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
+    client = MagicMock()
+    client.device._session.get.side_effect = lambda path: {
+        "secret_field": f"SECRET-{path}"
+    }
+    read: list[str] = []
+    for key, call in _unwrapped_probes():
+        record = await api._probe_one(call, client, key)
+        read.append(client.device._session.get.call_args.args[0])
+        assert record["outcome"] == "answered"
+        assert record["keys"] == ["secret_field"]
+        assert "values" not in record
+        assert "SECRET" not in str(record)
+    assert tuple(read) == UNWRAPPED_PATHS

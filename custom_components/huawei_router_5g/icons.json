@@ -486,6 +486,30 @@
       },
       "wired_connected": {
         "default": "mdi:lan-connect"
+      },
+      "sw_version_changes": {
+        "default": "mdi:counter"
+      },
+      "wan_ip_changes": {
+        "default": "mdi:counter"
+      },
+      "apn_changes": {
+        "default": "mdi:counter"
+      },
+      "cell_changes": {
+        "default": "mdi:counter"
+      },
+      "operator_changes": {
+        "default": "mdi:counter"
+      },
+      "carrier_build_changes": {
+        "default": "mdi:counter"
+      },
+      "wan_ipv6_changes": {
+        "default": "mdi:counter"
+      },
+      "primary_dns_changes": {
+        "default": "mdi:counter"
       }
     },
     "switch": {
@@ -545,6 +569,9 @@
     },
     "send_sms": {
       "service": "mdi:message-arrow-right"
+    },
+    "reset_entities": {
+      "service": "mdi:playlist-check"
     }
   }
 }

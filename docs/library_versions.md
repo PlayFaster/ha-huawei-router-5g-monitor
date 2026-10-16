@@ -17,7 +17,7 @@ The change addresses both:
 
 - **The exact pin became the range `>=1.11.0,<2.0.2`.** Hassfest's own guidance for a package that Home Assistant depends on is a minimum version and not an exact pin, and a range that overlaps core's pin at 1.11.0 passes the check. With a range this integration is satisfied by either version and never forces a reinstall, so the alternation stops: when core is configured, core's install decides the version.
 - **A version gate keeps the integration healthy on 1.11.0**, where two endpoints do not exist.
-- **A startup guard and a restart repair move a system without a core entry to 2.0.1.** The range alone would leave such a system on 1.11.0 indefinitely.
+- **A startup guard moves a system without a core entry to 2.0.1.** The range alone would leave such a system on 1.11.0 indefinitely. From 1.2.4-dev4 the install takes effect at the next restart the user makes, and nothing asks for one.
 
 The hassfest failure is what prompted the work. The range, and the behavior in sections 1 to 3, also repairs the behavior of systems running both integrations.
 
@@ -29,8 +29,10 @@ The hassfest failure is what prompted the work. The range, and the behavior in s
 | :-- | :-- | :-- |
 | Requirement range | `huawei-lte-api>=1.11.0,<2.0.2` | `manifest.json`, `.validate/requirements_custom.txt`, and `.validate/requirements_test.txt` through the sync |
 | Startup guard | Installs 2.0.1 when no core `huawei_lte` entry exists and the installed version is older | `custom_components/huawei_router_5g/library_guard.py` |
-| Restart repair | One fixable repair that restarts Home Assistant after a verified install | `repairs.py`, issue `library_restart_required` |
-| Version gate | Skips two endpoints that 1.11.0 lacks, by the loaded library's version | `api.py`, `LIBRARY_ADDED_ENDPOINTS` in `const.py` |
+| Library state | Four unrecorded Integration Health attributes: `library_loaded`, `library_installed`, `library_restart_pending`, `core_huawei_lte_configured` | `coordinator.py` `library_state`, `binary_sensor.py` |
+| Version gate | Reads the two endpoints 1.11.0 lacks by their router paths, `voice/volte` and `monitoring/onekey_diag`, below 2.0.1, and through the library's methods from 2.0.1 | `api.py` `_call_added_endpoint`, `LIBRARY_ADDED_ENDPOINTS` in `const.py` |
+
+**No restart repair, from 1.2.4-dev4.** Home Assistant's container image installs every core integration's requirements, so each image ships 1.11.0, core's pin. In a Docker install Home Assistant installs an integration's packages into the image's `site-packages` (`homeassistant/requirements.py`, no `target`), so the next image replaces them. The guard therefore found 1.11.0 after every Home Assistant update and raised `library_restart_required`, asking for a second restart each time. Since both 2.0.1 reads are plain reads of a router path, which 1.11.0's session can make, the guard now installs silently and logs one INFO line, and a repair raised by an earlier version is deleted at every start. Verified on the development instance on 2026-10-11 (rebuild to 2026.10.1) and 2026-10-16.
 
 The range admits 1.11.0 and 2.0.1 in practice because 2.0.0 was tagged and never published to PyPI. A release of 2.0.2 or above is outside the range and needs full testing before the range moves (section 6).
 
@@ -41,8 +43,8 @@ The range admits 1.11.0 and 2.0.1 in practice because 2.0.0 was tagged and never
 | Behaviour | 1.11.0 | 2.0.1 | Basis |
 | :-- | :-- | :-- | :-- |
 | `Voice.volte` and `Monitoring.onekey_diag` | Absent | Present | Measured: absent from the 1.11.0 package in the dev container, present on 2.0.1 |
-| The VoLTE and Router Diagnostics entities | Unknown; their endpoints are recorded `unsupported` | Populated | Measured: diagnostics download on 2026-10-05 |
-| Integration Health | `ok`; skipped endpoints are not counted as lost capabilities | `ok` | Measured |
+| The VoLTE and Router Diagnostics entities | Populated, read by path from 1.2.4-dev4 (unknown before, recorded `unsupported`) | Populated | Measured: development instance on 2026-10-16 |
+| Integration Health | `ok`; `library_restart_pending` true after a guard install until the restart | `ok` | Measured on 2026-10-16 |
 | Supplementary-plane characters in SMS (emoji) | Corrupted in both directions | Encoded as the router expects (CESU-8) | Owner test on 2026-10-04 on 1.11.0: of five emoji sent, three arrived correctly, one as a placeholder block and one as another character; of five sent to the router, only the first was received. The 2.0.0 release notes describe the CESU-8 change. The 2.0.1 behavior is inferred and has not been tested on this router |
 | `AuthorizedConnection`, `login_on_demand`, `device.reboot()`, `device.control()`, integer SMS sort types | Present | Removed | 2.0.0 release notes; this integration uses none of them |
 | Other differences | None of consequence | None of consequence | Compare of the two tags: formatting, typing and docstrings; no change to CSRF handling, retry or error mapping |
@@ -56,14 +58,14 @@ The gate reads `huawei_lte_api.__version__`, the version of the modules in memor
 
 | Core `huawei_lte` entry | Library on disk at start | What happens |
 | :-- | :-- | :-- |
-| Present, enabled or not | Any | The guard does nothing and clears any restart repair. Core's own install leaves 1.11.0 on disk |
-| Absent | 2.0.1 or later | The guard does nothing and clears any restart repair |
-| Absent | Older than 2.0.1 | The guard installs `huawei-lte-api>=2.0.1,<2.0.2` as a background task, re-reads the version, and raises the restart repair only when the re-read version is 2.0.1 or later |
+| Present, enabled or not | Any | The guard installs nothing. Core's own install leaves 1.11.0 on disk |
+| Absent | 2.0.1 or later | The guard installs nothing |
+| Absent | Older than 2.0.1 | The guard installs `huawei-lte-api>=2.0.1,<2.0.2` as a background task, re-reads the version, and logs one INFO line when the re-read version is 2.0.1 or later. No repair is raised |
 | Any | Any, with `skip_pip` set or the package in `skip_pip_packages` | The guard logs one warning and does not install |
 
 A system without a core entry reaches the third row in practice when the core integration was installed earlier and later removed, because the 1.11.0 that core installed remains on disk. A system updated from release 1.2.0 or later already has 2.0.1, because those releases pinned it.
 
-A timeout or a cancellation of the install is an unknown outcome: no repair is raised, and the next start decides from the version on disk. The installer call is shielded, so the guard's timeout of 180 seconds only stops it waiting.
+In every row the guard first deletes a `library_restart_required` repair left by a version before 1.2.4-dev4, and records the version on disk it read for `library_installed`. A timeout or a cancellation of the install is an unknown outcome, and the next start decides from the version on disk. The installer call is shielded, so the guard's timeout of 180 seconds only stops it waiting.
 
 ---
 
@@ -105,7 +107,7 @@ With a core entry present the guard does nothing and nothing else installs, so t
 
 ## 5. Accepted limits
 
-- **A config flow opened with no entries runs the guard.** An abandoned flow can leave the restart repair until the next restart. The issue is not persistent, and the guard decides again at every start.
+- **A config flow opened with no entries runs the guard.** It can install 2.0.1, which takes effect at the next restart; the guard decides again at every start.
 - **The first start after a core entry is added can fail core's import once.** pip replaces library files under a running process, as at 21:41 in section 4.1. The next restart clears it.
 - **An installation whose core entry is disabled stays on 1.11.0.** Enabling the entry later would otherwise reinstall 1.11.0.
 - **2.0.1 on this router is not tested for emoji.** The SMS effect is inferred from the release notes (section 2).
@@ -144,9 +146,9 @@ With a core entry present the guard does nothing and nothing else installs, so t
 
 Normal validation runs with the core `huawei_lte` entry absent and 2.0.1 installed, so that the library version does not depend on start order. The coexistence check is the one exception:
 
-1. Reset the dev container to 1.11.0 with `pip install huawei-lte-api==1.11.0` inside it, with no core entry, and restart. The guard must install 2.0.1 and raise the repair.
-2. Submit the repair. Home Assistant restarts and loads 2.0.1; both endpoints must read `answered` and the repair must be gone.
-3. Add the core `huawei_lte` entry with the router credentials (an owner action), restart twice, and read the library on disk and the two endpoints after each restart. The expected state is 1.11.0 and `unsupported`.
+1. Reset the dev container to 1.11.0 with `pip install huawei-lte-api==1.11.0` inside it, with no core entry, and restart. The guard must install 2.0.1 with no repair; both endpoints read `answered`; Integration Health shows 1.11.0 loaded, 2.0.1 installed and a restart pending.
+2. Restart again. 2.0.1 is loaded and no restart is pending.
+3. Add the core `huawei_lte` entry with the router credentials (an owner action), restart twice, and read the library on disk and the two endpoints after each restart. The expected state is 1.11.0, both endpoints `answered` by path, and `core_huawei_lte_configured` true.
 4. Remove the core entry, restore 2.0.1, and restart.
 
 Read the library on disk with `pip list` inside the container, the endpoint outcomes from the diagnostics download, and the repair with the repairs websocket command. The Diag Check on 1.11.0 passes only before the guard installs 2.0.1, so a repeat needs step 1 first.
@@ -157,6 +159,7 @@ Read the library on disk with `pip list` inside the container, the endpoint outc
 
 | Version | Date | Change |
 | :-- | :-- | :-- |
+| 1.3.0 | 2026-10-16 | 1.2.4-dev4: no restart repair, the two 2.0.1 endpoints read by path on 1.11.0, the Docker cause, and the four library attributes on Integration Health |
 | 1.2.0 | 2026-10-05 | Section 3 states how a system without a core entry usually reaches the upgrade row |
 | 1.1.0 | 2026-10-05 | Added the Background section: the hassfest check that rejected the exact pin, the alternation on systems with both integrations, and the change |
 | 1.0.0 | 2026-10-05 | First issue, from the plan `v123_dev15_plan.md` |

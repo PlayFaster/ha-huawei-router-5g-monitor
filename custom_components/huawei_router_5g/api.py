@@ -15,6 +15,7 @@ from math import ceil
 import time
 from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
+from xml.parsers.expat import ExpatError
 
 import huawei_lte_api
 from huawei_lte_api.Client import Client
@@ -30,6 +31,7 @@ from huawei_lte_api.exceptions import (
 )
 from packaging.version import InvalidVersion, Version
 import requests
+import xmltodict
 
 from .const import (
     ADJUDICATION_BUDGET,
@@ -72,6 +74,9 @@ def _read_library_version() -> Version | None:
 
 
 _LIBRARY_VERSION = _read_library_version()
+# Public name for the version the running process imported, for Integration
+# Health (1.2.4-dev4 I7).
+LIBRARY_LOADED_VERSION = _LIBRARY_VERSION
 
 
 def library_supports(first_version: str) -> bool:
@@ -83,16 +88,35 @@ def library_supports(first_version: str) -> bool:
     return _LIBRARY_VERSION is None or Version(first_version) <= _LIBRARY_VERSION
 
 
-def _call_added_endpoint(client: Client, key: str) -> Any:
-    """Call a library method listed in `LIBRARY_ADDED_ENDPOINTS` by its table row.
+def _read_path(path: str) -> Callable[[Client], Any]:
+    """A probe that reads one router path the library does not wrap.
 
-    Reached by name so that Mypy passes on a library that lacks the method and
-    on one that has it, without a `type: ignore` that is unused on the newer
-    one. The two calls are therefore not type-checked; `test_library_contract`
-    checks the table's names against the library instead.
+    Through the library session, as the library's own methods do, so the
+    login, the tokens and the error mapping are the library's.
     """
-    group, method, _ = LIBRARY_ADDED_ENDPOINTS[key]
-    return cast("Callable[[], Any]", getattr(getattr(client, group), method))()
+    return lambda c: c.device._session.get(path)  # noqa: SLF001 - unwrapped path
+
+
+def _call_added_endpoint(client: Client, key: str) -> Any:
+    """Read one of the two endpoints `huawei-lte-api` gained in 2.0.1.
+
+    **Read on any library version, by design.** Home Assistant's container image
+    ships 1.11.0, core `huawei_lte`'s pin, and replaces any newer copy at every
+    Home Assistant update, so 1.11.0 is what runs after each update until the
+    next restart. The 2.0.1 methods are plain reads of a router path,
+    `voice/volte` and `monitoring/onekey_diag`, so on 1.11.0 the same path is
+    read through the library session. VoLTE Status and Router Self-Diagnosis
+    therefore never read unknown for want of a restart.
+
+    On 2.0.1 or later the library's own method is called, reached by name so
+    that Mypy passes on a library that lacks it; `test_library_contract` checks
+    the table's names against the library.
+    """
+    group, method, first, path = LIBRARY_ADDED_ENDPOINTS[key]
+    endpoint = getattr(client, group)
+    if library_supports(first):
+        return cast("Callable[[], Any]", getattr(endpoint, method))()
+    return endpoint._session.get(path)  # noqa: SLF001 - the path the method reads
 
 
 def _normalize_router_url(host: str) -> str:
@@ -322,6 +346,9 @@ class HuaweiRouter5GAPI:
         # response and this wrapper never sees a raw body.
         self.last_rejection: dict[str, Any] | None = None
         self.login_metadata: dict[str, Any] = {}
+        # The lockout state read before the most recent login, from
+        # `_read_login_guard_sync`; empty where the router did not report it.
+        self.login_guard: dict[str, Any] = {}
 
         # The outcome of every endpoint in the most recent poll, by name.
         #
@@ -339,7 +366,6 @@ class HuaweiRouter5GAPI:
         # unchanged. Written per poll, so it describes one pass rather than
         # accumulating across a session.
         self.endpoint_outcomes: dict[str, Any] = {}
-        self._unsupported_logged = False
 
         # **Refusal separated from expiry** (dev16 plan I1). 100003 is both what
         # a router answers to an endpoint it refuses and what it answers once a
@@ -377,25 +403,6 @@ class HuaweiRouter5GAPI:
     def answered_endpoints(self) -> frozenset[str]:
         """Names of the endpoints that have answered since this object began."""
         return frozenset(self._answered)
-
-    def _log_unsupported_once(self) -> None:
-        """Log, once per client, which endpoints the loaded library cannot serve."""
-        if self._unsupported_logged:
-            return
-        # Called only when an endpoint has just been skipped, so the list is
-        # never empty.
-        skipped = sorted(
-            key
-            for key, (_, _, first) in LIBRARY_ADDED_ENDPOINTS.items()
-            if not library_supports(first)
-        )
-        _LOGGER.info(
-            "huawei-lte-api %s predates %s; these endpoints are skipped "
-            "and read unknown until the library is 2.0.1 or later",
-            getattr(huawei_lte_api, "__version__", "unknown"),
-            ", ".join(skipped),
-        )
-        self._unsupported_logged = True
 
     @asynccontextmanager
     async def _write_deadline(self, operation: str) -> AsyncIterator[None]:
@@ -483,6 +490,49 @@ class HuaweiRouter5GAPI:
             self._lock_owner = None
             self._lock.release()
 
+    def _read_login_guard_sync(self) -> dict[str, Any]:
+        """The router's lockout state, read without a session (blocking).
+
+        `user/state-login` answers without a login on the H165-383 and carries
+        `lockstatus`, 1 while a lockout runs and 0 otherwise, and
+        `remainwaittime`, the seconds left of it (measured 2026-10-10, three
+        wrong passwords locking logins for about 65 s). An empty result, from a
+        failed read or a router that reports neither field, lets the login
+        proceed as it did before the check existed.
+        """
+        try:
+            response = requests.get(
+                f"{self.url}/api/user/state-login", timeout=OUTAGE_CHECK_TIMEOUT
+            )
+            try:
+                parsed = xmltodict.parse(response.text)
+            finally:
+                response.close()
+        except (requests.RequestException, ExpatError):
+            return {}
+        payload = parsed.get("response") if isinstance(parsed, dict) else None
+        if not isinstance(payload, dict) or "lockstatus" not in payload:
+            return {}
+        return {
+            "locked": _safe_int(payload.get("lockstatus")) == 1,
+            "lock_seconds": _safe_int(payload.get("remainwaittime")),
+        }
+
+    def _check_login_guard_sync(self) -> None:
+        """Raise `HuaweiLockoutError` in place of a login during a lockout.
+
+        As in `zte_router_5g`, whose login reads the router's counters first: a
+        login sent while a lockout runs cannot succeed and may extend it. The
+        router reports no attempts remaining, so unlike ZTE nothing withholds a
+        login before the lockout starts.
+        """
+        self.login_guard = self._read_login_guard_sync()
+        if self.login_guard.get("locked"):
+            seconds = self.login_guard.get("lock_seconds")
+            raise HuaweiLockoutError(
+                f"Login withheld: the router reports a lockout, {seconds} s left"
+            )
+
     def _create_connection_sync(self) -> tuple[Connection, Client]:
         """Create a new Connection and Client (blocking, runs in thread).
 
@@ -491,6 +541,7 @@ class HuaweiRouter5GAPI:
         """
         if self.url is None:
             raise ValueError("Router URL is not initialized")
+        self._check_login_guard_sync()
         conn = Connection(
             self.url,
             username=self.username,
@@ -508,6 +559,10 @@ class HuaweiRouter5GAPI:
                 self._connection = conn
                 self._client = client
                 self._last_activity = datetime.now(UTC)
+            except HuaweiLockoutError:
+                self._connection = None
+                self._client = None
+                raise
             except LoginErrorUsernamePasswordOverrunException as err:
                 self._connection = None
                 self._client = None
@@ -677,6 +732,10 @@ class HuaweiRouter5GAPI:
             # A router with a session already open is answering, not down.
             _LOGGER.debug("Liveness probe refused: a session is already open")
             return None
+        except HuaweiLockoutError:
+            # A router reporting a lockout is answering, not down.
+            _LOGGER.debug("Liveness probe withheld: the router reports a lockout")
+            return None
         except Exception:
             _LOGGER.debug("Liveness probe failed", exc_info=True)
             return False
@@ -734,6 +793,11 @@ class HuaweiRouter5GAPI:
             self._client = client
             self._last_activity = datetime.now(UTC)
             self._record_login_metadata("ok")
+        except HuaweiLockoutError as err:
+            self._connection = None
+            self._client = None
+            self._record_login_metadata("lockout", type(err).__name__)
+            raise
         except LoginErrorUsernamePasswordOverrunException as err:
             self._connection = None
             self._client = None
@@ -1120,6 +1184,38 @@ class HuaweiRouter5GAPI:
         ("led_appctrlled", lambda c: c.led.appctrlled()),
         ("online_update_status", lambda c: c.online_update.status()),
         ("sms_config", lambda c: c.sms.config()),
+        # --- Not wrapped by the library, answering on the H165-383 -----------
+        #
+        # The 18 paths a GET-only sweep of the web interface's script found
+        # answering after a login on 2026-10-10 (`docs/huawei_how_to_access.md`,
+        # "Not wrapped by the library, and answering on the H165-383"). Read by
+        # path on the established session, names and counts only, and placed
+        # last so that a slow one cannot push an existing probe past the
+        # deadline.
+        ("path_device_nbrcellinfo", _read_path("device/nbrcellinfo")),
+        ("path_device_seccellinfo", _read_path("device/seccellinfo")),
+        ("path_device_ri", _read_path("device/ri")),
+        ("path_dialup_apn_retry", _read_path("dialup/apn-retry")),
+        (
+            "path_monitoring_best_position_status",
+            _read_path("monitoring/best-position-status"),
+        ),
+        (
+            "path_monitoring_best_position_result",
+            _read_path("monitoring/best-position-result"),
+        ),
+        ("path_ntwk_wlan_easymesh", _read_path("ntwk/wlan_easymesh")),
+        ("path_lan_switch_ipmode", _read_path("lan/switch-ipmode")),
+        ("path_webserver_accessibility", _read_path("webserver/accessibility")),
+        ("path_security_wan_ipv6_filter", _read_path("security/wan-ipv6-filter")),
+        ("path_dialup_iptvprofile", _read_path("dialup/IptvProfile")),
+        ("path_dialup_voice_profiles", _read_path("dialup/voice-profiles")),
+        ("path_ntwk_childframe", _read_path("ntwk/childFrame")),
+        ("path_ntwk_childapplist", _read_path("ntwk/childAppList")),
+        ("path_hilink_higame", _read_path("hilink/higame")),
+        ("path_prsite_homepage", _read_path("prsite/homepage")),
+        ("path_prsite_getrandurl", _read_path("prsite/getrandurl")),
+        ("path_appturbo_acc_list", _read_path("appturbo/acc-list")),
     )
 
     # Endpoints deliberately absent from `DIAGNOSTIC_PROBES`, so nobody adds
@@ -1550,16 +1646,6 @@ class HuaweiRouter5GAPI:
                     ", ".join(skipped),
                 )
                 break
-
-            added = LIBRARY_ADDED_ENDPOINTS.get(key)
-            if added is not None and not library_supports(added[2]):
-                # Not a fault: the loaded library predates the method.
-                # Recorded apart from `unavailable`, with no rejection
-                # and no entry in `data`, so health does not count it
-                # as a lost capability.
-                self._record_endpoint(key, "unsupported")
-                self._log_unsupported_once()
-                continue
 
             self._fetch_one(key, fetcher, client, poll, data)
         return data

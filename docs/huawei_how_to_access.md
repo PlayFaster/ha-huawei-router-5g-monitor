@@ -24,7 +24,7 @@ The three sibling projects reach their devices in three ways, and the difference
 | `zte_router_5g` | Two `goform` endpoints, resource named in a `cmd=` parameter | `cmd` / `goformId` name |
 | `huawei_router_5g` | A third-party library over a reverse-engineered XML API | Library method |
 
-The integration makes no HTTP request of its own to the router. Every call goes through [`huawei-lte-api`](https://pypi.org/project/huawei-lte-api/), which owns URL construction, XML parsing, the CSRF token and the session cookie. The unit that corresponds to an endpoint is therefore a library method, such as `client.monitoring.status()`. Three paths the library does not wrap are posted through `client.<group>._session.post_set` or read through `Connection.get`, and each is named where it is used.
+The integration makes no HTTP request of its own to the router. Every call goes through [`huawei-lte-api`](https://pypi.org/project/huawei-lte-api/), which owns URL construction, XML parsing, the CSRF token and the session cookie. The unit that corresponds to an endpoint is therefore a library method, such as `client.monitoring.status()`. Paths the library does not wrap are posted through `client.<group>._session.post_set` or read through the session's `get`, and each is named where it is used: the two 2.0.1 reads on an older library, and the 18 diagnostic probes of 1.2.4-dev4.
 
 - **A URL fault is fixed in the library, not here.** A wrongly built request is fixed by a library version change. `tests/test_library_contract.py` checks every method the integration calls against the installed package, so a rename fails the suite rather than raising `AttributeError` at run time.
 - **A library method says nothing about hardware support.** The library covers the whole HiLink family, and each model refuses part of it (see [Not supported on this hardware](#not-supported-on-this-hardware)).
@@ -311,7 +311,7 @@ Found by the endpoint sweep and not assessed as entity candidates. Five are call
 
 #### Not wrapped by the library, and answering on the H165-383
 
-A GET-only sweep on 2026-10-10 of the paths named in the H165-383's `/js/main.js` found 18 that the library does not wrap and that answer after a login. Only names and shapes are recorded; none has been assessed for an entity, and a reading's meaning is not known unless stated.
+A GET-only sweep on 2026-10-10 of the paths named in the H165-383's `/js/main.js` found 18 that the library does not wrap and that answer after a login. Only names and shapes are recorded; none has been assessed for an entity, and a reading's meaning is not known unless stated. From 1.2.4-dev4 all 18 are probed in the diagnostics download, after the other probes, read by path on the established session and recorded by key name only.
 
 | Path | Keys | Note |
 | :-- | :-- | :-- |
@@ -491,7 +491,7 @@ The block is a set of causes behind one verdict. It was decoded on 2026-08-15 by
 
 ## 🆕 Library versions
 
-The integration runs on `huawei-lte-api` 1.11.0 or 2.0.1. Home Assistant core pins 1.11.0 for its own `huawei_lte` integration, so the two methods that exist only from 2.0.1, `voice.volte` and `monitoring.onekey_diag`, are skipped on 1.11.0 and their entities read unknown. Which version runs, what each does and why both are supported are in `docs/library_versions.md`.
+The integration runs on `huawei-lte-api` 1.11.0 or 2.0.1. Home Assistant core pins 1.11.0 for its own `huawei_lte` integration, so the two methods that exist only from 2.0.1, `voice.volte` and `monitoring.onekey_diag`, are replaced on 1.11.0 by reads of their router paths, `voice/volte` and `monitoring/onekey_diag`, through the library session (from 1.2.4-dev4). Which version runs, what each does and why both are supported are in `docs/library_versions.md`.
 
 The surfaces of 1.11.0 and 2.0.1 were compared by unpacking both and enumerating every group, method signature, enum member and exception. 70 groups and 336 methods became 70 groups and 340 methods, with no new group, enum change or exception change; most signature differences are typing changes from `Dict[str, Any]` to `dict[str, Any]`.
 
@@ -512,7 +512,7 @@ The surfaces of 1.11.0 and 2.0.1 were compared by unpacking both and enumerating
 
 | Measure | H165-383 | B315s-22 |
 | :-- | :-- | :-- |
-| Lockout threshold, the code a wrong password returns, and `lockstatus` and `remainwaittime` during a lock | Not measured | Not measured |
+| Lockout threshold, the code a wrong password returns, and `lockstatus` and `remainwaittime` during a lock | Three wrong passwords lock logins for about 65 s; `lockstatus` 1 and `remainwaittime` during the lock, 0 after (2026-10-10); read before each login from 1.2.4-dev4 | Not measured |
 | Delete all across more than one inbox page | Not measured | Not measured |
 | A write refused with `100003` | Not produced | Not produced |
 | A request that draws no answer | Not produced | Not produced |

@@ -48,6 +48,7 @@ from .helpers import (
     parse_sms_list,
     project_cycle_usage,
 )
+from .observations import TRACKED
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -124,6 +125,9 @@ class HuaweiSensorEntityDescription(SensorEntityDescription):
     # sweep in `tests/test_entity_hygiene.py` fails when a description ships
     # without one, which is the only thing that keeps the set from decaying.
     about: str | None = None
+    # The tracked sensor key whose recorded transitions this counter counts
+    # (`observations.TRACKED`); None for every other sensor.
+    counts_changes_of: str | None = None
 
 
 # --- Guard Bands & Range Validation ---
@@ -2418,6 +2422,142 @@ SENSOR_TYPES: Final[tuple[HuaweiSensorEntityDescription, ...]] = (
         # fills. `test_projection_has_no_state_class` holds this.
         value_fn=_projected_bytes,
     ),
+    # Change counters (1.2.4-dev4 I5, ported from `zte_router_5g`). The
+    # transition history lives in an unrecorded attribute capped at twenty
+    # entries; these are the recorded half, a `TOTAL_INCREASING` count that
+    # gives each tracked value a long-term statistics timeline. The count is
+    # kept apart from the capped list so it keeps rising after the twenty-first
+    # change. Only Software Version's counter is enabled by default, as ZTE
+    # enables only its firmware counter.
+    HuaweiSensorEntityDescription(
+        key="sw_version_changes",
+        about=(
+            "How many times the router's software version has changed since "
+            "this integration started watching. The version sensor itself keeps "
+            "no long-term history, so this is what makes an operator's silent "
+            "update visible months later. The versions and dates are on the "
+            "Software Version sensor's history attribute."
+        ),
+        translation_key="sw_version_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        group="system",
+        min_limit=0,
+        counts_changes_of="sw_version",
+        value_fn=lambda data: None,
+    ),
+    HuaweiSensorEntityDescription(
+        key="wan_ip_changes",
+        about=(
+            "How many times the router's WAN address has changed. A rising "
+            "count means your operator is reassigning it, which breaks anything "
+            "that relied on it staying put."
+        ),
+        translation_key="wan_ip_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=0,
+        counts_changes_of="wan_ip",
+        value_fn=lambda data: None,
+    ),
+    HuaweiSensorEntityDescription(
+        key="apn_changes",
+        about=(
+            "How many times the APN in use has changed. Usually zero - a change "
+            "you did not make points at the operator reprovisioning the "
+            "connection."
+        ),
+        translation_key="apn_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=0,
+        counts_changes_of="apn",
+        value_fn=lambda data: None,
+    ),
+    HuaweiSensorEntityDescription(
+        key="cell_changes",
+        about=(
+            "How many times the router has been handed to a different LTE cell. "
+            "Unlike the others this moves on its own as the network balances "
+            "load, so the useful reading is the rate rather than the total - a "
+            "step change in handovers per day is worth looking at."
+        ),
+        translation_key="cell_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=0,
+        counts_changes_of="cell_id",
+        value_fn=lambda data: None,
+    ),
+    HuaweiSensorEntityDescription(
+        key="operator_changes",
+        about=(
+            "How many times the registered network operator has changed. On a "
+            "fixed installation this should be zero unless you have changed SIM "
+            "or the SIM has roamed."
+        ),
+        translation_key="operator_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=0,
+        counts_changes_of="operator",
+        value_fn=lambda data: None,
+    ),
+    HuaweiSensorEntityDescription(
+        key="carrier_build_changes",
+        about=(
+            "How many times the operator's configuration build on the router "
+            "has changed. Like the software version, it changes when the "
+            "operator pushes an update."
+        ),
+        translation_key="carrier_build_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=0,
+        counts_changes_of="carrier_build",
+        value_fn=lambda data: None,
+    ),
+    HuaweiSensorEntityDescription(
+        key="wan_ipv6_changes",
+        about=(
+            "How many times the router's WAN IPv6 address has changed. A rising "
+            "count means your operator is reassigning it."
+        ),
+        translation_key="wan_ipv6_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=0,
+        counts_changes_of="wan_ipv6",
+        value_fn=lambda data: None,
+    ),
+    HuaweiSensorEntityDescription(
+        key="primary_dns_changes",
+        about=(
+            "How many times the primary DNS server the operator hands out has "
+            "changed. A change you did not make points at the operator "
+            "reprovisioning the connection."
+        ),
+        translation_key="primary_dns_changes",
+        state_class=SensorStateClass.TOTAL_INCREASING,
+        entity_category=EntityCategory.DIAGNOSTIC,
+        entity_registry_enabled_default=False,
+        group="system",
+        min_limit=0,
+        counts_changes_of="primary_dns",
+        value_fn=lambda data: None,
+    ),
 )
 
 
@@ -2462,6 +2602,11 @@ class HuaweiRouterSensor(
     # holds that.
     _unrecorded_attributes = ABOUT_UNRECORDED | frozenset(
         {
+            # The transition history of the tracked text sensors, its two
+            # summary fields included (1.2.4-dev4 I5).
+            "history",
+            "previous_version",
+            "last_changed",
             # projected_usage
             "confidence",
             "cycle_start",
@@ -2507,6 +2652,13 @@ class HuaweiRouterSensor(
     @property
     def native_value(self) -> Any:
         """Return the state of the sensor."""
+        # Read before anything else: a counter's value comes from the stored
+        # record, not from the poll, so it stays readable on a cycle that
+        # returned nothing. As in `zte_router_5g`.
+        tracked = self.entity_description.counts_changes_of
+        if tracked is not None:
+            return self.coordinator.observations.change_count(tracked)
+
         if self.entity_description.key == "last_updated":
             return self.coordinator.last_update_success_time
 
@@ -2549,6 +2701,20 @@ class HuaweiRouterSensor(
         here would drop the note for that entity only, which no type checker
         and no per-entity test would notice.
         """
+        # Transition history for the values that carry it (1.2.4-dev4 I5). Text
+        # entities take no `state_class` and so produce no long-term
+        # statistics; without this the previous value is gone once the
+        # recorder purges. Listed in `_unrecorded_attributes`, so the history
+        # is never written to the database. As in `zte_router_5g`.
+        if self.entity_description.key in TRACKED:
+            entries = self.coordinator.observations.history(self.entity_description.key)
+            detail: dict[str, Any] = {}
+            if entries:
+                detail["history"] = entries
+                detail["previous_version"] = entries[-1]["from"]
+                detail["last_changed"] = entries[-1]["timestamp"]
+            return self._with_about(detail or None) or {}
+
         if self.entity_description.key == "projected_usage":
             # Documented in `docs/all_sensors.md` and the README since the
             # sensor shipped, and computed by `_Projection` since then — but

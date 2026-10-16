@@ -19,6 +19,7 @@ from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, Upda
 from homeassistant.util import dt as dt_util
 
 from .api import (
+    LIBRARY_LOADED_VERSION,
     ExpectedOutage,
     HuaweiAuthError,
     HuaweiExpectedUnavailableError,
@@ -29,6 +30,7 @@ from .api import (
 from .const import (
     CONF_SCAN_INTERVAL,
     CONF_STOP_POLLING,
+    CORE_DOMAIN,
     CRITICAL_ENDPOINT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -47,6 +49,8 @@ from .const import (
     SIGNAL_CONTRACT_KEYS,
 )
 from .helpers import get_router_model, parse_sms_list
+from .library_guard import last_installed_version
+from .observations import ObservationRecorder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -181,6 +185,9 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize the coordinator."""
         self.api = api
         self.entry = entry
+        # Transition history and the populated set (1.2.4-dev4 I5), loaded in
+        # `async_setup_entry` and written after a successful poll.
+        self.observations = ObservationRecorder(hass, entry)
         self.consecutive_failures = 0
         self.last_update_success_time: datetime | None = None
         self.last_sms_timestamp: str | None = None
@@ -498,6 +505,46 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             snapshot["issues"] = ["health_verdict_unavailable"]
             self.health_snapshot = snapshot
 
+    @property
+    def library_state(self) -> dict[str, Any]:
+        """The `huawei-lte-api` state, for Integration Health (1.2.4-dev4 I7).
+
+        The library guard installs 2.0.1 with no repair, so these attributes
+        are where a user sees that an install is waiting for a restart. The
+        version on disk is the one the guard last read, in an executor job;
+        reading the package metadata here would be file I/O on the event loop.
+        It is None until the guard has run.
+        """
+        loaded = LIBRARY_LOADED_VERSION
+        installed = last_installed_version()
+        return {
+            "library_loaded": str(loaded) if loaded is not None else None,
+            "library_installed": str(installed) if installed is not None else None,
+            "library_restart_pending": (
+                loaded is not None and installed is not None and installed > loaded
+            ),
+            "core_huawei_lte_configured": bool(
+                self.hass.config_entries.async_entries(CORE_DOMAIN)
+            ),
+        }
+
+    def _login_lockout_issue(self) -> str | None:
+        """The router's lockout state as a finding, where a lockout runs.
+
+        Read without a session before the login that was withheld, so it
+        describes this cycle. ZTE also reports one attempt left before a
+        lockout; the H165-383 reports no attempt count, so that finding has no
+        Huawei equivalent.
+        """
+        guard = getattr(self.api, "login_guard", None)
+        if not isinstance(guard, dict) or guard.get("locked") is not True:
+            return None
+        seconds = guard.get("lock_seconds")
+        return (
+            "Login lockout in progress: the router refuses every login for "
+            f"{seconds} s more"
+        )
+
     def _compute_health(
         self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
     ) -> dict[str, Any]:
@@ -522,6 +569,13 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "consecutive attempts; the values shown are the last known "
                     "good ones."
                 ]
+
+            # Reported at once rather than after the strike budget, as in
+            # `zte_router_5g`: a lockout the router reports is certain, not a blip.
+            lockout = self._login_lockout_issue()
+            if lockout is not None:
+                snapshot["severity"] = "error"
+                snapshot["issues"].insert(0, lockout)
 
             # Name which end is at fault when the probe has an answer. Without
             # this the sensor says "no successful update" for both a wedged
@@ -553,17 +607,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         # 1. Capability degradation — an endpoint `api.get_data` silently
         #    dropped. Strike-budgeted so a one-poll blip is not reported.
-        #    An endpoint the loaded library cannot serve is recorded
-        #    `unsupported` by `api.get_data` and is not a lost capability.
-        unsupported = {
-            key
-            for key, record in self.api.endpoint_outcomes.items()
-            if isinstance(record, dict) and record.get("outcome") == "unsupported"
-        }
         missing = [
             key
             for key in ENDPOINT_NAMES
-            if key != CRITICAL_ENDPOINT and key not in data and key not in unsupported
+            if key != CRITICAL_ENDPOINT and key not in data
         ]
         # **A standing refusal is not a lost capability.** An endpoint the
         # router refused with one of its own codes this poll, and that has never
@@ -1038,7 +1085,19 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 self.entry, data={**kept, **entry_data_updates}
             )
 
+        await self._async_observe(data)
         return data
+
+    async def _async_observe(self, data: dict[str, Any]) -> None:
+        """Fold a successful poll into the transition and populated records.
+
+        Runs only on the success path, so a degraded or failed poll neither
+        records a transition nor forgets a populated entity. The write is
+        skipped when nothing changed, which is almost every poll. As in
+        `zte_router_5g`.
+        """
+        if self.observations.observe(data):
+            await self.observations.async_save()
 
     # ------------------------------------------------------------------
     # State views

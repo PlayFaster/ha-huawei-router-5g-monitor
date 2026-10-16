@@ -677,6 +677,17 @@ def test_integration_health_attributes_are_all_unrecorded() -> None:
 # Keyed on (file, code) rather than line number, so ordinary edits do not
 # churn it.
 ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
+    ("observations.py", "noqa: BLE001, S112"): (
+        "Ported from `zte_router_5g`. Runs on every successful poll only to "
+        "note which entities reported a value and which tracked values "
+        "changed; a description that raises is surfaced by its own entity, and "
+        "logging here would repeat the message every poll."
+    ),
+    ("observations.py", "noqa: BLE001"): (
+        "Ported from `zte_router_5g`. The history and populated stores are "
+        "advisory: no storage fault may fail entry setup or a poll. A read "
+        "fault is counted and logged at warning and published in the download."
+    ),
     ("api.py", "noqa: SLF001"): (
         "Reaches wlan._session.post_set directly for wlan/multi-basic-settings. "
         "A public set_multi_basic_settings() exists, but it posts only "
@@ -688,7 +699,10 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "Second use, added 2026-08-15: reconnect posts dialup/dial Action 0. "
         "net/reconnect is refused by this hardware with -1: Unknown despite "
         "the library exposing it, and DialUp.dial() hardcodes Action 1, so "
-        "there is no public wrapper for the disconnect half."
+        "there is no public wrapper for the disconnect half. "
+        "Third use, added 1.2.4-dev4: `_read_path` reads the router paths the "
+        "library does not wrap, for the diagnostics probes, through the same "
+        "session the library's own methods use."
     ),
     ("api.py", "noqa: BLE001"): (
         "`probe_diagnostic_endpoints` sweeps endpoints this integration does "
@@ -697,11 +711,6 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "naming exception types would decide in advance what an unfamiliar "
         "firmware is allowed to do. Nothing is swallowed: the class name is "
         "published in the download beside the endpoint that produced it."
-    ),
-    ("device_tracker.py", "type: ignore[attr-defined]"): (
-        "ScannerEntity is re-exported from homeassistant.components.device_tracker "
-        "but is absent from its __all__, so mypy reports an implicit re-export. "
-        "The component root is the conventional import path for HA platforms."
     ),
     ("device_tracker.py", "type: ignore[misc]"): (
         "ScannerEntity.device_info is decorated @final and returns None. This "
@@ -1373,14 +1382,11 @@ def test_every_disabled_by_decision_entry_carries_a_reason() -> None:
 
 def _declared_repair_keys() -> set[str]:
     """Return every repair key the code can raise, read from `const.py`."""
-    from custom_components.huawei_router_5g.const import (
-        REPAIR_LIBRARY_RESTART,
-        REPAIR_NAMES,
-    )
+    from custom_components.huawei_router_5g.const import REPAIR_NAMES
 
-    # The library restart repair is domain-level and deliberately not in
-    # `REPAIR_NAMES`, which names the per-entry issues.
-    return {*REPAIR_NAMES, REPAIR_LIBRARY_RESTART}
+    # The library restart repair is no longer raised from 1.2.4-dev4 (plan I7);
+    # its id is kept only so a repair from an earlier version is deleted.
+    return set(REPAIR_NAMES)
 
 
 def test_every_repair_issue_has_title_and_rendered_text() -> None:
@@ -1434,14 +1440,11 @@ def test_the_fixable_repair_is_the_one_with_a_fix_flow() -> None:
     button dismisses the card without acting on it. Both fail silently, which
     is why the pairing is asserted rather than assumed.
     """
-    from custom_components.huawei_router_5g.const import (
-        REPAIR_AUTH_FAILED,
-        REPAIR_LIBRARY_RESTART,
-    )
+    from custom_components.huawei_router_5g.const import REPAIR_AUTH_FAILED
 
     issues = _translation_file("strings.json")["issues"]
     with_flow = {key for key, entry in issues.items() if entry.get("fix_flow")}
-    fixable = {REPAIR_AUTH_FAILED, REPAIR_LIBRARY_RESTART}
+    fixable = {REPAIR_AUTH_FAILED}
 
     assert with_flow == fixable, (
         f"expected only {sorted(fixable)} to carry a fix_flow, got {with_flow}"

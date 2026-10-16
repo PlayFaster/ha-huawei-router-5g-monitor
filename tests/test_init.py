@@ -73,7 +73,8 @@ async def test_async_setup_registers_services(mock_hass):
         result = await async_setup(mock_hass, {})
 
     assert result is True
-    assert mock_hass.services.async_register.call_count == 5
+    # Six from 1.2.4-dev4, which added `reset_entities`.
+    assert mock_hass.services.async_register.call_count == 6
 
     # Check registration of specific services
     calls = mock_hass.services.async_register.call_args_list
@@ -543,6 +544,7 @@ async def test_async_setup_entry_and_unload(mock_hass):
         # Setup awaits the uptime store load before spawning the background
         # task, so a patched coordinator class needs that one method awaitable.
         mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
+        mock_coord_class.return_value.observations.async_load = AsyncMock()
         # Test setup
         result = await async_setup_entry(mock_hass, mock_entry)
         assert result is True
@@ -636,6 +638,7 @@ async def test_supported_net_modes_is_read_before_the_first_refresh(mock_hass):
         # Setup awaits the uptime store load before spawning the background
         # task, so a patched coordinator class needs that one method awaitable.
         mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
+        mock_coord_class.return_value.observations.async_load = AsyncMock()
         await async_setup_entry(mock_hass, mock_entry)
         bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
 
@@ -695,6 +698,7 @@ async def test_a_failed_mode_list_read_cannot_block_the_first_refresh(mock_hass)
         # Setup awaits the uptime store load before spawning the background
         # task, so a patched coordinator class needs that one method awaitable.
         mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
+        mock_coord_class.return_value.observations.async_load = AsyncMock()
         await async_setup_entry(mock_hass, mock_entry)
         bg_task_coro = mock_entry.async_create_background_task.call_args[0][1]
 
@@ -861,3 +865,31 @@ async def test_remove_entry_clears_repairs_without_the_coordinator(mock_config_e
 
     deleted = {call.args[2] for call in delete.call_args_list}
     assert deleted == {f"{name}_{mock_config_entry.entry_id}" for name in REPAIR_NAMES}
+
+
+async def test_the_reset_entities_handler_passes_the_call_through(mock_hass):
+    """The registered handler resolves the coordinator and forwards the data."""
+    mock_hass.services.has_service.return_value = False
+    with patch(
+        "custom_components.huawei_router_5g.async_ensure_library",
+        new_callable=MagicMock,
+    ):
+        await async_setup(mock_hass, {})
+    handler = next(
+        c.args[2]
+        for c in mock_hass.services.async_register.call_args_list
+        if c.args[1] == "reset_entities"
+    )
+    call = MagicMock(data={"entry_id": "abc", "dry_run": True})
+    with (
+        patch(
+            "custom_components.huawei_router_5g._get_coordinator",
+            return_value="coordinator",
+        ),
+        patch(
+            "custom_components.huawei_router_5g.async_reset_entities",
+            new=AsyncMock(return_value={"ok": True}),
+        ) as reset,
+    ):
+        assert await handler(call) == {"ok": True}
+    reset.assert_awaited_once_with(mock_hass, "coordinator", dict(call.data))

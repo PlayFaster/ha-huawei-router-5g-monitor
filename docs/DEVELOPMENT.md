@@ -95,7 +95,7 @@ The project was built from the ground up using the latest "PlayFaster" standards
 
 ### A Fixable Repair Needs `repairs.py`, And Only One Text Field (v1.2.2-dev3)
 
-`auth_failed` was the first `is_fixable=True` repair here, and `library_restart_required` (v1.2.3-dev15) is the second, a domain-level one with its own flow in the same module. Two things about a fixable repair are easy to get wrong because neither fails loudly.
+`auth_failed` is the `is_fixable=True` repair here. `library_restart_required` (v1.2.3-dev15) was a second, domain-level one with its own flow, removed in v1.2.4-dev4 when the library guard stopped raising it. Two things about a fixable repair are easy to get wrong because neither fails loudly.
 
 **Home Assistant substitutes `ConfirmRepairFlow` when an integration ships no `repairs` platform.** That flow shows an empty confirm form and deletes the issue on submit, so the Fix button appears, is clickable, and dismisses the card without touching the credentials — a user presses it, watches the problem vanish, and is still signed out. `repairs.py` returns a flow whose confirm step calls `entry.async_start_reauth`, and `tests/test_repairs.py::test_the_fix_flow_is_ours_not_the_confirm_fallback` asserts the concrete type, so deleting the module fails rather than silently downgrading.
 
@@ -126,9 +126,27 @@ The library raises a different exception for each login code. `api.py` catches t
 
 The known limits:
 
-- **The lockout path is not tested on a router.** Each failed attempt counts toward a lockout whose threshold is unmeasured on any unit held. The task `read_the_lockout_counters_by_creating_a_lockout.md` measures it.
-- **A lockout is retried at the next poll interval.** The router's `lockstatus` and `remainwaittime` fields are not read and no timed hold is applied, because their meaning has not been observed.
+- **The lockout state is read before each login (1.2.4-dev4).** `_create_connection_sync`, which both `login` and `_login_internal` call, first reads `user/state-login` without a session. With `lockstatus` 1 no login is sent and `HuaweiLockoutError` is raised with `remainwaittime`; Integration Health reports the lockout at once, with the seconds left, as `zte_router_5g` does. With `lockstatus` 0, a field missing or the read failing, the login proceeds as before. ZTE also withholds a login with one attempt left; Huawei reports no attempt count, so that finding has no equivalent here.
+- **Measured on the H165-383 only.** Three wrong passwords locked logins for about 65 s, with `lockstatus` 1 and `remainwaittime` during the lock (2026-10-10). Another model may report neither field, in which case the login proceeds as before.
 - **A lockout at startup is logged as a generic initialization failure.** The startup login in `__init__.py` is not changed; the next poll classifies the lockout.
+
+### The Download Lists The Keys Nothing Reads (v1.2.4-dev4)
+
+`entity_resolution` says which descriptions a payload populates; `unread_keys` answers the reverse, listing per polled block the key names the router sent that nothing reads. Each description's `value_fn` runs against the payload with every block wrapped in `_KeyRecorder`, a `dict` subclass that records `get`, `[]` and `in`. Code that reads keys outside the descriptions, the class-built binary sensors, the switches, the trackers, the SMS handling, the write read-backs and Router Self-Diagnosis, declares them in `KEYS_READ_OUTSIDE_DESCRIPTIONS` in `const.py`, and a key left unread on purpose goes in `KEYS_DELIBERATELY_UNREAD`. A key added to one of those readers and not declared is listed as unread, which is the signal to declare it. Names only, never a value; a block that is not a mapping is not listed. On the H165-383 the list names `nei_cellid`, which core exposes and this project does not.
+
+### Unwrapped Paths Are Probed By Path, Names Only (v1.2.4-dev4)
+
+The 18 paths a GET-only sweep of the H165-383's web script found answering and not wrapped by `huawei-lte-api` are probed in the diagnostics download through `_read_path`, which calls the library session's `get` as the library's own methods do. They come last in `DIAGNOSTIC_PROBES`, so a slow one cannot push an existing probe past `FETCH_DEADLINE`; on the H165-383 all 65 probes ran with none cut at the deadline (2026-10-16). Key names and counts only. **Measured on the H165-383 only:** another model may refuse any of them, which the download records as `refused` with the code.
+
+### Text Sensors Keep Their Own History (v1.2.4-dev4)
+
+`observations.py` is ported from `zte_router_5g`. It keeps two stores per entry, `huawei_router_5g_<entry_id>_history` and `huawei_router_5g_<entry_id>_observed`, keyed by `entry.unique_id`, written after a successful poll only when something changed, and deleted by `async_remove_entry`. The history holds the last 20 transitions of eight sensors (`TRACKED`), each with `timestamp`, `from`, `to` and `uptime_at_change`, and is published as the unrecorded `history`, `previous_version` and `last_changed` attributes. The first reading starts a series and counts as no change. Each tracked key has a `TOTAL_INCREASING` counter, counted apart from the capped list; only Software Version's is enabled. The observed store holds the populated set, which only grows, and the `reset_entities` snapshot.
+
+Three divergences from ZTE, each forced by Huawei: a tracked value is read through its sensor description's `value_fn`, because the payload is nested by endpoint where ZTE's is flat; ZTE's counter-reset record and learned session lifetimes are not ported, because both describe ZTE's session counter and login model; and ZTE's sixth key, the bridge or gateway mode, has no Huawei sensor until Router Ethernet mode support.
+
+### `reset_entities` Is ZTE's, Without Trackers (v1.2.4-dev4)
+
+`reset_entities.py` is ported from `zte_router_5g` with the same eleven parameters, the same preview by default, the same refusals and the same response shape, `populated_history` included. The populated set it protects comes from `observations.py`. Two divergences: `reset_to_default` reads each description's `entity_registry_enabled_default`, because Huawei has no per-model defaults; and device trackers are left out, because ZTE has none and `cleanup_unused_entities` manages them here. The description catalogue is collected from each platform module's `EntityDescription` objects, so a tracker, which has none, is never reached. Per-SSID entities whose keys are built at runtime have no description either and are left alone.
 
 ### A Phone Number Is Matched By The Whole Value, Whatever Its Key (v1.2.4-dev1)
 
@@ -159,7 +177,7 @@ The known limits:
 
 Home Assistant core pins `huawei-lte-api==1.11.0` for its own `huawei_lte` integration, so this integration accepts 1.11.0 or 2.0.1 (`>=1.11.0,<2.0.2`) and a startup guard installs 2.0.1 when no core entry exists. The full record, with measurements, is in `docs/library_versions.md`. The known limits:
 
-- **On 1.11.0 two endpoints do not exist.** `voice.volte` and `monitoring.onekey_diag` are skipped and recorded `unsupported`, their entities read unknown, and Integration Health stays `ok`.
+- **On 1.11.0 two library methods do not exist.** `voice.volte` and `monitoring.onekey_diag` are read by their router paths through the library session instead (v1.2.4-dev4), so their entities read a value on either version. Each Home Assistant container update puts 1.11.0 back, so the guard installs 2.0.1 with no repair, and Integration Health's `library_loaded`, `library_installed`, `library_restart_pending` and `core_huawei_lte_configured` attributes show the state. The version on disk comes from the guard's own read in an executor job, because reading package metadata from an attribute is file I/O on the event loop.
 - **The gate is the loaded library's version, never whether the method exists.** A misspelt or renamed method on a library at or above the first version is recorded `unavailable` and fails `test_library_contract`. A check on existence would hide it.
 - **The gate reads the modules in memory, the guard reads the files on disk.** They differ between an install and the next restart, which is the interval in which the restart repair is shown.
 - **SMS containing emoji is corrupted on 1.11.0 in both directions.** 2.0.0 encodes characters outside the Basic Multilingual Plane as CESU-8; this is inferred to fix it on 2.0.1 and has not been tested on this router.

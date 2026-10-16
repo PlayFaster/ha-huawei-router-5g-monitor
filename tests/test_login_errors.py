@@ -26,7 +26,10 @@ from huawei_lte_api.exceptions import (
     LoginErrorUsernameWrongException,
 )
 import pytest
+import requests
+import requests_mock
 
+from custom_components.huawei_router_5g import api as api_module
 from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
     HuaweiLockoutError,
@@ -45,6 +48,8 @@ from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.data_entry_flow import FlowResultType
 from homeassistant.exceptions import ConfigEntryAuthFailed
 from homeassistant.helpers.update_coordinator import UpdateFailed
+
+from .transport import RouterTransport
 
 GOOD = {"device_information": {"DeviceName": "H165-383"}}
 
@@ -294,3 +299,111 @@ async def test_an_expired_session_is_still_retried_once() -> None:
         assert await coordinator._async_update_data() == GOOD
     assert len(calls) == 2
     assert coordinator.consecutive_failures == 0
+
+
+# ---------------------------------------------------------------------------
+# api.py: the lockout state read before each login (1.2.4-dev4 I2)
+# ---------------------------------------------------------------------------
+#
+# Served through the fake transport, because the read is a real request to
+# `user/state-login` and the check must stop the login POST from being sent.
+# Both login paths, `login` and `_login_internal`, are exercised (plan C8).
+
+
+@pytest.fixture(name="transport")
+def transport_fixture():
+    """Serve a working router over the `requests` transport."""
+    with requests_mock.Mocker() as mocker:
+        yield RouterTransport(mocker)
+
+
+def _lock(transport, status: str, seconds: str = "0") -> None:
+    transport.payloads["user/state-login"] = {
+        **transport.payloads["user/state-login"],
+        "lockstatus": status,
+        "remainwaittime": seconds,
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.login_guard_read
+@pytest.mark.parametrize("path", ["login", "_login_internal"])
+async def test_a_reported_lockout_withholds_the_login(transport, path) -> None:
+    """`lockstatus` 1: no login POST is sent, and a lockout is raised."""
+    _lock(transport, "1", "42")
+    api = _api()
+    with pytest.raises(HuaweiLockoutError, match="42 s left"):
+        await getattr(api, path)()
+    assert transport.logins == 0
+    assert api._client is None
+    assert api.login_guard == {"locked": True, "lock_seconds": 42}
+
+
+@pytest.mark.asyncio
+@pytest.mark.login_guard_read
+async def test_the_withheld_login_is_recorded_as_a_lockout(transport) -> None:
+    """The internal path records the withheld login as `lockout`."""
+    _lock(transport, "1", "42")
+    api = _api()
+    with pytest.raises(HuaweiLockoutError):
+        await api._login_internal()
+    assert api.login_metadata["result"] == "lockout"
+
+
+@pytest.mark.asyncio
+@pytest.mark.login_guard_read
+async def test_no_lockout_lets_the_login_proceed(transport) -> None:
+    """`lockstatus` 0: the login is sent as before."""
+    _lock(transport, "0")
+    api = _api()
+    await api.login()
+    assert transport.logins == 1
+    assert api.login_guard == {"locked": False, "lock_seconds": 0}
+
+
+@pytest.mark.asyncio
+@pytest.mark.login_guard_read
+async def test_a_failed_read_lets_the_login_proceed(transport) -> None:
+    """A read that fails leaves the login as it was before the check."""
+    _lock(transport, "1", "42")
+    api = _api()
+    with patch.object(
+        api_module.requests, "get", side_effect=requests.ConnectionError("down")
+    ):
+        await api.login()
+    assert transport.logins == 1
+    assert api.login_guard == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.login_guard_read
+async def test_a_router_without_the_field_lets_the_login_proceed(transport) -> None:
+    """A router that reports no `lockstatus` is not read as locked."""
+    api = _api()
+    await api.login()
+    assert transport.logins == 1
+    assert api.login_guard == {}
+
+
+@pytest.mark.asyncio
+@pytest.mark.login_guard_read
+async def test_health_reports_a_reported_lockout_at_once() -> None:
+    """The first withheld login names the lockout in Integration Health."""
+    coordinator = _coordinator()
+    coordinator.data = GOOD
+    coordinator.api.login_guard = {"locked": True, "lock_seconds": 30}
+    coordinator.update_health(None, failed=True, cold_start=False)
+    snapshot = coordinator.health_snapshot
+    assert snapshot["severity"] == "error"
+    assert snapshot["issues"][0].startswith("Login lockout in progress")
+    assert "30 s" in snapshot["issues"][0]
+
+
+@pytest.mark.asyncio
+async def test_a_reported_lockout_makes_the_liveness_probe_inconclusive() -> None:
+    """A router reporting a lockout is answering, so the probe says neither."""
+    api = _api()
+    with patch.object(
+        api, "_create_connection_sync", side_effect=HuaweiLockoutError("locked")
+    ):
+        assert await api.probe_liveness() is None

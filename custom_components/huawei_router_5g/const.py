@@ -200,9 +200,14 @@ CAPABILITY_BASIC_INFO_KEYS: tuple[str, ...] = ("classify", "multimode")
 # never answered with a value on any router held.
 CAPABILITY_TEXT_KEYS: frozenset[str] = frozenset({"classify"})
 
-LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str]] = {
-    "voice_volte": ("voice", "volte", "2.0.1"),
-    "onekey_diag": ("monitoring", "onekey_diag", "2.0.1"),
+# The two reads `huawei-lte-api` gained in 2.0.1: group, method, the first
+# version that has the method, and the router path the method reads. On an older
+# library the path is read directly, so the VoLTE Status and Router
+# Self-Diagnosis sensors work on either version and never wait for a restart
+# after the library guard upgrades the library (see `_call_added_endpoint`).
+LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str, str]] = {
+    "voice_volte": ("voice", "volte", "2.0.1", "voice/volte"),
+    "onekey_diag": ("monitoring", "onekey_diag", "2.0.1", "monitoring/onekey_diag"),
 }
 
 # --- Startup library guard ------------------------------------------------------
@@ -211,6 +216,9 @@ LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str]] = {
 # exists and the installed version is older (see `library_guard.py`). Core pins
 # 1.11.0 for its own integration, so while a core entry exists the guard leaves
 # the library alone. The requirement string stays inside the manifest's range.
+# The install takes effect at the next restart the user makes; nothing asks for
+# one, because every sensor works on 1.11.0. `REPAIR_LIBRARY_RESTART` is kept only
+# so a repair raised by an earlier version is deleted at startup.
 LIBRARY_PACKAGE = "huawei-lte-api"
 LIBRARY_PREFERRED_VERSION = "2.0.1"
 LIBRARY_REQUIREMENT = f"{LIBRARY_PACKAGE}>={LIBRARY_PREFERRED_VERSION},<2.0.2"
@@ -456,3 +464,46 @@ SMS_LIST_PAGE_SIZE = 50
 # in the router's host list, but a router that has aged it out is
 # indistinguishable from one that never saw it, so removal is always explicit.
 SERVICE_CLEANUP = "cleanup_unused_entities"
+
+
+# --- Payload keys read outside entity descriptions --------------------------
+#
+# Polled block -> key names read by code that is not an entity description's
+# `value_fn`: the uptime latches, Integration Health, the device trackers, the
+# client counts and the write read-backs. The diagnostics download's
+# `unread_keys` treats these as read, and the planned recording of what an
+# enabled entity reads (`poll_only_what_an_enabled_entity_reads.md`) reuses the
+# list. A key added to one of those readers is added here.
+KEYS_READ_OUTSIDE_DESCRIPTIONS: dict[str, frozenset[str]] = {
+    # Hardware metadata (`coordinator.py`) and the entry's identity at setup
+    # (`config_flow.py`).
+    "device_information": frozenset({"HardwareVersion", "MacAddress1"}),
+    # The class-built binary sensors in `binary_sensor.py` and the WiFi switch.
+    "monitoring_status": frozenset(
+        {
+            "ConnectionStatus",
+            "EndcStatus",
+            "RoamingStatus",
+            "SimStatus",
+            "WifiStatus",
+            "endcRestrictedStatus",
+        }
+    ),
+    "monitoring_check_notifications": frozenset({"SmsStorageFull"}),
+    # The write read-back of the network mode (`api.py`).
+    "net_mode": frozenset({"LTEBand", "NetworkBand"}),
+    # The SMS event and inbox handling (`coordinator.py`, `helpers.py`).
+    "sms_list": frozenset({"Messages"}),
+    "mobile_dataswitch": frozenset({"dataswitch"}),
+    # The device trackers and the client counts.
+    "wlan_host_list": frozenset({"Hosts"}),
+    "wlan_wifi_feature_switch": frozenset({"wifi_dbdc_enable"}),
+    # The WiFi switches and binary sensors, and their write read-backs.
+    "wlan_multi_basic_settings": frozenset({"DbhoEnable", "Ssids"}),
+    # Router Self-Diagnosis: the verdict and its nine reasons.
+    "onekey_diag": frozenset({DIAG_VERDICT_KEY, *DIAG_REASONS}),
+}
+
+# Polled block -> key names the integration deliberately does not read, so the
+# download does not list them as unread.
+KEYS_DELIBERATELY_UNREAD: dict[str, frozenset[str]] = {}

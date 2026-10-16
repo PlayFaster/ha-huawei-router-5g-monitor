@@ -138,7 +138,7 @@ An entity that defines its own `extra_state_attributes` must route the result th
 | LTE Transmit Power | Sensor | `transmit_power` | The router's LTE transmit power. High values indicate higher transmission power due to distance or obstruction on the uplink, and say nothing about downlink quality. Reports per-channel power readings (e.g. `PPusch:10dBm PPucch:11dBm`). |
 | LTE Uplink MCS | Sensor | `uplink_mcs` | Modulation and Coding Scheme index chosen for the LTE uplink. As with the downlink figure it is a scheduler decision, not a measurement. |
 
-## System (49)
+## System (57)
 
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
@@ -157,9 +157,12 @@ An entity that defines its own `extra_state_attributes` must route the result th
 | Polling Interval | Number | `polling_interval` | How often this integration asks the router for data, in seconds. It is saved to the config entry, so it survives a restart. Changes are debounced for two seconds so dragging the slider does not fire a poll per step; a pending change is flushed if the entity is removed mid-debounce rather than silently discarded. |
 | Preferred Network Mode | Select | `network_mode` | Restricts which radio technologies the router may use. `Auto` lets it choose. Pinning to a single mode can stabilize a marginal connection or can strand it entirely if that mode is unavailable where the router sits. Preferred Network Mode, the sensor, reads back what the router says is in force. |
 | APN | Sensor | `apn` | The access point name the active data profile is dialing. Different APNs on the same SIM can mean different addressing and different traffic treatment. |
+| APN Changes | Sensor | `apn_changes` | How many times the APN in use has changed. Usually zero - a change you did not make points at the operator reprovisioning the connection. |
 | APN Profile | Sensor | `apn_profile` | The name of the dial-up profile the APN comes from. The router returns its profiles out of order, so the active one is resolved by matching its index rather than by list position. |
 | Battery | Sensor | `battery` | Battery charge, on the models that have one. This router family is mains-powered in most variants, so the entity is disabled by default and stays unavailable where there is no battery. |
 | Carrier Build | Sensor | `carrier_build` | The operator-specific build identifier baked into the firmware. It identifies which carrier customization is loaded, which is what decides whether a given feature or endpoint exists at all. |
+| Carrier Build Changes | Sensor | `carrier_build_changes` | How many times the operator's configuration build on the router has changed. Like the software version, it changes when the operator pushes an update. |
+| Cell Changes | Sensor | `cell_changes` | How many times the router has been handed to a different LTE cell. Unlike the others this moves on its own as the network balances load, so the useful reading is the rate rather than the total - a step change in handovers per day is worth looking at. |
 | Country Code | Sensor | `country_code` | The country the router believes it is operating in, which governs which radio and WiFi channels it will use. |
 | Connection Duration | Sensor | `current_connection_duration` | How long the current mobile data session has been up, in seconds. Disabled by default in favor of Connection Uptime, which says the same thing as a fixed point in time. |
 | Connection Uptime | Sensor | `current_connection_timestamp` | The moment the current mobile data session was established. A reset here without a router restart means the data connection dropped and came back - the router itself stayed up. |
@@ -171,7 +174,9 @@ An entity that defines its own `extra_state_attributes` must route the result th
 | MCC MNC | Sensor | `mcc_mnc` | The mobile country and network codes of the SIM's home operator. This is the SIM's home network, which is not necessarily the network the router is registered to right now - compare with Operator Code to see roaming. |
 | Model Name | Sensor | `model_name` | The router's model as it reports it. Read once at setup and stored on the config entry, so it stays correct even when the router is unreachable. |
 | MTU | Sensor | `mtu` | Maximum transmission unit of the mobile data connection. Relevant when tunneling or when large packets stall; the operator usually sets it. |
+| Operator Changes | Sensor | `operator_changes` | How many times the registered network operator has changed. On a fixed installation this should be zero unless you have changed SIM or the SIM has roamed. |
 | Primary DNS Server | Sensor | `primary_dns` | First IPv4 DNS server the operator handed the router. Devices on the LAN are usually pointed at the router itself, which forwards here, so this is what resolves names in practice unless something overrides it. |
+| Primary DNS Changes | Sensor | `primary_dns_changes` | How many times the primary DNS server the operator hands out has changed. A change you did not make points at the operator reprovisioning the connection. |
 | Primary IPv6 DNS Server | Sensor | `primary_ipv6_dns` | First IPv6 DNS server the operator handed the router. Blank wherever the operator provides no IPv6 service, which is the usual case on a mobile data plan. |
 | Product Name | Sensor | `product_name` | The marketing product name the firmware carries, which is often longer and friendlier than Model Name and occasionally disagrees with it. |
 | Secondary DNS Server | Sensor | `secondary_dns` | Second IPv4 DNS server the operator handed the router, used when the first does not answer. A blank value is common and is not a fault. |
@@ -180,6 +185,7 @@ An entity that defines its own `extra_state_attributes` must route the result th
 | SIM Number | Sensor | `sim_number` | The phone number the SIM reports, where the operator has written one to the card. Many data SIMs leave this blank, which is not a fault. |
 | Supported Modes | Sensor | `supported_modes` | The radio modes this hardware and firmware combination can offer. It is the ceiling on what Preferred Network Mode can be set to, not a statement of what is in use. |
 | Software Version | Sensor | `sw_version` | Firmware version running on the router. Huawei ships the firmware and the web interface separately, so this and Web UI Version move independently and disagreeing versions are not a fault. |
+| Software Version Changes | Sensor | `sw_version_changes` | How many times the router's software version has changed since this integration started watching. The version sensor itself keeps no long-term history, so this is what makes an operator's silent update visible months later. The versions and dates are on the Software Version sensor's history attribute. |
 | Total Duration | Sensor | `total_connection_time` | Lifetime total of all connected time, in seconds, as the router counts it. Connected time, not elapsed time: it does not advance while the link is down. Disabled by default. |
 | Total Uptime | Sensor | `total_connection_timestamp` | Total Duration expressed as a point in time. It is not the date the router was first used - it is now minus the accumulated connected time, so any offline period shifts it forward. |
 | Uptime Duration | Sensor | `uptime` | How long the router has been powered on, in seconds. Disabled by default because Uptime, which expresses the same fact as a timestamp, is the better one to display. |
@@ -187,7 +193,9 @@ An entity that defines its own `extra_state_attributes` must route the result th
 | WAN DNS | Sensor | `wan_dns` | The full IPv4 DNS server list as the WAN block reports it. Primary and Secondary DNS Server split the same information into two readable entities; this one is the unsplit source. |
 | WAN DNS IPv6 | Sensor | `wan_dns_ipv6` | The full IPv6 DNS server list as the WAN block reports it - the unsplit source behind the two IPv6 DNS entities. |
 | WAN IP Address | Sensor | `wan_ip` | The IPv4 address the operator has assigned to the router's WAN. Usually a carrier-grade NAT address rather than a publicly reachable one. |
+| WAN IP Changes | Sensor | `wan_ip_changes` | How many times the router's WAN address has changed. A rising count means your operator is reassigning it, which breaks anything that relied on it staying put. |
 | WAN IPv6 Address | Sensor | `wan_ipv6` | The IPv6 address assigned to the router's WAN, where the operator provides IPv6 at all. |
+| WAN IPv6 Changes | Sensor | `wan_ipv6_changes` | How many times the router's WAN IPv6 address has changed. A rising count means your operator is reassigning it. |
 | Web UI Version | Sensor | `web_ui_version` | Version of the router's own web interface, which Huawei ships and updates separately from the firmware - the two versions moving independently is normal. |
 | Mobile Data | Switch | `mobile_data` | Turns the mobile data connection on or off. The LAN and WiFi are unaffected, so this does not disconnect local devices from each other - only from the internet. A refusal by the router raises an error rather than reporting an unearned success. |
 | Pause Polling | Switch | `pause_polling` | Stops the scheduled polling without removing the integration. Entities hold their last values rather than going unavailable. Explicit actions - Refresh Now, and the refresh after a control change - still reach the router while this is on. |

@@ -193,6 +193,7 @@ async def test_setup_registers_the_listener() -> None:
         # Setup awaits the uptime store load before spawning the background
         # task, so a patched coordinator class needs that one method awaitable.
         mock_coord_class.return_value.async_load_stored_uptime = AsyncMock()
+        mock_coord_class.return_value.observations.async_load = AsyncMock()
         assert await async_setup_entry(hass, entry) is True
 
     entry.add_update_listener.assert_called_once_with(_async_options_updated)

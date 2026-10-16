@@ -17,10 +17,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.huawei_router_5g.const import KEYS_READ_OUTSIDE_DESCRIPTIONS
 from custom_components.huawei_router_5g.diagnostics import (
     REDACTED,
     _sanitize,
     _Tokenizer,
+    _unread_keys,
     async_get_config_entry_diagnostics,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -758,3 +760,68 @@ def test_values_of_other_kinds_are_left_as_the_other_sweeps_leave_them() -> None
 def test_the_shape_matches_at_its_edges_and_not_beyond(value, tokenized) -> None:
     """Near misses stay as they are; the values at the edges are tokenized."""
     assert _swept({"unnamed": value})["unnamed"].startswith("phone-") is tokenized
+
+
+# ---------------------------------------------------------------------------
+# Payload keys no entity reads (1.2.4-dev4 I3)
+# ---------------------------------------------------------------------------
+
+
+def test_a_key_no_entity_reads_is_listed() -> None:
+    """An unknown key in a polled block is listed; a key a description reads is not."""
+    out = _unread_keys(
+        {"device_signal": {"rsrp": "-90dBm", "nei_cellid": "x", "zz_new": "1"}}
+    )
+    assert out["device_signal"] == ["nei_cellid", "zz_new"]
+
+
+def test_a_key_read_by_a_declared_reader_is_not_listed() -> None:
+    """`ConnectionStatus` is read by a class-built binary sensor, not a description."""
+    assert "ConnectionStatus" in KEYS_READ_OUTSIDE_DESCRIPTIONS["monitoring_status"]
+    out = _unread_keys({"monitoring_status": {"ConnectionStatus": "901", "zz": "1"}})
+    assert out["monitoring_status"] == ["zz"]
+
+
+def test_the_unread_key_list_carries_names_and_never_values() -> None:
+    """Only key names are published; a value never appears."""
+    out = _unread_keys({"device_signal": {"zz_new": "SECRET-VALUE-123"}})
+    assert "SECRET-VALUE-123" not in json.dumps(out)
+    assert out == {"device_signal": ["zz_new"]}
+
+
+def test_a_block_that_is_not_a_mapping_is_not_listed() -> None:
+    """A list block, such as a client list, has no keys to report."""
+    assert _unread_keys({"lan_host_info": [{"MacAddress": "x"}]}) == {}
+
+
+@pytest.mark.asyncio
+async def test_the_download_carries_the_unread_key_list(entry) -> None:
+    """The download publishes `unread_keys` beside `entity_resolution`."""
+    result, _ = await _dump(entry)
+    assert isinstance(result["unread_keys"], dict)
+
+
+def test_the_key_recorder_records_every_form_of_read() -> None:
+    """`[]`, `get` and `in` each record the key; a non-string `in` is ignored."""
+    from custom_components.huawei_router_5g.diagnostics import _KeyRecorder
+
+    seen: set[str] = set()
+    block = _KeyRecorder({"a": 1, "b": 2, "c": 3}, seen)
+    assert block["a"] == 1
+    assert block.get("b") == 2
+    assert "c" in block
+    assert 5 not in block
+    assert seen == {"a", "b", "c"}
+
+
+def test_a_description_without_a_value_function_is_skipped(monkeypatch) -> None:
+    """A binary description may carry no `value_fn`; the recorder skips it."""
+    from custom_components.huawei_router_5g import binary_sensor
+
+    blank = binary_sensor.HuaweiBinarySensorEntityDescription(key="blank")
+    monkeypatch.setattr(
+        binary_sensor,
+        "VALUE_BINARY_SENSORS",
+        (*binary_sensor.VALUE_BINARY_SENSORS, blank),
+    )
+    assert _unread_keys({"device_signal": {"zz": "1"}}) == {"device_signal": ["zz"]}

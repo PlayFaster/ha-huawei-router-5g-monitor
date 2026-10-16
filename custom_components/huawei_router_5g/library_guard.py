@@ -7,9 +7,13 @@ With none, 2.0.1 is preferred: it carries two endpoints 1.11.0 lacks and encodes
 supplementary-plane characters in SMS, and nothing else would ever move an
 installation from 1.11.0 to 2.0.1 once core is gone.
 
-The install cannot take effect in the process that runs it, because the library
-is imported when this package loads, so a verified install raises one fixable
-repair that restarts Home Assistant. The guard never fails setup: it runs as a
+The install takes effect at the next restart, because the library is imported
+when this package loads. No repair asks for that restart: Home Assistant's
+container image puts 1.11.0 back at every update, so a repair would ask for a
+second restart after each one, and every sensor already works on 1.11.0 (the two
+2.0.1 reads fall back to their router paths, `api._call_added_endpoint`). A
+verified install is logged at INFO. A repair raised by an earlier version is
+deleted at every start. The guard never fails setup: it runs as a
 background task, every failure is logged with its traceback, and an outcome that
 cannot be known (a timeout or a cancellation) creates no repair and is decided
 from the disk at the next start.
@@ -54,6 +58,17 @@ def installed_library_version() -> Version | None:
         return None
 
 
+# The version on disk as the guard last read it, in an executor job. Integration
+# Health reports it (1.2.4-dev4 I7) rather than reading the metadata itself,
+# because that read is file I/O and the attribute is computed on the event loop.
+_SEEN: dict[str, Version | None] = {"installed": None}
+
+
+def last_installed_version() -> Version | None:
+    """Return the version on disk at the guard's last read, or None before it."""
+    return _SEEN["installed"]
+
+
 def clear_restart_issue(hass: HomeAssistant) -> None:
     """Delete the restart repair; deleting a missing issue is not an error."""
     ir.async_delete_issue(hass, DOMAIN, REPAIR_LIBRARY_RESTART)
@@ -73,7 +88,11 @@ async def async_ensure_library(hass: HomeAssistant) -> None:
 
 
 async def _async_ensure_library(hass: HomeAssistant) -> None:
-    """Decide whether to install the preferred library, and raise the repair."""
+    """Decide whether to install the preferred library, and log the outcome."""
+    # Raised by versions before 1.2.4-dev4, after every Home Assistant update.
+    clear_restart_issue(hass)
+    installed = await hass.async_add_executor_job(installed_library_version)
+    _SEEN["installed"] = installed
     if hass.config.skip_pip or LIBRARY_PACKAGE in (hass.config.skip_pip_packages or []):
         # `async_process_requirements` does not read `skip_pip`, so the guard
         # must, or it would install on a system that has forbidden installs.
@@ -87,13 +106,10 @@ async def _async_ensure_library(hass: HomeAssistant) -> None:
 
     if hass.config_entries.async_entries(CORE_DOMAIN):
         # Core's own integration needs its pinned version; leave the library.
-        clear_restart_issue(hass)
         return
 
     preferred = Version(LIBRARY_PREFERRED_VERSION)
-    installed = await hass.async_add_executor_job(installed_library_version)
     if installed is not None and installed >= preferred:
-        clear_restart_issue(hass)
         return
 
     outcome_known = False
@@ -127,15 +143,15 @@ async def _async_ensure_library(hass: HomeAssistant) -> None:
         _LOGGER.warning("Installing %s failed", LIBRARY_REQUIREMENT, exc_info=True)
     finally:
         after = await hass.async_add_executor_job(installed_library_version)
+        _SEEN["installed"] = after
 
     if outcome_known and after is not None and after >= preferred:
-        ir.async_create_issue(
-            hass,
-            DOMAIN,
-            REPAIR_LIBRARY_RESTART,
-            is_fixable=True,
-            severity=ir.IssueSeverity.WARNING,
-            translation_key=REPAIR_LIBRARY_RESTART,
+        _LOGGER.info(
+            "Installed %s %s; it takes effect at the next restart of Home "
+            "Assistant. Until then %s runs, and every sensor works on it",
+            LIBRARY_PACKAGE,
+            after,
+            installed,
         )
     elif outcome_known:
         _LOGGER.warning(

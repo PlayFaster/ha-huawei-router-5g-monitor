@@ -29,9 +29,13 @@ import requests_mock as requests_mock_module
 from custom_components.huawei_router_5g import (
     api as api_module,
     async_setup,
+    coordinator as coordinator_module,
     library_guard,
 )
 from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
+from custom_components.huawei_router_5g.binary_sensor import (
+    HuaweiIntegrationHealthSensor,
+)
 from custom_components.huawei_router_5g.const import (
     CORE_DOMAIN,
     DOMAIN,
@@ -134,20 +138,33 @@ async def test_a_disabled_core_entry_also_leaves_the_library_alone(
     assert _issue(hass) is None
 
 
-async def test_without_core_an_old_library_is_upgraded_and_a_repair_is_raised(
-    hass, installs_allowed, monkeypatch
+async def test_without_core_an_old_library_is_upgraded_silently(
+    hass, installs_allowed, monkeypatch, caplog
 ):
-    """The install is verified by re-reading the version, then the repair appears."""
-    fake = FakeLibrary(monkeypatch, "1.11.0", after="2.0.1")
+    """The install is verified and logged once at INFO, and no repair is raised.
 
-    await library_guard.async_ensure_library(hass)
+    From 1.2.4-dev4 (plan I7, D7) a repair would ask for a second restart after
+    every Home Assistant update, which puts 1.11.0 back. A repair raised by an
+    earlier version is deleted at the same start.
+    """
+    fake = FakeLibrary(monkeypatch, "1.11.0", after="2.0.1")
+    ir.async_create_issue(
+        hass,
+        DOMAIN,
+        REPAIR_LIBRARY_RESTART,
+        is_fixable=True,
+        severity=ir.IssueSeverity.WARNING,
+        translation_key=REPAIR_LIBRARY_RESTART,
+    )
+
+    with caplog.at_level(logging.INFO, logger=library_guard.__name__):
+        await library_guard.async_ensure_library(hass)
 
     assert fake.calls == [[LIBRARY_REQUIREMENT]]
-    issue = _issue(hass)
-    assert issue is not None
-    assert issue.is_fixable is True
-    assert issue.severity == ir.IssueSeverity.WARNING
-    assert issue.translation_key == REPAIR_LIBRARY_RESTART
+    assert _issue(hass) is None
+    installed = [r for r in caplog.records if r.getMessage().startswith("Installed")]
+    assert len(installed) == 1
+    assert installed[0].levelno == logging.INFO
 
 
 @pytest.mark.parametrize("installed", ["2.0.1", "2.0.2"])
@@ -354,17 +371,17 @@ def transport_fixture():
         yield RouterTransport(mocker)
 
 
-async def test_the_restart_repair_is_pending_while_polling_stays_healthy(
+async def test_after_an_install_health_shows_the_pending_restart(
     hass, installs_allowed, mock_config_entry, transport, monkeypatch
 ):
-    """Between the install and the restart the repair is shown and polls stay healthy.
+    """Between the install and the restart polls stay healthy and nothing asks.
 
-    The guard has installed 2.0.1 on disk, while the loaded library is still
-    1.11.0. The repair must be raised, and the polls that follow must read the
-    two added endpoints as `unsupported` and keep Integration Health `ok`, so the
-    only thing the user sees is the repair that asks for the restart.
+    The guard has installed 2.0.1 on disk while the loaded library is still
+    1.11.0. No repair is raised; both added endpoints are read by path; and
+    Integration Health's library attributes say a restart is pending.
     """
     monkeypatch.setattr(api_module, "_LIBRARY_VERSION", Version("1.11.0"))
+    monkeypatch.setattr(coordinator_module, "LIBRARY_LOADED_VERSION", Version("1.11.0"))
     monkeypatch.delattr(Voice, "volte", raising=False)
     monkeypatch.delattr(Monitoring, "onekey_diag", raising=False)
     FakeLibrary(monkeypatch, "1.11.0", after="2.0.1")
@@ -379,7 +396,55 @@ async def test_the_restart_repair_is_pending_while_polling_stays_healthy(
     for _ in range(HEALTH_DRIFT_STRIKE_LIMIT):
         await coordinator.async_refresh()
 
-    assert _issue(hass) is not None
-    assert _issue(hass).translation_key == REPAIR_LIBRARY_RESTART
+    assert _issue(hass) is None
     assert coordinator.health_snapshot["severity"] == "ok"
     assert coordinator.health_snapshot["degraded_capabilities"] == []
+    for key in ("voice_volte", "onekey_diag"):
+        assert coordinator.api.endpoint_outcomes[key]["outcome"] == "answered"
+    assert coordinator.library_state == {
+        "library_loaded": "1.11.0",
+        "library_installed": "2.0.1",
+        "library_restart_pending": True,
+        "core_huawei_lte_configured": False,
+    }
+
+
+async def test_after_a_restart_nothing_is_pending(hass, mock_config_entry, monkeypatch):
+    """With 2.0.1 loaded and on disk, no restart is pending."""
+    monkeypatch.setattr(coordinator_module, "LIBRARY_LOADED_VERSION", Version("2.0.1"))
+    monkeypatch.setitem(library_guard._SEEN, "installed", Version("2.0.1"))
+    mock_config_entry.add_to_hass(hass)
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        hass,
+        mock_config_entry,
+        HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password"),
+    )
+
+    state = coordinator.library_state
+    assert state["library_restart_pending"] is False
+    assert state["library_loaded"] == state["library_installed"] == "2.0.1"
+
+
+async def test_a_core_entry_shows_in_the_library_state(
+    hass, mock_config_entry, monkeypatch
+):
+    """`core_huawei_lte_configured` reads true with a core entry, as the guard does."""
+    _core_entry(hass)
+    mock_config_entry.add_to_hass(hass)
+    coordinator = HuaweiRouter5GDataUpdateCoordinator(
+        hass,
+        mock_config_entry,
+        HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password"),
+    )
+
+    assert coordinator.library_state["core_huawei_lte_configured"] is True
+
+
+def test_the_library_attributes_are_unrecorded() -> None:
+    """The four library attributes never reach History or the Recorder."""
+    assert {
+        "library_loaded",
+        "library_installed",
+        "library_restart_pending",
+        "core_huawei_lte_configured",
+    } <= HuaweiIntegrationHealthSensor._unrecorded_attributes

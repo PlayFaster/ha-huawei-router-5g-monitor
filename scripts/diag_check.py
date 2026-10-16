@@ -110,7 +110,6 @@ try:
     from custom_components.huawei_router_5g.api import (
         HuaweiAuthError,
         HuaweiRouter5GAPI,
-        library_supports,
     )
     from custom_components.huawei_router_5g.const import (
         ENDPOINT_NAMES,
@@ -123,6 +122,7 @@ try:
         REDACTED,
         async_get_config_entry_diagnostics,
     )
+    from custom_components.huawei_router_5g.observations import ObservationRecorder
 except ModuleNotFoundError as err:  # pragma: no cover - operator error
     raise SystemExit(
         f"cannot import the integration ({err}). Run this with "
@@ -648,6 +648,9 @@ async def produce(
     # script's benefit.
     entry_as_config = cast("ConfigEntry[Any]", entry)
     coordinator = HuaweiRouter5GDataUpdateCoordinator(hass, entry_as_config, api)
+    # The history stores are named by the live entry's id, so this coordinator
+    # keeps its records in memory and never writes them (1.2.4-dev4 I5).
+    coordinator.observations = ObservationRecorder(hass, entry_as_config, persist=False)
     entry.runtime_data = coordinator
 
     start = datetime.now(UTC)
@@ -805,17 +808,11 @@ def check_endpoints(artefact: dict[str, Any], report: Report, label: str) -> Non
     outcomes = sorted({v.get("outcome") for v in endpoints.values()})
 
     def outcome_is_known(key: str, outcome: Any) -> bool:
-        # `unsupported` is a known verdict only for an endpoint the loaded
-        # library predates, so it cannot pass for any other endpoint or on a
-        # library that has the method.
-        if outcome in {"answered", "refused", "expired", "unavailable", "skipped"}:
-            return True
-        added = LIBRARY_ADDED_ENDPOINTS.get(key)
-        return (
-            outcome == "unsupported"
-            and added is not None
-            and not library_supports(added[2])
-        )
+        # `unsupported` is no longer a verdict from 1.2.4-dev4: the two 2.0.1
+        # endpoints are read by path on an older library (`api.py`
+        # `_call_added_endpoint`), so it would now mean a regression.
+        del key
+        return outcome in {"answered", "refused", "expired", "unavailable", "skipped"}
 
     report.record(
         all(outcome_is_known(k, v.get("outcome")) for k, v in endpoints.items()),
@@ -823,14 +820,13 @@ def check_endpoints(artefact: dict[str, Any], report: Report, label: str) -> Non
         f"outcomes: {outcomes}",
     )
 
-    for key, (_, _, first) in LIBRARY_ADDED_ENDPOINTS.items():
-        if library_supports(first):
-            outcome = endpoints.get(key, {}).get("outcome")
-            report.record(
-                outcome == "answered",
-                f"[{label}] {key} answered on a library that has it",
-                f"outcome {outcome!r}",
-            )
+    for key in LIBRARY_ADDED_ENDPOINTS:
+        outcome = endpoints.get(key, {}).get("outcome")
+        report.record(
+            outcome == "answered",
+            f"[{label}] {key} answered, on any library version",
+            f"outcome {outcome!r}",
+        )
 
 
 def check_sabotage(artefact: dict[str, Any], report: Report, label: str) -> None:
@@ -868,8 +864,7 @@ def check_sabotage(artefact: dict[str, Any], report: Report, label: str) -> None
     disturbed = {
         key: value.get("outcome")
         for key, value in endpoints.items()
-        if isinstance(value, dict)
-        and value.get("outcome") not in ("answered", "unsupported")
+        if isinstance(value, dict) and value.get("outcome") != "answered"
     }
     report.record(
         bool(disturbed),

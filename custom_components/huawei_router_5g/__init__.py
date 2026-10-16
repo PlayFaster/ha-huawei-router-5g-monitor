@@ -18,6 +18,7 @@ from homeassistant.helpers import (
     entity_registry as er,
     issue_registry as ir,
 )
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from ._compat import via_device_link
@@ -38,10 +39,37 @@ from .const import (
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import _stale_tracker_entities, is_gsm7, parse_sms_list
 from .library_guard import async_ensure_library, clear_restart_issue
+from .observations import HISTORY_STORAGE_VERSION, OBSERVED_STORAGE_VERSION
+from .reset_entities import async_reset_entities
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+SERVICE_RESET_ENTITIES_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entry_id"): str,
+        # Every default is the cautious one. `dry_run` in particular: this
+        # action can disable dozens of entities in a call, and a user reading
+        # the list first is the whole safety model.
+        vol.Optional("dry_run", default=True): bool,
+        # False, so that pressing Perform Action with nothing chosen plans
+        # nothing. A default of true meant an untouched form ran a real
+        # operation, and the dry-run default then protected a choice the user
+        # had not made.
+        vol.Optional("reset_to_default", default=False): bool,
+        vol.Optional("enable_populated", default=False): bool,
+        vol.Optional("disable_unavailable", default=False): bool,
+        vol.Optional("disable_unknown", default=False): bool,
+        vol.Optional("include_ever_populated", default=False): bool,
+        vol.Optional("preserve_user_customized", default=False): bool,
+        vol.Optional("exclude_entities", default=list): vol.All(
+            cv.ensure_list, [cv.entity_id]
+        ),
+        vol.Optional("save_snapshot", default=False): bool,
+        vol.Optional("restore_snapshot", default=False): bool,
+    }
+)
 
 SERVICE_SEND_SMS_SCHEMA = vol.Schema(
     {
@@ -312,6 +340,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
     async def _handle_get_sms_list(call: ServiceCall) -> dict[str, Any]:
         return await async_get_sms_list(hass, call)
 
+    async def _handle_reset_entities(call: ServiceCall) -> dict[str, Any]:
+        return await async_reset_entities(
+            hass, _get_coordinator(hass, call.data), dict(call.data)
+        )
+
     async def _handle_cleanup(call: ServiceCall) -> dict[str, Any]:
         """Report or remove client trackers the router no longer lists."""
         dry_run: bool = call.data["dry_run"]
@@ -371,6 +404,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         SERVICE_CLEANUP,
         _handle_cleanup,
         schema=SERVICE_CLEANUP_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "reset_entities",
+        _handle_reset_entities,
+        schema=SERVICE_RESET_ENTITIES_SCHEMA,
+        # OPTIONAL rather than ONLY, as in `zte_router_5g`: a user who has read
+        # a dry run wants to apply it from an automation without handling a
+        # response.
         supports_response=SupportsResponse.OPTIONAL,
     )
 
@@ -496,6 +540,7 @@ async def async_setup_entry(
     # reconciles against them. Never raises: an unreadable store resolves to
     # "nothing learned", which routes to the cold-start path.
     await coordinator.async_load_stored_uptime()
+    await coordinator.observations.async_load()
 
     # Register the root System device early to prevent via_device warnings in platforms.
     device_registry = dr.async_get(hass)
@@ -614,6 +659,14 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """
     for name in REPAIR_NAMES:
         ir.async_delete_issue(hass, DOMAIN, f"{name}_{entry.entry_id}")
+
+    # The transition history and the populated set (1.2.4-dev4 I5). Built from
+    # `entry.entry_id` rather than from the coordinator, which is gone by now.
+    for version, suffix in (
+        (HISTORY_STORAGE_VERSION, "history"),
+        (OBSERVED_STORAGE_VERSION, "observed"),
+    ):
+        await Store(hass, version, f"{DOMAIN}_{entry.entry_id}_{suffix}").async_remove()
 
     # The library repair is domain-level. Once the last entry is gone the
     # integration is no longer set up on later starts, so nothing else would
