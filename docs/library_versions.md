@@ -101,7 +101,7 @@ With both integrations configured the library on disk changed at each start, and
 | Restart 1 with core present | 1.11.0, unchanged | `unsupported` | None | `ok` | 0 |
 | Restart 2 with core present | 1.11.0, unchanged | `unsupported` | None | `ok` | 0 |
 
-With a core entry present the guard does nothing and nothing else installs, so the library stays on 1.11.0 across restarts and the alternation of section 4.1 does not occur. The import failure seen on 2026-10-04 did not recur when the entry was added. The record is kept in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/library_coexistence_live_check.md`.
+With a core entry present the guard does nothing and nothing else installs, so the library stays on 1.11.0 across restarts and the alternation of section 4.1 does not occur. The import failure seen on 2026-10-04 did not recur when the entry was added. The record is kept in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/captures/library_coexistence_live_check.md`.
 
 ---
 

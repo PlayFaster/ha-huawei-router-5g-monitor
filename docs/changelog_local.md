@@ -17,6 +17,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev5\] - 2026-10-17 - Roadmap & Tasks: Task Queue Single Source Migration and Roadmap Generation](#124-dev5---2026-10-17---roadmap--tasks-task-queue-single-source-migration-and-roadmap-generation)
+  - [\[1.2.4-dev4\] - 2026-10-16 - Login, Diagnostics, History and Library: Lockout Read Before Login; Unread Keys and Unwrapped Paths in the Download; Text History and Entity Reset; No Restart Repair](#124-dev4---2026-10-16---login-diagnostics-history-and-library-lockout-read-before-login-unread-keys-and-unwrapped-paths-in-the-download-text-history-and-entity-reset-no-restart-repair)
   - [\[1.2.4-dev1\] - 2026-10-09 - Login, SMS and Diagnostics: Lockout Outcome Separated; SMS Delete Checked; Phone Tokenization and Capability Values Added](#124-dev1---2026-10-09---login-sms-and-diagnostics-lockout-outcome-separated-sms-delete-checked-phone-tokenization-and-capability-values-added)
   - [\[1.2.4-dev0\] - 2026-10-09 - Documentation: Capabilities Dossier Creation and Comprehensive Changelog Remediation](#124-dev0---2026-10-09---documentation-capabilities-dossier-creation-and-comprehensive-changelog-remediation)
   - [\[1.2.3\] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
@@ -209,6 +211,45 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.4-dev5] - 2026-10-17 - Roadmap & Tasks: Task Queue Single Source Migration and Roadmap Generation
+
+### Summary
+
+Fifth build of 1.2.4, implementing Item I6 of `roadmap_tasks_migration_plus_generator_20261016.md`. Migrated `ha-huawei-router-5g-monitor` as the reference project for the roadmap-tasks architecture. Every open roadmap item now lives as an engineering task carrying a user-language title, `Roadmap:` group metadata, and `Summary:` line in `tasks/`. Declined items are archived in `tasks/declined/` with explicit decline stamps. Cross-project references in `findings_register.md` and `zte_techniques_review.md` are repointed to canonical tasks. `docs/ROADMAP.md` is regenerated directly from task queues via `.workbench/generate_roadmap.py`.
+
+### Added
+
+- **Roadmap Tasks**:
+  - `tasks/router_ethernet_mode_support.md` (`Roadmap: To Be Done`): Behavior when uplink is WAN Ethernet port with no cellular connection (rung 3 of polling ladder).
+  - `tasks/5g_mode_select_and_read_back_sensor.md` (`Roadmap: Maybe`): SA+NSA, NSA, and SA mode select entity and read-back sensor.
+  - `tasks/https_routers_with_a_self_signed_certificate.md` (`Roadmap: Maybe`): HTTPS connectivity option with configurable certificate verification.
+  - `tasks/new_device_alert.md` (`Roadmap: Maybe`): Security alert notification when an unrecognized client MAC joins the network.
+  - `tasks/opt_out_of_client_tracking_at_setup.md` (`Roadmap: Maybe`): Setup-time and configuration toggle to disable the Clients entity group for privacy and unbounded tracker prevention.
+  - `tasks/retire_long_unseen_device_trackers.md` (`Roadmap: Maybe`): Service and threshold to transition stale client trackers to unavailable.
+  - `tasks/separate_2_4ghz_and_5ghz_wifi_switches.md` (`Roadmap: Maybe`): Per-band WiFi radio switch controls and combine-bands toggle.
+  - `tasks/wlan_band_locking_write_capability.md` (`Roadmap: Blocked`): Manual 5G/LTE band locking controls, blocked on physical hardware safety validation.
+  - `tasks/guest_wifi_ssid_write_validation.md` (`Roadmap: Parked`): Guest WiFi SSID write operations, parked for dedicated multi-SSID test hardware.
+  - `tasks/variant_api_paths_for_other_models.md` (`Roadmap: Parked`): Variant API resource path fallbacks, parked for multi-model diagnostic sweeps.
+- **Declined Task Archive**:
+  - `tasks/declined/renaming_entities_that_repeat_their_sub_device_word.md` (`Roadmap: Declined`): Preserves the deliberate decision not to rename 8 sub-device-repeating entities to protect user automations and dashboards from breaking changes.
+
+### Changed
+
+- **Generated Roadmap (`docs/ROADMAP.md`)**:
+  - Generated via `.workbench/generate_roadmap.py --project huawei`.
+  - Holds 1 To Be Done, 6 Maybe, 1 Blocked, 2 Parked, and 1 Declined entries with clean user summaries and dates/reasons.
+- **Reference Repointing**:
+  - `info/other_huawei_projects/findings_register.md`: Repointed finding `FIND-HRM-012` from `ROADMAP.md#router-ethernet-mode-support` to `tasks/router_ethernet_mode_support.md`.
+  - `shared/SharedNotes/issues/x_project/closed/zte_techniques_review.md`: Repointed rows 1, 21, 24, and 29 from roadmap headings to tasks `variant_api_paths_for_other_models.md` and `router_ethernet_mode_support.md`.
+- **Tasks Queue Index (`tasks/README.md`)**:
+  - Added all 10 migrated open/parked/blocked tasks to the active index table with 1.42.0 version entry.
+
+### Verified
+
+- **Roadmap Parity**: `generate_roadmap.py --project huawei --check` exits 0 with zero drift.
+- **Queue Format Check**: `check_queue_format.py --project huawei` passes with zero errors.
+- **Anchor Audit**: `git grep "ROADMAP.md#"` returns 0 broken links repo-wide.
+
 ## [1.2.4-dev4] - 2026-10-16 - Login, Diagnostics, History and Library: Lockout Read Before Login; Unread Keys and Unwrapped Paths in the Download; Text History and Entity Reset; No Restart Repair
 
 ### Summary
@@ -251,6 +292,10 @@ Fourth build of 1.2.4. The lockout state is read before each login, the diagnost
 
 - **`README.md`**: Change History, the Reset Entities Action, the four library attributes, the lockout row, and the repairs and coexistence text without the library card.
 - **`docs/library_versions.md`, `docs/DEVELOPMENT.md`, `docs/huawei_how_to_access.md`, `docs/CAPABILITIES.md`, `docs/value_min_max.md`**: the guard and its Docker cause, the path reads, the lockout read, the unread keys, the probes, the history and the reset action, with the divergences from ZTE.
+
+### Corrected
+
+- **1.2.0 library line no longer claims SCRAM support**: `CHANGELOG.md` 1.2.0 said the `huawei-lte-api` 2.0.1 update ensured "compatibility with modern SCRAM authentication and future firmware releases". The library implements no SCRAM: 1.11.0 and 2.0.1 define password types 0, 3 and 4 (SHA256) only, and the H165-383 logs in with SHA256. The public line now reads only that the library was updated to 2.0.1, so users are not told of a capability that does not exist. The 1.2.0 entry in this file is left as written, per `changelog_format.md`; this entry records the correction. Found by the external findings triage of 2026-10-16, finding `FIND-HRM-001`.
 
 ### Verified
 
@@ -492,7 +537,7 @@ Plan `v123_dev16_plan.md`. A B529s-23a (Magenta Austria, firmware 11.182...) fai
 
 - **Validation Suite**: 1311 tests, coverage 100.00%, Mypy strict (17 source files), Ruff, McCabe complexity (maximum 18 in `get_data`), Assertion Audit, Test Depth, IQS Static, Repo Links, Sensor Manifest in sync, Prettier, Markdown lint and Codespell on the changed documents.
 - **Mutation Verification**: Mutation proofs for the unconditional raise, the re-read, the premise check, the history, the clear on reset, both generation checks, the canary, the lock, the unlocked login, the sweep deadline and the reset check, each failing the matching test, and for the never-answered and router-code conditions of `not_served`.
-- **Hardware Verification**: Live checks (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/refused_endpoint_live_check.md`). H165-383: `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, and the Integration Health reading after three polls 22 of 22 with `not_served` empty, 13 logins in all. B315s-22: `--sabotage` 10 of 10, and every dev16 check passed in the other four runs, including `not_served` holding the five endpoints the router refuses and none degraded, 13 logins, with polling paused. Two clean-pass checks of `diag_check.py` that assume a router answering `voice_volte` and `onekey_diag`, and one that assumes no rejection remains, fail on the B315s-22 by design and were not changed. **The router's own refusal of a polled endpoint was not observed.** `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/refused_endpoint_live_check.md`): `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, with 12 logins in all. **The router's own refusal was not observed.** The B315s-22 checks and the Integration Health reading after three polls have not been run.
+- **Hardware Verification**: Live checks (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/captures/refused_endpoint_live_check.md`). H165-383: `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, and the Integration Health reading after three polls 22 of 22 with `not_served` empty, 13 logins in all. B315s-22: `--sabotage` 10 of 10, and every dev16 check passed in the other four runs, including `not_served` holding the five endpoints the router refuses and none degraded, 13 logins, with polling paused. Two clean-pass checks of `diag_check.py` that assume a router answering `voice_volte` and `onekey_diag`, and one that assumes no rejection remains, fail on the B315s-22 by design and were not changed. **The router's own refusal of a polled endpoint was not observed.** `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/captures/refused_endpoint_live_check.md`): `--sabotage` 10 of 10, `--mid-poll` 22 of 22, `--refusal` 25 of 25, `--refusal-expired` 23 of 23, with 12 logins in all. **The router's own refusal was not observed.** The B315s-22 checks and the Integration Health reading after three polls have not been run.
 
 ## [1.2.3-dev15] - 2026-10-05 - Dependencies & Repairs: Dependency Range Widening, Startup Guard, and Restart Repair
 
@@ -529,7 +574,7 @@ Plan `v123_dev15_plan.md`. Resolves the GitHub hassfest failure caused by `huawe
 - **Full Validation**: Full validation on the final state, core entry absent and library 2.0.1: 1162 tests, coverage 100.00%, Test Depth, Mypy strict (17 source files), Ruff, complexity (max 17), Hassfest 0 invalid, Repo Links 130 links, Zizmor, Hardware Check 8 of 8, Diag Check 38 of 38, and the Diagnostics Recovery task 8 of 8.
 - **Type & Contract Checks**: Mypy strict passes on library 1.11.0 and on 2.0.1, the contract tests pass on both, and the dev container was restored to 2.0.1.
 - **Mutation Proofs**: Mutation proofs: replacing the version gate with an existence check, adding a literal call to `api.py`, disabling the core-entry check, the post-install re-read, the `skip_pip` return, the exception handling, the shield, the background task, the last-entry clearing, the factory dispatch and the restart-failure abort each fail the matching test.
-- **Hardware Verification**: Live check (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/library_coexistence_live_check.md`): the guard installed 2.0.1 at start, raised the repair, and submitting it restarted Home Assistant onto 2.0.1 with both endpoints `answered`. With a core entry present, two restarts left the library on 1.11.0 with both endpoints `unsupported`, health `ok`, no repair and no log errors.
+- **Hardware Verification**: Live check (record in `shared/ProjNotes/Notes-ha-huawei-router-5g-monitor/local_only/captures/library_coexistence_live_check.md`): the guard installed 2.0.1 at start, raised the repair, and submitting it restarted Home Assistant onto 2.0.1 with both endpoints `answered`. With a core entry present, two restarts left the library on 1.11.0 with both endpoints `unsupported`, health `ok`, no repair and no log errors.
 
 ## [1.2.3-dev14] - 2026-10-04 - Code Quality: Suppression Allow-List and Repair Flow Return Types
 

@@ -105,7 +105,7 @@ Routine maintenance update refining Repair notifications with no changes to dail
 
 - **Dynamic Network Mode Discovery**: The Preferred Network Mode select entity now queries the router for its exact supported modes (e.g. `Auto`, `5G Only`, `4G Only`) rather than offering static, unsupported presets.
 - **Entity Details Guidance**: Reviewed and polished all 160 entity `about` attribute descriptions across Home Assistant entity dialogs to provide clear, standardized operational guidance and threshold interpretations.
-- **Underlying Client Library**: Updated the underlying `huawei-lte-api` library to 2.0.1, ensuring compatibility with modern SCRAM authentication and future firmware releases.
+- **Underlying Client Library**: Updated the underlying `huawei-lte-api` library to 2.0.1.
 - **Follow-Up Refresh Automation**: *(enhances Reboot & Polling Lifecycle, introduced in 1.1.1)*: Pressing Reboot or Reconnect now automatically schedules an asynchronous follow-up poll when the router reconnects, including while background polling is paused.
 - **Bounded Writes & Fetch Deadlines**: Write actions and concurrency locks are strictly bounded to prevent background stalls, and polling loops enforce internal deadlines to preserve collected endpoint data during slow responses.
 - **HACS Minimum Version Requirement**: Enforced the minimum Home Assistant version requirement (2025.1.0) in HACS package metadata.

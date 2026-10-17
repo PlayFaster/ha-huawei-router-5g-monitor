@@ -1,4 +1,5 @@
-# Roadmap: Huawei Router 5G Monitor
+<!-- Generated from task queues by .workbench/generate_roadmap.py. Do not edit by hand. -->
+# Roadmap: ha-huawei-router-5g-monitor
 
 Forward plans, deferred decisions, and declined directions for the Huawei 5G Router integration. Structure follows `roadmap_format.md`.
 
@@ -14,233 +15,64 @@ Forward plans, deferred decisions, and declined directions for the Huawei 5G Rou
 
 ---
 
-## Done
-
-Items that were on this roadmap and were then built. **Membership is by provenance, not by shipping** — a feature that shipped without ever appearing here does not belong in this group.
-
-| Item                            | Where it landed                                 |
-| :------------------------------ | :---------------------------------------------- |
-| Dynamic Polling Interval Slider | Shipped as the `polling_interval` number entity |
-
----
-
 ## To Be Done
 
 ### Router Ethernet mode support
 
-Behavior on a router that takes its internet from its WAN Ethernet port and has no cellular link: setup succeeds, the cellular entities read unknown and never raise, and the Integration Health sensor reports no signal-block drift for a signal block that is empty because there is no cellular link.
-
-**Detail.** The router is then a router and not a modem, so the polled cellular reads return nothing or an error shape. Measured 2026-10-05 on a B315s-22 with an Ethernet WAN and no SIM (`local_only/b315_session_checks_20261005.md`): the signal block holds none of `rsrp`, `rsrq`, `rssi` and `sinr`, so the health sensor reads `warning` with a drift message that blames a firmware rename; `net.current_plmn` returns the string `FAILED`, and three sensor value functions raise on it (task `tasks/current_plmn_failed_string_crashes_sensors.md`); six listener errors were logged per start. The count of unknown entities in this state was not recorded: the figure of 53 of 124 read unknown belongs to the same router with a SIM fitted. With a SIM installed the same router answered normally (`local_only/b315_with_sim_checks_20261005.md`), so the difference is the mode and not the firmware.
-
-What it needs: a pass over every entity description against a router in this mode, to list which entities read unknown, which raise, and which health findings fire, then the changes that follow from that list. The reference H165-383 has not been run in an Ethernet mode, so whether it behaves as the B315s-22 did is unmeasured.
-
-**Overlap with the entity defaults and polling design, decided 2026-10-09: linked on the operating-state signal only.** The pass this item asks for, one description at a time against a router in this mode, is the same measurement the design's value-evidence layer needs, and the download already carries it as `entity_resolution`. The mode is a state that can change while the integration runs, so evidence taken only at setup, and a default that Home Assistant reads once at first registration, cannot cover it. The two share one decision: where the signal comes from that says whether the router is on a cellular link or on its WAN Ethernet port, and which layer owns it. That decision is taken once the B315s-22 diagnostics download in Ethernet mode exists. Otherwise the two are separate items and separate builds, this item first, and neither is in 1.2.4-dev2. The record is `info/entity_defaults_and_polling_design.md` §7.8 in the Huawei project's notes, and the task `tasks/per_model_entity_defaults.md`.
-
-**Long-term history for the WAN mode, once this is built.** `zte_router_5g` keeps a transition history and a change counter for its bridge or gateway mode (`opms_wan_mode`), because a reprovisioning changes it without the user acting and leaves no other trace. Huawei's text history (1.2.4-dev4) leaves that key out only because no WAN mode is read yet. When this item adds one, add it to the tracked history keys, as ZTE does.
-
-- **Value**: ⭐⭐
-- **Effort**: Medium
-
----
-
-**Rung 3 of the polling ladder (owner direction, 2026-10-16).** The poll rule of `.notes/tasks/poll_only_what_an_enabled_entity_reads.md` is built first and works unchanged in Ethernet mode. This entry adds one condition to it: skip the cellular endpoints while the router reports Ethernet mode, and re-probe them when it returns to mobile. A skipped endpoint uses the task's "skipped on purpose" health status. The order is that task, then the neighbor cells sensor, then this entry, then the per-model entity defaults.
+Behavior on a router that takes its internet from its WAN Ethernet port and has no cellular link: setup succeeds, cellular entities read unknown without raising, and health reports no spurious drift.
 
 ## Maybe
 
-### New device alert
-
-Notify the user when a client that has never been seen before joins the router — an unrecognized device on the network is the security event a router integration is best placed to report.
-
-The inputs already exist: `lan_host_info` and `wlan_host_list` are polled every cycle and `device_tracker` entities are created dynamically from them, so "first appearance of this MAC" is a question the coordinator can already answer. What is missing is the notion of **known**: without persisted state every restart is a cold start and every device looks new.
-
-Shape to decide — a `binary_sensor`, an HA event for automations to catch, or a persistent notification. An event is the most composable and the least opinionated about how the user wants to be told.
-
-- **Value**: ⭐⭐⭐
-- **Effort**: Medium — the detection is easy, the persistence and the first-run behavior are the work.
-- **Trigger**: Agreement on the persistence mechanism, which is shared with the entry below.
-
-### Retire long-unseen device trackers
-
-**The router, not this integration, is why a user ends up with too many `device_tracker` entities.** It keeps clients listed **long after they have gone**, and HRM faithfully reports everything the router lists. Those stale clients are removable only by hand in the router's own web GUI.
-
-This is the boundary of `cleanup_unused_entities`: that action and its button remove entities the **router** has already dropped. They cannot remove a client the router still lists, because from HRM's side it is a live, present record. A user with a crowded Clients device is looking at a router-side condition.
-
-The proposal is a service that marks a tracker **unavailable** once it has gone unseen for a user-set period, without deleting anything.
-
-Two things to settle first:
-
-- **Persistence.** Last-seen times must survive a restart, so this needs stored state — the same requirement as the new-device alert above. Both entries should be designed together or neither.
-- **Reappearance.** A retired device that comes back must recover cleanly. Unavailable is the right state precisely because it is reversible, but the transition needs deciding: silently restore, or treat it as a new arrival and alert.
-
-- **Value**: ⭐⭐
-- **Effort**: Medium — persistence is the bulk of it; the threshold comparison is trivial.
-- **Trigger**: A user report of an unmanageable Clients device, **or** the new-device alert going ahead and paying for the stored state anyway.
-
-### Opt out of client tracking at setup
-
-A single toggle, offered at setup and in Configure, that turns off the Clients group: no `device_tracker` entities, no Total/Wired/WiFi Connected sensors, and the `lan_host_info` and `wlan_host_list` fetches skipped.
-
-**Why this group and not the others.** Every sub-device could in principle get a toggle, and most should not — Home Assistant's own per-device disable already hides entities, and the README documents it under _Tailoring What's Monitored_. A setup question is a tax on every first-time installer, so it has to buy something that disabling cannot.
-
-**The endpoint saving is not that thing, and the numbers say so plainly.** Measured against the reference H165-383 on 2026-08-17, three consecutive polls:
-
-| Measure               | Value                     |
-| :-------------------- | :------------------------ |
-| Endpoints per poll    | **26**, sequential        |
-| Wall time per poll    | **1.05 / 1.06 / 1.07 s**  |
-| Per endpoint          | **~41 ms**                |
-| Default poll interval | 180 s                     |
-| Duty cycle            | **~0.6%** of elapsed time |
-
-So dropping a two-endpoint group saves **about 80 ms every three minutes** — 0.04% of the interval. Twenty-six sounds alarming and is not: the router answers each call in the time a page takes to paint. **Any argument for a group toggle that rests on "fewer API calls" is arguing about 80 ms, and should be rejected on that basis.** For SMS and WiFi that is the whole case, and their entity counts are fixed at 18 and 7, so nothing grows.
-
-**Clients is different in two ways that matter:**
-
-- **It is the integration's privacy surface.** Each tracked client publishes a MAC address, a hostname and an IP. That is the one thing here a user might want never collected, rather than merely hidden — and disabling an entity does not stop it being created and populated.
-- **It is the only group whose entity count is unbounded.** One entity per client the router has ever seen, and the router keeps clients listed long after they are gone. A user in bridge mode, or with another router handling DHCP, has no use for any of it.
-
-Neither reason is about poll time. **If the endpoint saving were the only argument, this entry would not exist.**
-
-**Settle this against _Retire long-unseen device trackers_ before building either.** Both address the same entity sprawl from opposite ends — one prevents creation, the other retires what exists — and shipping one without deciding the other risks two overlapping mechanisms.
-
-The cleanup half is already in place: `cleanup_unused_entities` exists as both an action with `dry_run` and a button, so option-group orphans would extend the existing planner rather than needing a new module.
-
-**What core `huawei_lte` does, and it is not this.** Core offers `track_wired_clients`, and the difference is where and when. It is an **options-flow field only** (`config_flow.py:406`, inside `async_step_init`), so it is never asked at setup — a first-time installer is not offered a choice and the integration begins tracking immediately. It defaults to `True` (`const.py:18`), so wired clients are tracked unless the user later goes looking for the setting. And it is a **wired/wireless filter, not an opt-out**: it is read at `device_tracker.py:66` and `:134` to decide which hosts become entities, so wireless clients are tracked either way and there is no setting in core that stops client tracking altogether.
-
-Two consequences for this entry. The privacy argument above is **not** addressed by core's option — a user who wants no MAC, hostname or IP collected cannot get that from core at all, which is the gap this entry exists to close. And core's placement is the thing to diverge from deliberately: this entry proposes a setup-time question precisely because a post-hoc toggle arrives after the data has already been collected. Read this way, core's option is closer to a subset of _Retire long-unseen device trackers_ than to this entry.
-
-- **Value**: ⭐⭐
-- **Effort**: Medium — a config-flow field, gating in two platforms, and a fetch skip. The interaction above is the decision, not the code.
-- **Trigger**: A user who wants client tracking off entirely rather than hidden, **or** the tracker-retirement entry being taken up.
-
-### Separate 2.4GHz and 5GHz WiFi switches
-
-All three controls exist in the router GUI: 2.4GHz on/off, 5GHz on/off, and the combine-bands toggle that puts both radios on one SSID.
-
-**Check the radio-versus-SSID distinction before estimating this.** HRM's master WiFi switch writes `wlan/status-switch-settings` and flips `wifienable` on **every** radio; it does not touch the per-SSID flags in `wlan/multi-basic-settings`, because those flags are gated by the radio and writing them while the radio is off changes nothing observable. Per-band control means writing that same block **selectively** rather than uniformly — a variation on a proven write path, not new ground. See `docs/huawei_how_to_access.md`.
-
-Band-combine is the unknown: which block owns it has not been established, and `wlan.wlandbho` (`DbhoEnable`) is band steering, which is a related but different feature.
-
-- **Value**: ⭐⭐
-- **Effort**: Medium — two switches are a small extension of an existing write; the combine toggle needs a probe first.
-- **Trigger**: A probe confirming which block owns band-combine, and that a selective radio write holds.
-
----
-
 ### 5G Mode select, and a sensor to read it back
 
-The router GUI offers a **5G Mode** dropdown with three values — **SA+NSA**, **NSA**, **SA** — and it is available whether Preferred Network Mode is Auto or 5G Only, as long as the router is working in 5G. Setting **SA** can cause signal loss; the owner's expectation is that the router eventually falls back to 4G, which is an observation to confirm rather than a documented behavior.
-
-**The write path does not exist yet, and neither does the read path.** Both were checked before this entry was written:
-
-- **`huawei-lte-api` 2.0.1 has nothing for it.** A search of the whole installed package for `nrmode`, `nr5g`, `nsa` and `sa` returns no match, and `api/Net.py`'s thirteen methods cover `net-mode`, `network`, `register`, `plmn`, `cell_info`, `csps_state` and `reconnect` — none of them this.
-- **The polled `net/net-mode` block does not carry it.** On the reference H165-383 it returns exactly `NetworkMode`, `NetworkBand`, `LTEBand`, `networkOption` and `LTEBandOption`. There is no SA/NSA field and no `NRBand`, so nothing in the current twenty-six-endpoint poll can populate a sensor either.
-
-So the first task is **discovery, not implementation**: watch the router's own web interface make the change and record the endpoint and payload it posts. That is how `dialup/dial` with `Action: 0` and the `wlan/status-switch-settings` round-trip were both established, in each case after the library proved insufficient — and both now reach the router through `_session.post_set` under a reasoned `# noqa: SLF001`.
-
-**Two sensors are named in this item and only one is new.** A `preferred_network_mode` sensor already exists — a diagnostic reading `net_mode.NetworkMode` back, whose `about` note already says a disagreement with the control means the router refused or altered the request. A **5G Mode** sensor would be new, and is blocked on the same discovery as the select.
-
-**Treat the write as ATTENDED when it is built.** It re-registers the radio, so it belongs in the same tier as Preferred Network Mode: `NET_MODE_SETTLE` before any read-back, confirmation from the entity rather than inside the API lock, and no assumption that the POST answers cleanly — the router sometimes replies `-1: Unknown` to a mode write it has applied, and sometimes does not.
-
-- **Value**: ⭐⭐
-- **Effort**: Medium — small once the endpoint is known; the whole cost is the probe.
-- **Trigger**: A capture of the endpoint and payload the router's own GUI posts for this dropdown.
+A dropdown select for 5G Mode (SA+NSA, NSA, SA) and a dedicated sensor to read back current mode.
 
 ### HTTPS routers with a self-signed certificate
 
-Let the user connect to a router over HTTPS and choose whether its certificate is verified. Core's Huawei integration offers a verify-SSL choice at setup and, when it is off, uses a session that does not verify the certificate. This integration strips any protocol from the host entry and builds `http://` addresses (`config_flow.py:29-36`), so a router that serves only HTTPS cannot be added.
+Allow connection to routers over HTTPS with user-configurable certificate verification.
 
-Not known: whether any router this integration targets serves HTTPS only or redirects to it, and whether `huawei-lte-api` 2.0.1 completes its login over HTTPS with an unverified session. The closed task `core_config_flow_gaps.md` named verify-SSL as the one field this project lacks and gave it no disposition; this entry is that disposition.
+### New device alert
 
-- **Value**: ⭐⭐
-- **Effort**: Medium — small once the library is confirmed to log in over HTTPS; the cost is the setup field, the stored option and its migration.
-- **Trigger**: A report or a capture from a router that serves HTTPS only.
+Notify the user when a client that has never been seen before joins the router.
 
----
+### Opt out of client tracking at setup
+
+A single toggle at setup and in Configure to turn off the Clients group completely for privacy and entity hygiene.
+
+### Retire long-unseen device trackers
+
+Mark device trackers unavailable when unseen for a user-set period rather than accumulating router-cached clients indefinitely.
+
+### Separate 2.4GHz and 5GHz WiFi switches
+
+Per-band 2.4GHz and 5GHz WiFi control switches and band-combine toggle.
 
 ## Blocked
 
 ### WLAN band locking write capability
 
-Write commands to force specific 5G/LTE bands.
+Write commands to force specific 5G and LTE cellular bands.
 
-- **Value**: ⭐⭐⭐
-- **Effort**: High once unblocked
-- **Blocked by**: Physical router hardware API validation. Releasing untested write commands to a cellular modem risks disconnecting the gateway permanently.
+**Reason:** Physical router hardware API validation. Releasing untested write commands to a cellular modem risks disconnecting the gateway permanently.
 
----
-
-## Revisit
+## Parked
 
 ### Guest WiFi SSID write validation
 
-SSID write operations for guest network configurations where multi-SSID setups are present.
+SSID write operations for guest network configurations in multi-SSID setups.
 
-- **Trigger**: A second test unit with guest SSID hardware configurations is added to the dev setup.
+**Reason:** A second test unit with guest SSID hardware configurations is added to the dev setup.
 
 ### Variant API paths for other models
 
-Not built: on a model that refuses a resource's usual path but answers a variant spelling of it, the entities fed by that resource would read their values through the variant path.
+Fallback table of alternative API endpoint spellings when models reject primary resource paths.
 
-The H165-383's web script names more than one path for some resources (`system/devcapacity` and `devcapacity/devcapacity`; `system/deviceinfoex`, `system/deviceinfo` and `deviceInfo/deviceInfo`; `device/device-feature-switch` and `device/device-feature-switchion`), and on the H165-383 only the first of each answers (sweep of 2026-10-10). The integration calls each resource by one path, so a model answering only a variant would show those entities as unknown. The build would be a table of usual path and variants, tried in order on a `100002` or `100003` through the `LIBRARY_ADDED_ENDPOINTS` mechanism, with the path that answered remembered per model. `zte_router_5g`'s `get_first` does the same for key names inside one response.
-
-- **Trigger**: a diagnostics download or sweep from a model other than the H165-383 shows a usual path refused and a variant answering. The only held B315s-22 download has no signal block, so no second model has been compared.
-
----
+**Reason:** A diagnostics download or sweep from a model other than the H165-383 shows a usual path refused and a variant answering.
 
 ## Declined
 
 ### Renaming entities that repeat their sub-device word
 
-**Eight** entities restate their group in their name, so their entity IDs read `..._data_total_data` and so on. The list below is the complete scan, taken on 2026-08-24 across all 159 entity descriptions by matching each `strings.json` name against its group's `SUB_DEVICE_LABELS` label — the earlier count of four was a partial reading and named only the first, third, fourth and sixth rows.
+Renaming entities whose IDs duplicate their sub-device group word was declined to avoid breaking existing user automations and dashboards.
 
-| Entity key          | Platform      | Group  | Name              |
-| :------------------ | :------------ | :----- | :---------------- |
-| `total_data`        | Sensor        | Data   | Total Data        |
-| `data_allowance`    | Sensor        | Data   | Data Allowance    |
-| `data_plan_enabled` | Binary sensor | Data   | Data Plan Enabled |
-| `signal_bars`       | Sensor        | Signal | Signal Bars       |
-| `signal_bars_nr`    | Sensor        | Signal | 5G Signal Bars    |
-| `poor_signal`       | Binary sensor | Signal | Poor Signal       |
-| `sms_storage_full`  | Binary sensor | SMS    | SMS Storage Full  |
-| `wifi`              | Switch        | WiFi   | WiFi              |
-
-**Deliberately not renamed — all eight are keeps.** Home Assistant never renames an existing `entity_id`, so the only beneficiary would be a new install, while anyone referencing the current friendly name in an automation or dashboard gets a silent break. `zte_router_5g` kept two doubled IDs for the same reason. The convention applies to **new** entities from here on.
-
-Recorded against cross-project chore `C-030`, whose requirement is the scan and the recorded keeps rather than any rename.
-
----
-
-## Summary
-
-| Item                                   | Value  | Effort         |
-| :------------------------------------- | :----- | :------------- |
-| WLAN band locking write capability     | ⭐⭐⭐ | High (Blocked) |
-| Router Ethernet mode support           | ⭐⭐   | Medium (To Be Done) |
-| New device alert                       | ⭐⭐⭐ | Medium         |
-| Retire long-unseen device trackers     | ⭐⭐   | Medium         |
-| Opt out of client tracking at setup    | ⭐⭐   | Medium         |
-| Separate 2.4GHz and 5GHz WiFi switches | ⭐⭐   | Medium         |
-| 5G Mode select and read-back sensor    | ⭐⭐   | Medium         |
-| HTTPS routers with a self-signed certificate | ⭐⭐ | Medium     |
-
----
-
-## Version Control
-
-| Version | Date | Change |
-| :-- | :-- | :-- |
-| v3.8.0 | 2026-10-16 | _Per-endpoint strike budgets_ removed from Maybe: merged into the task `poll_only_what_an_enabled_entity_reads.md`, retitled "Poll only what is wanted and served". _Router Ethernet mode support_ records that it is rung 3 of the polling ladder and builds on that task's rule. |
-| v3.7.0 | 2026-10-11 | _Router Ethernet mode support_: add the WAN mode to the long-term text history once a mode is read, as ZTE tracks `opms_wan_mode`. |
-| v3.6.0 | 2026-10-10 | Added _Variant API paths for other models_ to Revisit, from the H165-383 endpoint sweep. Recorded on _Router Ethernet mode support_ the decision of 2026-10-09: linked to the entity defaults and polling design on the operating-state signal only, built separately, neither in 1.2.4-dev2. Carrier names removed from _Per-endpoint strike budgets_. |
-| v3.5.2 | 2026-10-07 | Recorded on _Router Ethernet mode support_ that it overlaps the entity defaults and polling design and that the overlap is to be decided. |
-| v3.5.1 | 2026-10-07 | **Corrected the _Router Ethernet mode support_ detail.** The 53 of 124 unknown entities were measured with a SIM fitted and not in Ethernet mode; the count with no SIM was not recorded. The v3.4.0 version row is history and is left as written. |
-| v3.5.0 | 2026-10-07 | **Added _HTTPS routers with a self-signed certificate_ under Maybe**, from the comparison with core's Huawei integration, and a pointer from _Per-endpoint strike budgets_ to the polling design. |
-| v3.4.0 | 2026-10-05 | **Added _Router Ethernet mode support_ under To Be Done**, at the owner's request. Measured on a B315s-22 with an Ethernet WAN and no SIM: an empty signal block reads as drift, `net.current_plmn` returns `FAILED`, and 53 of 124 entities read unknown. The reference H165-383 has not been run in this mode. |
-| v3.3.0 | 2026-08-24 | **The _Renaming entities that repeat their sub-device word_ entry corrected from four entities to eight**, and the keeps recorded as a table. The entry had named `total_data`, `signal_bars`, `signal_bars_nr` and `sms_storage_full` since v2.0.0. A full scan on 2026-08-24 — every one of the 159 entity descriptions, matching its `strings.json` name against its group's `SUB_DEVICE_LABELS` label rather than against the description key — found four more: `data_allowance`, `data_plan_enabled`, `poor_signal` and the `wifi` switch, whose name is the label itself. **The decision is unchanged**; all eight are keeps for the same reason, and nothing is renamed. This is the deliverable of cross-project chore `C-030`, which asks for the scan and the recorded keeps rather than a rename, and it is what let that chore's Huawei cell settle. |
-| v3.2.0 | 2026-08-19 | **Added _5G Mode select, and a sensor to read it back_** under Maybe, at the owner's request. The router GUI offers SA+NSA / NSA / SA and exposes it whether Preferred Network Mode is Auto or 5G Only. **The write path was validated before the entry was written and does not exist**: `huawei-lte-api` 2.0.1 has no method for it anywhere in the package, and the polled `net/net-mode` block returns only `NetworkMode`, `NetworkBand`, `LTEBand`, `networkOption` and `LTEBandOption` — so there is no read path either, and no sensor could be populated from the current poll. The entry therefore leads with discovery: capture what the router's own web interface posts, the method that established `dialup/dial` and `wlan/status-switch-settings` once the library proved insufficient. **One correction to the request as made**: it asked for read-back sensors for both Preferred Network Mode and 5G Mode, and the first already exists — a diagnostic reading `net_mode.NetworkMode` whose `about` note already covers the control-versus-state disagreement. Only the 5G Mode sensor is new. |
-| v3.1.0 | 2026-08-17 | **Added _Opt out of client tracking at setup_** under Maybe, from the `setup_cleanup_options.md` assessment. That guide predicted Huawei was "likely most applicable" for sensor-group toggles; on inspection only one group qualifies. SMS and WiFi fail the tax-on-every-installer test — Home Assistant's own per-device disable already hides them, and the saving is two endpoints out of twenty-six on a poll measured at about one second. Clients passes on two counts a toggle can serve and disabling cannot: it is the integration's privacy surface (MAC, hostname and IP per client) and the only group whose entity count is unbounded. The entry records its dependency on _Retire long-unseen device trackers_, since both address the same sprawl from opposite ends. |
-| v3.0.0 | 2026-08-16 | **Scope corrected to features only, and the file cleared of everything else.** Two rules were wrong here and both are fixed: this is not a chore register, and there **is** a **Done** group — a roadmap item that ships moves into it, by provenance. `roadmap_format.md` was not the source of either error; it defines Done as the first of six groups and sets membership by provenance. The misreadings were local to this file. **Four entries deleted as chores, not features:** _Mutation testing_ (complete; belongs in `x_proj_chores.md`), _The `manifest.json` / changelog version convention_ (no convention needed — the manifest is pegged to the working version with no dev tracking), _The eight `FREQUENCY` entities and the unit selector_ (fixed; `state_class` removal is recorded in `changelog_local.md`, and a ZTE chore was raised for the same class of problem) and _Real-time SMS notifications via webhooks_ (the router pushes nothing, and the integration already fires an event — the entry was noise). **Done** holds only _Dynamic Polling Interval Slider_; the three chores briefly restored earlier the same day were removed again under the features-only rule. **To Be Done** is omitted, having no members. **Three feature entries added under Maybe** from `.notes/todo.md`: _New device alert_, _Retire long-unseen device trackers_ and _Separate 2.4GHz and 5GHz WiFi switches_ — the first two share a persistence requirement and are marked to be designed together, and the tracker entry records that away clients are retained by the router for four months or more, which is outside what `cleanup_unused_entities` can reach. **_Per-endpoint strike budgets_ strengthened** with ISP-lockout evidence and a widened trigger. |
-| v2.1.0 | 2026-08-14 | **Two entries removed as shipped**, per the format's direction not to keep a Done group. _Write-classification register and hardware check_ landed in `51835b6`. _Diagnostics verified against a real download_ closed in `023ace4`, after a live capture audit found four leaks the rewrite had not. |
-| v2.0.0 | 2026-08-14 | Reconciled against the code and against `roadmap_format.md`. Removed the **Done** group, per the format's direction not to backfill one from the changelog. **Two entries were stale and are removed:** "Dynamic Polling Interval Slider" had already shipped as the `polling_interval` number entity, and "Static Test Sweeps Implementation" landed in `[1.1.3-dev10]`–`[1.1.3-dev14]`. Added the write-classification register, the first mutation run, per-endpoint strike budgets, the blocked diagnostics verification, the manifest/changelog version convention, and the `FREQUENCY` unit-selector issue previously recorded only in `AGENTS.md`. Recorded the deliberate decision **not** to rename the four entities that repeat their sub-device word. Converted asterisk bullets to dashes so the file passes `markdownlint`, which it had never done. |
-| v1.0.0 | 2026-08-08 | Initial baseline version. |
+**Reason:** 2026-08-24: deliberately not renamed as all eight are keeps to prevent breaking existing entity IDs in user automations and dashboards.
