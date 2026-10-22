@@ -17,8 +17,11 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
-  - [\[1.2.4-dev5\] - 2026-10-17 - Roadmap & Tasks: Task Queue Single Source Migration and Roadmap Generation](#124-dev5---2026-10-17---roadmap--tasks-task-queue-single-source-migration-and-roadmap-generation)
+  - [\[1.2.4-dev6\] - 2026-10-22 - CI Bump ruff PHACC](#124-dev6---2026-10-22---ci-bump-ruff-phacc)
+  - [\[1.2.4-dev5\] - 2026-10-17 - Roadmap \& Tasks: Task Queue Single Source Migration and Roadmap Generation](#124-dev5---2026-10-17---roadmap--tasks-task-queue-single-source-migration-and-roadmap-generation)
   - [\[1.2.4-dev4\] - 2026-10-16 - Login, Diagnostics, History and Library: Lockout Read Before Login; Unread Keys and Unwrapped Paths in the Download; Text History and Entity Reset; No Restart Repair](#124-dev4---2026-10-16---login-diagnostics-history-and-library-lockout-read-before-login-unread-keys-and-unwrapped-paths-in-the-download-text-history-and-entity-reset-no-restart-repair)
+  - [\[1.2.4-dev3\] - 2026-10-11 - Controls and README: Refusal Messages Translated; Troubleshooting Entries Aligned with ZTE](#124-dev3---2026-10-11---controls-and-readme-refusal-messages-translated-troubleshooting-entries-aligned-with-zte)
+  - [\[1.2.4-dev2\] - 2026-10-10 - Sessions, Retries and Outage Window: No Login on a Confirmed Refusal; Reboot and Reconnect Windows; Access Reference by Topic](#124-dev2---2026-10-10---sessions-retries-and-outage-window-no-login-on-a-confirmed-refusal-reboot-and-reconnect-windows-access-reference-by-topic)
   - [\[1.2.4-dev1\] - 2026-10-09 - Login, SMS and Diagnostics: Lockout Outcome Separated; SMS Delete Checked; Phone Tokenization and Capability Values Added](#124-dev1---2026-10-09---login-sms-and-diagnostics-lockout-outcome-separated-sms-delete-checked-phone-tokenization-and-capability-values-added)
   - [\[1.2.4-dev0\] - 2026-10-09 - Documentation: Capabilities Dossier Creation and Comprehensive Changelog Remediation](#124-dev0---2026-10-09---documentation-capabilities-dossier-creation-and-comprehensive-changelog-remediation)
   - [\[1.2.3\] - 2026-10-06 - Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
@@ -210,6 +213,13 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev6] - 2026-10-22 - CI Bump ruff PHACC
+
+### Bumps
+
+- **Validate Bump**: Update `ruff` from 0.16.10 to 0.17.0
+- **Validate Bump**: Bumped PHACC `pytest-homeassistant-custom-component` from 0.13.372 to 0.13.373
 
 ## [1.2.4-dev5] - 2026-10-17 - Roadmap & Tasks: Task Queue Single Source Migration and Roadmap Generation
 
