@@ -281,7 +281,7 @@ All eight are polled and appear in the polled table above and in `ENDPOINT_NAMES
 | Endpoint | Returns | Why not |
 | :-- | :-- | :-- |
 | `device.boot_time` | `04:48:35` | Duplicates `device_information.uptime`: read together they matched exactly (17,315 s), formatted `HH:MM:SS` |
-| `wlan.wlandbho` | `DbhoEnable`, `MloEnable` | Band steering and Wi-Fi 7 MLO are settings, not state, and `DbhoEnable` already arrives in `wlan_multi_basic_settings` |
+| `wlan.wlandbho` | `DbhoEnable`, `MloEnable` | Not polled; `DbhoEnable` already arrives in `wlan_multi_basic_settings`. The two fields are the web interface's "5 GHz preferred" and "Wi-Fi band aggregation (MLO)" toggles: see [Radios, bands and the combine toggles](#radios-bands-and-the-combine-toggles) |
 | `net.cell_info` | `cellinfo`, `lac` | `cell_id` and `pci` are already exposed from `device_signal` |
 | `s_ntp.timeinfo` | Time zone, sync status, servers | Router clock; nothing acts on it. Its format is under [Field formats and traps](#-field-formats-and-traps) |
 | `dhcp.settings` | DHCP range, lease, `homerouter.cpe` | Static configuration, not state |
@@ -411,6 +411,44 @@ Ten writes, all serialized behind one `asyncio.Lock` and routed through `_execut
 ### The master WiFi switch works at the RADIO level, not the SSID level
 
 The per-SSID flags in `wlan/multi-basic-settings` are gated by the radio, and writing them while the radio is off changes nothing observable. The radio state is `wlan/status-switch-settings`, as `wifienable` per radio, and turning WiFi on or off writes that block back whole. The library's own `wlan.wifi_network_switch()` answers `100005: Request format error` on the H165-383, so it is not an alternative. The current WiFi state is read from `monitoring_status.WifiStatus`, which is already polled.
+
+### Radios, bands and the combine toggles
+
+Measured on the H165-383 on 2026-10-23, with the owner changing each setting in the router's web interface between reads. Recorded in [`changelog_local.md` `[1.2.4-dev7]`](changelog_local.md#124-dev7---2026-10-23---access-reference-and-task-queue-radio-band-and-guest-wifi-fields-measured-queue-refined-defensive-behavior-audit-closed).
+
+| Field | Meaning | Values observed |
+| :-- | :-- | :-- |
+| `wlan/status-switch-settings` `Radio.1.` `wifienable` | 2.4 GHz radio on | `0` and `1` |
+| `wlan/status-switch-settings` `Radio.2.` `wifienable` | 5 GHz radio on | `0` and `1` |
+| `wlan/wlandbho` `DbhoEnable` | "5 GHz preferred": the two bands are combined and shown as one network, and 5 GHz is preferred when signal strength is equal; off, the bands are used separately | `False` and `True` |
+| `wlan/wlandbho` `MloEnable` | "Wi-Fi band aggregation (MLO)": Wi-Fi 7 devices connect on several bands at once by multi-link operation, when Wi-Fi 7 mode, 5 GHz preferred and a security mode are set | `True` |
+
+- **Neither WLAN block names a band.** A radio entry carries only `ID`, `index`, `wifienable` and `RestrictState`, and an SSID entry in `wlan/multi-basic-settings` has no frequency field. The mapping above comes from the trial, not from the API.
+- **With "5 GHz preferred" on, both radios read `wifienable` `1`.** The web interface then offers no per-band control.
+- **`DbhoEnable` is in two blocks.** `wlan/wlandbho` and `wlan/multi-basic-settings` both carry it. It is not band steering in the sense of a separate feature: it is the combine toggle.
+- **`wifi_feature_switch` `dbhoswitchshow` is `1`** on this router, which reads as the flag that shows the combine toggle in the web interface.
+- **The library reads `wlan/wlandbho` and `wlan/status-switch-settings` on 1.11.0 and 2.0.1, and has a setter for neither.**
+- **Separate mode renames the 5 GHz network.** With "5 GHz preferred" off, the 5 GHz SSID gains the suffix in `wifi_feature_switch` `wifi5gnamepostfix` (`_5G`); combined, both bands share one name.
+- **Turning a band off in the web interface turns its SSIDs off, and turning it on restores them.** With the 2.4 GHz band off, `Radio.1.` and every SSID under it, the guest SSID included, read `WifiEnable` `0`; with the band back on, each SSID returned to its previous state. `monitoring_status` `currenttotalwifiuser` halves with one radio off (128 to 64).
+- Not yet measured: which block accepts a `DbhoEnable` write, and whether a write to one radio leaves the other unchanged.
+
+### Guest WiFi state and settings
+
+Measured on the H165-383 on 2026-10-23, with the owner changing each setting in the web interface between reads. Recorded in [`changelog_local.md` `[1.2.4-dev7]`](changelog_local.md#124-dev7---2026-10-23---access-reference-and-task-queue-radio-band-and-guest-wifi-fields-measured-queue-refined-defensive-behavior-audit-closed).
+
+| Setting | Field | Values observed |
+| :-- | :-- | :-- |
+| Guest on or off | `wlan/multi-basic-settings`, the SSID with `wifiisguestnetwork` `1`, `WifiEnable` | `0`, `1` |
+| Duration | `wifiguestofftime`, written to every SSID in the block | `4` (4 hours, the default), `24` (1 day), `0` (unlimited) |
+| Security | the guest SSID's `WifiAuthmode`, with `WifiBasicencryptionmodes` or `WifiWpaencryptionmodes` | `OPEN` with `NONE`; `WPA/WPA2-PSK` with `MIX` |
+| Time remaining | `wlan/guesttime-setting` `remaintime`, in seconds | Counting down with a limited duration (`86244`, then `86163` 81 s later); `0` with an unlimited duration and with guest off |
+
+- **The guest network is on the 2.4 GHz radio only** (`Radio.1.Ssid.3.`).
+- **The router stores the guest choice and its settings.** With guest on, turning the 2.4 GHz band off set the guest SSID's `WifiEnable` to `0`, and turning the band on restored `1`. With guest off, the band cycle left it `0`. While the band is off, `WifiEnable` reads `0` whatever the stored choice, so the guest state is unknown then. Duration and security are kept while guest is off.
+- **The web interface offers the guest settings only while guest is on.**
+- **`wlan/guesttime-setting`** also returns `isvalidtime`, `1` in every state read, and `extendtime`, `30` in every state read; their meanings are not established. It answered after login with guest on and off, at a limited and an unlimited duration. The 2026-10-10 sweep recorded it, and `time/timeout`, as `100003`; both answer when read on their own, which matches the false refusals described under [Why a bulk sweep produces false `100003` results](#why-a-bulk-sweep-produces-false-100003-results).
+- **Passwords are not readable.** Every key field (`WifiWpapsk`, `MixWifiWpapsk`, the WEP keys) reads `null`.
+- Not yet measured: whether a write of `wifiguestofftime` or of the guest security through the guest write path holds.
 
 ### Guest WiFi deliberately bypasses the public setter
 

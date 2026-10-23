@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev7\] - 2026-10-23 - Access Reference and Task Queue: Radio, Band and Guest WiFi Fields Measured; Queue Refined; Defensive-Behavior Audit Closed](#124-dev7---2026-10-23---access-reference-and-task-queue-radio-band-and-guest-wifi-fields-measured-queue-refined-defensive-behavior-audit-closed)
   - [\[1.2.4-dev6\] - 2026-10-22 - CI Bump ruff PHACC](#124-dev6---2026-10-22---ci-bump-ruff-phacc)
   - [\[1.2.4-dev5\] - 2026-10-17 - Roadmap \& Tasks: Task Queue Single Source Migration and Roadmap Generation](#124-dev5---2026-10-17---roadmap--tasks-task-queue-single-source-migration-and-roadmap-generation)
   - [\[1.2.4-dev4\] - 2026-10-16 - Login, Diagnostics, History and Library: Lockout Read Before Login; Unread Keys and Unwrapped Paths in the Download; Text History and Entity Reset; No Restart Repair](#124-dev4---2026-10-16---login-diagnostics-history-and-library-lockout-read-before-login-unread-keys-and-unwrapped-paths-in-the-download-text-history-and-entity-reset-no-restart-repair)
@@ -213,6 +214,53 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev7] - 2026-10-23 - Access Reference and Task Queue: Radio, Band and Guest WiFi Fields Measured; Queue Refined; Defensive-Behavior Audit Closed
+
+### Summary
+
+No integration code changed. `docs/huawei_how_to_access.md` gained two sections of WiFi fields measured on the H165-383 dev unit on 2026-10-23, with the owner changing each setting in the router's web interface between read-only reads: radio-to-band mapping, the "5 GHz preferred" and MLO toggles, and the guest network's state, duration, security and time remaining. The task queue was refined end to end by `queue_refine.md` (first run, `INCLUDE_PARKED=yes`, 2026-10-22 to 2026-10-23), and a defensive-behavior audit against core `huawei_lte`, two forks and `huawei-lte-api` was run and closed. This entry links those access-reference sections to the reads and decisions behind them.
+
+### Bumps
+
+- **Validate Bump**: Update `ruff` from 0.17.0 to 0.17.1
+
+### Documentation
+
+- **`docs/huawei_how_to_access.md`, section "Radios, bands and the combine toggles" (new)**:
+  - `wlan/status-switch-settings` `Radio.1.` is 2.4 GHz and `Radio.2.` is 5 GHz; neither WLAN block names a band, so the mapping comes from reads before and after the owner switched each band in the web interface.
+  - `wlan/wlandbho` `DbhoEnable` is the web interface's "5 GHz preferred" combine toggle (`False` off, `True` on), also present in `wlan/multi-basic-settings`; with it on, both radios read `wifienable` `1`. `MloEnable` is "Wi-Fi band aggregation (MLO)".
+  - `wifi_feature_switch` `dbhoswitchshow` reads `1`; the library 1.11.0 and 2.0.1 reads both blocks and has no setter for either.
+  - Separate mode renames the 5 GHz network with `wifi5gnamepostfix` (`_5G`); turning a band off in the web interface sets every SSID under it to `WifiEnable` `0`, and turning it on restores each; `currenttotalwifiuser` went from 128 to 64 with one radio off.
+  - Still unmeasured: which block accepts a `DbhoEnable` write, and whether a write to one radio leaves the other unchanged.
+- **`docs/huawei_how_to_access.md`, section "Guest WiFi state and settings" (new)**:
+  - Guest network on `Radio.1.Ssid.3.` only; on or off from that SSID's `WifiEnable`.
+  - Duration `wifiguestofftime`, written to every SSID: `4` (4 hours, default), `24` (1 day), `0` (unlimited).
+  - Security from the guest `WifiAuthmode`: `OPEN` with `WifiBasicencryptionmodes` `NONE`, or `WPA/WPA2-PSK` with `WifiWpaencryptionmodes` `MIX`.
+  - Time remaining `wlan/guesttime-setting` `remaintime` in seconds: `86244`, then `86163` 81 s later with a 1-day duration; `0` with an unlimited duration and with guest off. `isvalidtime` `1` and `extendtime` `30` in every state read, meanings not established.
+  - The router stores the guest choice and settings: with the 2.4 GHz band off the guest SSID reads `WifiEnable` `0` whatever the choice, and the band's return restores it; guest off survived a band cycle.
+  - Password fields (`WifiWpapsk`, `MixWifiWpapsk`, WEP keys) read `null`.
+  - The 2026-10-10 sweep's `100003` for `wlan/guesttime-setting` and `time/timeout` recorded as false refusals: both answer when read alone.
+  - Still unmeasured: whether a duration or security write through the guest write path holds.
+- **`docs/huawei_how_to_access.md`, "Readable, reviewed, not adopted" row for `wlan.wlandbho`**: corrected from "band steering" to the two toggles above.
+
+### Verified
+
+- **Read-only reads on the H165-383 dev unit, 2026-10-23**, through `huawei-lte-api` 2.0.1 in `huawei-5g-dev-ha`, SSID names and BSSIDs masked in the saved reads:
+  - `wlan/status-switch-settings`, `wlan/multi-basic-settings`, `wlan/wlandbho`, `wlan/wifi-feature-switch` and `monitoring/status` WiFi fields, read after each owner change in the web interface.
+  - `wlan/guesttime-setting`, read with guest on at 1 day (twice, 81 s apart), at unlimited, and with guest off.
+  - The 76 endpoints answering in the 2026-10-10 sweep, read twice 60 s apart, finding no countdown among them.
+- **Other measurements**: `parse_signal_value` run on `>=-51dBm`, `&lt;-20dB` and `&gt;=30dB` returned `None` for each; `SENSOR_TYPES` holds 132 sensor descriptions, 35 off by default.
+
+### Records
+
+- **Task queue, first `queue_refine.md` run (34 items including two raised after it)**: every open task carries Size, Priority, `Depends on:` and a claims table; `--unplanned huawei` reports no non-Ready items. Summary in `tasks/README.md` versions 1.44.0 and 1.45.0.
+- **Rewritten from measured or read evidence**: `separate_2_4ghz_and_5ghz_wifi_switches.md` (band and combine switches, from the radio reads); `guest_wifi_ssid_write_validation.md` (Guest WiFi settings read sensors and a write examination, from the guest reads); `device_tracker_naming.md` (trackers attach to another integration's device where one exists, "via" naming, from HA 2026.10.2 `ScannerEntity` and entity-registry source); `per_model_entity_defaults.md` (aligned with `zte_router_5g`'s overlay and evidence approach); `b315_checks_deferred_from_1_2_4_dev1.md` (one B315s-22 session in 4G and Ethernet mode); `router_ethernet_mode_support.md` (blocked on H165-383 and B315s-22 Ethernet-mode downloads); `wlan_band_locking_write_capability.md` (cellular band locking, parked; effect of a narrower `LTEBand` mask unmeasured).
+- **Raised**: `mine_the_whole_web_interface.md`, `device_basic_information_fallback.md`, `parse_signal_value_accepting_comparison_prefixes.md`, `tolerating_a_non_list_ssid.md`; cross-project `device_info_dataclass_2026_11.md`.
+- **Declined, moved to `tasks/declined/`**: `delete_all_sms_button.md`; `variant_api_paths_for_other_models.md` (no Huawei project uses path variants).
+- **Closed, moved to `tasks/closed/`**: `audit_defensive_behavior_against_core_and_forks.md`, results in `info/other_huawei_projects/core_huawei_lte_behavior_comparison.md` §8 (version 1.3.0).
+- **Findings register**: `FIND-HRM-014` (SMS content as UCS-2 hex, deferred, model unknown) and `FIND-HRM-015` (unauthenticated mode, declined).
+- **Cross-project decisions**: `huawei_router_5g` cells set `N/A` in `custom_trigger_options.md` (event entities instead, no floor rise) and `setup_cleanup_options.md` (moved to `opt_out_of_client_tracking_at_setup.md`); `sms_notify_entity.md` recipients as config subentries, with the floor rise from 2025.2.0 to 2025.3.0 decided for Huawei and ZTE.
 
 ## [1.2.4-dev6] - 2026-10-22 - CI Bump ruff PHACC
 
