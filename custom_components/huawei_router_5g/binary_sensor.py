@@ -23,6 +23,7 @@ from .helpers import (
     HuaweiDeviceEntity,
     is_ssid_on,
     parse_signal_value,
+    ssid_entries,
 )
 
 # Section 22. `0` (unlimited) — this platform is read-only. Entities are
@@ -582,10 +583,7 @@ class HuaweiWifi24GStatusSensor(HuaweiBinarySensor):
         data = self.coordinator.data
         if not data:
             return None
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
+        ssids = ssid_entries(data.get("wlan_multi_basic_settings"))
 
         # Priority 1: ID path (Dynamic mapping)
         res = is_ssid_on(ssids, "Radio.1.Ssid.1")
@@ -611,10 +609,7 @@ class HuaweiWifi5GStatusSensor(HuaweiBinarySensor):
         data = self.coordinator.data
         if not data:
             return None
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
+        ssids = ssid_entries(data.get("wlan_multi_basic_settings"))
 
         # Priority 0: ID path (Dynamic mapping)
         res = is_ssid_on(ssids, "Radio.2.Ssid.1")

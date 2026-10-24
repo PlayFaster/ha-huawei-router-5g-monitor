@@ -126,6 +126,7 @@ PLATFORMS = [
     Platform.SELECT,
     Platform.DEVICE_TRACKER,
     Platform.NUMBER,
+    Platform.EVENT,
 ]
 
 
@@ -541,6 +542,10 @@ async def async_setup_entry(
     # "nothing learned", which routes to the cold-start path.
     await coordinator.async_load_stored_uptime()
     await coordinator.observations.async_load()
+    # Before the first poll, so a 100003 on it is judged against what this
+    # device has answered before a restart, not against an empty record.
+    api.information_answered = coordinator.observations.information_answered()
+    coordinator.restore_sms_record()
 
     # Register the root System device early to prevent via_device warnings in platforms.
     device_registry = dr.async_get(hass)

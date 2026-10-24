@@ -26,7 +26,7 @@ from .api import (
     HuaweiRouter5GAPI,
 )
 from .const import CONF_NAME, DEFAULT_NAME, DOMAIN
-from .helpers import get_router_model
+from .helpers import get_router_model, identity_from_basic_information
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -101,7 +101,12 @@ async def _validate_credentials(user_input: dict[str, Any]) -> dict[str, Any]:
     await api.login()
     try:
         data = await api.get_data()
-        dev_info = data.get("device_information") or {}
+        # A router that refuses `device/information` is set up from
+        # `device/basic-information`, as core `huawei_lte` does; it has no MAC
+        # there, so the entry is keyed by host.
+        dev_info = data.get("device_information") or identity_from_basic_information(
+            data.get("device_basic_information")
+        )
         mac = (
             dev_info.get("MacAddress1")
             or dev_info.get("wan_mac_address")

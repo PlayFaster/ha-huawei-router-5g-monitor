@@ -121,7 +121,18 @@ TO_REDACT = {
 # `Mccmnc` is the same value as `current_plmn.Numeric` reached by another key,
 # and was published in full while `Numeric` beside it was redacted. `Spn` was
 # listed as lowercase `spn`, which the router never sends — a silent miss.
-CARRIER_KEYS = {"FullName", "ShortName", "Numeric", "Rat", "Spn", "spn", "Mccmnc"}
+# `ApnName` in `dial_up_profiles` is the operator's APN, which names the
+# provider; the extended leak check found it published in full (1.2.4-dev8 I9).
+CARRIER_KEYS = {
+    "FullName",
+    "ShortName",
+    "Numeric",
+    "Rat",
+    "Spn",
+    "spn",
+    "Mccmnc",
+    "ApnName",
+}
 
 # Tokenized rather than blanked — seeing that two fields hold the same address
 # is diagnostic, seeing the address itself is not.
@@ -210,11 +221,14 @@ NEVER_SWEPT_KEYS = {
     "hw_version",
 }
 
-# Each octet bounded to 0-255, and not adjacent to a word character, `.` or `(`
-# — so a dotted version string carrying a suffix is not mistaken for an address.
+# Each octet bounded to 0-255, not preceded by a word character or `.`, and
+# not followed by a word character, `(`, or a `.` that a word character follows
+# — so a dotted version string carrying a suffix is not mistaken for an
+# address, while an address ending a sentence, such as `203.0.113.7.`, is. The
+# lookahead is `unifi_network_monitor`'s (`diagnostics.py:91`).
 _OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
 _IPV4_RE = re.compile(
-    rf"(?<![\w.])(?:{_OCTET}\.){{3}}{_OCTET}(?![\w.(])",
+    rf"(?<![\w.])(?:{_OCTET}\.){{3}}{_OCTET}(?![\w(]|\.\w)",
 )
 _MAC_RE = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 # Requires either a `::` elision or the full eight-group form. Anything looser

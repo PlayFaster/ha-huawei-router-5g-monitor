@@ -546,6 +546,18 @@
       "polling_interval": {
         "name": "Polling Interval"
       }
+    },
+    "event": {
+      "incoming_sms": {
+        "name": "Incoming SMS",
+        "state_attributes": {
+          "event_type": {
+            "state": {
+              "received": "Received"
+            }
+          }
+        }
+      }
     }
   },
   "exceptions": {

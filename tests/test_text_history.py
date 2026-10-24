@@ -273,3 +273,26 @@ def test_a_description_without_a_value_function_is_not_populated(
         (*binary_sensor.VALUE_BINARY_SENSORS, blank),
     )
     assert "blank" not in entity_keys_with_values(_payload("1.0"))
+
+
+async def test_the_information_answered_flag_survives_a_reload(
+    hass: HomeAssistant,
+) -> None:
+    """Whether `device_information` has answered is kept across a restart (I3).
+
+    A store written before 1.2.4-dev8 has no flag and reads False; the first
+    answer writes it, and a second recorder on the same entry reads it back.
+    """
+    entry = _entry(hass)
+    first = ObservationRecorder(hass, entry)
+    await first.async_load()
+    assert first.information_answered() is False
+    assert first.set_information_answered(False) is False
+
+    assert first.set_information_answered(True) is True
+    assert first.set_information_answered(True) is False
+    await first.async_save()
+
+    second = ObservationRecorder(hass, entry)
+    await second.async_load()
+    assert second.information_answered() is True

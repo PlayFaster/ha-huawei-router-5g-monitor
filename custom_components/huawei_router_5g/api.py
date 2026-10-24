@@ -53,7 +53,7 @@ from .const import (
     REQUEST_TIMEOUT,
     WRITE_TIMEOUT,
 )
-from .helpers import _safe_int, confirm_write
+from .helpers import _safe_int, confirm_write, ssid_entries
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -388,6 +388,18 @@ class HuaweiRouter5GAPI:
         self._premise_cache: str | None = None
         self.premise_result: dict[str, Any] | None = None
         self._answered: set[str] = set()
+        # **The `device/basic-information` fallback** (1.2.4-dev8 plan I3).
+        # `information_answered` is whether `device_information` has ever
+        # answered on this entry; the coordinator seeds it from the observed
+        # store and persists it, so it survives a restart where `_answered`
+        # does not. While it is False, a refusal of `device_information` starts
+        # the fallback instead of failing the poll. `_unread_since_login` marks
+        # a session on which `device_information` has not yet been read: a
+        # refusal on that first read cannot be an expiry, so it starts the
+        # fallback even where the flag is set.
+        self.information_answered = False
+        self.fallback_active = False
+        self._unread_since_login = False
         self._generation = 0
         self._refusal_warned: set[tuple[str, str]] = set()
         # Sessions found lost during the last diagnostics sweep, for the download.
@@ -559,6 +571,7 @@ class HuaweiRouter5GAPI:
                 self._connection = conn
                 self._client = client
                 self._last_activity = datetime.now(UTC)
+                self._unread_since_login = True
             except HuaweiLockoutError:
                 self._connection = None
                 self._client = None
@@ -792,6 +805,7 @@ class HuaweiRouter5GAPI:
             self._connection = conn
             self._client = client
             self._last_activity = datetime.now(UTC)
+            self._unread_since_login = True
             self._record_login_metadata("ok")
         except HuaweiLockoutError as err:
             self._connection = None
@@ -945,7 +959,12 @@ class HuaweiRouter5GAPI:
         that has answered raises as an expiry, so setup is not left failing on a
         router where the premise cannot be checked.
         """
-        within_budget = time.monotonic() - poll.started <= ADJUDICATION_BUDGET
+        # In the `device/basic-information` fallback, `device_information`
+        # cannot be the re-read, so the history rule below decides.
+        within_budget = (
+            time.monotonic() - poll.started <= ADJUDICATION_BUDGET
+            and not self.fallback_active
+        )
         premise = self._premise_cache
         if premise is None and within_budget:
             premise = self._read_premise(poll.generation)
@@ -1543,7 +1562,18 @@ class HuaweiRouter5GAPI:
 
         Raises only for the critical endpoint and for an expired session; any
         other failure is recorded and leaves the key out of `data`.
+
+        A refusal of `device_information` starts the `device/basic-information`
+        fallback instead of raising where `device_information` has never
+        answered on this entry, or where this is the first read since a login,
+        which cannot be an expiry. A working router's expiry therefore stays an
+        expiry, and a router whose firmware stops serving `device_information`
+        does not log in again on every poll.
         """
+        first_since_login = False
+        if key == "device_information":
+            first_since_login = self._unread_since_login
+            self._unread_since_login = False
         try:
             started_at = time.monotonic()
             data[key] = (
@@ -1553,6 +1583,9 @@ class HuaweiRouter5GAPI:
             )
             if poll.generation == self._generation:
                 self._answered.add(key)
+            if key == "device_information":
+                self.information_answered = True
+                self.fallback_active = False
             self._record_endpoint(
                 key,
                 "answered",
@@ -1563,6 +1596,15 @@ class HuaweiRouter5GAPI:
                 self.endpoint_outcomes[key]["retried"] = True
         except ResponseErrorException as err:
             code = str(err.code)
+            # 125002 and 125003 are the session token failing, never a refusal
+            # of one endpoint, so they stay on the expiry path below.
+            if (
+                key == "device_information"
+                and code not in ("125002", "125003")
+                and (not self.information_answered or first_since_login)
+            ):
+                self._start_fallback(code, data)
+                return
             judged: str | None = None
             if isinstance(err, ResponseErrorLoginRequiredException) or code in (
                 "125002",
@@ -1617,6 +1659,28 @@ class HuaweiRouter5GAPI:
             else:
                 _LOGGER.debug("Failed to fetch %s: %s", key, err)
 
+    def _start_fallback(self, code: str, data: dict[str, Any]) -> None:
+        """Record a refusal of `device_information` and start the fallback.
+
+        `device_information` stays first in the poll and is read every time, so
+        the fallback ends on the first poll it answers. While the fallback is
+        active, `_judge_signal` decides session signals by the history rule,
+        since `device_information` cannot serve as the live-session re-read.
+        """
+        self._record_verdict(
+            "refused", code=code, key="device_information", payload=data
+        )
+        self._record_endpoint("device_information", "refused", code)
+        self.endpoint_outcomes["device_information"]["judged"] = "fallback"
+        self.information_answered = False
+        if not self.fallback_active:
+            _LOGGER.warning(
+                "The router refused device_information with %s; reading the "
+                "device name from device/basic-information instead",
+                code,
+            )
+        self.fallback_active = True
+
     def _fetch_all(self) -> dict[str, Any]:
         """Read every polled endpoint on the current client (blocking, in a thread)."""
         data: dict[str, Any] = {}
@@ -1648,6 +1712,14 @@ class HuaweiRouter5GAPI:
                 break
 
             self._fetch_one(key, fetcher, client, poll, data)
+            if key == "device_information" and self.fallback_active:
+                self._fetch_one(
+                    "device_basic_information",
+                    lambda: client.device.basic_information(),
+                    client,
+                    poll,
+                    data,
+                )
         return data
 
     async def get_data(self) -> dict[str, Any]:
@@ -2109,9 +2181,7 @@ class HuaweiRouter5GAPI:
 
             def _set(client: Client) -> None:
                 multi_settings = client.wlan.multi_basic_settings()
-                ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-                if isinstance(ssids, dict):
-                    ssids = [ssids]
+                ssids = ssid_entries(multi_settings)
 
                 found = False
                 for ssid in ssids:

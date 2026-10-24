@@ -52,11 +52,12 @@ An entity that defines its own `extra_state_attributes` must route the result th
 | Total Download | Sensor | `total_download` | Lifetime bytes downloaded, as counted since the router's traffic statistics were last cleared - not since manufacture. |
 | Total Upload | Sensor | `total_upload` | Lifetime bytes uploaded since the traffic statistics were last cleared. |
 
-## SMS (18)
+## SMS (19)
 
 | Entity | Platform | Key | Note |
 | :-- | :-- | :-- | :-- |
 | SMS Storage Full | Binary sensor | `sms_storage_full` | On when message storage has no room left. A full store makes the network stop delivering new messages, and nothing else in the integration reports that - which is the whole reason this entity exists. |
+| Incoming SMS | Event | `incoming_sms` | Fires once for each new SMS the router receives, with the same data as the huawei_router_5g_sms_received event. The sender and the text are not written to the recorder. |
 | Last Msg | Sensor | `last_sms` | The text of the most recent message. Its sender, timestamp and index are attributes, all excluded from the recorder: republishing a phone number on every poll is both a storage cost and a privacy one. |
 | Capacity (Device) | Sensor | `sms_capacity_device` | How many messages the router's own memory can hold. Compare with Total (Device): reaching it is what makes SMS Storage Full turn on, and a full store silently drops incoming messages. |
 | Capacity (SIM) | Sensor | `sms_capacity_sim` | How many messages the SIM card can hold. SIM storage is typically an order of magnitude smaller than the router's own, so it fills first and is usually what triggers SMS Storage Full. |

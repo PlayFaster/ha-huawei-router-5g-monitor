@@ -220,6 +220,9 @@ class ObservationRecorder:
             "recording_since": record.get("since"),
             "load_faults": self._load_faults,
             "entities_known_populated": len(record.get("populated", [])),
+            # A count only: the SMS record's secret and identities never reach
+            # the download (1.2.4-dev8 plan I7).
+            "sms_seen": len((record.get("sms") or {}).get("seen", [])),
             "change_counts": dict(record.get("change_counts", {})),
             "series": {
                 key: {
@@ -236,6 +239,49 @@ class ObservationRecorder:
         record = self._observed.get(self.device_id, {})
         saved = record.get("snapshot")
         return dict(saved) if isinstance(saved, dict) else {}
+
+    def sms_record(self) -> tuple[str, list[str]] | None:
+        """Return the persisted SMS secret and seen identities, or None.
+
+        A record without its secret is discarded, since its identities cannot
+        be recomputed: the coordinator then takes a silent baseline instead of
+        announcing every held message. The secret and the identities are
+        written by the same save, so a failure loses both or neither.
+        """
+        record = self._observed.get(self.device_id, {}).get("sms")
+        if not isinstance(record, dict):
+            return None
+        secret = record.get("secret")
+        seen = record.get("seen")
+        if not isinstance(secret, str) or not secret or not isinstance(seen, list):
+            return None
+        return secret, [str(item) for item in seen]
+
+    def set_sms_record(self, secret: str, seen: list[str]) -> None:
+        """Hold the SMS secret and seen identities for the next save."""
+        self._observed.setdefault(self.device_id, {})["sms"] = {
+            "secret": secret,
+            "seen": list(seen),
+        }
+
+    def information_answered(self) -> bool:
+        """Whether `device_information` has ever answered on this device.
+
+        Kept here, not on the API object, because the API object's record of
+        what has answered is in memory and empty after every start; a 100003
+        on the first poll after a restart would otherwise start the
+        `device/basic-information` fallback on a working router.
+        """
+        record = self._observed.get(self.device_id, {})
+        return record.get("information_answered") is True
+
+    def set_information_answered(self, answered: bool) -> bool:
+        """Record whether `device_information` has answered; return if it changed."""
+        record = self._observed.setdefault(self.device_id, {})
+        if (record.get("information_answered") is True) == answered:
+            return False
+        record["information_answered"] = answered
+        return True
 
     async def async_save_snapshot(self, enabled: dict[str, bool]) -> None:
         """Record the enabled state of every entity as this device's baseline."""

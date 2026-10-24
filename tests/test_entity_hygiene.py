@@ -12,6 +12,10 @@ changed, because the trigger is the set growing rather than the code path
 running.
 """
 
+import ast
+import pathlib
+
+import pytest
 from pytest_homeassistant_custom_component.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.sensor import SENSOR_TYPES
@@ -345,6 +349,7 @@ EXPECTED_PARALLEL_UPDATES = {
     "sensor": 0,  # read-only
     "binary_sensor": 0,  # read-only
     "device_tracker": 0,  # read-only
+    "event": 0,  # incoming SMS — pushed by the coordinator, no request
 }
 
 
@@ -1600,3 +1605,105 @@ def test_device_info_is_declared_once() -> None:
         + ", ".join(sorted(declaring))
         + ". Inherit `helpers.HuaweiDeviceEntity` instead."
     )
+
+
+# ---------------------------------------------------------------------------
+# Device registry — deprecated surfaces only through _compat (C-038)
+# ---------------------------------------------------------------------------
+
+COMPONENT = pathlib.Path(__file__).resolve().parent.parent / (
+    "custom_components/huawei_router_5g"
+)
+
+
+def _hass_owned(node: ast.expr) -> bool:
+    """`hass` or `<x>.hass`, whose `config_entries` is the manager, not a device's."""
+    return (isinstance(node, ast.Name) and node.id == "hass") or (
+        isinstance(node, ast.Attribute) and node.attr == "hass"
+    )
+
+
+def _deprecated_registry_uses(tree: ast.AST) -> list[tuple[int, str]]:
+    """Return `(line, surface)` for each deprecated device-registry use in `tree`.
+
+    Three surfaces, all deprecated in HA 2026.8: `async_get_device(...)`
+    (removed 2027.8), `DeviceEntry.config_entries` (removed 2027.10), and the
+    `via_device` identifier tuple (removed 2027.8). Read from the syntax tree,
+    so a comment naming a surface does not count, and `hass.config_entries`,
+    the config-entry manager, is not a device attribute. Ported from
+    `zte_router_5g` `3.4.6-dev2`, the reference for chore C-038.
+    """
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "async_get_device"
+        ):
+            found.append((node.lineno, "async_get_device()"))
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr == "config_entries"
+            and not _hass_owned(node.value)
+        ):
+            found.append((node.lineno, "DeviceEntry.config_entries"))
+        elif isinstance(node, ast.keyword) and node.arg == "via_device":
+            found.append((node.lineno, "via_device="))
+        elif isinstance(node, ast.Dict):
+            found.extend(
+                (key.lineno, "'via_device' key")
+                for key in node.keys
+                if isinstance(key, ast.Constant) and key.value == "via_device"
+            )
+    return found
+
+
+def test_deprecated_device_registry_surfaces_only_in_compat() -> None:
+    """Deprecated device-registry surfaces are reached only through `_compat`.
+
+    `_compat.device_by_identifier()` and `_compat.via_device_link()`
+    feature-detect the 2026.8 replacements. A direct call elsewhere works on
+    today's Home Assistant and breaks on removal, which is how
+    `unifi_network_monitor` 1.1.0-dev12 shipped one in `identity.py`.
+    """
+    offenders = [
+        f"{path.relative_to(COMPONENT)}:{line}  {surface}"
+        for path in sorted(COMPONENT.rglob("*.py"))
+        if path.name != "_compat.py"
+        for line, surface in _deprecated_registry_uses(
+            ast.parse(path.read_text(encoding="utf-8"))
+        )
+    ]
+    assert not offenders, (
+        "deprecated device-registry surfaces outside _compat.py:\n"
+        + "\n".join(offenders)
+        + "\nRoute the lookup through a `_compat` shim."
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "surface"),
+    [
+        ("dev_reg.async_get_device(identifiers={('d', 'x')})", "async_get_device()"),
+        ("ids = device.config_entries", "DeviceEntry.config_entries"),
+        ("DeviceInfo(via_device=('d', 'x'))", "via_device="),
+        ("info = {'via_device': ('d', 'x')}", "'via_device' key"),
+    ],
+)
+def test_registry_guard_detects_each_surface(source: str, surface: str) -> None:
+    """The guard above reports each surface it names."""
+    assert [s for _, s in _deprecated_registry_uses(ast.parse(source))] == [surface]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "entry = hass.config_entries.async_get_entry(entry_id)",
+        "self.hass.config_entries.async_update_entry(entry)",
+        "# async_get_device(identifiers=...) is deprecated",
+        "link = via_device_link(hass, 'd', 'x', entry_id)",
+    ],
+)
+def test_registry_guard_ignores_manager_and_comments(source: str) -> None:
+    """The config-entry manager, comments and the shims do not count."""
+    assert _deprecated_registry_uses(ast.parse(source)) == []

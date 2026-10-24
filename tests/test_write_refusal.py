@@ -72,7 +72,7 @@ _CALLS: dict[str, tuple[Any, ...]] = {
     "set_net_mode": ("00",),
     "set_wifi": (True,),
     "set_guest_wifi": (True,),
-    "send_sms": (["+15551234567"], "a message"),
+    "send_sms": (["+15555550100"], "a message"),
     "delete_sms": (1,),
 }
 
@@ -303,7 +303,7 @@ async def test_an_unwrapped_write_refused_with_a_session_code_is_not_resent(
     api = _api()
 
     with pytest.raises(HuaweiWriteRefusedError):
-        await api.send_sms(["+15551234567"], "a message")
+        await api.send_sms(["+15555550100"], "a message")
 
     assert transport.faults_served == 1
     assert transport.logins == 1

@@ -15,59 +15,59 @@ Forward plans, deferred decisions, and declined directions for the Huawei 5G Rou
 
 ---
 
-## To Be Done
-
-### Router Ethernet mode support
-
-Behavior on a router that takes its internet from its WAN Ethernet port and has no cellular link: setup succeeds, cellular entities read unknown without raising, and health reports no spurious drift.
-
 ## Maybe
 
 ### 5G Mode select, and a sensor to read it back
 
-A dropdown select for 5G Mode (SA+NSA, NSA, SA) and a dedicated sensor to read back current mode.
-
-### HTTPS routers with a self-signed certificate
-
-Allow connection to routers over HTTPS with user-configurable certificate verification.
+A select for 5G Mode (SA+NSA, NSA, SA) and a sensor reading it back, built only if the web interface mining identifies the request the router's own 5G Mode dropdown sends.
 
 ### New device alert
 
-Notify the user when a client that has never been seen before joins the router.
+Raise an event entity when a client the integration has never tracked joins the router, using the entity registry as the record of known clients so that a restart raises no false alerts.
 
-### Opt out of client tracking at setup
+### WiFi band switches and combine toggles
 
-A single toggle at setup and in Configure to turn off the Clients group completely for privacy and entity hygiene.
-
-### Retire long-unseen device trackers
-
-Mark device trackers unavailable when unseen for a user-set period rather than accumulating router-cached clients indefinitely.
-
-### Separate 2.4GHz and 5GHz WiFi switches
-
-Per-band 2.4GHz and 5GHz WiFi control switches and band-combine toggle.
+Switches for the router's "5 GHz preferred" and "Wi-Fi band aggregation (MLO)" settings, and one switch per WiFi band, 2.4GHz and 5GHz, which are available only while the bands are separate.
 
 ## Blocked
 
-### WLAN band locking write capability
+### Router Ethernet mode support
 
-Write commands to force specific 5G and LTE cellular bands.
+Behavior on a Huawei router that takes its internet from its WAN Ethernet port and has no cellular link: setup succeeds, cellular entities read unknown without raising, health reports no spurious drift, and cellular endpoints are not polled.
 
-**Reason:** Physical router hardware API validation. Releasing untested write commands to a cellular modem risks disconnecting the gateway permanently.
+**Reason:** A Huawei router can take its internet from its WAN Ethernet port instead of a cellular link.
 
 ## Parked
 
-### Guest WiFi SSID write validation
+### Guest WiFi settings
 
-SSID write operations for guest network configurations in multi-SSID setups.
+Read sensors for the guest WiFi duration, security and time remaining; the Guest WiFi switch unavailable while the 2.4GHz radio is off; and an examination of whether the duration and security can be written.
 
-**Reason:** A second test unit with guest SSID hardware configurations is added to the dev setup.
+**Reason:** an owner decision to schedule it.
 
-### Variant API paths for other models
+### HTTPS routers with a router-issued certificate
 
-Fallback table of alternative API endpoint spellings when models reject primary resource paths.
+Setup accepts an https:// address and connects over HTTPS without checking the router's certificate, with no fallback to HTTP, and a verify option for a router with a trusted certificate.
 
-**Reason:** A diagnostics download or sweep from a model other than the H165-383 shows a usual path refused and a variant answering.
+**Reason:** a user request for HTTPS, or a router found to serve HTTPS only.
+
+### Opt out of client tracking at setup
+
+A toggle at setup and in Configure that turns client tracking off completely, so that no client MAC, hostname or IP is collected.
+
+**Reason:** a user request for a complete opt-out of client tracking.
+
+### Remove client trackers unseen beyond a threshold
+
+Remove a client tracker that the router still lists but has not reported connected for a user-set period, and keep it removed until it reconnects.
+
+**Reason:** a user report of an unmanageable number of client trackers.
+
+### Cellular band locking
+
+Lock the router to chosen LTE and 5G bands and return it to automatic selection; whether the router supports it is unmeasured, and it is not planned, for Huawei or ZTE.
+
+**Reason:** an owner decision to offer band locking.
 
 ## Declined
 

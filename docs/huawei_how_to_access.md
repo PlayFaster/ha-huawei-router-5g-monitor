@@ -93,7 +93,7 @@ About 90 of the library's roughly 240 read methods answer `100003` on the H165-3
 
 `100003` is the router's answer to a read it refuses on a live session, and also its answer to every login-only read once a session has ended. Issue 50 arose from this: a B529s-23a failed every poll because one optional endpoint raised a session signal, and at setup the config flow reported `invalid_auth` although the login had worked. The report names neither the endpoint nor the code, so `100003`, `125002` and `125003` are handled alike. The rule below has been built since 1.2.3-dev16.
 
-`device_information` is the critical endpoint, and a session signal from it is always an expiry. A non-critical endpoint that raises one of the three codes is adjudicated:
+`device_information` is the critical endpoint, and a session signal from it is an expiry, with two exceptions from 1.2.4-dev8: where `device_information` has never answered on the entry, and on the first read after a login, a refusal starts the `device/basic-information` fallback instead. `125002` and `125003` are always an expiry. The fallback is in `docs/DEVELOPMENT.md`, "A Router That Refuses `device/information` Runs On `device/basic-information`". A non-critical endpoint that raises one of the three codes is adjudicated:
 
 | Step | What `api.py` does | Result |
 | :-- | :-- | :-- |
@@ -290,7 +290,7 @@ All eight are polled and appear in the polled table above and in `ENDPOINT_NAMES
 | `wlan.wifi_feature_switch` | 49 keys, 47 unread | Polled, but almost entirely firmware capability flags rather than state |
 | `config_statistic.config` | More than 60 keys | A firmware configuration template dated 2012 whose values are defaults. It mirrors `start_date` but is not live state |
 | `device.vendorname` | `version_name='ZOWEE'` | The ODM, not the brand (see [Field formats and traps](#-field-formats-and-traps)) |
-| `device.basic_information` | `classify='cpe'`, `devicename`, `spreadname_en` | Every field duplicates `device_information`. HA Core reads it as a fallback where `device.information` is thin, which it is not here |
+| `device.basic_information` | `classify='cpe'`, `devicename`, `spreadname_en` | Every field duplicates `device_information`. HA Core reads it as a fallback where `device.information` is refused, and from 1.2.4-dev8 this integration does too, for the device name and any software version. Answers without a login on the H165-383 (measured 2026-10-23), so it cannot show a session live |
 | `system.deviceinfoex` | `UpTime`, `custinfo`, `devcap` | `UpTime` duplicates `device_information.uptime`; the rest are capability flags, and `devcap.Vendor` is empty |
 
 #### Readable, never reviewed

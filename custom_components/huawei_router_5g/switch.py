@@ -22,6 +22,7 @@ from .helpers import (
     HuaweiDeviceEntity,
     confirm_write,
     expected_outage_error,
+    ssid_entries,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -286,10 +287,7 @@ def _guest_enable_flag(block: dict[str, Any]) -> Any:
     an order — the same lesson the APN profile lookup learned when it came
     back 1, 3, 2.
     """
-    ssids = (block.get("Ssids") or {}).get("Ssid", [])
-    if isinstance(ssids, dict):
-        ssids = [ssids]
-    for ssid in ssids:
+    for ssid in ssid_entries(block):
         if str(ssid.get("wifiisguestnetwork")) == "1":
             return ssid.get("WifiEnable")
     return None
@@ -455,12 +453,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         data = self.coordinator.data
         if not data:
             return None
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
-
-        for ssid in ssids:
+        for ssid in ssid_entries(data.get("wlan_multi_basic_settings")):
             if str(ssid.get("wifiisguestnetwork")) == "1":
                 return str(ssid.get("WifiEnable")) == "1"
         return None
@@ -509,12 +502,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         data = self.coordinator.data
         if not data:
             return self._with_about(None) or {}
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
-
-        for ssid in ssids:
+        for ssid in ssid_entries(data.get("wlan_multi_basic_settings")):
             if str(ssid.get("wifiisguestnetwork")) == "1":
                 return self._with_about({"ssid": ssid.get("WifiSsid")}) or {}
         return self._with_about(None) or {}

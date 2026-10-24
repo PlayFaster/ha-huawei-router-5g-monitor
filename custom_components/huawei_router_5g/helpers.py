@@ -8,7 +8,8 @@ from collections.abc import Callable
 from datetime import datetime
 import logging
 import math
-from typing import TYPE_CHECKING, Any, Protocol, cast
+import re
+from typing import TYPE_CHECKING, Any, Protocol
 
 from homeassistant.const import CONF_HOST, Platform
 from homeassistant.core import HomeAssistant
@@ -106,6 +107,23 @@ that a confirmed control still beats the ten-second debounce it replaces.
 """
 
 
+def identity_from_basic_information(basic: Any) -> dict[str, Any]:
+    """Map `device/basic-information` onto the `device_information` keys read.
+
+    For a router that refuses `device/information` (1.2.4-dev8 plan I3), as
+    core `huawei_lte` does: the device name from `devicename`, and the
+    software version where the block carries one. The H165-383 returns no
+    version in this block, so the version then reads unknown.
+    """
+    if not isinstance(basic, dict):
+        return {}
+    identity: dict[str, Any] = {"DeviceName": basic.get("devicename")}
+    version = basic.get("SoftwareVersion") or basic.get("softwareversion")
+    if version:
+        identity["SoftwareVersion"] = version
+    return identity
+
+
 def get_router_model(device_info: dict[str, Any] | None) -> str:
     """Extract the router model from device_information dict.
 
@@ -133,6 +151,21 @@ def _finite(val: float) -> float | None:
     return val if math.isfinite(val) else None
 
 
+# `>=`, `<=`, `>`, `<` and their HTML-escaped forms, as core `huawei_lte`
+# `format_default` matches them (HA 2026.10.2 `sensor.py:57`).
+_COMPARISON_PREFIX = re.compile(r"^(?:&[gl]t;|[<>])=?(?P<rest>.*)$")
+# Holds one entry once an edge value has been logged, so the log line is
+# written once per run rather than on every poll.
+_EDGE_VALUE_LOGGED: set[bool] = set()
+
+
+def _log_edge_value_once(raw: str) -> None:
+    """Log, once per run, that a signal value arrived as a range edge."""
+    if not _EDGE_VALUE_LOGGED:
+        _EDGE_VALUE_LOGGED.add(True)
+        _LOGGER.debug("Signal value %r read as its range edge", raw)
+
+
 def parse_signal_value(val: Any) -> float | None:
     """Parse a signal value string to float, stripping unit suffixes.
 
@@ -155,12 +188,26 @@ def parse_signal_value(val: Any) -> float | None:
     and `_safe_float` would publish infinity as a sensor state and carry it
     into long-term statistics, where it cannot be taken back. Returning None
     routes both to *unknown*, which is what the caller already handles.
+
+    **A comparison prefix is stripped only before a `dB` or `dBm` unit.** Some
+    routers report a signal at the edge of their range as `>=-51dBm` or
+    `&gt;=30dB` (core `huawei_lte` issue #110042), which reads as the edge
+    itself. Any other prefixed value returns None: this is the parse point for
+    every numeric value, and a `<` or `>` on a counter or duration would
+    otherwise turn a range marker into a plausible number. Narrower than core's
+    `format_default`, which strips before any letter unit, on purpose.
     """
     if val in (None, "", "N/A", "--"):
         return None
     if isinstance(val, (int, float)):
         return _finite(round(float(val), PARSE_PRECISION))
     s = str(val).strip()
+    prefixed = _COMPARISON_PREFIX.match(s)
+    if prefixed:
+        s = prefixed.group("rest").strip()
+        if not s.lower().endswith(("db", "dbm")):
+            return None
+        _log_edge_value_once(str(val))
     s_lower = s.lower()
     for suffix in ("dbm", "db", "mhz", "khz", "ghz", "mbps", "bps", "s", "b"):
         if s_lower.endswith(suffix):
@@ -341,7 +388,25 @@ def build_device_info(
     host = coordinator.entry.options.get(CONF_HOST, "")
     sub_id_prefix = mac or f"host_{host}"
 
-    info = DeviceInfo(
+    # The `via_device` tuple is deprecated in HA 2026.8 and removed in 2027.8;
+    # `via_device_link` feature-detects and emits `via_device_id` where
+    # available. The link is passed to the constructor rather than added with
+    # `.update()`, because `DeviceInfo` becomes a dataclass in HA 2026.11 and
+    # its dict compatibility layer is to be removed. The registry and entry id
+    # are resolved from the coordinator so no new argument has to be threaded
+    # through every entity call site.
+    link = (
+        via_device_link(
+            coordinator.hass,
+            DOMAIN,
+            f"{sub_id_prefix}_system",
+            coordinator.entry.entry_id,
+        )
+        if group != "system"
+        else {}
+    )
+
+    return DeviceInfo(
         identifiers={(DOMAIN, f"{sub_id_prefix}_{group}")},
         name=sub_name,
         manufacturer="Huawei",
@@ -349,24 +414,8 @@ def build_device_info(
         sw_version=coordinator.sw_version,
         hw_version=coordinator.hw_version,
         configuration_url=coordinator.api.url,
+        **link,
     )
-
-    if group != "system":
-        # The `via_device` tuple is deprecated in HA 2026.8 and removed in
-        # 2027.8; `via_device_link` feature-detects and emits `via_device_id`
-        # where available. The registry and entry id are resolved from the
-        # coordinator so no new argument has to be threaded through every
-        # entity call site.
-        cast(dict[str, Any], info).update(
-            via_device_link(
-                coordinator.hass,
-                DOMAIN,
-                f"{sub_id_prefix}_system",
-                coordinator.entry.entry_id,
-            )
-        )
-
-    return info
 
 
 class _HasGroup(Protocol):
@@ -494,6 +543,25 @@ def parse_sms_list(data: dict[str, Any] | None) -> list[dict[str, Any]]:
         for msg in messages_raw
         if isinstance(msg, dict) and "Index" in msg
     ]
+
+
+def ssid_entries(block: Any) -> list[dict[str, Any]]:
+    """Return the SSID entries of a `wlan/multi-basic-settings` block as dicts.
+
+    The router returns `Ssids.Ssid` as a list, or as a single dict where it
+    has one SSID. Some models return it as a string or `None` (core
+    `huawei_lte` issue #76244: H312-371, E5372, E8372), which iterated as
+    characters or raised `TypeError`. Anything that is not a dict or a list
+    of dicts gives an empty list, so a read site returns `None` and a write
+    finds no guest SSID.
+    """
+    ssids_block = block.get("Ssids") if isinstance(block, dict) else None
+    raw = ssids_block.get("Ssid") if isinstance(ssids_block, dict) else None
+    if isinstance(raw, dict):
+        return [raw]
+    if isinstance(raw, list):
+        return [item for item in raw if isinstance(item, dict)]
+    return []
 
 
 def find_ssid_by_path(

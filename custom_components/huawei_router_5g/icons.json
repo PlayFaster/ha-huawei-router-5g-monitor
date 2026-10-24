@@ -552,6 +552,11 @@
       "network_mode": {
         "default": "mdi:settings-transfer"
       }
+    },
+    "event": {
+      "incoming_sms": {
+        "default": "mdi:message-arrow-left"
+      }
     }
   },
   "services": {

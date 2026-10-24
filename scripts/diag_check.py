@@ -400,21 +400,151 @@ def _credentials(
     )
 
 
-def _secrets(options: dict[str, Any], data: dict[str, Any]) -> list[str]:
-    """Return the live values that must not survive into the download.
+# Values shorter than this match ordinary words and numbers, so they are not
+# searched for. As `unifi_network_monitor`'s leak scan (1.2.4-dev8 plan I9);
+# the host leak check binds shorter denylist terms to their key instead.
+MIN_VALUE_LEN = 4
+
+# Category -> values. The categories are named as in the suite leak denylist,
+# so a finding reads the same in both checks.
+Secrets = dict[str, set[str]]
+
+# Block -> {key: category}: the router's identifying values, read from the
+# coordinator's data after a poll. The kinds of `neutral_example_values.md` §1.
+IDENTIFYING_KEYS: dict[str, dict[str, str]] = {
+    "device_information": {
+        "Imei": "imei",
+        "Imsi": "sim_imsi",
+        "Iccid": "sim",
+        "Msisdn": "phone",
+        "SerialNumber": "serial",
+        "MacAddress1": "mac",
+        "MacAddress2": "mac",
+        "WanIPAddress": "wan_ip",
+        "WanIPv6Address": "wan_ip",
+    },
+    "monitoring_status": {"WanIPAddress": "wan_ip", "WanIPv6Address": "wan_ip"},
+    "current_plmn": {"FullName": "isp", "ShortName": "isp", "Numeric": "plmn"},
+    "device_signal": {"cell_id": "cell_id", "enodeb_id": "enodeb_id"},
+}
+
+# Keys searched at any depth of a block, for lists such as profiles and SSIDs.
+IDENTIFYING_NESTED: tuple[tuple[str, str, str], ...] = (
+    ("dial_up_profiles", "ApnName", "wan_apn"),
+    ("wlan_multi_basic_settings", "WifiSsid", "ssid"),
+)
+
+
+def _add_secret(found: Secrets, category: str, value: Any) -> None:
+    """Add a value under its category, with a MAC's other published forms."""
+    text = str(value).strip() if value is not None else ""
+    if len(text) < MIN_VALUE_LEN:
+        return
+    found.setdefault(category, set()).add(text)
+    if category == "mac":
+        bare = re.sub(r"[^0-9a-fA-F]", "", text)
+        if len(bare) == 12:
+            pairs = [bare[i : i + 2] for i in range(0, 12, 2)]
+            found[category] |= {":".join(pairs), "-".join(pairs), bare}
+
+
+def _secrets(options: dict[str, Any], data: dict[str, Any]) -> Secrets:
+    """Return the entry's own values that must not survive into the download.
 
     Drawn from the entry itself rather than from a fixture, so this asserts
     against the actual credentials and identifiers of the device in front of
-    it. Short values are excluded: a two-character username would match half
-    the document by coincidence and prove nothing.
+    it. `identifying_values` adds the router's identifiers after a poll.
     """
-    candidates = [
-        options.get("password"),
-        options.get("username"),
-        options.get("host"),
-        data.get("mac"),
+    found: Secrets = {}
+    _add_secret(found, "password", options.get("password"))
+    _add_secret(found, "username", options.get("username"))
+    _add_secret(found, "host", options.get("host"))
+    _add_secret(found, "mac", data.get("mac"))
+    return found
+
+
+def _walk_key(block: Any, name: str, out: list[Any]) -> None:
+    """Collect the values of `name` at any depth of `block`."""
+    if isinstance(block, dict):
+        for key, value in block.items():
+            if key == name:
+                out.append(value)
+            _walk_key(value, name, out)
+    elif isinstance(block, list):
+        for item in block:
+            _walk_key(item, name, out)
+
+
+def identifying_values(data: dict[str, Any] | None) -> Secrets:
+    """Return the router's identifying values from one poll's data."""
+    found: Secrets = {}
+    for block, keys in IDENTIFYING_KEYS.items():
+        values = (data or {}).get(block)
+        if isinstance(values, dict):
+            for key, category in keys.items():
+                _add_secret(found, category, values.get(key))
+    for block, name, category in IDENTIFYING_NESTED:
+        nested: list[Any] = []
+        _walk_key((data or {}).get(block), name, nested)
+        for value in nested:
+            _add_secret(found, category, value)
+    return found
+
+
+def _merge(into: Secrets, more: Secrets) -> None:
+    for category, values in more.items():
+        into.setdefault(category, set()).update(values)
+
+
+def _leaves(value: Any, path: str = "") -> list[tuple[str, str]]:
+    """Every dictionary key and every scalar value, as `(path, text)` pairs."""
+    out: list[tuple[str, str]] = []
+    if isinstance(value, dict):
+        for key, item in value.items():
+            child = f"{path}.{key}" if path else str(key)
+            out.append((f"{child} (key)", str(key)))
+            out += _leaves(item, child)
+    elif isinstance(value, list):
+        for item in value:
+            out += _leaves(item, f"{path}[]")
+    elif value is not None and not isinstance(value, bool):
+        out.append((path, str(value)))
+    return out
+
+
+def _patterns(secrets: Secrets) -> list[tuple[str, re.Pattern[str]]]:
+    return [
+        (category, re.compile(rf"(?<!\w){re.escape(value)}(?!\w)", re.IGNORECASE))
+        for category, values in sorted(secrets.items())
+        for value in sorted(values)
     ]
-    return [str(v) for v in candidates if v and len(str(v)) >= 6]
+
+
+def _mask(path: str, patterns: list[tuple[str, re.Pattern[str]]]) -> str:
+    """Return a path with every listed value in it replaced by `<value>`.
+
+    A path is built from keys, and a key can be the identifier found, so the
+    path is masked before it is printed. Matched as a whole, not split on `.`,
+    since a value such as an SSID can contain a dot.
+    """
+    for _, pattern in patterns:
+        path = pattern.sub("<value>", path)
+    return path
+
+
+def leak_hits(artefact: dict[str, Any], secrets: Secrets) -> dict[str, list[str]]:
+    """Return, per category, the masked paths where a listed value appears.
+
+    Ported from `unifi_network_monitor` `scripts/diag_check.py` `leak_hits`:
+    whole words, any case, over every string and every key.
+    """
+    patterns = _patterns(secrets)
+    found: dict[str, list[str]] = {}
+    for path, text in _leaves(artefact):
+        for category, pattern in patterns:
+            if pattern.search(text):
+                found.setdefault(category, []).append(_mask(path, patterns))
+    return found
 
 
 def _serialize(artefact: dict[str, Any], *, indent: int | None = None) -> str:
@@ -621,6 +751,7 @@ async def produce(
     refused: str = DEFAULT_REFUSED,
     budget: LoginBudget | None = None,
     polls: int = 1,
+    identities: Secrets | None = None,
 ) -> dict[str, Any]:
     """Build a coordinator against the live router and return one download.
 
@@ -629,6 +760,8 @@ async def produce(
     `mode` is `mid-poll`, `refusal` or `refusal-expired`, or `None`. `polls` is
     the least number of polls made before the download, on the one session, so
     that the Integration Health verdict is read after the strike budget has run.
+    `identities`, where given, gains the router's identifying values read from
+    the coordinator's data, so the leak check searches for them.
     """
     from homeassistant.core import HomeAssistant
 
@@ -694,6 +827,8 @@ async def produce(
                 break
 
         result = await async_get_config_entry_diagnostics(hass, entry_as_config)
+        if identities is not None:
+            _merge(identities, identifying_values(coordinator.data))
     finally:
         HuaweiRouter5GAPI._ensure_client = original  # type: ignore[method-assign]  # noqa: SLF001
         HuaweiRouter5GAPI.get_data = original_get_data  # type: ignore[method-assign]
@@ -1103,21 +1238,29 @@ def check_probes(artefact: dict[str, Any], report: Report, label: str) -> None:
 
 
 def check_redaction(
-    artefact: dict[str, Any], secrets: list[str], report: Report, label: str
+    artefact: dict[str, Any], secrets: Secrets, report: Report, label: str
 ) -> None:
-    """Assert no live identifier survives anywhere in the serialized document.
+    """Assert no live identifier survives anywhere in the document.
 
-    Asserted over the whole document rather than key by key: a key-by-key
+    Every key and every value is searched, rather than named keys: a key-by-key
     assertion only finds the leaks somebody already thought of, which is the
-    reasoning `test_diagnostics.py` records for the unit suite.
+    reasoning `test_diagnostics.py` records for the unit suite. A finding names
+    its category and masked path, never the value, so the report and its
+    summary file never carry what the check exists to keep out.
     """
-    serialized = _serialize(artefact)
-    leaked = [value for value in secrets if value in serialized]
+    hits = leak_hits(artefact, secrets)
+    checked = sum(len(values) for values in secrets.values())
     report.record(
-        not leaked,
+        not hits,
         f"[{label}] no live identifier survived into the file",
-        f"leaked: {leaked}" if leaked else f"{len(secrets)} values checked",
+        "; ".join(
+            f"{category}: {', '.join(sorted(set(paths))[:4])}"
+            for category, paths in sorted(hits.items())
+        )
+        if hits
+        else f"{checked} values in {len(secrets)} categories checked",
     )
+    serialized = _serialize(artefact)
     report.record(
         REDACTED in serialized,
         f"[{label}] the credential is present as a redaction marker",
@@ -1259,7 +1402,7 @@ async def main() -> int:
 async def _run(
     args: argparse.Namespace,
     report: Report,
-    secrets: list[str],
+    secrets: Secrets,
     budget: LoginBudget,
 ) -> int:
     """Run the selected checks. Split from `main` so a stopped run still reports."""
@@ -1273,6 +1416,7 @@ async def _run(
         entry=args.entry,
         budget=budget,
         polls=args.polls,
+        identities=secrets,
     )
     check_shape(first, report, "1", expect_payload=not args.sabotage)
     # `check_captures` asks whether the captures agree with a *healthy* poll.
@@ -1316,7 +1460,7 @@ async def _run(
 async def _run_mode(
     args: argparse.Namespace,
     report: Report,
-    secrets: list[str],
+    secrets: Secrets,
     budget: LoginBudget,
 ) -> int:
     """Run a clean pass, then the same poll under one of the three modes.
@@ -1325,7 +1469,12 @@ async def _run_mode(
     is lost, and an endpoint that a router never answers cannot be lost.
     """
     baseline = await produce(
-        "clean", report, entry=args.entry, budget=budget, polls=args.polls
+        "clean",
+        report,
+        entry=args.entry,
+        budget=budget,
+        polls=args.polls,
+        identities=secrets,
     )
     check_shape(baseline, report, "clean")
     check_endpoints(baseline, report, "clean")

@@ -491,6 +491,8 @@ async def test_get_data_response_error_login_required():
     mock_client = MagicMock()
     api._client = mock_client
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     mock_client.device.information.side_effect = ResponseErrorLoginRequiredException(
         "Login required", "100001"
@@ -509,6 +511,8 @@ async def test_get_data_response_error_codes():
     api = _make_api()
     mock_client = MagicMock()
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     # Note: 100002 is removed as it's used for "Not Supported"
     for error_code in ("125002", "125003"):
@@ -615,6 +619,8 @@ async def test_get_data_response_error_non_session():
     mock_client = MagicMock()
     api._client = mock_client
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     mock_client.device.information.side_effect = ResponseErrorException(
         "Other error", "1"
@@ -1236,6 +1242,26 @@ async def test_set_guest_wifi_dict_ssids():
         await api.set_guest_wifi(True)
 
     api._client.wlan._session.post_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ssid", ["guest", None])
+async def test_set_guest_wifi_with_a_non_list_ssid_finds_no_guest(ssid):
+    """A string or `None` `Ssid` gives the no-guest error, not a `TypeError`."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.wlan.multi_basic_settings.return_value = {"Ssids": {"Ssid": ssid}}
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        pytest.raises(RuntimeError, match="No guest SSID found in router response"),
+    ):
+        await api.set_guest_wifi(True)
+
+    api._client.wlan._session.post_set.assert_not_called()
 
 
 @pytest.mark.asyncio

@@ -133,13 +133,19 @@ async def test_an_endpoint_the_router_does_not_implement_is_not_a_failure(
 async def test_a_critical_endpoint_failing_fails_the_poll(
     hass, mock_config_entry, transport
 ):
-    """`device_information` failing is the one that takes the fetch with it."""
-    transport.arm("endpoint_error", endpoint="device/information")
-    coordinator = _coordinator(hass, mock_config_entry)
+    """`device_information` failing is the one that takes the fetch with it.
 
+    On a router that has answered it, and not on the first read after a login,
+    which starts the `device/basic-information` fallback instead (plan I3).
+    """
+    coordinator = _coordinator(hass, mock_config_entry)
     await _poll(coordinator)
 
-    assert coordinator.last_update_success is False
+    transport.arm("endpoint_error", endpoint="device/information")
+    await _poll(coordinator)
+
+    # The first failure holds the last values, so the entry stays available;
+    # the failure is counted against the strike budget.
     assert coordinator.consecutive_failures == 1
 
 

@@ -76,7 +76,7 @@ async def test_the_sms_debug_log_carries_shape_and_never_contents(
                     "Message": [
                         {
                             "Index": "40001",
-                            "Phone": "+15550100123",
+                            "Phone": "+15555550123",
                             "Content": "meet me at the usual place",
                             "Date": "2026-08-19 10:00:00",
                         }
@@ -98,7 +98,7 @@ async def test_the_sms_debug_log_carries_shape_and_never_contents(
     assert "Content" in caplog.text and "Phone" in caplog.text
 
     # The values are not - at any level.
-    assert "+15550100123" not in caplog.text
+    assert "+15555550123" not in caplog.text
     assert "meet me at the usual place" not in caplog.text
 
 
@@ -120,7 +120,7 @@ async def test_the_sms_shape_log_counts_a_lone_message_sent_as_a_dict(
                 "Messages": {
                     "Message": {
                         "Index": "40003",
-                        "Phone": "+15550100123",
+                        "Phone": "+15555550123",
                         "Content": "single",
                         "Date": "2026-08-19 11:00:00",
                     }
@@ -136,7 +136,7 @@ async def test_the_sms_shape_log_counts_a_lone_message_sent_as_a_dict(
     await coordinator._async_update_data()
 
     assert "1 message(s)" in caplog.text
-    assert "+15550100123" not in caplog.text
+    assert "+15555550123" not in caplog.text
 
 
 @pytest.mark.asyncio
@@ -162,7 +162,7 @@ async def test_a_new_sms_is_announced_without_the_senders_number(
                     "Message": [
                         {
                             "Index": "40002",
-                            "Phone": "+15550100123",
+                            "Phone": "+15555550123",
                             "Content": "bring milk",
                             "Date": "2026-08-19 10:00:00",
                         }
@@ -173,11 +173,11 @@ async def test_a_new_sms_is_announced_without_the_senders_number(
     )
 
     assert "New SMS received" in caplog.text
-    assert "+15550100123" not in caplog.text
+    assert "+15555550123" not in caplog.text
 
     # The event still carries what an automation needs.
     _, args, _ = mock_hass.bus.async_fire.mock_calls[0]
-    assert args[1]["phone"] == "+15550100123"
+    assert args[1]["phone"] == "+15555550123"
     assert args[1]["content"] == "bring milk"
 
 
@@ -231,7 +231,7 @@ async def test_coordinator_sms_event_firing(mock_hass, mock_config_entry):
     # Updated for 1.2.4-dev2: the seen set holds identities, not dates.
     coordinator.sms_baseline_taken = True
     coordinator.fired_sms_hashes = {
-        _identity({"index": 10, "phone": "123", "content": "Old"})
+        _identity({"index": 10, "phone": "123", "content": "Old"}, coordinator)
     }
 
     data = {
@@ -343,7 +343,7 @@ async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
     # Updated for 1.2.4-dev2: the seen set holds identities, not dates.
     coordinator.sms_baseline_taken = True
     coordinator.fired_sms_hashes = {
-        _identity({"index": 10, "phone": "123", "content": "Old"})
+        _identity({"index": 10, "phone": "123", "content": "Old"}, coordinator)
     }
 
     data = {
@@ -371,10 +371,10 @@ async def test_coordinator_sms_hash_collision(mock_hass, mock_config_entry):
         coordinator._check_new_sms(data)
 
     assert coordinator.last_sms_timestamp == "2024-05-01 10:01:00"
-    assert _identity({"index": 11, "phone": "123", "content": "New1"}) in (
+    assert _identity({"index": 11, "phone": "123", "content": "New1"}, coordinator) in (
         coordinator.fired_sms_hashes
     )
-    assert _identity({"index": 12, "phone": "456", "content": "New2"}) in (
+    assert _identity({"index": 12, "phone": "456", "content": "New2"}, coordinator) in (
         coordinator.fired_sms_hashes
     )
     assert mock_fire.call_count == 2
@@ -1389,9 +1389,9 @@ async def test_the_upgrade_sequence_keeps_the_uptime_record_and_adds_the_set(
 # ---------------------------------------------------------------------------
 
 
-def _identity(msg):
-    """The coordinator's identity of a parsed message."""
-    return HuaweiRouter5GDataUpdateCoordinator._sms_identity(msg)
+def _identity(msg, coordinator):
+    """The coordinator's identity of a parsed message, under its secret."""
+    return coordinator._sms_identity(msg)
 
 
 def _inbox(*messages):
@@ -1399,7 +1399,7 @@ def _inbox(*messages):
         "sms_list": {
             "Messages": {
                 "Message": [
-                    {"Index": i, "Phone": "+15550100123", "Content": c, "Date": d}
+                    {"Index": i, "Phone": "+15555550123", "Content": c, "Date": d}
                     for i, c, d in messages
                 ]
             }

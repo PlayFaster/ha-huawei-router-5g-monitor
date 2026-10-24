@@ -116,6 +116,26 @@ The known limits:
 - **`_execute_with_retry` adjudicates a read outside a poll the same way, from 1.2.4-dev2.** A session signal from a read is checked against the premise and a re-read of `device_information`, each bounded by `PREMISE_TIMEOUT`; a live session raises the refusal with no login, and anything else logs in once and repeats the read. A write refused with one of the three codes raises `HuaweiWriteRefusedError`, and `_retry_once_on_refusal` sends a write that sets a complete state once more after a fresh login, as `zte_router_5g` does. `RETRIED_ON_REFUSAL` names the wrapped writes; SMS send, SMS delete, Reboot and Reconnect are not among them.
 - **The history fallback is more permissive than failing closed.** Where the premise is not confirmed, a session lost before any endpoint answered reads as a refusal. It is to be reviewed against the author's diagnostics download.
 
+### A Router That Refuses `device/information` Runs On `device/basic-information` (v1.2.4-dev8)
+
+Core `huawei_lte` and two forks expect some models to refuse `device/information`, and set up from `device/basic-information` instead. A refusal of `device_information` starts the fallback, in which the poll reads `device_basic_information` after it and takes the device name from `devicename` and the software version where the block carries one. The fallback starts where `device_information` has never answered on the entry, or on the first read of a session after a login, which cannot be an expiry. `125002` and `125003` never start it, because they are the session token failing and not a refused endpoint. `device_information` stays first in the poll, so the fallback ends on the first poll it answers.
+
+Whether `device_information` has ever answered is stored in the observed store as `information_answered` and seeded before the first poll, because the run's own history (`_answered`) is empty after every start. A store from before 1.2.4-dev8 has no flag until the first answer.
+
+**In the fallback, `device_information` is not the live-session re-read.** `device/basic-information` answers without a login on the H165-383 (measured 2026-10-23), so an answer from it cannot show a session live. `_judge_signal` decides by the history rule instead, and skips the premise check.
+
+The known limits:
+
+- **No router held refuses `device/information`.** Core and the forks name none either, so the fallback is tested on the fake transport only.
+- **An answered endpoint's refusal in the fallback costs one login.** An endpoint that has answered and then raises `100003`, `125002` or `125003` is judged an expiry and the poll logs in again, even where the router was refusing it.
+- **The H165-383's basic block carries no software version,** so a router in the fallback can read its software version as unknown.
+
+### The Download Leak Check Searches The Router's Own Values (v1.2.4-dev8)
+
+`scripts/diag_check.py` searches the produced download for the entry's credentials, host and MAC, and for the router's identifying values read from the coordinator's data after the first poll: IMEI, IMSI, ICCID, MSISDN, serial number, MACs, WAN addresses, operator names, PLMN, cell and eNodeB IDs, APN names and SSIDs. Each value is matched as a whole word in any case, over every string and every dictionary key, and a MAC in its colon, dash and bare forms. A finding prints its category, named as in the suite leak denylist, and its path with any found value replaced by `<value>`; the value itself is never printed. The scan is `unifi_network_monitor`'s `leak_hits`.
+
+The known limit: values under 4 characters, such as most PCIs, are not searched, because they match ordinary numbers. The host check `check_local_leaks.py` binds denylist terms under 5 characters to their key instead; the download check has no key to bind them to.
+
 ### A Lockout Is Neither An Outage Nor Wrong Credentials (v1.2.4-dev1)
 
 The library raises a different exception for each login code. `api.py` catches the parent class `LoginErrorInvalidCredentialsException`, so a wrong username (108001), a wrong password (108002) and a wrong pair (108006) all raise `HuaweiAuthError` and show `invalid_auth`. A lockout after repeated failures (108007) raises `HuaweiLockoutError`, which is not a `HuaweiAuthError`: the stored credentials may be right, and a reauth flow would send the user to retype them. The setup, reauth, reconfigure and options dialogs show `login_attempts_exceeded` for it, and the login record of the diagnostics download says `lockout`.
@@ -363,6 +383,9 @@ Home Assistant core pins `huawei-lte-api==1.11.0` for its own `huawei_lte` integ
 - **Non-Finite Values Are Not Numbers (v1.2.1-dev7)**: `float()` accepts `"inf"` and `"nan"`, so `parse_signal_value` returned them as numbers. `_safe_int` then raised `OverflowError` or `ValueError` from inside a `value_fn` that nothing catches, and `_safe_float` would have published infinity as a sensor state — which reaches long-term statistics and cannot be taken back.
   - _Fix_: Rejected at the parser, which is the single point every numeric value in the component passes through, so one guard covers all ten call sites. Returns `None`, so the entity goes _unknown_ — what an unreadable value is.
   - _Consequence_: the `try`/`except` around `int()` in `_parse_complex_int` existed **only** for this case and is now unreachable, so it was deleted rather than left as dead code behind a pragma. Never seen from a router; found while replacing a test that patched the parser to reach the branch.
+- **A Prefixed Signal Value Reads As Its Edge (v1.2.4-dev8)**: some routers report a signal at the edge of their range with a comparison prefix, such as `>=-51dBm` or `&gt;=30dB` (core `huawei_lte` issue #110042). `parse_signal_value` strips `>=`, `<=`, `>`, `<` and the HTML-escaped forms only where the rest of the value ends in `dB` or `dBm`, and returns the edge as the value; the first such value in a run is logged at debug.
+  - _Rule_: any other prefixed value returns `None`. `parse_signal_value` is the parse point for every numeric value, so a prefix on a counter or a duration would otherwise turn a range marker into a plausible number. This is narrower than core's `format_default`, which strips before any letter unit, and is kept narrower on purpose.
+  - _Limit_: the stored value is the edge, not a measurement, so long-term statistics record `30` where the router reported "30 or more".
 - **Background Task Mocking**: Standard tests can fail if background tasks aren't properly awaited.
   - _Fix_: Ensured all tests use `hass.async_block_till_done()` after setup to catch initialization tasks.
 - **SMS Inbox Browsing**: The integration provides the last received message content and unread counts. Browsing the full inbox or replying to specific messages requires the router's web interface.
@@ -474,3 +497,5 @@ _[1.1.2-dev7] (2026-07-02) — Documented passing `config_entry=entry` to the co
 _[1.2.0-dev28] (2026-08-15) — Added three success patterns from the `dev_std_review` / `code_review` remediation: the radio-level master WiFi switch, the Section 22 write confirmation and its three outcomes, and the Section 9 options reload with its live-key allow-list. Updated the `url_normalize` pitfall to record that the dev/test requirement was finally dropped in `[1.2.0-dev27]`._
 
 _[1.2.0-dev53] (2026-08-17) — Reconciliation pass. Added the "Network Mode List Comes From the Router" success pattern with its ordering constraint, and three pitfalls the session produced but never recorded: `_unrecorded_attributes` is not unioned across the class hierarchy; a string split mid-word ships a defect no `grep` can find, because the broken text never appears on one source line; and 100% coverage is compatible with tests that assert nothing, so both audits are needed. Corrected the Section 22 exclusions bullet, which still said network mode has no read-back reader — it gained one when `-1` was found to mean "applied, answered badly" rather than "refused"._
+
+_[1.2.4-dev8] (2026-10-24) — Added the `device/basic-information` fallback and its session rule, the leak check's search of the router's own values, and the prefixed signal value rule, each with its known limits._

@@ -42,7 +42,7 @@ def _sms(**over):
     """One well-formed message, overridable per test."""
     return {
         "Index": "7",
-        "Phone": "+15550100123",
+        "Phone": "+15555550123",
         "Content": "hello",
         "Date": "2026-08-15 10:00:00",
         "Smstat": "0",

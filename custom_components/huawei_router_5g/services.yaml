@@ -17,7 +17,7 @@ send_sms:
           integration: huawei_router_5g
     target:
       description: The phone number(s) to send the SMS to.
-      example: "+15550100123"
+      example: "+15555550123"
       required: true
       selector:
         text:

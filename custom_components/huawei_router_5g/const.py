@@ -442,6 +442,14 @@ SMS_SEGMENTS_MAX = 4
 SMS_MAX_CHARS_GSM7 = 612
 SMS_MAX_CHARS_UNICODE = 268
 
+# --- Persisted SMS record -----------------------------------------------------
+#
+# The number of seen message identities kept in the observed store, so a
+# message received while Home Assistant was stopped is announced after the
+# start. The poll reads the 20 newest; an identity still in the read is never
+# dropped, whatever the cap.
+SMS_SEEN_CAP = 200
+
 # --- SMS delete check ---------------------------------------------------------
 #
 # A success reply did not prove a delete on `zte_router_5g`, so a delete is

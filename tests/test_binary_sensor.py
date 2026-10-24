@@ -250,6 +250,22 @@ def test_wifi_status_no_data(mock_coordinator, mock_config_entry):
 # ---------------------------------------------------------------------------
 
 
+@pytest.mark.parametrize("ssid", ["main", None])
+@pytest.mark.parametrize(
+    ("cls", "description"),
+    [
+        (HuaweiWifi24GStatusSensor, WIFI_24G_STATUS_DESCRIPTION),
+        (HuaweiWifi5GStatusSensor, WIFI_5G_STATUS_DESCRIPTION),
+    ],
+)
+def test_wifi_band_status_reads_unknown_for_a_non_list_ssid(
+    mock_coordinator, mock_config_entry, cls, description, ssid
+):
+    """A string or `None` `Ssid` reads unknown instead of raising (#76244)."""
+    mock_coordinator.data = {"wlan_multi_basic_settings": {"Ssids": {"Ssid": ssid}}}
+    assert cls(mock_coordinator, mock_config_entry, description).is_on is None
+
+
 def test_wifi_24g_status_on(mock_coordinator, mock_config_entry):
     """Return True when wifi24g (Index 0) is enabled."""
     mock_coordinator.data = {

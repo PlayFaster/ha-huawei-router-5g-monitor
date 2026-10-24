@@ -21,6 +21,7 @@ from custom_components.huawei_router_5g.const import KEYS_READ_OUTSIDE_DESCRIPTI
 from custom_components.huawei_router_5g.diagnostics import (
     REDACTED,
     _sanitize,
+    _sweep,
     _Tokenizer,
     _unread_keys,
     async_get_config_entry_diagnostics,
@@ -825,3 +826,38 @@ def test_a_description_without_a_value_function_is_skipped(monkeypatch) -> None:
         (*binary_sensor.VALUE_BINARY_SENSORS, blank),
     )
     assert _unread_keys({"device_signal": {"zz": "1"}}) == {"device_signal": ["zz"]}
+
+
+def test_an_address_ending_a_sentence_is_tokenized() -> None:
+    """`203.0.113.7.` is an address; `11.0.1.1(H192)` and `1.2.3.4a` are not.
+
+    The lookahead rejects a full stop only where a word character follows it,
+    as `unifi_network_monitor` corrected it (1.2.4-dev8 plan I9).
+    """
+    swept = _sweep("Gateway is 203.0.113.7.", _Tokenizer())
+    assert "203.0.113.7" not in swept
+    assert swept.endswith(".")
+    assert _sweep("firmware 11.0.1.1(H192SP1)", _Tokenizer()) == (
+        "firmware 11.0.1.1(H192SP1)"
+    )
+    assert _sweep("build 1.2.3.4a", _Tokenizer()) == "build 1.2.3.4a"
+    assert _sweep("v1.2.3.4.5", _Tokenizer()) == "v1.2.3.4.5"
+
+
+def test_an_apn_name_is_redacted_at_any_depth() -> None:
+    """The operator's APN names the provider, so `ApnName` is blanked.
+
+    Found published in full by the extended leak check on the H165-383
+    (1.2.4-dev8 plan I9), in `dial_up_profiles.Profiles.Profile[]`.
+    """
+    payload = {
+        "dial_up_profiles": {
+            "Profiles": {"Profile": [{"Index": "1", "ApnName": "apn.example"}]}
+        }
+    }
+
+    swept = _sanitize(payload, _Tokenizer())
+
+    profile = swept["dial_up_profiles"]["Profiles"]["Profile"][0]
+    assert profile["ApnName"] == REDACTED
+    assert profile["Index"] == "1"

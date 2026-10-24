@@ -77,6 +77,8 @@ async def test_get_data_mid_fetch_login_required():
     api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
     api._client = MagicMock()
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     api._client.device.information.side_effect = ResponseErrorLoginRequiredException(
         message="login required", code=100002

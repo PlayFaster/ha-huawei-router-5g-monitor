@@ -10,11 +10,11 @@ A complete list of the static entities and service actions provided by the integ
 | :-- | :-- | :-- |
 | **Clients** | 4 | Clients entities. |
 | **Data** | 24 | Data entities. |
-| **SMS** | 18 | SMS entities. |
+| **SMS** | 19 | SMS entities. |
 | **Signal** | 58 | Signal entities. |
 | **System** | 57 | System entities. |
 | **WiFi** | 7 | WiFi entities. |
-| **Total** | **168** | Total static entities. |
+| **Total** | **169** | Total static entities. |
 
 ## Clients Sub-Device (4 Entities)
 
@@ -54,11 +54,12 @@ A complete list of the static entities and service actions provided by the integ
 | Total Download | `total_download` | Sensor | B | - | LTS: `total_increasing` |
 | Total Upload | `total_upload` | Sensor | B | - | LTS: `total_increasing` |
 
-## SMS Sub-Device (18 Entities)
+## SMS Sub-Device (19 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | SMS Storage Full | `sms_storage_full` | Binary Sensor | - | Diagnostic | - |
+| Incoming SMS | `incoming_sms` | Event | - | - | - |
 | Last Msg | `last_sms` | Sensor | - | - | - |
 | Capacity (Device) | `sms_capacity_device` | Sensor | - | Diagnostic | - |
 | Capacity (SIM) | `sms_capacity_sim` | Sensor | - | Diagnostic | - |

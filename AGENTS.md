@@ -41,7 +41,7 @@ coordinator.py (HuaweiRouter5GDataUpdateCoordinator)
   → calls api.get_data() on each poll interval
   → 3-strike resilience: holds last-known-good data for up to 3 consecutive failures
   → immediate retry on HuaweiAuthError (session TTL expiry masking)
-  → fires huawei_router_5g_sms_received events; uses timestamp+hash deduplication
+  → fires huawei_router_5g_sms_received events and triggers the Incoming SMS event entity; a message's identity is its index and an HMAC of its content under a per-install secret, persisted in the observed store, so a message received while HA was stopped fires once after the start
   → stored in entry.runtime_data (ConfigEntry.runtime_data pattern, no hass.data dict)
 
 platform files (sensor.py, binary_sensor.py, switch.py, etc.)
@@ -73,6 +73,7 @@ Device identifiers use the MAC address as the stable prefix (`{mac}_{group}`), f
 | `button`, `switch`, `select` | **1** | Issue commands with a real-world effect. `api.py` serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the real safety mechanism and `1` states the same intent at the platform boundary. |
 | `number` | **0** | Deliberately unlike `zte_router_5g`, which sets `1` on every writable platform. The only number entity writes `ConfigEntry.options`, which HA owns — no session to tear down, no command to duplicate. |
 | `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only, coordinator-driven; nothing to serialize. |
+| `event` | **0** | The Incoming SMS entity is pushed by the coordinator and makes no request. |
 
 The table is pinned in `EXPECTED_PARALLEL_UPDATES` in `tests/test_entity_hygiene.py`, with a companion test that fails if a new platform appears the table does not cover. Change the constant and the test together.
 

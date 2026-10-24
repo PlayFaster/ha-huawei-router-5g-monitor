@@ -21,6 +21,7 @@ case names where the case exists in both projects.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 import sys
 from typing import Any
@@ -54,6 +55,8 @@ from scripts.diag_check import (
     check_sabotage,
     check_shape,
     check_stability,
+    identifying_values,
+    leak_hits,
 )
 
 
@@ -224,7 +227,7 @@ def test_a_leaked_credential_is_found_anywhere_in_the_document() -> None:
     artefact = _artefact({"some_future_block": {"note": "host is router-secret-1"}})
 
     report = Report()
-    check_redaction(artefact, ["router-secret-1"], report, "1")
+    check_redaction(artefact, {"host": {"router-secret-1"}}, report, "1")
 
     assert not _passed(report, "no live identifier survived")
 
@@ -237,14 +240,14 @@ def test_a_document_with_no_redaction_marker_is_a_failure() -> None:
     this fixture to find.
     """
     report = Report()
-    check_redaction(_artefact(), [], report, "1")
+    check_redaction(_artefact(), {}, report, "1")
 
     assert not _passed(report, "redaction marker")
 
 
 def test_a_short_credential_is_not_searched_for() -> None:
-    """A two-character value matches by coincidence and proves nothing."""
-    assert _secrets({"password": "abc", "username": "ad"}, {}) == []
+    """A value under four characters matches by coincidence and proves nothing."""
+    assert _secrets({"password": "abc", "username": "ad"}, {}) == {}
 
 
 def test_the_live_identifiers_are_drawn_from_the_entry() -> None:
@@ -258,11 +261,16 @@ def test_the_live_identifiers_are_drawn_from_the_entry() -> None:
         {"mac": "DC:71:96:11:22:33"},
     )
 
-    assert set(secrets) == {
-        "hunter2secret",
-        "192.168.8.1",
-        "administrator",
-        "DC:71:96:11:22:33",
+    assert secrets == {
+        "password": {"hunter2secret"},
+        "host": {"192.168.8.1"},
+        "username": {"administrator"},
+        # The MAC is also searched in the forms a download could publish it in.
+        "mac": {
+            "DC:71:96:11:22:33",
+            "DC-71-96-11-22-33",
+            "DC7196112233",
+        },
     }
 
 
@@ -404,7 +412,7 @@ def test_the_redaction_check_survives_a_datetime() -> None:
     artefact["entry"]["data"]["conn_start_time"] = datetime(2026, 8, 23, tzinfo=UTC)
 
     report = Report()
-    check_redaction(artefact, ["nothing-to-find"], report, "1")
+    check_redaction(artefact, {"host": {"nothing-to-find"}}, report, "1")
 
     assert _passed(report, "no live identifier survived")
 
@@ -924,9 +932,9 @@ def test_the_redaction_secrets_come_from_the_chosen_entry(
     secrets = _secrets(options, data)
 
     assert entry_id == "bbb222"
-    assert "b315-secret-pw" in secrets
-    assert "h165-secret-pw" not in secrets
-    assert "aa:bb:cc:00:00:02" in secrets
+    assert "b315-secret-pw" in secrets["password"]
+    assert "h165-secret-pw" not in secrets["password"]
+    assert "aa:bb:cc:00:00:02" in secrets["mac"]
 
 
 async def test_the_entry_option_reaches_both_produce_and_main(
@@ -1161,3 +1169,75 @@ def test_the_health_timestamp_changing_is_not_instability() -> None:
     report = Report()
     check_stability(first, second, report)
     assert not _passed(report, "no stable value changed")
+
+
+# ---------------------------------------------------------------------------
+# The leak scan (1.2.4-dev8 plan I9), ported from unifi_network_monitor
+# ---------------------------------------------------------------------------
+
+
+def test_leak_scan_finds_an_identifier_used_as_a_key() -> None:
+    """An identifying value seeded as a dictionary key fails the check.
+
+    The value list holds the router's identifiers as well as the entry's four
+    credentials and MAC, so an IMSI used as a key is found.
+    """
+    artefact = _artefact({"some_future_block": {"001019876543210": "signal"}})
+    secrets = identifying_values({"device_information": {"Imsi": "001019876543210"}})
+
+    report = Report()
+    check_redaction(artefact, secrets, report, "1")
+
+    assert not _passed(report, "no live identifier survived")
+
+
+def test_a_leak_report_names_the_category_and_never_the_value() -> None:
+    """The report carries the category and a masked path, not the value."""
+    artefact = _artefact({"block": {"note": "imei 490154203237518 seen"}})
+    secrets = {"imei": {"490154203237518"}}
+
+    report = Report()
+    check_redaction(artefact, secrets, report, "1")
+
+    text = json.dumps([list(check) for check in report.checks])
+    assert "490154203237518" not in text
+    assert "imei" in text
+
+
+def test_a_mac_is_found_in_another_case_and_separator() -> None:
+    """A MAC stored lower-case with colons is found upper-case with dashes."""
+    secrets = _secrets({}, {"mac": "dc:71:96:11:22:33"})
+
+    assert leak_hits({"x": "DC-71-96-11-22-33"}, secrets) == {"mac": ["x"]}
+
+
+def test_a_four_character_value_is_found_as_a_word_only() -> None:
+    """A short value matches as a whole word, not inside a longer number."""
+    secrets = {"cell_id": {"4321"}}
+
+    assert leak_hits({"a": "cell 4321"}, secrets) == {"cell_id": ["a"]}
+    assert leak_hits({"b": "1043210"}, secrets) == {}
+
+
+def test_a_path_holding_the_value_is_masked() -> None:
+    """A key can be the identifier found, so the printed path is masked."""
+    secrets = {"ssid": {"Home.Net"}}
+
+    hits = leak_hits({"wifi": {"Home.Net": "on"}}, secrets)
+
+    assert hits == {"ssid": ["wifi.<value> (key)"]}
+
+
+def test_identifying_values_reads_nested_profiles_and_ssids() -> None:
+    """APN names and SSIDs are read at any depth of their blocks."""
+    data = {
+        "dial_up_profiles": {"Profiles": {"Profile": [{"ApnName": "apn.example"}]}},
+        "wlan_multi_basic_settings": {
+            "Ssids": {"Ssid": [{"WifiSsid": "Example-WiFi"}]}
+        },
+        "device_information": {"Imei": "abc"},
+    }
+
+    found = identifying_values(data)
+
+    assert found == {"wan_apn": {"apn.example"}, "ssid": {"Example-WiFi"}}

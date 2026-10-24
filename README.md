@@ -462,7 +462,7 @@ With SMS count and text sensors, plus monitoring and control via events and acti
 
 ## 🔍 What You Get
 
-This integration provides **159 entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client.
+This integration provides **168 entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client.
 
 <details>
 
@@ -472,10 +472,10 @@ This integration provides **159 entities** (depending on your firmware) organize
 
 | Sub-Device | Entities | Entity Types | Key Metrics | Disabled by Default |
 | :-- | --: | :-- | :-- | :-- |
-| ⚙️ **System** | 48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
+| ⚙️ **System** | 56 | 41 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
 | 📶 **Signal** | 58 | 48 Sensors, 10 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation | 4 |
 | 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, data rates, connection usage, daily usage, data plan | 8, incl. Download/Upload Rate, Max Download/Upload Rate and the GB duplicates |
-| 💬 **SMS** | 18 | 17 Sensors, 1 Binary Sensor | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
+| 💬 **SMS** | 19 | 17 Sensors, 1 Binary Sensor, 1 Event | Incoming SMS event, unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
 | 🛜 **WiFi** | 7 | 4 Binary Sensors, 2 Switches, 1 Sensor | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles | 1 |
 | 👥 **Clients** | 4 | 3 Sensors, 1 Button | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client** | 1 |
 | 🛠️ **Actions** | 5 | — | Send, delete, bulk-delete and list SMS; clean up unused tracker entities | — |
@@ -767,7 +767,8 @@ There is also an SMS received event and four SMS actions to **send, read and del
 
 - The `Last Msg` sensor displays the most recent message received **OR** _sent_.
 - In addition to the sensor entities, there is:
-  - A `huawei_router_5g_sms_received` event for automation triggers ([example](#-alert-on-incoming-sms))
+  - An **Incoming SMS** event entity on the SMS device, selectable as an automation trigger in the editor ([example](#-alert-on-incoming-sms))
+  - The `huawei_router_5g_sms_received` bus event, kept for existing automations, with the same data
   - Four service actions for full programmatic control ([inbox cleanup](#-automated-inbox-maintenance) and [on-demand query](#-fetch-and-process-inbox-via-automation) examples).
 - In the action examples below, the `entry_id:` of your router, where required, is drop-down menu selectable from the editor GUI.
 - See [SMS Examples](#-sms-examples) for additional automation options.
@@ -929,7 +930,7 @@ data:
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Detail:
 </summary><br>
 
-Fires automatically when a new incoming SMS is detected. Use as an automation trigger. A message is new when its storage index and content have not been seen, so a clock change cannot hide one.
+Fires automatically when a new incoming SMS is detected. Use as an automation trigger. A message is new when its storage index and content have not been seen, so a clock change cannot hide one. A message that arrives while Home Assistant is stopped is announced once after it starts. On the first start after installing, messages already on the router are not announced.
 
 | Field | Type | Description |
 | :-- | :-- | :-- |
@@ -940,6 +941,22 @@ Fires automatically when a new incoming SMS is detected. Use as an automation tr
 | `index` | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
 
 See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
+
+</details>
+
+<br>
+
+### Incoming SMS Event Entity
+
+<details>
+
+<summary> &nbsp; &nbsp; An event entity on the SMS device that fires for each new message.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Detail:
+</summary><br>
+
+The **Incoming SMS** entity, on the router's SMS device, fires once for each new message, at the same moment and with the same `phone`, `content`, `date` and `index` as the `huawei_router_5g_sms_received` event, which still fires. You can choose it in the automation editor's entity trigger instead of typing the event name, and each message appears in the logbook and on the device page. Its event type is `received`.
+
+The sender and the message text are not written to the recorder, so the logbook and history show that a message arrived, not who sent it or what it said. Use the event data in an automation to act on them.
 
 </details>
 
@@ -1084,27 +1101,33 @@ description: "Forwards the content of any newly received SMS to a notification"
 mode: queued
 max: 10
 triggers:
-  - trigger: event
-    event_type: huawei_router_5g_sms_received
+  - trigger: state
+    entity_id: event.huawei_5g_sms_incoming_sms
+    not_from:
+      - unavailable
+      - unknown
     note: |
-      Fires once per genuinely new message. Messages already on the
-      router when Home Assistant starts are recorded silently as a
-      baseline, so a restart never replays your whole inbox into this
-      automation.
+      The Incoming SMS entity of your router; pick it in the editor, as
+      its ID follows your router's name. Fires once per new message,
+      including one that arrived while Home Assistant was stopped. On
+      the first start after installing, messages already on the router
+      are recorded silently, so they are never replayed.
 actions:
   - action: notify.persistent_notification
     data:
-      title: "New SMS from {{ trigger.event.data.phone }}"
-      message: "{{ trigger.event.data.content }}"
+      title: "New SMS from {{ trigger.to_state.attributes.phone }}"
+      message: "{{ trigger.to_state.attributes.content }}"
     note: |
-      The event payload carries phone, content, date and index. Use
-      index with the delete_sms action if you want to remove the
-      message after handling it.
+      The entity carries phone, content, date and index. Use index with
+      the delete_sms action if you want to remove the message after
+      handling it.
 ```
 
 > [!NOTE]
 >
-> `mode: queued` — several messages can arrive in one poll cycle, and the default `single` mode could silently drop all but the first.
+> `mode: queued` — several messages can arrive in one poll cycle, and the default `single` mode could silently drop all but the first. `not_from` stops the automation firing when the entity's last state is restored at startup.
+
+An automation written for the `huawei_router_5g_sms_received` bus event keeps working: use `trigger: event` with that `event_type`, and read `trigger.event.data.phone` and `trigger.event.data.content`.
 
 ---
 

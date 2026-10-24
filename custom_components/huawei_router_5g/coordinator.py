@@ -1,11 +1,14 @@
 """DataUpdateCoordinator for Huawei Router 5G."""
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 import hashlib
+import hmac
 import logging
+import secrets
 import time
 from typing import Any
 
@@ -47,8 +50,9 @@ from .const import (
     REPAIR_CONN_STRIKE_LIMIT,
     REPAIR_NAMES,
     SIGNAL_CONTRACT_KEYS,
+    SMS_SEEN_CAP,
 )
-from .helpers import get_router_model, parse_sms_list
+from .helpers import get_router_model, identity_from_basic_information, parse_sms_list
 from .library_guard import last_installed_version
 from .observations import ObservationRecorder
 
@@ -196,6 +200,14 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # first poll that reads the list, which fires nothing.
         self.fired_sms_hashes: set[str] = set()
         self.sms_baseline_taken = False
+        # Called with each new message after its bus event, in the same order;
+        # the incoming SMS event entity registers here (`event.py`).
+        self._sms_listeners: list[Callable[[dict[str, Any]], None]] = []
+        # The persisted SMS record (1.2.4-dev8 plan I7): the HMAC secret, the
+        # seen identities in fire order, and whether they changed this poll.
+        self._sms_secret: str | None = None
+        self._sms_seen_order: list[str] = []
+        self._sms_record_dirty = False
 
         # One-shot flag set by async_force_refresh so an explicit user action
         # fetches even while polling is paused (dev_standards Section 13).
@@ -991,11 +1003,15 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             return await self._handle_fetch_failure(err, is_paused=bool(is_paused))
 
         # Post-Fetch Processing & Validation (Outside the main try block)
-        if not data or "device_information" not in data:
+        if not data or (
+            "device_information" not in data and "device_basic_information" not in data
+        ):
             self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed("Critical data missing from fetch (e.g. device_info)")
 
-        dev_info = data.get("device_information") or {}
+        dev_info = data.get("device_information") or identity_from_basic_information(
+            data.get("device_basic_information")
+        )
         new_model = get_router_model(dev_info)
         new_sw = dev_info.get("SoftwareVersion")
         new_hw = dev_info.get("HardwareVersion")
@@ -1096,7 +1112,19 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         skipped when nothing changed, which is almost every poll. As in
         `zte_router_5g`.
         """
-        if self.observations.observe(data):
+        observed = self.observations.observe(data)
+        answered = self.observations.set_information_answered(
+            self.api.information_answered
+        )
+        # A poll that fired a message or took the baseline saves on that poll,
+        # or a restart before the next save would announce the message again.
+        sms = self._sms_record_dirty and self._sms_secret is not None
+        if sms:
+            self.observations.set_sms_record(
+                str(self._sms_secret), self._sms_seen_order
+            )
+            self._sms_record_dirty = False
+        if observed or answered or sms:
             await self.observations.async_save()
 
     # ------------------------------------------------------------------
@@ -1897,18 +1925,72 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             sorted(entries[0]) if entries else [],
         )
 
-    @staticmethod
-    def _sms_identity(msg: dict[str, Any]) -> str:
-        """Return a message's identity: its index and a hash of its content.
+    def _sms_identity(self, msg: dict[str, Any]) -> str:
+        """Return a message's identity: its index and a keyed hash of its content.
 
         Not its `Date` string, which the H165-383 gives as local time with no
         offset (2026-10-09): within a repeated hour the same time occurs twice,
         and a clock change can order a later message before an earlier one.
+
+        Keyed by a random per-install secret (1.2.4-dev8 plan I7), because the
+        identities are persisted: an unsalted hash would let anyone holding the
+        store file confirm a guessed sender and text.
         """
-        digest = hashlib.sha256(
-            f"{msg['phone']}\x00{msg['content']}".encode()
+        if self._sms_secret is None:
+            self._sms_secret = secrets.token_hex(32)
+        digest = hmac.new(
+            bytes.fromhex(self._sms_secret),
+            f"{msg['phone']}\x00{msg['content']}".encode(),
+            hashlib.sha256,
         ).hexdigest()[:16]
         return f"{msg['index']}_{digest}"
+
+    def restore_sms_record(self) -> None:
+        """Restore the persisted SMS record, if any, before the first poll.
+
+        With a record, the first poll after a start announces a message that
+        arrived while Home Assistant was stopped instead of taking a silent
+        baseline. Without one, which is a first install, an upgrade from
+        before 1.2.4-dev8 or an unreadable store, the baseline is taken as
+        before.
+        """
+        record = self.observations.sms_record()
+        if record is None:
+            return
+        self._sms_secret, seen = record
+        self._sms_seen_order = list(seen)
+        self.fired_sms_hashes = set(seen)
+        self.sms_baseline_taken = True
+
+    def _remember_sms(self, identities: list[str], present: set[str]) -> None:
+        """Add identities to the ordered record and cap it at `SMS_SEEN_CAP`.
+
+        Dropped from the oldest end, never an identity in the current read, so
+        a message still on the router is not forgotten and announced again.
+        """
+        order = [i for i in self._sms_seen_order if i not in identities]
+        order += [i for i in self.fired_sms_hashes if i not in order]
+        order = [i for i in order if i not in identities] + identities
+        excess = len(order) - SMS_SEEN_CAP
+        if excess > 0:
+            drop = [i for i in order if i not in present][:excess]
+            order = [i for i in order if i not in drop]
+        self._sms_seen_order = order
+        self.fired_sms_hashes = set(order)
+        self._sms_record_dirty = True
+
+    @callback
+    def add_sms_listener(
+        self, listener: Callable[[dict[str, Any]], None]
+    ) -> CALLBACK_TYPE:
+        """Call `listener` with each new message; return the function removing it."""
+        self._sms_listeners.append(listener)
+
+        @callback
+        def _remove() -> None:
+            self._sms_listeners.remove(listener)
+
+        return _remove
 
     def _check_new_sms(self, data: dict[str, Any]) -> None:
         """Fire an event for each message not seen before.
@@ -1926,7 +2008,15 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         if not self.sms_baseline_taken:
             self.sms_baseline_taken = True
-            self.fired_sms_hashes = set(identities)
+            self.fired_sms_hashes = set()
+            self._sms_seen_order = []
+            self._remember_sms(
+                [
+                    self._sms_identity(msg)
+                    for msg in sorted(sms_list, key=lambda m: _safe_index(m["index"]))
+                ],
+                set(identities),
+            )
             if sms_list:
                 self.last_sms_timestamp = max(msg["date"] for msg in sms_list)
             _LOGGER.debug(
@@ -1963,6 +2053,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "index": msg["index"],
                 },
             )
+            for listener in list(self._sms_listeners):
+                listener(msg)
 
-            self.fired_sms_hashes.add(self._sms_identity(msg))
+            self._remember_sms([self._sms_identity(msg)], set(identities))
             self.last_sms_timestamp = msg["date"]

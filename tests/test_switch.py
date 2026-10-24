@@ -14,6 +14,7 @@ from custom_components.huawei_router_5g.switch import (
     HuaweiMobileDataSwitch,
     HuaweiPausePollingSwitch,
     HuaweiWifiSwitch,
+    _guest_enable_flag,
     async_setup_entry,
 )
 from homeassistant.exceptions import HomeAssistantError
@@ -241,6 +242,25 @@ def test_guest_wifi_is_on(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
     assert switch.is_on is True
+
+
+@pytest.mark.parametrize("ssid", ["guest", None])
+def test_guest_wifi_reads_unknown_for_a_non_list_ssid(
+    mock_coordinator, mock_config_entry, ssid
+):
+    """A string or `None` `Ssid` reads unknown instead of raising.
+
+    Core `huawei_lte` issue #76244 records the H312-371, E5372 and E8372
+    returning `Ssids.Ssid` in these shapes. Iterated as it came, the string
+    gave characters with no `.get` and `None` raised `TypeError`.
+    """
+    mock_coordinator.data = {"wlan_multi_basic_settings": {"Ssids": {"Ssid": ssid}}}
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    assert switch.is_on is None
+    assert without_about(switch.extra_state_attributes) == {}
+    assert _guest_enable_flag({"Ssids": {"Ssid": ssid}}) is None
 
 
 def test_guest_wifi_is_none_no_data(mock_coordinator, mock_config_entry):

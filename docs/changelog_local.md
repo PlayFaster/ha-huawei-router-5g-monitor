@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev8\] - 2026-10-24 - Compatibility, SMS and Diagnostics: basic-information Fallback; Incoming SMS Event Entity; SMS While Stopped Announced; Leak Check Holds Router Values](#124-dev8---2026-10-24---compatibility-sms-and-diagnostics-basic-information-fallback-incoming-sms-event-entity-sms-while-stopped-announced-leak-check-holds-router-values)
   - [\[1.2.4-dev7\] - 2026-10-23 - Access Reference and Task Queue: Radio, Band and Guest WiFi Fields Measured; Queue Refined; Defensive-Behavior Audit Closed](#124-dev7---2026-10-23---access-reference-and-task-queue-radio-band-and-guest-wifi-fields-measured-queue-refined-defensive-behavior-audit-closed)
   - [\[1.2.4-dev6\] - 2026-10-22 - CI Bump ruff PHACC](#124-dev6---2026-10-22---ci-bump-ruff-phacc)
   - [\[1.2.4-dev5\] - 2026-10-17 - Roadmap \& Tasks: Task Queue Single Source Migration and Roadmap Generation](#124-dev5---2026-10-17---roadmap--tasks-task-queue-single-source-migration-and-roadmap-generation)
@@ -214,6 +215,46 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev8] - 2026-10-24 - Compatibility, SMS and Diagnostics: basic-information Fallback; Incoming SMS Event Entity; SMS While Stopped Announced; Leak Check Holds Router Values
+
+### Summary
+
+Built from plan `v124_dev8_plan.md`. A router that refuses `device/information` now sets up and polls from `device/basic-information`. Incoming SMS gains an event entity, and a message received while Home Assistant was stopped is announced once after the start. Signal values with a comparison prefix before a `dB` or `dBm` unit parse to their edge, and a non-list `Ssid` no longer raises. The diagnostics leak check searches the router's own identifying values, which found the operator APN published in full, now redacted. Device links are built for the Home Assistant 2026.11 `DeviceInfo` dataclass, and a test guards device-registry lookups through `_compat`.
+
+### Added
+
+- **Incoming SMS event entity**: `event.py` adds one entity per entry on the SMS device, event type `received`, with the bus event's `phone`, `content`, `date` and `index`; the sender and text are excluded from the recorder. The `huawei_router_5g_sms_received` bus event is unchanged.
+- **SMS received while Home Assistant was stopped**: the seen message identities persist in the observed store, so the first poll after a start announces a message that arrived during the stop, once. Identities are an HMAC of sender and text under a per-install secret; the record holds no number or text and is capped at 200.
+- **`device/basic-information` fallback**: where `device_information` has never answered on the entry, or is refused on the first read after a login, the poll reads `device/basic-information` for the device name and any software version, and setup names the entry from it. `125002` and `125003` stay session expiries. Whether `device_information` has answered is persisted.
+- **Leak check holds the router's values**: `scripts/diag_check.py` searches the download for the router's IMEI, IMSI, ICCID, MSISDN, serial, MACs, WAN addresses, operator, PLMN, cell and eNodeB IDs, APNs and SSIDs as whole words in any case, keys included, and reports category and masked path, never the value.
+- **Registry guard test**: `tests/test_entity_hygiene.py` fails when a deprecated device-registry surface is used outside `_compat.py` (chore C-038).
+
+### Changed
+
+- **Device links for HA 2026.11**: `build_device_info` passes the parent link to the `DeviceInfo` constructor instead of adding it with `.update()`.
+- **Prefixed signal values**: `>=-51dBm`, `&lt;-20dB` and `&gt;=30dB` read as their edge; any other prefixed value still reads unknown.
+- **Non-list `Ssid`**: a string or `None` `Ssids.Ssid` reads unknown on the WiFi switches and sensors, and the guest write reports no guest SSID.
+- **Example values**: example values in code, tests and two tracked notes aligned with `example_values.md`.
+- **README entity counts**: the total reads 168 entities, the System row 56 with 41 sensors, and the SMS row 19 with the Incoming SMS event entity, matching `docs/all_sensors.md`.
+
+### Fixed
+
+- **Operator APN in the diagnostics download**: `ApnName` in `dial_up_profiles` was published in full; it is now blanked with the other carrier identity. Found by the extended leak check on the H165-383.
+- **IPv4 at the end of a sentence**: an address followed by a full stop is now tokenized in the download.
+
+### Tests
+
+- **New**: `tests/test_event.py`, `tests/test_sms_events.py`, fallback cases in `tests/test_refused_endpoint.py`, and cases in the helper, switch, binary-sensor, API, config-flow, poll-path, diagnostics and diag-check tests. Ten existing tests now model a router that has answered `device_information`.
+
+### Verified
+
+- **Live on the H165-383**: SMS sent by the ZTE integration while Huawei polling was paused, then a restart: announced once, event entity triggered once with one logbook line, nothing identifying recorded or stored. After the final restart all five sub-devices link to the System device. `Hardware: Check Diagnostics Download` PASSED 39/39.
+
+### Notes
+
+- **Defects found during the build**: the operator APN leak above; the first fallback rule treated `125002` and `125003` on a fresh session as a refusal, which removed the auth repair for a session that cannot be held, corrected before release; a test-only store save failed silently on a mocked flag, corrected in the test.
+- **Known**: no router held refuses `device/information`, so the fallback is verified on the fake transport only.
 
 ## [1.2.4-dev7] - 2026-10-23 - Access Reference and Task Queue: Radio, Band and Guest WiFi Fields Measured; Queue Refined; Defensive-Behavior Audit Closed
 

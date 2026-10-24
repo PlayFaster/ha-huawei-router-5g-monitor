@@ -13,8 +13,10 @@ from custom_components.huawei_router_5g.helpers import (
     build_device_info,
     get_network_type_label,
     get_router_model,
+    identity_from_basic_information,
     parse_signal_value,
     parse_sms_list,
+    ssid_entries,
 )
 from tests.conftest import assert_is_root, assert_links_to_parent
 
@@ -454,6 +456,65 @@ def test_build_device_info_links_to_the_named_parent():
     assert args[1] == DOMAIN
     assert args[2] == "001122334455_system"
     assert args[3] == "entry-abc"
+
+
+@pytest.mark.parametrize(
+    ("block", "expected"),
+    [
+        ({"Ssids": {"Ssid": [{"Index": "0"}, "x", {"Index": "1"}]}}, 2),
+        ({"Ssids": {"Ssid": {"Index": "0"}}}, 1),
+        ({"Ssids": {"Ssid": "guest"}}, 0),
+        ({"Ssids": {"Ssid": None}}, 0),
+        ({"Ssids": None}, 0),
+        ({}, 0),
+        (None, 0),
+    ],
+)
+def test_ssid_entries_returns_only_dict_entries(block, expected):
+    """A list keeps its dicts, a dict becomes one entry, anything else none."""
+    entries = ssid_entries(block)
+    assert len(entries) == expected
+    assert all(isinstance(entry, dict) for entry in entries)
+
+
+@pytest.mark.parametrize(
+    ("basic", "expected"),
+    [
+        (None, {}),
+        ({"devicename": "H312-371"}, {"DeviceName": "H312-371"}),
+        (
+            {"devicename": "H312-371", "softwareversion": "21.0.1"},
+            {"DeviceName": "H312-371", "SoftwareVersion": "21.0.1"},
+        ),
+    ],
+)
+def test_identity_from_basic_information(basic, expected):
+    """The basic block maps onto the keys read from `device_information` (I3)."""
+    assert identity_from_basic_information(basic) == expected
+
+
+def test_build_device_info_passes_the_parent_link_to_the_constructor():
+    """The link is in the built `DeviceInfo`, and the root carries none.
+
+    `DeviceInfo` is a dataclass from HA 2026.11, whose dict compatibility
+    layer is to be removed, so the link is passed to the constructor instead
+    of added afterwards with `.update()`. Dropping the link from the call
+    fails the first assertion; linking the root to itself fails the second.
+    """
+    from unittest.mock import patch
+
+    coordinator = _device_info_coordinator()
+
+    with patch(
+        "custom_components.huawei_router_5g.helpers.via_device_link",
+        return_value={"via_device_id": "resolved"},
+    ):
+        sub = build_device_info(coordinator, "signal")
+        root = build_device_info(coordinator, "system")
+
+    assert sub["via_device_id"] == "resolved"
+    assert "via_device_id" not in root
+    assert "via_device" not in root
 
 
 def test_build_device_info_carries_the_hardware_identity():
