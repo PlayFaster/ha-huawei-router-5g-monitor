@@ -269,14 +269,14 @@ def test_the_nr_band_is_taken_from_the_last_parenthesis_in_the_segment() -> None
     segment. Searching forwards finds the first, which is the LTE anchor, so
     the 5G band sensor reports an LTE band and looks plausible.
     """
-    band = "20MHz@500(B1) + 15MHz@1875(B3) + 10MHz@152690(N28)"
+    band = "20MHz@1300(B3) + 15MHz@2850(B7) + 100MHz@636666(N78)"
 
-    assert _parse_nr_band_from_band(band) == "N28"
+    assert _parse_nr_band_from_band(band) == "N78"
 
 
 def test_a_band_string_with_no_nr_segment_returns_nothing() -> None:
     """Kills `start >= 0`, which treats "not found" as a match at position 0."""
-    assert _parse_nr_band_from_band("20MHz@500(B1) + 15MHz@1875(B3)") is None
+    assert _parse_nr_band_from_band("20MHz@1300(B3) + 15MHz@2850(B7)") is None
 
 
 def test_a_non_string_band_is_rejected_rather_than_split() -> None:
@@ -296,7 +296,7 @@ def test_segments_are_split_on_the_plus_separator() -> None:
     Whitespace splitting breaks a segment in half, so the marker search runs
     over a fragment and the band is lost — silently, as `None`.
     """
-    assert _parse_nr_band_from_band("10MHz@152690(N28) + 20MHz@500(B1)") == "N28"
+    assert _parse_nr_band_from_band("100MHz@636666(N78) + 20MHz@1300(B3)") == "N78"
 
 
 # ---------------------------------------------------------------------------

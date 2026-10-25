@@ -19,7 +19,7 @@ Forward plans, deferred decisions, and declined directions for the Huawei 5G Rou
 
 ### 5G Mode select, and a sensor to read it back
 
-A select for 5G Mode (SA+NSA, NSA, SA) and a sensor reading it back, built only if the web interface mining identifies the request the router's own 5G Mode dropdown sends.
+A select for 5G Mode (SA+NSA, NSA, SA) and a sensor reading it back, from the networkOption field of the already-polled net/net-mode, which the web interface mining identified on 2026-10-24.
 
 ### New device alert
 

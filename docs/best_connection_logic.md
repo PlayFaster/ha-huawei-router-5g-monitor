@@ -27,7 +27,7 @@ if "(N" not in str(band):
 
 **What it checks:** Whether the composite band string contains an NR band label (e.g., `(N28)`).
 
-**Example band string:** `"20MHz@500(B1) + 15MHz@1875(B3) + 10MHz@6200(B20) + 10MHz@152690(N28)"`
+**Example band string:** `"20MHz@1300(B3) + 15MHz@2850(B7) + 10MHz@300(B1) + 100MHz@636666(N78)"`
 
 **Why this field:** The `band` field is populated consistently on the H165-383. LTE-only segments use the form `(BXX)`; NR segments use `(NXX)`. The presence of `(N` is a stable, configuration-level indicator that an NR band is assigned — more idle-stable than instantaneous signal metrics (`nrrsrp`, etc.) that may go `None` when the NR carrier briefly sleeps.
 

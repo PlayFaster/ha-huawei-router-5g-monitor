@@ -46,7 +46,7 @@ def test_best_connection_5g_active(mock_coordinator, mock_config_entry):
     """Return True when NSA 5G is present and health gates pass."""
     mock_coordinator.data = {
         "device_signal": {
-            "band": "20MHz@500(B1) + 10MHz@152690(N28)",
+            "band": "20MHz@1300(B3) + 100MHz@636666(N78)",
             "rsrp": "-90dBm",
             "nrrsrp": "-95dBm",
         }
@@ -62,7 +62,7 @@ def test_best_connection_5g_inactive_no_nr_band(mock_coordinator, mock_config_en
     """Return False when NR band label is missing from band string."""
     mock_coordinator.data = {
         "device_signal": {
-            "band": "20MHz@500(B1)",
+            "band": "20MHz@1300(B3)",
             "rsrp": "-90dBm",
         }
     }
@@ -77,7 +77,7 @@ def test_best_connection_lte_unhealthy(mock_coordinator, mock_config_entry):
     """Return False when LTE anchor health gate fails."""
     mock_coordinator.data = {
         "device_signal": {
-            "band": "20MHz@500(B1) + 10MHz@152690(N28)",
+            "band": "20MHz@1300(B3) + 100MHz@636666(N78)",
             "rsrp": "-110dBm",  # Below -100 threshold
             "sinr": "10dB",  # Below 15 threshold
             "rsrq": "-15dB",  # Below -12 threshold

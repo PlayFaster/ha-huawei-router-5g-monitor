@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-huawei-router-5g-monitor
 
-**Last Measured:** 2026-10-24T03:06:05.704855+00:00 · **Release:** `1.2.4` · **Dev Version:** `1.2.4-dev8`
+**Last Measured:** 2026-10-25T17:50:23.026243+00:00 · **Release:** `1.2.4` · **Dev Version:** `1.2.4-dev9`
 
 ## 1. Executive Summary
 
@@ -23,14 +23,14 @@
 | **Comment Density** | **18.0%** | 1,565 inline comment lines (Healthy implementation rationale) |
 | **Platform Declarations SLOC** | **3,975 lines** | Across 7 platform files |
 | **Core Engine / Driver SLOC** | **4,699 lines** | Across 13 coordinator/API/helper files |
-| **Static Entities** | **168 entities** | Scale indicator (`all_sensors.md`) |
-| **Platform SLOC / Entity** | **23.7 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
+| **Static Entities** | **169 entities** | Scale indicator (`all_sensors.md`) |
+| **Platform SLOC / Entity** | **23.5 lines/entity** | Target 20 – 45 lines/entity declarative efficiency |
 | **Test-to-Source Ratio** | **1.8×** | 15,620 test lines ($\ge 1.5×$ recommended) |
-| **Pytest Coverage** | **99%** | 1571 tests executed |
-| **Test Decision Density** | **1.66 tests/branch** | 1571 tests across 948 branches (Target $\ge 0.80$ · Strong regression depth) |
+| **Pytest Coverage** | **100%** | 1575 tests executed |
+| **Test Decision Density** | **1.66 tests/branch** | 1575 tests across 948 branches (Target $\ge 0.80$ · Strong regression depth) |
 | **Assertion Completeness** | **100.0%** | 1161 test functions, 0 unasserted (`test_assertions.txt`) |
 | **Dynamic Sequence Depth** | **30 consecutive polls** | Deepest test lifecycle without stubbed seams (`test_depth.txt`) |
-| **Pytest Duration** | **682.62s** | Full test suite wall-clock execution time |
+| **Pytest Duration** | **550.23s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 

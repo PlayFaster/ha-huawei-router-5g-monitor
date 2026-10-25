@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev9\] - 2026-10-25 - Access Reference and Task Queue: H165-383 Web Interface Mining Recorded; Status Codes Decoded; Follow-on Sensor Tasks Raised](#124-dev9---2026-10-25---access-reference-and-task-queue-h165-383-web-interface-mining-recorded-status-codes-decoded-follow-on-sensor-tasks-raised)
   - [\[1.2.4-dev8\] - 2026-10-24 - Compatibility, SMS and Diagnostics: basic-information Fallback; Incoming SMS Event Entity; SMS While Stopped Announced; Leak Check Holds Router Values](#124-dev8---2026-10-24---compatibility-sms-and-diagnostics-basic-information-fallback-incoming-sms-event-entity-sms-while-stopped-announced-leak-check-holds-router-values)
   - [\[1.2.4-dev7\] - 2026-10-23 - Access Reference and Task Queue: Radio, Band and Guest WiFi Fields Measured; Queue Refined; Defensive-Behavior Audit Closed](#124-dev7---2026-10-23---access-reference-and-task-queue-radio-band-and-guest-wifi-fields-measured-queue-refined-defensive-behavior-audit-closed)
   - [\[1.2.4-dev6\] - 2026-10-22 - CI Bump ruff PHACC](#124-dev6---2026-10-22---ci-bump-ruff-phacc)
@@ -216,6 +217,45 @@ All changes to this project will be documented in this file. This is the detaile
 
 ---
 
+## [1.2.4-dev9] - 2026-10-25 - Access Reference and Task Queue: H165-383 Web Interface Mining Recorded; Status Codes Decoded; Follow-on Sensor Tasks Raised
+
+### Summary
+
+Documentation and task queue only, with test data changes in two test files. No integration code change. The H165-383 web interface mining of 2026-10-24 and 2026-10-25 is recorded in the access reference: reads that need a POST or a query parameter, reads to avoid, the cause of the false `100003` results in a bulk sweep, and status codes decoded from the web interface's own code. A review of the mined data elements decided which become entities; three tasks are raised for them and thirteen existing tasks take the findings.
+
+### Bumps
+
+- **Validate Bump**: Update `zizmor` from 1.30.1 to 1.31.1
+
+### Added
+
+- **Reads that need a POST or a parameter**: `docs/huawei_how_to_access.md` gains a section for the library read methods that use POST (`device/vendorname`, the phone book and SMS lists) and the query forms `system/onlinestate?devid=all` and `staticroute/ipv6linkaddr?ifname=br0`.
+- **Reads to avoid**: the five `sim/*` paths (`sim-info`, `sim-mode`, `skytone-esim-service`, `down-profile`, `esim-profiles`) stall until the request timeout on the H165-383 and are followed by false `100003` results; recorded with the measurement.
+- **Status codes decoded from the web interface**: a table of field values mapped from the interface's page code: `cradle/status-info` `connectstatus` and `connectionmode`; `pin/status` `SimState` and `PinOptState`; `SimLockEnable` as the operator SIM lock; `monitoring/check-notifications` `OnlineUpdateStatus`; `security/nat` `NATType`, a setting; `security/bridgemode`; `system/onlinestate` `UpdateState`; `voice/sipaccount` `registerstatus`; `dialup/connection` `MaxIdelTime` and `pdp_always_on`; and the `system/topology` mesh satellite condition.
+- **Client lists and per-client fields**: `docs/huawei_how_to_access.md` records the fields of `lan/HostInfo`, `wlan/host-list` and `system/HostInfo` on the H165-383, which list carries Wi-Fi band, that hardware identity fields are empty, how `LeaseTime` and `AssociatedTime` move, and the `system/topology` layout.
+- **WAN status and configuration**: `cradle/status-info`, `staticroute/wanpath` and `cradle/basic-info` fields and readings, and nine dual-WAN paths not present on the H165-383.
+- **Data-limit cut-off fields**: `turnoffdataenable`, `turnoffdataswitch`, `turnoffdataflag` and `DataLimitAwoke` stayed `0` with the limit set below usage; recorded with the measurement.
+- **Library 1.11.0 coverage**: the access reference lists the 1.11.0 methods for the paths reviewed, and `system/onlinestate` as a plain GET returning an object where the library's `devid=all` form returns an array.
+- **Voice reads**: `voice.sipaccount()` fields extended with `registerstatus`, `directorynumber` and `username`; `voice.sipadvance()` added; the redaction note records that `TO_REDACT` matches keys exactly.
+- **Tasks raised**: `add_additional_sensors.md` (firmware update status, the SIM Locked description, client tracker `link_speed`, `wifi_band` and `router` attributes, no new reads); `add_sensors_complex_direct_read.md` (SIM state, PIN and PUK attempts and SIM problem attributes, bridge mode, DMZ, NAT mode, last firmware update, five new reads); `add_a_voip_sub_device.md` (a Voice sub-device with SIP registration, VoIP enabled, line and provider details and call waiting, and diagnostics redaction of the voice account fields). Each carries an owner-approved specification of sub-device, category, default, type, guard band and long-term statistics for every entity.
+
+### Changed
+
+- **False `100003` in a bulk sweep**: the access reference records the cause as the `sim/*` stalls, not request spacing; spacings of 0, 50 and 150 ms produced no false refusal on the H165-383.
+- **Undecodable status codes**: `SimState` and `OnlineUpdateStatus` leave the list of undecodable codes, now decoded.
+- **`docs/DEVELOPMENT.md`**: the network mode section records that the mode write sends no `networkOption`, the 5G Mode field; a bullet records that polling is paused before any probe session on the router.
+- **Example values**: example values in `docs/best_connection_logic.md`, `docs/DEVELOPMENT.md` and two test files aligned with `example_values.md`.
+- **Tasks updated with the mining findings**: `5g_mode_select_and_read_back_sensor.md` (sensor first, select after an attended write test), `router_ethernet_mode_support.md` (`cradle/status-info` and `staticroute/wanpath` as the mode source), `mine_the_whole_web_interface.md` (partially complete; ten paths for the diagnostics probe set), `neighbor_cells_sensor.md` (Secondary Cells added), `guest_wifi_ssid_write_validation.md`, `separate_2_4ghz_and_5ghz_wifi_switches.md`, `wlan_band_locking_write_capability.md`, `poll_only_what_an_enabled_entity_reads.md`, `per_model_entity_defaults.md`, `b315_checks_deferred_from_1_2_4_dev1.md`, `new_device_alert.md`, `retire_long_unseen_device_trackers.md` and `device_tracker_naming.md`.
+- **`docs/ROADMAP.md`**: the 5G Mode entry regenerated from its task.
+
+### Tests
+
+- **Changed**: `tests/test_binary_sensor.py` and `tests/test_mutation_gaps.py` use example band values; the expected value in the mutation test follows. Both files pass.
+
+### Notes
+
+- **Known**: most decoded codes have been observed in one state only on the H165-383; the other states rest on the web interface code.
+
 ## [1.2.4-dev8] - 2026-10-24 - Compatibility, SMS and Diagnostics: basic-information Fallback; Incoming SMS Event Entity; SMS While Stopped Announced; Leak Check Holds Router Values
 
 ### Summary
@@ -255,6 +295,7 @@ Built from plan `v124_dev8_plan.md`. A router that refuses `device/information` 
 
 - **Defects found during the build**: the operator APN leak above; the first fallback rule treated `125002` and `125003` on a fresh session as a refusal, which removed the auth repair for a session that cannot be held, corrected before release; a test-only store save failed silently on a mocked flag, corrected in the test.
 - **Known**: no router held refuses `device/information`, so the fallback is verified on the fake transport only.
+- **Known, CI mypy**: the GitHub mypy job fails on this build with three errors, while local `Mypy: Strict Check` passes. CI checks against HA 2026.10.2, the latest release; local mypy resolves HA through `mypy_path = "/ha_core"`, the HA dev tree at 2026.11.0.dev0. `helpers.py:409` and `:417` come from the `**link` spread into `DeviceInfo`, a `TypedDict` on 2026.10.2 and a dataclass on 2026.11. `device_tracker.py:6`, failing since 1.2.4-dev7, comes from `ScannerEntity` lacking an explicit export on 2026.10.2. No code change: the code is correct at runtime on 2026.10.2, type-checks on 2026.11, and a precise return type for `via_device_link` failed on both trees. The job is expected to pass once HA 2026.11 is the latest release. Plan `v124_dev8_plan.md` F1.
 
 ## [1.2.4-dev7] - 2026-10-23 - Access Reference and Task Queue: Radio, Band and Guest WiFi Fields Measured; Queue Refined; Defensive-Behavior Audit Closed
 
@@ -1290,7 +1331,7 @@ Documentation only. No code change. `.notes/info/sub_devices_and_trackers.md` wa
 
 ### Fixed
 
-- **"The Implemented Pattern" described the reverted attempt.** It showed `_attr_has_entity_name = False` with the router title prepended in `name`, and claimed the resulting ID was `device_tracker.huawei_5g_npg3_hub`. None of that is the current code. Replaced with the real `name` property, the real entity IDs from the registry, and the reverted attempt recorded separately as history.
+- **"The Implemented Pattern" described the reverted attempt.** It showed `_attr_has_entity_name = False` with the router title prepended in `name`, and claimed the resulting ID was `device_tracker.huawei_5g_example_hub`. None of that is the current code. Replaced with the real `name` property, the real entity IDs from the registry, and the reverted attempt recorded separately as history.
 - **"Why Device Trackers Omit the Sub-Device Name" described something that does not happen.** Trackers carry `huawei_5g_clients_` today. Retitled to present it as the argument that was made, which is what it is.
 - **All three rows of the "Where This Is Documented" table were wrong.** It cited `.notes/sub_devices_and_trackers.md`, which moved to `info/` on 2026-08-23; `.notes/dev_standards.md` §13 for tracker naming, but that file is at `shared/SharedNotes/dev_std/` and its §13 is Poll Control, with no section covering tracker naming anywhere; and the `device_tracker.py` class docstring for inline `has_entity_name` rationale, which does not exist — the docstring is one line.
 - **"Warning for Future Changes" said the integration was unreleased** and that the breaking-change concern therefore did not apply. It shipped as `[1.2.0]` on 2026-08-20 and `manifest.json` reads `1.2.1`, so it does apply.

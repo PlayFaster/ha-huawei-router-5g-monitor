@@ -132,6 +132,8 @@ The cause, measured on 2026-09-07, is in the integration rather than the router.
 
 Every refusal in a sweep therefore costs a logout and a login. A 42-endpoint sweep on 2026-09-07 accumulated enough sessions that the router began answering `LoginErrorAlreadyLoginException` and then refused connections for the rest of the run, and the remaining endpoints reported artefacts. The same 42 calls on one session, made without the wrapper, completed in about 900 ms with every endpoint returning a real outcome. Anything sweeping endpoints outside the polled set bypasses `_execute_with_retry` and calls on one established session, with no delay needed between calls.
 
+**A stalled read is a second cause, measured 2026-10-24 and 2026-10-25.** The read-only sweep of 2026-10-10 used one session and recorded 96 paths as `100003`. Read again one at a time on 2026-10-24, with a `device/information` check after each refusal, 41 of them answered and 15 were confirmed refused. Every one of the 41 false results came after two reads, `sim/down-profile` and `sim/esim-profiles` at items 122 and 123 of 221, that held the connection until a 20 s timeout; none came before them, and 9 paths still answered after them. Reads at 0, 50 and 150 ms spacing on 2026-10-25 gave no errors, so request spacing is not the cause. A sweep therefore excludes the paths in [Reads to avoid](#reads-to-avoid) and reads any refused path again on its own before believing it.
+
 ---
 
 ## ⚠️ Error codes
@@ -257,6 +259,82 @@ The five `100003` probes on the H165-383 on 2026-10-05 were `device_autorun_vers
 
 **Reads that start something.** `net.plmn_list` starts a network scan. On the H165-383 it timed out in a read sweep and was followed by a brief data-connection restart on two runs, so it is the likely cause. It is not among the `DIAGNOSTIC_PROBES`, and a read sweep of the library excludes it, together with `net.reconnect` and the `accept`, `compress`, `operate` and `toggle` methods.
 
+### The whole web interface, mined 2026-10-24
+
+The web interface is one single-page application. `/js/main.js` carries every `api/` path the interface names as text, and 135 named page chunks, `/js/<name>.js`, load on demand from a map inside it. On the H165-383 on 2026-10-24, 26 chunks were served without a login and 73 more after one; 26 were refused with `100003` even after a login, and 10 are not present (`100002`). Of the 27 `/config/*.xml` files the interface names, 23 were collected. The second extraction, over `main.js`, every fetched chunk and every configuration file, found 320 `api/` paths: the 315 already mined from `main.js` on 2026-10-10, and five upload paths (`capki/uploadpkicertification`, `device/uploadconfigfile`, `filemanager/upload`, `service/uploadcertification`, `uspagent/uploadcertification`), all denied by the action filter and never requested. No new readable path exists. Pages request data by name through a table in `main.js` (for example `netMode: "/api/net/net-mode"`): 349 entries, 321 under `/api/` and 28 configuration files. Every `/api/` entry's path is one of the 315; four add a query string the 2026-10-10 sweep did not send: `system/onlinestate?devid=all`, `staticroute/ipv6linkaddr?ifname=br0` (refused without the parameter on 2026-10-10), and `developer/export-log?type=0` and `?type=1`, which the action filter denies. The files and results are in `.notes/local_only/router_probe/web_20261024/` and `h165_mining_phase_b_20261024.json`.
+
+### Reads that need a POST or a parameter
+
+Some paths answer only when read the way the web interface reads them. A GET to these returns an error that looks like absence. Measured on the H165-383, 2026-10-24.
+
+| Path | Plain GET | Read that answers |
+| :-- | :-- | :-- |
+| `device/vendorname` | `100002` | POST read, the library's `device.vendorname()` |
+| `sms/sms-list`, `sms/sms-list-contact`, `sms/sms-list-phone` | `100005` | POST read with a page and box body, the library's SMS list methods |
+| `staticroute/ipv6linkaddr` | `9003` | GET with `?ifname=br0` |
+
+A `100002` or `100005` to a GET is therefore not proof that a path is absent. The web interface's request-name table, under [The whole web interface, mined 2026-10-24](#the-whole-web-interface-mined-2026-10-24), shows how each page reads a path.
+
+### Reads to avoid
+
+| Path | Behavior on the H165-383 | Measured |
+| :-- | :-- | :-- |
+| `sim/sim-info`, `sim/sim-mode`, `sim/skytone-esim-service`, `sim/down-profile`, `sim/esim-profiles` | No answer: the connection is held until the client's timeout, 20 s in the test. A bulk sweep that reads one is followed by false `100003` results | 2026-10-10 and 2026-10-25 |
+| `diagnosis/oversea-log`, `ntwk/childHomepage`, `ntwk/childModelApps`, `sc/app_version_list`, `system/HostInfo`, `system/hilinknew`, `system/topology` | Answer with a top-level JSON array. `huawei-lte-api` 2.0.1 raises `AttributeError` on them, because `Session._check_response_status` assumes a mapping, so they are read raw | 2026-10-25 |
+
+`system/HostInfo` and `system/topology` are described under [Client lists and per-client fields](#client-lists-and-per-client-fields). Neither is read by the integration. No path in this table is polled or probed.
+
+`system/onlinestate` answers a plain GET with one object, which the session parses (2026-10-24). The library's `System.onlinestate`, in 1.11.0 and 2.0.1, always sends `devid=all`, and with it the router answers a JSON array, which fails as above. A read of the update fields is therefore a direct read of the path without the parameter.
+
+### Client lists and per-client fields
+
+Three paths list the router's clients. Measured on the H165-383, 2026-10-25, with two wired clients, one connected 5 GHz Wi-Fi client and one inactive Wi-Fi client.
+
+| Path | Read | Polled | Per-client fields of note |
+| :-- | :-- | :-- | :-- |
+| `lan/HostInfo` | `Lan.host_info`, 1.11.0 and 2.0.1 | Yes, `lan_host_info` | `Active`, `InterfaceType` (`Ethernet`, `Wireless`), `EthernetSpeed` (wired only, `1000`), `AddressSource`, `LeaseTime`, `AssociatedTime`, `AssociatedSsid` |
+| `wlan/host-list` | `WLan.host_list` | Yes, `wlan_host_list` | `Frequency` (`5GHz`), `AssociatedSsid`, `AssociatedTime` |
+| `system/HostInfo` | Direct read, JSON array | No | All of the above, plus `rate`, `rssi`, `IsGuest`, `VendorClassID`, `UpRate`, `DownRate`, `TxKBytes`, `RxKBytes`, `AccessRecord`, `OfflineRecord` |
+
+- A connected Wi-Fi client is listed in both `lan/HostInfo` and `wlan/host-list`. `Frequency` is only in `wlan/host-list`.
+- `LeaseTime` counts down and resets on renewal; `0` on an inactive client. `AssociatedTime` counts up in seconds, by inference from successive reads.
+- `ActualManu`, `ActualType`, `IdentifyBrands`, `IdentifyType` and `DevBrands` are empty for every client in every capture from 2026-09-07 to 2026-10-25. The router supplies no manufacturer or device type. `VendorClassID`, the DHCP vendor class, is set on three of four clients.
+- In `system/HostInfo`, `rate` and `rssi` read `0` for a Wi-Fi client 81 s after it joined and `541` and `51` at 99 s. An inactive client keeps its last values (`433`, `52`). The `rssi` scale is unknown. `UpRate`, `DownRate`, `TxKBytes` and `RxKBytes` read `0` for every client.
+- `system/topology` lists the router itself as its last entry (`routerSelf: 1`, with `UpdateState`) and the wired clients before it, with `HiLinkType: None`. The `meshdevice` page treats an entry with `HiLinkType` `Device` as a mesh satellite. No satellite was present.
+
+### WAN status and configuration
+
+| Path | Read | Fields | H165-383, LAN-only mode, 2026-10-24 |
+| :-- | :-- | :-- | :-- |
+| `cradle/status-info` | `Cradle.status_info` | `connectionmode`, `connectstatus`, `cradlestatus`, `ethernetspeed`, WAN addresses and DNS | `5`, `902`, `1`, `1000`, empty; codes under [Status codes decoded from the web interface](#status-codes-decoded-from-the-web-interface) |
+| `staticroute/wanpath` | `Staticroute.wanpath` | per path: `WanPathName`, `AccessType`, `AccessStatus`, `WanPathStatusV4`, `WanPathStatusV6` | `ethernet` paths `down`; `umts` path `up`, `connected`; `INTERNET_R_ETH1` is listed more than once |
+| `cradle/basic-info` | `Cradle.basic_info` | configured WAN method, MTU and VLAN settings, `pppoeuser`, `pppoepwd` | `pppoepwd` is returned masked; `pppoeuser` is returned in full and is identifying |
+
+The diagnostics download records `cradle/basic-info` and `cradle/status-info` by key name only. Nine dual-WAN paths answer `100002` on the H165-383: `cradle/current-mac`, `cradle/ethmultiwan-info`, `cradle/ethmultiwan-status-info`, `ntwk/ethwanrate`, `ntwk/dualwaninfo`, `ntwk/lan-wan-config`, `ntwk/lan-wan-relation`, `ntwk/devicewanbind` and `dialup/multiWanProfiles`.
+
+### Data-limit cut-off fields do not change
+
+`monitoring/start_date` carries `turnoffdataenable`, `turnoffdataswitch`, `turnoffdataflag` and `DataLimitAwoke`. On 2026-10-25 the owner set the router's monthly limit to 550 GB and then to 480 GB, below the month's usage of 540,409,566,078 bytes. `DataLimit` and `trafficmaxlimit` followed each change. All four cut-off fields stayed `0`. The web interface showed an over-limit warning and offers no setting to stop data at the limit. The warning is computed by the interface from the limit and the usage, by inference; no API field reports it.
+
+### Status codes decoded from the web interface
+
+Each mapping is read from the interface's own code on 2026-10-24: the named page chunk maps the router's value to a label key, and the English language file gives the label. The reading on the reference unit is from 2026-10-24. The rows for `SimState`, `SimLockEnable`, `OnlineUpdateStatus`, `NATType` as a setting, `MaxIdelTime` and `system/topology` were added on 2026-10-25 from the same saved code.
+
+| Field | Values | Source | H165-383 |
+| :-- | :-- | :-- | :-- |
+| `cradle/status-info` `connectstatus` | `900` connecting, `901` connected, `902` disconnected, `903` disconnecting, `904` to `909` connection failed | `ethernetstatus` page | `902` |
+| `cradle/status-info` `connectionmode` | `0` auto, `1` PPPoE and dynamic, `2` PPPoE, `3` dynamic IP, `4` static IP, `5` LAN only, `6` cable disconnected | `ethernetstatus` page | `5` |
+| `pin/status` `SimState` | `255` and `256` no SIM, `257` SIM ready, `260` PIN required, `261` PUK required | `common.js`, `home` page | `257` |
+| `pin/status` `PinOptState` | `258` PIN disabled, `259` PIN enabled | `pincodemanagement` page | `258` |
+| `SimLockEnable` (`pin/simlock`, `converged_status`) | `1` sends the user to the `simlockunlockdevice` page, which takes an operator unlock code; with `SimLockRemainTimes` `0` the page reports the SIM locked permanently. It is the operator SIM lock, not the PIN. | `common.js`, `home` page | `0` |
+| `monitoring/check-notifications` `OnlineUpdateStatus` | `10` idle, `11` checking, `12` new version found, `13` check failed, `14` up to date, `20` download failed, `30` downloading, `31` download pending, `40` download complete, `50` ready to update, `52` update started, `60` updating, `70` and `80` update failed, `90` and `100` update successful. The page treats `12`, `30`, `31`, `40`, `50` and `52` as a new version. | `common.js`, `upgrade` page | `14` |
+| `security/nat` `NATType` | `0` symmetric, `1` cone. A setting: the `nat` page shows it as the NAT mode choice and posts it on change. `NATEnabled_display` `1` shows the NAT on/off switch. | `nat` page | `1` |
+| `security/bridgemode` `bridgemode` | `0` off, `1` cellular bridge, `2` wired bridge | `bridgemode` page | `0` |
+| `system/onlinestate` `UpdateState` | `16` initializing, `17` no new version, `18` new version available, `19` updating, `20` update failed, `21` update finished, `22` server error, `23` to `27` download and flash stages, `28` download failed, `29` internal error, `30` check timed out, `31` HiLink disconnected, `32` battery low, `33` download aborted, `100` checking, `255` new version while disconnected | `common.js` | `17` |
+| `voice/sipaccount` `registerstatus` | `0` unregistered, `1` registering, `2` registered | `sipbasic` page | `2` |
+| `dialup/connection` `MaxIdelTime`, `pdp_always_on` | `MaxIdelTime` is the idle disconnect timeout in seconds, offered as `0` (never), `300`, `600`, `1200` and `7200`. `pdp_always_on` is a capability flag: unless it is `1`, the page removes the `0` option. | `mobileconnection` page | `0`, `0` |
+| `system/topology` | The last entry is the router itself (`routerSelf: 1`). A mesh satellite is an entry with `HiLinkType` `Device`; the `meshdevice` page shows mesh data only when one is present and `hilink_enabled` is `1`. `LinkQuality` is not decoded in any saved script. | `meshdevice` page | two clients with `HiLinkType` `None`, no satellite |
+
 ### Readable endpoints reviewed
 
 This section records a survey. The first table was adopted; the two after it were not. Verdicts are from the field review in `.notes/info/extra_fields/`.
@@ -337,7 +415,8 @@ The voice group was first recorded as having no registration status, call state 
 | Method | Value read |
 | :-- | :-- |
 | `voice.voicebusy()` | `Idle`, the line state |
-| `voice.sipaccount()` | SIP proxy and register server addresses, and an account password field |
+| `voice.sipaccount()` | SIP proxy and register server addresses, `registerstatus` (`2`, registered; decoded under [Status codes decoded from the web interface](#status-codes-decoded-from-the-web-interface)), `directorynumber`, `username` and an account password field |
+| `voice.sipadvance()` | `callwaitingenable` |
 | `voice.sipserver()` | Server profile, IP type, secondary server |
 | `voice.voiperstatus()` | `voiper_enable='1'` |
 | `voice.voiceadvance()` | `dtmfmethod='InBand'`, `EchoCancellationEnable='1'` |
@@ -347,7 +426,7 @@ Only `voice.codec()` refuses.
 
 > [!WARNING]
 >
-> **`voice.sipaccount()` returns a password.** If it is added to the fetch set, the key goes into `diagnostics.py`'s `TO_REDACT` in the same change, because the diagnostics download dumps `coordinator.data` whole.
+> **`voice.sipaccount()` returns a password.** If it is added to the fetch set, the key goes into `diagnostics.py`'s `TO_REDACT` in the same change, because the diagnostics download dumps `coordinator.data` whole. `TO_REDACT` matches keys exactly and holds `Password` and `Username` capitalized; the voice keys are lowercase `password`, `username` and `directorynumber`, and each needs its own entry.
 
 ### Not supported on this hardware
 
@@ -407,6 +486,18 @@ Ten writes, all serialized behind one `asyncio.Lock` and routed through `_execut
 **`08` is 5G Only.** The library's `NetworkModeEnum` ends at `MODE_4G_3G_AUTO` and has no 5G member, so a table copied from it cannot name the mode the H165-383 sits in. The library does not constrain the write: `networkmode` is a plain `str`, passed through unvalidated.
 
 **A mode change holds the session.** A network-mode write occupies the router for `NET_MODE_SETTLE` (15 s) plus a read-back, because the router may answer the write with `-1` and only a re-read after the radio settles shows whether the mode took. No other command holds the session as long, and nothing else is sent to the router while it does.
+
+### 5G Mode is `networkOption` in `net/net-mode`
+
+The router's 5G Mode setting (SA+NSA, NSA, SA) is the `networkOption` field of `net/net-mode`, which the integration already polls. Its values, read from the web interface's `networkmode` and `mobilesearch` page chunks on 2026-10-24:
+
+| `networkOption` | 5G Mode |
+| :-- | :-- |
+| `0` | NSA |
+| `1` | SA |
+| `2` | SA+NSA |
+
+The H165-383 read `NetworkMode=00`, `networkOption=2` (SA+NSA) on 2026-10-10. The interface writes it by posting `net/net-mode` with `NetworkMode` and `networkOption` together; the `mobilesearch` page also sends `NetworkBand` and `LTEBand`, and shows the 5G Mode dropdown only while `nrProductEnable` is on, setting `networkOption=1` itself for mode `A8`. The library's `set_net_mode` sends no `networkOption`, so whether an integration network-mode write preserves the router's 5G Mode is not measured. Recorded for `tasks/5g_mode_select_and_read_back_sensor.md`; nothing was sent.
 
 ### The master WiFi switch works at the RADIO level, not the SSID level
 
@@ -506,7 +597,7 @@ The library's `client.wlan.set_multi_basic_settings()` builds its own payload, `
 
 **Identifiers are digits that are not quantities.** `Imei`, `Imsi`, `Iccid`, `Msisdn`, `SerialNumber`, `Mccmnc` and `scc_pci` carry no `state_class`, `device_class`, unit or display precision; with any of them set, Home Assistant coerces the value, turning `01` into `1` and a 15-digit IMEI into scientific notation.
 
-**Several status fields are undecodable codes.** `SimState=257`, `CurrentNetworkTypeEx=1011`, `CurrentServiceDomain=3`, `OnlineUpdateStatus=14` and `cellroam=2`. The library ships enums only for `NetworkMode`, `NetworkBand`, the SMS box types and `SaveMode`, and Huawei publishes no specification. A typed endpoint is preferred to a guess: `net.csps_state` supersedes `CurrentServiceDomain`, and `converged_status.SimLockEnable` supersedes `simlockStatus`. `online_update.status()` returns `CurrentComponentStatus='14'`, the same `14` as `monitoring_status.OnlineUpdateStatus`, which may decode it; this has not been pursued.
+**Several status fields are undecodable codes.** `CurrentNetworkTypeEx=1011`, `CurrentServiceDomain=3` and `cellroam=2`. `SimState` and `OnlineUpdateStatus` were in this list until 2026-10-25, when the web interface code decoded both; see "Status codes decoded from the web interface". The library ships enums only for `NetworkMode`, `NetworkBand`, the SMS box types and `SaveMode`, and Huawei publishes no specification. A typed endpoint is preferred to a guess: `net.csps_state` supersedes `CurrentServiceDomain`, and `converged_status.SimLockEnable` supersedes `simlockStatus`. `online_update.status()` returns `CurrentComponentStatus='14'`, the same `14` as `monitoring_status.OnlineUpdateStatus`, which may decode it; this has not been pursued.
 
 **Neighbor and secondary cells.** `device/nbrcellinfo` returns `nbrcell_ltelist` and `nbrcell_nrlist`, and `device/seccellinfo` returns `lteseccell_list` and `nrseccell_list`. Each is a string of records separated by `;`, each record of fields separated by `,`: seven fields for a neighbor cell and eight for a secondary cell, which adds a bandwidth after the band. The order was measured on the H165-383 on 2026-10-10 by reading both lists beside `device.signal`, whose fields are named: channel number (EARFCN or NR-ARFCN, matching the `band` string), band, bandwidth (secondary cells only), PCI (matching `scc_pci` and the PCIs in `nei_cellid`), RSRP and RSRQ (matching `nrrsrp` and `nrrsrq` for the NR secondary cell), RSSI, and SINR (matching `nrsinr`). RSSI is the remaining field by elimination, because `device.signal` reported no NR RSSI. A neighbor record's last field is the SINR position and reads `--`. The neighbor list includes the secondary carrier's own cell, and `nbrcell_nrlist` was null on every reading.
 
@@ -543,6 +634,8 @@ The surfaces of 1.11.0 and 2.0.1 were compared by unpacking both and enumerating
 | `diagnosis.wan_service_name()` | `'INTERNET'` | Low |
 
 `device.control` and `device.reboot` were removed in 2.0. The integration calls `device.set_control(ControlModeEnum.REBOOT)`, which both versions provide.
+
+**Wrapped in 1.11.0, read from its PyPI source on 2026-10-25:** `Cradle.status_info`, `Cradle.basic_info`, `Pin.status`, `Pin.simlock`, `System.onlinestate` (always with `devid`), `System.hostinfo` (array, fails), `Voice.sipaccount`, `Voice.sipserver`, `Voice.sipadvance`, `Voice.voiperstatus`, `Security.bridgemode`, `Security.nat`, `Security.dmz`, `WLan.multi_switch_settings`, `WLan.wlandbho`, `Lan.host_info`, `Staticroute.wanpath`, `Time.timeout`, `Dhcp.settings` and `SNtp.timeinfo`. `wlan/guesttime-setting` is the one path in the 2026-10-25 candidate set that 1.11.0 does not wrap; it is read by path while 1.11.0 is supported.
 
 ---
 
