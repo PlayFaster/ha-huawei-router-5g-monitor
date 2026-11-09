@@ -324,7 +324,7 @@ Each mapping is read from the interface's own code on 2026-10-24: the named page
 | :-- | :-- | :-- | :-- |
 | `cradle/status-info` `connectstatus` | `900` connecting, `901` connected, `902` disconnected, `903` disconnecting, `904` to `909` connection failed | `ethernetstatus` page | `902` |
 | `cradle/status-info` `connectionmode` | `0` auto, `1` PPPoE and dynamic, `2` PPPoE, `3` dynamic IP, `4` static IP, `5` LAN only, `6` cable disconnected | `ethernetstatus` page | `5` |
-| `pin/status` `SimState` | `255` and `256` no SIM, `257` SIM ready, `260` PIN required, `261` PUK required | `common.js`, `home` page | `257` |
+| `pin/status` `SimState` | `240` ROM SIM (`MACRO_SIM_STATUS_ROMSIM`), `255` no SIM card (`MACRO_NO_SIM_CARD`), `256` SIM failure (`MACRO_CPIN_FAIL`), `257` ready (`MACRO_PIN_READY`), `260` PIN required (`MACRO_PIN_REQUIRED`), `261` PUK required (`MACRO_PUK_REQUIRED`). The home page's warning treats `255` and `256` alike as no SIM | `common.js`, `home` page | `257` |
 | `pin/status` `PinOptState` | `258` PIN disabled, `259` PIN enabled | `pincodemanagement` page | `258` |
 | `SimLockEnable` (`pin/simlock`, `converged_status`) | `1` sends the user to the `simlockunlockdevice` page, which takes an operator unlock code; with `SimLockRemainTimes` `0` the page reports the SIM locked permanently. It is the operator SIM lock, not the PIN. | `common.js`, `home` page | `0` |
 | `monitoring/check-notifications` `OnlineUpdateStatus` | `10` idle, `11` checking, `12` new version found, `13` check failed, `14` up to date, `20` download failed, `30` downloading, `31` download pending, `40` download complete, `50` ready to update, `52` update started, `60` updating, `70` and `80` update failed, `90` and `100` update successful. The page treats `12`, `30`, `31`, `40`, `50` and `52` as a new version. | `common.js`, `upgrade` page | `14` |
@@ -335,9 +335,11 @@ Each mapping is read from the interface's own code on 2026-10-24: the named page
 | `dialup/connection` `MaxIdelTime`, `pdp_always_on` | `MaxIdelTime` is the idle disconnect timeout in seconds, offered as `0` (never), `300`, `600`, `1200` and `7200`. `pdp_always_on` is a capability flag: unless it is `1`, the page removes the `0` option. | `mobileconnection` page | `0`, `0` |
 | `system/topology` | The last entry is the router itself (`routerSelf: 1`). A mesh satellite is an entry with `HiLinkType` `Device`; the `meshdevice` page shows mesh data only when one is present and `hilink_enabled` is `1`. `LinkQuality` is not decoded in any saved script. | `meshdevice` page | two clients with `HiLinkType` `None`, no satellite |
 
+**WAN connection modes, not validated against hardware (2026-10-26).** A review of the H165-383 web interface code, `.notes/info/ethernet_vs_5g/huawei_h165_ethernet_vs_5g_review.md`, describes `connectionmode` `0` (Auto) as active/standby failover: the Ethernet uplink is used whenever it has an address, and cellular takes over when it drops. Modes `1` to `4` use the Ethernet port only, and `5` uses cellular only. No mode makes cellular primary with Ethernet as backup. The owner's experience agrees. In Auto, `connectionmode` gives the setting, not the link in use; `staticroute/wanpath` reports each path's status. The readings that confirm this are listed in the review's §6. `cradlestatus` read `1` in LAN-only mode, so it probably reports any cable on the port, not a WAN cable.
+
 ### Readable endpoints reviewed
 
-This section records a survey. The first table was adopted; the two after it were not. Verdicts are from the field review in `.notes/info/extra_fields/`.
+This section records a survey. The first table was adopted; the two after it were not. Verdicts are from the field review in `.notes/info/huawei_data_elements/history/2026-08_extra_fields/`.
 
 #### Adopted in `[1.2.0-dev11]`
 
@@ -497,6 +499,18 @@ The router's 5G Mode setting (SA+NSA, NSA, SA) is the `networkOption` field of `
 | `1` | SA |
 | `2` | SA+NSA |
 
+**Measured on the H165-383, 2026-10-25,** in an owner-assisted trial: the owner changed the setting in the router's interface and `net/net-mode` was read after each change.
+
+| Preferred network mode | 5G Mode in the interface | `NetworkMode` | `networkOption` | Connection |
+| :-- | :-- | :-- | :-- | :-- |
+| Auto | NSA | `00` | `0` | Connected |
+| Auto | SA | `00` | `1` | Falls back to LTE without standalone coverage; the setting still reads SA |
+| 4G only | Hidden | `03` | Keeps its last value | LTE; about 10 s interruption |
+| 5G only | Fixed at SA | `08` | `1` | No service without standalone coverage; 50 to 60 s interruption |
+| Auto | SA+NSA | `00` | `2` | Connected, NSA link up; under 10 s interruption |
+
+`networkOption` is the 5G Mode only while `NetworkMode` is `00` or `08`; under `03` it is stale. The router's API stayed reachable over the LAN through every change. `huawei-lte-api`'s `NetworkModeEnum` has no member for `08`. `LTEBandOption` read `0` throughout; a six-choice page in the web code pairs it with `03` (`0` all 4G, `1` FDD only, `2` TDD only), but the interface the owner uses offers band toggles under 4G only instead.
+
 The H165-383 read `NetworkMode=00`, `networkOption=2` (SA+NSA) on 2026-10-10. The interface writes it by posting `net/net-mode` with `NetworkMode` and `networkOption` together; the `mobilesearch` page also sends `NetworkBand` and `LTEBand`, and shows the 5G Mode dropdown only while `nrProductEnable` is on, setting `networkOption=1` itself for mode `A8`. The library's `set_net_mode` sends no `networkOption`, so whether an integration network-mode write preserves the router's 5G Mode is not measured. Recorded for `tasks/5g_mode_select_and_read_back_sensor.md`; nothing was sent.
 
 ### The master WiFi switch works at the RADIO level, not the SSID level
@@ -599,7 +613,7 @@ The library's `client.wlan.set_multi_basic_settings()` builds its own payload, `
 
 **Several status fields are undecodable codes.** `CurrentNetworkTypeEx=1011`, `CurrentServiceDomain=3` and `cellroam=2`. `SimState` and `OnlineUpdateStatus` were in this list until 2026-10-25, when the web interface code decoded both; see "Status codes decoded from the web interface". The library ships enums only for `NetworkMode`, `NetworkBand`, the SMS box types and `SaveMode`, and Huawei publishes no specification. A typed endpoint is preferred to a guess: `net.csps_state` supersedes `CurrentServiceDomain`, and `converged_status.SimLockEnable` supersedes `simlockStatus`. `online_update.status()` returns `CurrentComponentStatus='14'`, the same `14` as `monitoring_status.OnlineUpdateStatus`, which may decode it; this has not been pursued.
 
-**Neighbor and secondary cells.** `device/nbrcellinfo` returns `nbrcell_ltelist` and `nbrcell_nrlist`, and `device/seccellinfo` returns `lteseccell_list` and `nrseccell_list`. Each is a string of records separated by `;`, each record of fields separated by `,`: seven fields for a neighbor cell and eight for a secondary cell, which adds a bandwidth after the band. The order was measured on the H165-383 on 2026-10-10 by reading both lists beside `device.signal`, whose fields are named: channel number (EARFCN or NR-ARFCN, matching the `band` string), band, bandwidth (secondary cells only), PCI (matching `scc_pci` and the PCIs in `nei_cellid`), RSRP and RSRQ (matching `nrrsrp` and `nrrsrq` for the NR secondary cell), RSSI, and SINR (matching `nrsinr`). RSSI is the remaining field by elimination, because `device.signal` reported no NR RSSI. A neighbor record's last field is the SINR position and reads `--`. The neighbor list includes the secondary carrier's own cell, and `nbrcell_nrlist` was null on every reading.
+**Neighbor and secondary cells.** `device/nbrcellinfo` returns `nbrcell_ltelist` and `nbrcell_nrlist`, and `device/seccellinfo` returns `lteseccell_list` and `nrseccell_list`. Each is a string of records separated by `;`, each record of fields separated by `,`: seven fields for a neighbor cell and eight for a secondary cell, which adds a bandwidth after the band. The order was measured on the H165-383 on 2026-10-10 by reading both lists beside `device.signal`, whose fields are named: channel number (EARFCN or NR-ARFCN, matching the `band` string), band, bandwidth (secondary cells only), PCI (matching `scc_pci` and the PCIs in `nei_cellid`), RSRP and RSRQ (matching `nrrsrp` and `nrrsrq` for the NR secondary cell), RSSI, and SINR (matching `nrsinr`). RSSI was first placed by elimination, because `device.signal` reported no NR RSSI; the router's own `cellinformation` page code (`dataFormat`, `sccDataFormat`, saved 2026-10-24) confirms the whole order and names the fields `earfcn`, `band`, `bandwidth` (secondary only), `pci`, `rsrp`, `rsrq`, `rssi`, `sinr`, showing `--` for an empty field. A neighbor record's last field is the SINR position and reads `--`. The neighbor list includes the secondary carrier's own cell, and `nbrcell_nrlist` was null on every reading.
 
 **Time.** On the H165-383 `sntp/timeinfo` returns `currentlocaltime` as local time with no offset, `localtimezonename` as a POSIX time-zone rule including the daylight-saving rule, `currenttimezone` as the standard offset, unchanged during daylight saving, and `syncstatus`. The current offset is therefore derived from the rule and the date, or from `currentlocaltime` against UTC; `currenttimezone` alone gives the wrong offset in summer. An SMS `Date` carries no offset either (see [SMS](#-sms)).
 
@@ -651,7 +665,7 @@ The surfaces of 1.11.0 and 2.0.1 were compared by unpacking both and enumerating
 | Reconnect timing | Measured | Not measured |
 | Path variants other than those listed | One spelling of each answers | Not measured |
 
-The register of measurements not yet made is kept with the project notes as `info/router_measurements_register.md`.
+The register of measurements not yet made is kept with the project notes as `info/router_measurements/router_measurements_register.md`.
 
 ---
 
@@ -659,8 +673,8 @@ The register of measurements not yet made is kept with the project notes as `inf
 
 - `ha-zte-router-5g-monitor/docs/zte_how_to_access.md`: the ZTE companion, organized by `cmd` name because that interface is two endpoints with a parameter.
 - `ha-unifi-network-monitor/docs/api_endpoints.md`: the UniFi companion, organized by URL.
-- `.notes/info/extra_fields/extra_fields_decide_202608.md`: the field-by-field review behind the verdicts above, with the sub-device, category and default decisions.
-- `.notes/info/extra_fields/extra_fields_202608.md`: the working notes and evidence behind it.
+- `.notes/info/huawei_data_elements/history/2026-08_extra_fields/extra_fields_decide_202608.md`: the field-by-field review behind the verdicts above, with the sub-device, category and default decisions.
+- `.notes/info/huawei_data_elements/history/2026-08_extra_fields/extra_fields_202608.md`: the working notes and evidence behind it.
 
 > [!NOTE]
 >

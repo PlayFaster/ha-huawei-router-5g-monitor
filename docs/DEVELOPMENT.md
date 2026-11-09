@@ -502,3 +502,11 @@ _[1.2.0-dev28] (2026-08-15) — Added three success patterns from the `dev_std_r
 _[1.2.0-dev53] (2026-08-17) — Reconciliation pass. Added the "Network Mode List Comes From the Router" success pattern with its ordering constraint, and three pitfalls the session produced but never recorded: `_unrecorded_attributes` is not unioned across the class hierarchy; a string split mid-word ships a defect no `grep` can find, because the broken text never appears on one source line; and 100% coverage is compatible with tests that assert nothing, so both audits are needed. Corrected the Section 22 exclusions bullet, which still said network mode has no read-back reader — it gained one when `-1` was found to mean "applied, answered badly" rather than "refused"._
 
 _[1.2.4-dev8] (2026-10-24) — Added the `device/basic-information` fallback and its session rule, the leak check's search of the router's own values, and the prefixed signal value rule, each with its known limits._
+
+---
+
+## Version Control
+
+| Version | Date | Change |
+| :-- | :-- | :-- |
+| 1.5.0 | 2026-10-26 | Version history started at 1.5.0; earlier changes were not recorded. Initialized version tracking table. |

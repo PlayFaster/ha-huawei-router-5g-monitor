@@ -56,6 +56,19 @@ platform files (sensor.py, binary_sensor.py, switch.py, etc.)
 
 All sensors are defined as `EntityDescription` dataclasses with a `value_fn: Callable[[dict], Any]` callback. No business logic lives in the entity class itself — adding a new sensor is a single-line entry in the descriptions list. Guard bands (e.g. RSRP range -150 to -30 dBm) are applied inside `value_fn` before the value is returned. The bands are listed per key in [`docs/value_min_max.md`](docs/value_min_max.md), which a test reconciles against the code in both directions.
 
+### Adding entities
+
+Every new, changed, moved or removed entity follows `.shared/dev_std/adding_entities.md`, which lists each step and the standard that holds its rule. This project's specifics:
+
+| Item | This project |
+| :-- | :-- |
+| Description classes | `HuaweiSensorEntityDescription`, `HuaweiBinarySensorEntityDescription`, `HuaweiSwitchEntityDescription`, `HuaweiSelectEntityDescription`, `HuaweiNumberEntityDescription`, `HuaweiButtonEntityDescription`, `HuaweiEventEntityDescription`; device trackers have none |
+| Data access | `value_fn` receives the coordinator's whole payload; read a polled block with `_block(data, block, key)` and `device_information` with `_info(data, key)` in `sensor.py` |
+| Device link | `HuaweiDeviceEntity` in `helpers.py` from the description's `group`; never a `device_info` on the entity |
+| Reference implementations | Sensor `model_name` in `sensor.py`; binary sensor `best_connection` in `binary_sensor.py`; switch `pause_polling` in `switch.py`; select `network_mode` in `select.py`; number `polling_interval` in `number.py`; button `refresh` in `button.py`; event `incoming_sms` in `event.py`; device tracker `HuaweiRouterDeviceTracker` in `device_tracker.py` |
+| Generated documents | "Check Sensor Manifest" regenerates `docs/all_sensors.md`, `docs/about_attribute_list.md` and `docs/value_min_max.md` |
+| Mutation scope | `.validate/mutmut_modules.txt` (see "Mutation testing" below) |
+
 ### Sub-Device Organization
 
 Entities are assigned to one of six sub-devices by **inheriting `HuaweiDeviceEntity` from `helpers.py`**, which resolves the group from the entity description and calls `build_device_info(coordinator, group)`. **No platform declares its own `device_info`**, and `test_device_info_is_declared_once` fails if one starts: seven platform bases each carried a copy, and in `zte_router_5g` the same shape produced an entity with none, which reached users. `device_tracker` has no entity description and sets `_device_group = "clients"` at class level. Every non-system sub-device links to the System sub-device as its parent, but **not via a hard-coded key** — the link goes through `_compat.via_device_link()`, which emits `via_device_id` on HA 2026.8+ and the legacy `via_device` tuple on 2026.7 and earlier. The tuple is deprecated in 2026.8 and **removed in 2027.8**; the shim keeps the integration floor-free.

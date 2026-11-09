@@ -39,6 +39,7 @@ markers = [
 filterwarnings = [
     "ignore::DeprecationWarning:homeassistant.components.http.*",
     "ignore::pytest.PytestUnraisableExceptionWarning",
+    "ignore::UserWarning:_hypothesis_pytestplugin",
 ]
 
 [tool.mypy]
@@ -112,5 +113,5 @@ fail_under = 100
 
 
 [tool.codespell]
-skip = ".git,.venv,.ruff_cache,.pytest_cache"
+skip = ".git,.venv,.ruff_cache,.pytest_cache,local_only,mutants,scratch,temp_check,CLAUDE.md,uv.lock,*.code-workspace"
 ignore-words-list = "hass"
