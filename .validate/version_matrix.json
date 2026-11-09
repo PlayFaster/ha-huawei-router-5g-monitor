@@ -8,6 +8,10 @@
       "pins": ["pre-commit", "dockerfile", "requirements_test"],
       "version": "2.4.3"
     },
+    "homeassistant": {
+      "pins": [],
+      "version": "stable"
+    },
     "hypothesis": {
       "pins": ["dockerfile", "requirements_test"],
       "version": "6.170.15"
@@ -32,9 +36,9 @@
       "pins": ["dockerfile", "requirements_test"],
       "version": "7.1.0"
     },
-    "pytest-homeassistant-custom-component": {
-      "pins": ["dockerfile", "requirements_test"],
-      "version": "0.13.375"
+    "pytest-homeassistant": {
+      "pins": [],
+      "version": "derived"
     },
     "ruff": {
       "pins": ["pre-commit", "dockerfile", "requirements_test"],

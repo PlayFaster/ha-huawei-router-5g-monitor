@@ -266,9 +266,9 @@ def router_transport_fixture():
 # already where the shared device-registry helpers sit.
 #
 # All four move together and none works without the others: the autouse
-# `_enable_custom_integrations` is what stops `async_setup` answering
-# "Integration not found", and `live_entry` carries the schema version HA
-# checks before it will load the entry.
+# `_enable_custom_integrations` gives every test a live `hass`, and
+# `live_entry` carries the schema version HA checks before it will load the
+# entry.
 # ---------------------------------------------------------------------------
 
 # A payload broad enough that most platforms produce a live entity with real
@@ -373,10 +373,11 @@ def _no_login_guard_read(request: pytest.FixtureRequest):
 
 @pytest.fixture(autouse=True)
 def _enable_custom_integrations(enable_custom_integrations):
-    """Make the custom component importable by the real `hass` fixture.
+    """Request `enable_custom_integrations`, which gives every test a live `hass`.
 
-    Without it `async_setup` answers "Integration not found" and the sweep
-    fails at setup rather than finding anything.
+    The `pytest-homeassistant` `hass` fixture already enables custom
+    integrations; the wrapper stays because the fixture it requests starts
+    `hass`, and tests rely on that instance being live.
     """
     return
 

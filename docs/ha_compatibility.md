@@ -15,7 +15,7 @@ What Home Assistant versions this integration supports and the status of any cha
 | Type | Version / Status | Note |
 | :-- | :-- | :-- |
 | **Minimum** | **2025.2.0** | Declared in `README.md` |
-| **Tested against** | **2026.10.4** | `pytest-homeassistant-custom-component` 0.13.375 (development container) |
+| **Tested against** | **2026.11.1** | `pytest-homeassistant` 2026.11.1 (development container; `.reports/tool_drift.txt` 2026-11-09, HomeA and PytestHA Installed 2026.11.1, no advisory) |
 | **Enforced by** | `hacs.json` | `"homeassistant": "2025.2.0"` |
 | **Functional floor** | `ConfigFlowResult`, `ConfigEntry.runtime_data` | Both introduced in HA 2024.6 |
 | **Python** | 3.13 or later | Required by Home Assistant 2025.2.0. Tests run on Python 3.14 |
@@ -63,3 +63,4 @@ What Home Assistant versions this integration supports and the status of any cha
 | **v1.5.0** | 2026-10-28 | Claude | Retroactive compatibility audit: tested-against 2026.10.2 (0.13.373); ledger rows cite `ha_compat_findings_register.md` IDs; rows added for this integration's new exposures. |
 | **v1.5.2** | 2026-11-04 | Claude | `HAC-003`: default device info removal corrected from 2028.11 to 2027.11 (developer blog 2026-10-28); Status cells for `HAC-002` and `HAC-003` set by triage. |
 | **v1.5.1** | 2026-11-01 | Claude | Compatibility audit: tested-against 2026.10.4 (`pytest-homeassistant-custom-component` 0.13.375). |
+| **v1.5.3** | 2026-11-09 | Claude | Tested-against 2026.11.1 with `pytest-homeassistant` 2026.11.1, from `.reports/tool_drift.txt`; the test harness changed from `pytest-homeassistant-custom-component` (dev-workbench v302) |

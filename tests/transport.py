@@ -11,8 +11,8 @@ it, `coordinator.py` accumulates it, and the assertion reads what was published.
 network through `async_get_clientsession` and fake it with `aioclient_mock`.
 This one reaches it through `huawei-lte-api`, which holds its own
 `requests.Session`, so the equivalent fixture is `requests_mock` — shipped by
-`pytest-homeassistant-custom-component` exactly as `aioclient_mock` is, so no
-dependency is added here either.
+`pytest-homeassistant` exactly as `aioclient_mock` is, so no dependency is
+added here either.
 
 **What a fixture body has to be.** `huawei-lte-api` parses a response with
 `xmltodict.parse` and then unwraps `data["response"]`, so a payload dictionary

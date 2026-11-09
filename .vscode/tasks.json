@@ -403,7 +403,7 @@
       "type": "shell"
     },
     {
-      "command": "[ \"${config:project.category}\" = \"theme\" ] && { mkdir -p .reports; printf '–  Skipped: integration only\\n' | tee .reports/pytest_coverage.txt; } || { mkdir -p .reports && PYTHONPATH=. COVERAGE_CORE=ctrace pytest --cov --cov-branch --cov-context=test --cov-report=term-missing --color=yes -W ignore::DeprecationWarning tests/ | tee >(sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g' > .reports/pytest_coverage.txt); echo \"Coverage exclusions: $(grep -rc 'pragma: no cover' custom_components --include='*.py' 2>/dev/null | awk -F: '{s+=$2} END{print s+0}') '# pragma: no cover' site(s) excluded from the denominator above.\" | tee -a .reports/pytest_coverage.txt; }",
+      "command": "[ \"${config:project.category}\" = \"theme\" ] && { mkdir -p .reports; printf '–  Skipped: integration only\\n' | tee .reports/pytest_coverage.txt; } || { mkdir -p .reports && PYTHONPATH=. COVERAGE_CORE=ctrace pytest --cov --cov-branch --cov-context=test --cov-report=term-missing --color=yes -W ignore::DeprecationWarning tests/ | tee >(sed 's/\\x1b\\[[0-9;]*[a-zA-Z]//g' > .reports/pytest_coverage.txt); echo \"Coverage exclusions: $(grep -rc 'pragma: no cover' custom_components --include='*.py' 2>/dev/null | awk -F: '{s+=$2} END{print s+0}') '# pragma: no cover' site(s) excluded from the denominator above.\" | tee -a .reports/pytest_coverage.txt; echo \"Home Assistant under test: $(python3 -c 'from homeassistant.const import __version__ as v; print(v)' 2>/dev/null || echo unknown)\" | tee -a .reports/pytest_coverage.txt; }",
       "label": "Pytest: Check Test Coverage",
       "presentation": {
         "panel": "dedicated",

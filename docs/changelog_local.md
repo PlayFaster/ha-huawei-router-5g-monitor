@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev12\] - 2026-11-09 - Test Harness: pytest-homeassistant 2026.11.1 on HA 2026.11.1; 1575 Tests at 100% Coverage](#124-dev12---2026-11-09---test-harness-pytest-homeassistant-2026111-on-ha-2026111-1575-tests-at-100-coverage)
   - [\[1.2.4-dev9\] - 2026-10-25 - Access Reference and Task Queue: H165-383 Web Interface Mining Recorded; Status Codes Decoded; Follow-on Sensor Tasks Raised](#124-dev9---2026-10-25---access-reference-and-task-queue-h165-383-web-interface-mining-recorded-status-codes-decoded-follow-on-sensor-tasks-raised)
   - [\[1.2.4-dev8\] - 2026-10-24 - Compatibility, SMS and Diagnostics: basic-information Fallback; Incoming SMS Event Entity; SMS While Stopped Announced; Leak Check Holds Router Values](#124-dev8---2026-10-24---compatibility-sms-and-diagnostics-basic-information-fallback-incoming-sms-event-entity-sms-while-stopped-announced-leak-check-holds-router-values)
   - [\[1.2.4-dev7\] - 2026-10-23 - Access Reference and Task Queue: Radio, Band and Guest WiFi Fields Measured; Queue Refined; Defensive-Behavior Audit Closed](#124-dev7---2026-10-23---access-reference-and-task-queue-radio-band-and-guest-wifi-fields-measured-queue-refined-defensive-behavior-audit-closed)
@@ -214,6 +215,32 @@ All changes to this project will be documented in this file. This is the detaile
   - [\[1.0.1-dev1\] - 2026-05-02 - Core Architecture: DataUpdateCoordinator, API Wrapper, and Non-Blocking Startup](#101-dev1---2026-05-02---core-architecture-dataupdatecoordinator-api-wrapper-and-non-blocking-startup)
   - [\[1.0.0\] - 2026-05-02 - Release: Initial Baseline Project Structure](#100---2026-05-02---release-initial-baseline-project-structure)
   - [Document Audit Status](#document-audit-status)
+
+---
+
+## [1.2.4-dev12] - 2026-11-09 - Test Harness: pytest-homeassistant 2026.11.1 on HA 2026.11.1; 1575 Tests at 100% Coverage
+
+### Summary
+
+The test suite runs on `pytest-homeassistant` (PytestHA), the harness published from home-assistant/core, in place of `pytest-homeassistant-custom-component` (PHACC), whose last release pins HA 2026.10.4 and cannot be imported on HA 2026.11. Verified in the rebuilt `ha-dev-base:latest` devcontainer under the cross-project item `per_project_pytest_passing_on_pyha_in_its_own_devcontainer.md`.
+
+### Bumps
+
+- **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.17 to v2.0.18
+
+### Changed
+
+- **Test Harness (`tests/`)**: imports renamed from `pytest_homeassistant_custom_component` to `pytest_homeassistant` in ten test files (commits `v1.2.4-dev10` and `v1.2.4-dev11`); `tests/transport.py` names the new harness; the `_enable_custom_integrations` wrapper in `tests/conftest.py` is kept and its docstring states that it gives every test a live `hass`.
+- **Synced Test Configuration (`pyproject.toml`, `.validate/requirements_test.txt`)**: pytest settings `asyncio_default_fixture_loop_scope = "function"` and `addopts = "-p no:respx -p hypothesis"`; requirements list `pytest-homeassistant` unversioned, so CI tests the HA that harness release pins.
+- **HA Compatibility (`docs/ha_compatibility.md`)**: Tested against 2026.11.1 with `pytest-homeassistant` 2026.11.1.
+
+### Verified
+
+- **Coverage (`.reports/pytest_coverage.txt`, 2026-11-09 22:45)**: 1575 passed, 0 warnings, `TOTAL 3656 0 948 0 100%`; `plugins: homeassistant-2026.11.1`, `Home Assistant under test: 2026.11.1`.
+- **Fix and Validate All (`.reports/summary_fix_and_validate.txt`, 2026-11-09 22:46)**: no failed step.
+- **Suppressions**: no `noqa`, `pragma: no cover`, `type: ignore` or warning filter added or removed under `custom_components/` or `tests/` since `v1.2.4-dev10`.
+- **Repository writes**: nothing under `tests/testing_config`.
+- **Mismatch tolerance**: harness 2026.11.0 with HA 2026.11.1 also gave 1575 passed at 100% (dev-workbench task `pyha_ha_mismatch_tests_needing_ha_2026_11_1_or_later.md`, T1).
 
 ---
 
