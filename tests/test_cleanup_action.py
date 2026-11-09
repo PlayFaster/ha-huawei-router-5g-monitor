@@ -13,7 +13,7 @@ so the guard against that is the most important thing here and is tested first.
 from unittest.mock import MagicMock
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.const import DOMAIN
 from custom_components.huawei_router_5g.helpers import (

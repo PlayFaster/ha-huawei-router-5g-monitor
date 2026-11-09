@@ -9,7 +9,7 @@ from __future__ import annotations
 import json
 from typing import Any
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant.components.recorder.const import SupportedDialect
 from homeassistant.components.recorder.db_schema import StateAttributes

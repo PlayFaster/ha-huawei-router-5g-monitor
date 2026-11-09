@@ -16,7 +16,7 @@ import ast
 import pathlib
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.sensor import SENSOR_TYPES
 from homeassistant.components.sensor import SensorStateClass

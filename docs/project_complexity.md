@@ -1,6 +1,6 @@
 # Project Complexity & Health: ha-huawei-router-5g-monitor
 
-**Last Measured:** 2026-11-04T23:02:38.676810+00:00 · **Release:** `1.2.4` · **Dev Version:** `1.2.4-dev9`
+**Last Measured:** 2026-11-09T02:23:43.792933+00:00 · **Release:** `1.2.4` · **Dev Version:** `1.2.4-dev9`
 
 ## 1. Executive Summary
 
@@ -30,7 +30,7 @@
 | **Test Decision Density** | **1.66 tests/branch** | 1575 tests across 948 branches (Target $\ge 0.80$ · Strong regression depth) |
 | **Assertion Completeness** | **100.0%** | 1161 test functions, 0 unasserted (`test_assertions.txt`) |
 | **Dynamic Sequence Depth** | **30 consecutive polls** | Deepest test lifecycle without stubbed seams (`test_depth.txt`) |
-| **Pytest Duration** | **674.01s** | Full test suite wall-clock execution time |
+| **Pytest Duration** | **238.38s** | Full test suite wall-clock execution time |
 
 ## 2. High Complexity Routines ($\ge 10$)
 

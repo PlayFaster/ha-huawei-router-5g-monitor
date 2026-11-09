@@ -31,6 +31,8 @@ extend = ".validate/pyproject_common.toml"
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "function"
+addopts = "-p no:respx -p hypothesis"
 testpaths = ["tests"]
 norecursedirs = [".git", "testing_config"]
 markers = [

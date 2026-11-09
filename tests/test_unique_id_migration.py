@@ -13,7 +13,7 @@ changes. Without it the old rows would be orphaned and new entities minted with
 """
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.huawei_router_5g import _async_migrate_tracker_unique_ids
 from custom_components.huawei_router_5g.const import DOMAIN

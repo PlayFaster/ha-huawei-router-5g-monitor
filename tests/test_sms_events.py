@@ -13,7 +13,7 @@ import json
 from typing import Any
 from unittest.mock import MagicMock, patch
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.const import DOMAIN, SMS_SEEN_CAP
 from custom_components.huawei_router_5g.coordinator import (

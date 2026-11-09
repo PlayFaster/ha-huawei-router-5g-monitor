@@ -23,7 +23,7 @@ from huawei_lte_api.api.Monitoring import Monitoring
 from huawei_lte_api.api.Voice import Voice
 from packaging.version import Version
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 import requests_mock as requests_mock_module
 
 from custom_components.huawei_router_5g import (

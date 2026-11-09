@@ -22,7 +22,7 @@ the class would have revealed.
 """
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
 from homeassistant.core import HomeAssistant
 from tests.conftest import _live_entities
