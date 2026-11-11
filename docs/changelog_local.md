@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev13\] - 2026-11-10 CI Bump zizmor](#124-dev13---2026-11-10-ci-bump-zizmor)
   - [\[1.2.4-dev12\] - 2026-11-09 - Test Harness: pytest-homeassistant 2026.11.1 on HA 2026.11.1; 1575 Tests at 100% Coverage](#124-dev12---2026-11-09---test-harness-pytest-homeassistant-2026111-on-ha-2026111-1575-tests-at-100-coverage)
   - [\[1.2.4-dev9\] - 2026-10-25 - Access Reference and Task Queue: H165-383 Web Interface Mining Recorded; Status Codes Decoded; Follow-on Sensor Tasks Raised](#124-dev9---2026-10-25---access-reference-and-task-queue-h165-383-web-interface-mining-recorded-status-codes-decoded-follow-on-sensor-tasks-raised)
   - [\[1.2.4-dev8\] - 2026-10-24 - Compatibility, SMS and Diagnostics: basic-information Fallback; Incoming SMS Event Entity; SMS While Stopped Announced; Leak Check Holds Router Values](#124-dev8---2026-10-24---compatibility-sms-and-diagnostics-basic-information-fallback-incoming-sms-event-entity-sms-while-stopped-announced-leak-check-holds-router-values)
@@ -217,6 +218,12 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev13] - 2026-11-10 CI Bump zizmor
+
+### Bumps
+
+- **Validate Bump**: Update `zizmor` from 1.31.1 to 1.32.0
 
 ## [1.2.4-dev12] - 2026-11-09 - Test Harness: pytest-homeassistant 2026.11.1 on HA 2026.11.1; 1575 Tests at 100% Coverage
 
