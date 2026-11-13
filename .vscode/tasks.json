@@ -365,7 +365,7 @@
       "type": "shell"
     },
     {
-      "command": "mkdir -p .reports && zizmor --fix .github/ > .reports/format_zizmor.txt 2>&1; ec=$?; cat .reports/format_zizmor.txt; echo \"\"; if [ $ec -eq 0 ]; then printf '✔  Zizmor Fix: PASSED\\n' >> .reports/format_zizmor.txt; echo -e \"\\033[1;32m✔  Zizmor Fix: PASSED\\033[0m\"; else printf '✖  Zizmor Fix: FAILED\\n' >> .reports/format_zizmor.txt; echo -e \"\\033[1;31m✖  Zizmor Fix: FAILED\\033[0m\"; fi; exit 0",
+      "command": "mkdir -p .reports && zizmor --fix --pedantic .github/ > .reports/format_zizmor.txt 2>&1; ec=$?; cat .reports/format_zizmor.txt; echo \"\"; if [ $ec -eq 0 ]; then printf '✔  Zizmor Fix: PASSED\\n' >> .reports/format_zizmor.txt; echo -e \"\\033[1;32m✔  Zizmor Fix: PASSED\\033[0m\"; else printf '✖  Zizmor Fix: FAILED\\n' >> .reports/format_zizmor.txt; echo -e \"\\033[1;31m✖  Zizmor Fix: FAILED\\033[0m\"; fi; exit 0",
       "label": "Zizmor: Fix (Safe Auto-Fix)",
       "presentation": {
         "panel": "dedicated",
@@ -660,6 +660,16 @@
         "Markdown: Lint (Auto-Fix)",
         "Codespell: Fix (Auto-Repair)",
         "Prettier: Format (Auto-Fix)",
+        "YAML: Lint Project",
+        "Markdown: Check Repo Links",
+        "JSON: Verify All Files",
+        "HA: Verify Manifest",
+        "HACS: Verify Manifest",
+        "Manifest: Verify Version",
+        "Sensor: Check Manifest",
+        "IQS: Static Check",
+        "Tests: Assertion Audit",
+        "Tests: Depth Check",
         "Show: Summary Statistics (Fix All Fast)",
         "Show: Fix Results Summary (Fast)"
       ],
@@ -676,14 +686,26 @@
     },
     {
       "dependsOn": [
+        "Zizmor: GitHub Actions Audit",
+        "Ruff: Format Check (View Only)",
+        "Ruff: Check (Lint Only)",
         "Markdown: Lint (View Only)",
-        "Markdown: Check Links",
-        "Markdown: Check Repo Links",
+        "Codespell: Check (View Only)",
         "Prettier: Check (View Only)",
-        "Codespell: Check (View Only)"
+        "YAML: Lint Project",
+        "Markdown: Check Repo Links",
+        "JSON: Verify All Files",
+        "HA: Verify Manifest",
+        "HACS: Verify Manifest",
+        "Manifest: Verify Version",
+        "Sensor: Check Manifest",
+        "IQS: Static Check",
+        "Tests: Assertion Audit",
+        "Tests: Depth Check",
+        "Show: Results Summary (Validate Fast)"
       ],
       "dependsOrder": "sequence",
-      "label": "Validate Docs",
+      "label": "Validate Fast (Docs & Style)",
       "presentation": {
         "close": false,
         "panel": "dedicated",
@@ -691,7 +713,19 @@
         "echo": false
       },
       "problemMatcher": [],
-      "detail": "Documentation checks only. Note: tests that assert documentation content are not run here."
+      "detail": "Non-modifying counterpart of Fix All Fast: the check mode of each of its fixers, then the same fast checks."
+    },
+    {
+      "command": "python3 .workbench/report_summary_tasks.py --profile validate-fast",
+      "label": "Show: Results Summary (Validate Fast)",
+      "presentation": {
+        "panel": "dedicated",
+        "reveal": "always",
+        "echo": false
+      },
+      "problemMatcher": [],
+      "type": "shell",
+      "detail": "Grades the reports of Validate Fast (Docs & Style): the check mode of each Fix All Fast fixer and the fast checks."
     },
     {
       "dependsOn": [

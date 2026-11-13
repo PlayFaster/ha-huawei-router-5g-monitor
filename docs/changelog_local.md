@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev14\] - 2026-11-13 - Tooling \& CI: Ruff Bump and Validation Suite Task Alignment](#124-dev14---2026-11-13---tooling--ci-ruff-bump-and-validation-suite-task-alignment)
   - [\[1.2.4-dev13\] - 2026-11-10 CI Bump zizmor](#124-dev13---2026-11-10-ci-bump-zizmor)
   - [\[1.2.4-dev12\] - 2026-11-09 - Test Harness: pytest-homeassistant 2026.11.1 on HA 2026.11.1; 1575 Tests at 100% Coverage](#124-dev12---2026-11-09---test-harness-pytest-homeassistant-2026111-on-ha-2026111-1575-tests-at-100-coverage)
   - [\[1.2.4-dev9\] - 2026-10-25 - Access Reference and Task Queue: H165-383 Web Interface Mining Recorded; Status Codes Decoded; Follow-on Sensor Tasks Raised](#124-dev9---2026-10-25---access-reference-and-task-queue-h165-383-web-interface-mining-recorded-status-codes-decoded-follow-on-sensor-tasks-raised)
@@ -218,6 +219,21 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev14] - 2026-11-13 - Tooling & CI: Ruff Bump and Validation Suite Task Alignment
+
+### Summary
+
+Updated `ruff` to `0.17.4`, synced the devcontainer validation suite task alignment from `dev-workbench` `v306`, and refreshed `docs/project_complexity.md`.
+
+### Bumps
+
+- **Validate Bump**: Update `ruff` from `0.17.3` to `0.17.4` in `.pre-commit-config.yaml`, `.validate/requirements_test.txt`, and `.validate/version_matrix.json`.
+
+### Changed
+
+- **VS Code Tasks (`.vscode/tasks.json`)**: Synced from `dev-workbench` `v306` (`Align host and devcontainer validation suite names by role`): `Fix All Fast` adds ten fast checks after its fixers; `Validate Docs` replaced by `Validate Fast (Docs & Style)` with `Show: Results Summary (Validate Fast)`; `Zizmor: Fix (Safe Auto-Fix)` runs with `--pedantic`.
+- **Complexity Scorecard (`docs/project_complexity.md`)**: Refreshed measurement timestamp (`2026-11-13T13:58:25Z`), dev version (`1.2.4-dev13`), and pytest duration (`377.53s`) from the `dev-workbench` `v306` timing run.
 
 ## [1.2.4-dev13] - 2026-11-10 CI Bump zizmor
 
