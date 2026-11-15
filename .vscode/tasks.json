@@ -38,7 +38,7 @@
       "type": "shell"
     },
     {
-      "command": "mkdir -p .reports && git ls-files -z --cached --others --exclude-standard '*.json' | xargs -0 -r check-jsonschema --schemafile https://json-schema.org/draft/2020-12/schema | tee .reports/json_validation.txt; echo \"\"; if grep -q \"ok -- validation done\" .reports/json_validation.txt 2>/dev/null; then echo -e \"\\033[1;32m✔  JSON: PASSED\\033[0m\"; else echo -e \"\\033[1;31m✖  JSON: FAILED\\033[0m\"; fi",
+      "command": "mkdir -p .reports && { bad=$(git ls-files -z --cached --others --exclude-standard '*.json' | xargs -0 -r -n1 sh -c 'jq empty \"$1\" >/dev/null 2>&1 || echo \"$1: invalid JSON\"' _); if [ -n \"$bad\" ]; then echo \"$bad\"; else echo \"ok -- syntax done\"; fi; schemas=$(ls .validate/ha_manifest_schema.json .validate/hacs_schema.json 2>/dev/null); if [ -n \"$schemas\" ]; then check-jsonschema --check-metaschema $schemas; else echo \"ok -- validation done\"; fi; } | tee .reports/json_validation.txt; echo \"\"; if grep -q \"ok -- syntax done\" .reports/json_validation.txt 2>/dev/null && grep -q \"ok -- validation done\" .reports/json_validation.txt 2>/dev/null; then echo -e \"\u001b[1;32m✔  JSON: PASSED\u001b[0m\"; else echo -e \"\u001b[1;31m✖  JSON: FAILED\u001b[0m\"; fi",
       "label": "JSON: Verify All Files",
       "presentation": {
         "panel": "dedicated",

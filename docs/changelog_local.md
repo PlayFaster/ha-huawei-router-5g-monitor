@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev15\] - 2026-11-15 - Tooling \& Documentation: Ruff PLC0415 Sync, Schema Validation, and Marketplace README](#124-dev15---2026-11-15---tooling--documentation-ruff-plc0415-sync-schema-validation-and-marketplace-readme)
   - [\[1.2.4-dev14\] - 2026-11-13 - Tooling \& CI: Ruff Bump and Validation Suite Task Alignment](#124-dev14---2026-11-13---tooling--ci-ruff-bump-and-validation-suite-task-alignment)
   - [\[1.2.4-dev13\] - 2026-11-10 CI Bump zizmor](#124-dev13---2026-11-10-ci-bump-zizmor)
   - [\[1.2.4-dev12\] - 2026-11-09 - Test Harness: pytest-homeassistant 2026.11.1 on HA 2026.11.1; 1575 Tests at 100% Coverage](#124-dev12---2026-11-09---test-harness-pytest-homeassistant-2026111-on-ha-2026111-1575-tests-at-100-coverage)
@@ -219,6 +220,28 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev15] - 2026-11-15 - Tooling & Documentation: Ruff PLC0415 Sync, Schema Validation, and Marketplace README
+
+### Summary
+
+Synced shared Ruff `PLC0415` enforcement, JSON/manifest schema validation updates, and `AGENTS.md` guard-table parity from `dev-workbench` (`v309`, `v310`, `v312`, `v316`), and updated documentation for Home Assistant 2026.11 Marketplace terminology and `HAC-002` completion.
+
+### Changed
+
+- **Ruff Configuration Sync**: Enforced `PLC0415` outside `tests/` in `.validate/pyproject_common.toml`, added `required-version = ">=0.17.4"`, `known-third-party = ["hassfest"]`, and `extend-exclude`, and added `PLC0415` plus HA Core path entries to `per-file-ignores` in `pyproject.toml` (`dev-workbench` `v310`).
+- **Validation Schemas**: Updated `.validate/ha_manifest_schema.json`, set `additionalProperties: false` in `.validate/hacs_schema.json`, and bumped `.validate/schema_timestamp.txt` from `2026-09-23` to `2026-11-13` (`dev-workbench` `v312`).
+- **JSON Validation Task**: Updated `JSON: Verify All Files` in `.vscode/tasks.json` to run `jq empty` syntax checks across all JSON files and `check-jsonschema --check-metaschema` on `.validate/*_schema.json` (`dev-workbench` `v316`).
+
+### Documentation
+
+- **Marketplace & HACS Instructions**: Updated badges and Install, Updating, and Uninstall sections in `README.md` to cover Home Assistant 2026.11+ **Settings > Marketplace** alongside HACS.
+- **Guard-Test Parity**: Added the `test_deprecated_device_registry_surfaces_only_in_compat` row to `AGENTS.md` (`dev-workbench` `v309`) and its rationale to `docs/test_guards.md`.
+- **Compatibility Audit**: Recorded `v1.5.4` (2026-11-13 pytest coverage on HA 2026.11.1) and `v1.5.5` (`HAC-002` marked Done) in `docs/ha_compatibility.md`.
+
+### Records
+
+- **Complexity Report**: Refreshed `docs/project_complexity.md` for `1.2.4-dev14` (`972.63s` full pytest duration).
 
 ## [1.2.4-dev14] - 2026-11-13 - Tooling & CI: Ruff Bump and Validation Suite Task Alignment
 

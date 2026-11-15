@@ -2,7 +2,7 @@
 
 # Huawei Router 5G Monitor for Home Assistant
 
-[![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-huawei-router-5g-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/b5cb47f2b37e140da07eefd17ac19721/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-huawei-router-5g-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/commits/main)
+[![Marketplace Integration](https://img.shields.io/badge/Marketplace-Integration-orange.svg)](https://hacs.xyz/) [![Marketplace Custom](https://img.shields.io/badge/Marketplace-Custom-41BDF5?logo=home-assistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-huawei-router-5g-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/b5cb47f2b37e140da07eefd17ac19721/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-huawei-router-5g-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/commits/main)
 
 ---
 
@@ -1865,16 +1865,16 @@ actions:
 
 ## 📥 Installation
 
-### ✨ HACS (Recommended)
+### ✨ Marketplace / HACS (Recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PlayFaster&repository=ha-huawei-router-5g-monitor&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=PlayFaster&repository=ha-huawei-router-5g-monitor&category=integration)
 
 Use the **shortcut badge** above, then proceed to Step 3 - or just …
 
-1. Add this [repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) as a **Custom Repository** in HACS:
-   - Open HACS in Home Assistant
-   - Click **Custom repositories** (⋮ menu)
-   - Add repository URL and Type: `Integration`
+1. Add this [repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) as a **Custom Repository** in **Marketplace** (or **HACS** on HA < 2026.11):
+   - Open **Settings > Marketplace** in Home Assistant (or **HACS** on HA < 2026.11)
+   - Click **Custom repositories** (`⋮` menu)
+   - Add repository URL and Type: `Integration` (on HA 2026.11+, this prompts for a GitHub connection via device sign-in)
 2. Search for "Huawei Router 5G Monitor" and click **Download**
 3. Restart Home Assistant
 4. Go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor"
@@ -1900,7 +1900,7 @@ Use the **shortcut badge** above, then proceed to Step 3 - or just …
 
 ### 🔄 Updating
 
-Standard HACS custom-repository integration update behavior:
+Standard Marketplace / HACS custom-repository integration update behavior:
 
 <details>
 
@@ -1908,7 +1908,7 @@ Standard HACS custom-repository integration update behavior:
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
+- New releases show up in **Settings > Updates** / **Marketplace** (or **HACS** on HA < 2026.11) as normal. Update there, then restart Home Assistant.
 - For manual installs: replace the `custom_components/huawei_router_5g` folder and restart.
 - Your settings and entity customizations carry over - Configure options, connection details, renamed entities, enabled/disabled choices, and dashboards.
 - Any new entities in a release appear on the first restart after updating.
@@ -2427,7 +2427,7 @@ To remove the integration from Home Assistant:
 
 <br>
 
-To fully uninstall (HACS):
+To fully uninstall (Marketplace / HACS):
 
 <details>
 
@@ -2435,7 +2435,7 @@ To fully uninstall (HACS):
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-1. Go to **HACS**.
+1. Go to **Settings > Marketplace** (or **HACS** on HA < 2026.11).
 2. Find **Huawei Router 5G Monitor** and click into it.
 3. Click the **three dots** (⋮) at the top right and select **Remove**.
 4. **Restart** Home Assistant.

@@ -222,6 +222,7 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 | A device-registry test | `assert_links_to_parent()` / `assert_is_root()` | Use these helpers; never assert `info["via_device"]` directly. |
 | A `# type: ignore`, `# noqa` or `# pragma: no cover` | `test_every_suppression_is_on_the_reviewed_allow_list`, `test_every_allowed_suppression_states_a_reason` | Add it to the reviewed allow-list with a reason. |
 | A sensor disabled by default by decision | `test_sensors_disabled_by_decision_are_still_disabled`, `test_every_disabled_by_decision_entry_carries_a_reason` | Change the register, with a reason, in the same change. |
+| A device-registry lookup | `test_deprecated_device_registry_surfaces_only_in_compat` | Go through `_compat.device_by_identifier()`, `owning_entry_ids()` or `via_device_link()`; never `async_get_device(`, `DeviceEntry.config_entries` or `via_device` directly. |
 
 When you add a guard test, add its row here and its rationale to [`docs/test_guards.md`](docs/test_guards.md).
 
