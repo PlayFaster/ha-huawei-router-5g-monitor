@@ -74,6 +74,7 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
+from . import binary_sensor, sensor
 from .const import (
     CAPABILITY_TEXT_KEYS,
     KEYS_DELIBERATELY_UNREAD,
@@ -388,15 +389,9 @@ def _entity_resolution(payload: dict[str, Any]) -> dict[str, Any]:
     produce. Nothing leaks by doing so: only description keys and counts are
     recorded, never a value.
     """
-    # Imported here rather than at module scope: `diagnostics` is loaded on
-    # demand for a download, and pulling in every platform module at import
-    # time would make a rarely-used path a startup cost.
-    from .binary_sensor import VALUE_BINARY_SENSORS
-    from .sensor import SENSOR_TYPES
-
     tables: tuple[tuple[str, Any], ...] = (
-        ("sensor", SENSOR_TYPES),
-        ("binary_sensor", VALUE_BINARY_SENSORS),
+        ("sensor", sensor.SENSOR_TYPES),
+        ("binary_sensor", binary_sensor.VALUE_BINARY_SENSORS),
     )
 
     out: dict[str, Any] = {}
@@ -465,9 +460,6 @@ def _unread_keys(payload: dict[str, Any]) -> dict[str, list[str]]:
     `KEYS_DELIBERATELY_UNREAD`. **Names only, never a value.** A block that is
     not a mapping, such as a client list, is not listed.
     """
-    from .binary_sensor import VALUE_BINARY_SENSORS
-    from .sensor import SENSOR_TYPES
-
     seen: dict[str, set[str]] = {
         block: set() for block, value in payload.items() if isinstance(value, dict)
     }
@@ -475,7 +467,7 @@ def _unread_keys(payload: dict[str, Any]) -> dict[str, list[str]]:
         block: (_KeyRecorder(value, seen[block]) if block in seen else value)
         for block, value in payload.items()
     }
-    for descriptions in (SENSOR_TYPES, VALUE_BINARY_SENSORS):
+    for descriptions in (sensor.SENSOR_TYPES, binary_sensor.VALUE_BINARY_SENSORS):
         for description in descriptions:
             value_fn = getattr(description, "value_fn", None)
             if value_fn is None:

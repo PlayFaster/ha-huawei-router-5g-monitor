@@ -21,6 +21,7 @@ import huawei_lte_api
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
 from huawei_lte_api.enums.device import ControlModeEnum
+from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
 from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
     LoginErrorAlreadyLoginException,
@@ -366,6 +367,7 @@ class HuaweiRouter5GAPI:
         # unchanged. Written per poll, so it describes one pass rather than
         # accumulating across a session.
         self.endpoint_outcomes: dict[str, Any] = {}
+        self._poll_http_statuses: list[int] = []
 
         # **Refusal separated from expiry** (dev16 plan I1). 100003 is both what
         # a router answers to an endpoint it refuses and what it answers once a
@@ -545,6 +547,13 @@ class HuaweiRouter5GAPI:
                 f"Login withheld: the router reports a lockout, {seconds} s left"
             )
 
+    def _record_response_status(
+        self, response: requests.Response, *_args: Any, **_kwargs: Any
+    ) -> requests.Response:
+        """Append the HTTP status code of a post-login response and pass it through."""
+        self._poll_http_statuses.append(int(response.status_code))
+        return response
+
     def _create_connection_sync(self) -> tuple[Connection, Client]:
         """Create a new Connection and Client (blocking, runs in thread).
 
@@ -560,6 +569,7 @@ class HuaweiRouter5GAPI:
             password=self.password,
             timeout=REQUEST_TIMEOUT,
         )
+        conn.requests_session.hooks["response"].append(self._record_response_status)
         return conn, Client(conn)
 
     async def login(self) -> None:
@@ -891,11 +901,15 @@ class HuaweiRouter5GAPI:
         payload block itself is published beside it in the download and carries
         both, sanitized.
         """
+        statuses = list(self._poll_http_statuses)
+        self._poll_http_statuses.clear()
         record: dict[str, Any] = {"outcome": outcome}
         if code is not None:
             record["code"] = code
         if elapsed_ms is not None:
             record["elapsed_ms"] = elapsed_ms
+        if statuses:
+            record["http_statuses"] = statuses
         if outcome == "answered":
             record["type"] = type(result).__name__
             if isinstance(result, dict):
@@ -1688,6 +1702,7 @@ class HuaweiRouter5GAPI:
         if client is None:
             raise HuaweiConnectionError("API client not established")
         fetch_tasks = self._fetch_tasks(client, data)
+        self._poll_http_statuses.clear()
         started = time.monotonic()
         poll = _PollState(started=started, generation=self._generation)
         for index, (key, fetcher) in enumerate(fetch_tasks):
@@ -1992,8 +2007,6 @@ class HuaweiRouter5GAPI:
         mode change that cannot name any band is worse than one using the old
         assumption.
         """
-        from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
-
         fallback = (f"{LTEBandEnum.ALL.value:x}", f"{NetworkBandEnum.ALL.value:x}")
         try:
             current = await self._execute_with_retry(

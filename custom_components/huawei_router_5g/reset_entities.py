@@ -38,7 +38,9 @@ from typing import TYPE_CHECKING, Any, Final
 
 from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers import entity_registry as er
+from homeassistant.helpers.entity import EntityDescription
 
+from . import binary_sensor, button, number, select, sensor, switch
 from .const import DOMAIN
 from .observations import entity_keys_with_values
 
@@ -243,9 +245,6 @@ def _load_descriptions() -> None:
     """
     if _DESCRIPTIONS:
         return
-    from homeassistant.helpers.entity import EntityDescription
-
-    from . import binary_sensor, button, number, select, sensor, switch
 
     for platform, module in (
         ("sensor", sensor),

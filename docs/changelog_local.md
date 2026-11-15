@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev16\] - 2026-11-15 - Manifest, Lint \& Diagnostics: HACS Categories, Ruff PLC0415 Resolution, and Per-Endpoint HTTP Statuses](#124-dev16---2026-11-15---manifest-lint--diagnostics-hacs-categories-ruff-plc0415-resolution-and-per-endpoint-http-statuses)
   - [\[1.2.4-dev15\] - 2026-11-15 - Tooling \& Documentation: Ruff PLC0415 Sync, Schema Validation, and Marketplace README](#124-dev15---2026-11-15---tooling--documentation-ruff-plc0415-sync-schema-validation-and-marketplace-readme)
   - [\[1.2.4-dev14\] - 2026-11-13 - Tooling \& CI: Ruff Bump and Validation Suite Task Alignment](#124-dev14---2026-11-13---tooling--ci-ruff-bump-and-validation-suite-task-alignment)
   - [\[1.2.4-dev13\] - 2026-11-10 CI Bump zizmor](#124-dev13---2026-11-10-ci-bump-zizmor)
@@ -220,6 +221,25 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev16] - 2026-11-15 - Manifest, Lint & Diagnostics: HACS Categories, Ruff PLC0415 Resolution, and Per-Endpoint HTTP Statuses
+
+### Summary
+
+Added `categories` to `manifest.json` (`C-041`), resolved all 12 Ruff `PLC0415` findings (`9` moved to module scope, `3` circular imports in `observations.py` kept with `# noqa: PLC0415` and allow-listed), and added per-endpoint `http_statuses` capture in `endpoint_outcomes` / diagnostics alongside a `huawei-lte-api` empty-body 503 contract test.
+
+### Added
+
+- **Manifest Categories (`C-041`)**: Added `"categories"` (`computers_network.routers_network`, `presence_location.network_presence`, `messaging_notifications.email_sms_calls`) to `custom_components/huawei_router_5g/manifest.json` while keeping `"version": "1.2.4"`.
+- **Per-Endpoint HTTP Statuses**: Added `_record_response_status` hook on `conn.requests_session.hooks["response"]` in `HuaweiRouter5GAPI._create_connection_sync`, cleared at the start of `_fetch_all` and consumed on record in `_record_endpoint` to publish `http_statuses` for post-login reads without polluting `_read_premise` or `skipped` endpoints.
+
+### Changed
+
+- **Ruff `PLC0415` Resolution**: Moved 9 non-circular imports to module top level (`__init__.py`, `api.py`, `reset_entities.py`, `diagnostics.py`, `scripts/diag_check.py`) preserving `C-036` script import order and `tests/test_diagnostics_artefact.py` patch targets; kept 3 circular imports in `observations.py` with `# noqa: PLC0415` and documented them in `tests/test_entity_hygiene.py` `ALLOWED_SUPPRESSIONS`.
+
+### Tests
+
+- **Library Contract & Diagnostics Tests**: Added `test_session_get_empty_body_503_returns_empty_dict` in `tests/test_library_contract.py` (verified to fail with `HTTPError 503` when `Session.get` calls `raise_for_status()`) and 3 `http_statuses` poll/reset/isolation tests in `tests/test_api.py`.
 
 ## [1.2.4-dev15] - 2026-11-15 - Tooling & Documentation: Ruff PLC0415 Sync, Schema Validation, and Marketplace README
 

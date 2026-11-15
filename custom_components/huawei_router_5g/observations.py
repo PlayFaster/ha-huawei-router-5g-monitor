@@ -84,7 +84,7 @@ def _sensor_value_fns() -> dict[str, Any]:
     Imported inside the function because the platform modules import the
     coordinator, which imports this one.
     """
-    from .sensor import SENSOR_TYPES
+    from .sensor import SENSOR_TYPES  # noqa: PLC0415
 
     return {d.key: d.value_fn for d in SENSOR_TYPES}
 
@@ -95,8 +95,8 @@ def entity_keys_with_values(data: dict[str, Any]) -> set[str]:
     Evaluated through each description's own `value_fn` rather than by
     inspecting router keys, so derived values are covered by the same rule.
     """
-    from .binary_sensor import VALUE_BINARY_SENSORS
-    from .sensor import SENSOR_TYPES
+    from .binary_sensor import VALUE_BINARY_SENSORS  # noqa: PLC0415
+    from .sensor import SENSOR_TYPES  # noqa: PLC0415
 
     found: set[str] = set()
     for descriptions in (SENSOR_TYPES, VALUE_BINARY_SENSORS):

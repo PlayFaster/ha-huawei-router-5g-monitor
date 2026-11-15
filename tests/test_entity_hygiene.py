@@ -693,6 +693,11 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "advisory: no storage fault may fail entry setup or a poll. A read "
         "fault is counted and logged at warning and published in the download."
     ),
+    ("observations.py", "noqa: PLC0415"): (
+        "Platform modules (`sensor`, `binary_sensor`) import `coordinator`, "
+        "which imports `observations`; importing `SENSOR_TYPES` and "
+        "`VALUE_BINARY_SENSORS` at module scope would create a circular import."
+    ),
     ("api.py", "noqa: SLF001"): (
         "Reaches wlan._session.post_set directly for wlan/multi-basic-settings. "
         "A public set_multi_basic_settings() exists, but it posts only "

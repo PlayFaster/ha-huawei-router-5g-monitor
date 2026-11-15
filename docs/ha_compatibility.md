@@ -39,6 +39,7 @@ What Home Assistant versions this integration supports and the status of any cha
 | `ScannerEntity` default device info; trackers disabled by default (`HAC-003`) | 2026.11 | **2027.11** | Client trackers (`device_tracker.py`) | **Queued**: Huawei task `option_to_enable_or_disable_new_client_trackers_by_default.md` |
 | Entity re-added on entity ID change without `async_entity_id_changed` (`HAC-004`) | 2026.11 | **2027.11** | `event.py`, `switch.py`, `number.py` lifecycle hooks | **Not Needed**: no lifecycle hook in this integration depends on the entity ID, so in-place renaming, the default from 2027.11, is correct for it. Checked by reading the hooks and every use of the entity ID; not live-tested (`HAC-004`, triage 2026-11-04). |
 | `PERCENTAGE` as a unit of measurement (`HAC-005`) | 2026.7 | Not announced | 2 sensors | **Held**: `PERCENTAGE` and `UnitOfRatio.PERCENTAGE` give the same `"%"` value, so nothing can break. Done when HA rejects `PERCENTAGE` units or the floor reaches 2026.7.0 (`HAC-005`, triage 2026-11-04). |
+| Boolean return from config entry methods (`HAC-019`) | 2026.11, core integrations only | Not announced for custom integrations | `async_setup_entry` and `async_unload_entry` return booleans (`__init__.py:626` setup, `:648` unload) | **Held**: booleans work for custom integrations; forced by Home Assistant reporting them; floor none, a feature-detected shim covers it |
 
 ---
 
@@ -66,3 +67,5 @@ What Home Assistant versions this integration supports and the status of any cha
 | **v1.5.3** | 2026-11-09 | Claude | Tested-against 2026.11.1 with `pytest-homeassistant` 2026.11.1, from `.reports/tool_drift.txt`; the test harness changed from `pytest-homeassistant-custom-component` (dev-workbench v302) |
 | **v1.5.4** | 2026-11-13 | Claude | Compatibility audit: tested-against cites `.reports/pytest_coverage.txt` of 2026-11-13 (HA 2026.11.1, `pytest-homeassistant` 2026.11.1). |
 | **v1.5.5** | 2026-11-13 | Claude | `HAC-002` Status cell set to Done by triage. |
+| **v1.5.6** | 2026-11-15 | Claude | Compatibility audit: ledger row for `HAC-019`. |
+| **v1.5.7** | 2026-11-15 | Claude | `HAC-019` Status cell set to Held by triage. |

@@ -103,6 +103,7 @@ from huawei_lte_api.exceptions import (
 
 # Installs probatio as `voluptuous` before the package imports it (C-036).
 import homeassistant  # noqa: F401
+from homeassistant.core import HomeAssistant
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent.parent))
 
@@ -763,8 +764,6 @@ async def produce(
     `identities`, where given, gains the router's identifying values read from
     the coordinator's data, so the leak check searches for them.
     """
-    from homeassistant.core import HomeAssistant
-
     options, data, entry_id, title = _credentials(entry)
     entry = _StubEntry(options, data, entry_id, title)
     hass = HomeAssistant("/config")

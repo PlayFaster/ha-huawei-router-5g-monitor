@@ -2,6 +2,7 @@
 
 import asyncio
 from collections.abc import Mapping
+import contextlib
 import logging
 from typing import Any, cast
 
@@ -629,8 +630,6 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
 ) -> bool:
     """Unload a config entry and release resources."""
-    import contextlib
-
     coordinator = entry.runtime_data
 
     # Before the logout: an expected-outage check would otherwise fire

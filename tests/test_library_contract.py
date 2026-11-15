@@ -23,8 +23,10 @@ from unittest.mock import MagicMock
 
 import huawei_lte_api
 from huawei_lte_api.Client import Client
+from huawei_lte_api.Connection import Connection
 from packaging.version import InvalidVersion, Version
 import pytest
+import requests_mock as requests_mock_module
 
 from custom_components.huawei_router_5g import api as api_module
 from custom_components.huawei_router_5g.const import LIBRARY_ADDED_ENDPOINTS
@@ -207,3 +209,24 @@ def test_each_table_path_is_the_path_its_method_reads(key: str) -> None:
     assert f"'{path}'" in source or f'"{path}"' in source, (
         f"{group}.{method} in huawei-lte-api {loaded} does not read {path!r}"
     )
+
+
+def test_session_get_empty_body_503_returns_empty_dict() -> None:
+    """Pin huawei-lte-api Session.get contract: HTTP 503 with empty body returns {}."""
+    with requests_mock_module.Mocker() as mocker:
+        mocker.get("http://192.168.8.1/", text="")
+        mocker.get(
+            "http://192.168.8.1/api/webserver/token",
+            text="<response><token>tok</token></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/webserver/SesTokInfo",
+            text="<response><SesInfo>tok</SesInfo><TokInfo>csrf</TokInfo></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/device/information",
+            status_code=503,
+            text="",
+        )
+        conn = Connection("http://192.168.8.1")
+        assert conn.get("device/information") == {}

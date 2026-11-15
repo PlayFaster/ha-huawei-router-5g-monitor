@@ -2669,3 +2669,154 @@ async def test_a_router_that_keeps_answering_never_reads_as_stopped(router) -> N
         patch("custom_components.huawei_router_5g.api.REBOOT_VERIFY_INTERVAL", 0.01),
     ):
         assert await api._router_stopped_answering() is False
+
+
+# ---------------------------------------------------------------------------
+# Per-endpoint http_statuses in diagnostics (v1.2.4-dev16 I4)
+# ---------------------------------------------------------------------------
+
+
+async def test_http_statuses_records_503_empty_body_as_answered_and_empty() -> None:
+    """An HTTP 503 with an empty body is recorded as answered, empty, with [503]."""
+    import requests_mock as requests_mock_module
+
+    with requests_mock_module.Mocker() as mocker:
+        mocker.get(requests_mock_module.ANY, text="<response/>")
+        mocker.post(requests_mock_module.ANY, text="<response>OK</response>")
+        mocker.get("http://192.168.8.1/", text="")
+        mocker.get(
+            "http://192.168.8.1/api/webserver/token",
+            text="<response><token>t</token></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/webserver/SesTokInfo",
+            text="<response><SesInfo>s</SesInfo><TokInfo>t</TokInfo></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/user/state-login",
+            text="<response><State>0</State></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/device/information",
+            status_code=503,
+            text="",
+        )
+        api = _make_api()
+        data = await api.get_data()
+
+    assert data.get("device_information") == {}
+    outcome = api.endpoint_outcomes["device_information"]
+    assert outcome["outcome"] == "answered"
+    assert outcome["keys"] == 0
+    assert outcome["http_statuses"] == [503]
+
+
+async def test_http_statuses_stays_attached_after_reset_client_and_preserves_session(
+    router,
+) -> None:
+    """The response hook re-attaches after _reset_client and preserves session attrs."""
+    api = _make_api()
+    await api.login()
+    assert api._connection is not None
+    session_before = api._connection.requests_session
+    trust_env_before = session_before.trust_env
+    adapters_before = list(session_before.adapters.keys())
+
+    api._reset_client()
+    await api.get_data()
+
+    assert api._connection is not None
+    session_after = api._connection.requests_session
+    assert session_after.trust_env == trust_env_before
+    assert list(session_after.adapters.keys()) == adapters_before
+    assert api.endpoint_outcomes["device_information"]["http_statuses"] == [200]
+
+
+async def test_http_statuses_ignores_read_premise_and_skipped_endpoints(router) -> None:
+    """_read_premise never pollutes http_statuses, and skipped endpoints inherit nothing."""
+    router.refuse("net/net-mode")
+    api = _make_api()
+    await api.login()
+
+    # Force FETCH_DEADLINE=0 so endpoints after device_information are skipped.
+    with patch("custom_components.huawei_router_5g.api.FETCH_DEADLINE", 0.0):
+        await api.get_data()
+
+    assert api.endpoint_outcomes["device_information"]["http_statuses"] == [200]
+    skipped_outcomes = [
+        v for v in api.endpoint_outcomes.values() if v.get("outcome") == "skipped"
+    ]
+    assert skipped_outcomes
+    assert all("http_statuses" not in v for v in skipped_outcomes)
+
+    # Trigger _read_premise via a refused endpoint: 200 (refused) + 200 (live-session
+    # device_information re-read), without _read_premise's unhooked Connection status.
+    await api.get_data()
+    assert api.premise_result is not None
+    assert api.endpoint_outcomes["net_mode"]["outcome"] == "refused"
+    assert api.endpoint_outcomes["net_mode"]["http_statuses"] == [200, 200]
+
+
+async def test_http_statuses_records_retry_statuses_in_order() -> None:
+    """A dropped read retried by _call_once_more_if_dropped records all statuses in order."""
+    import requests
+    import requests_mock as requests_mock_module
+
+    status_url = "http://192.168.8.1/api/monitoring/status"
+    attempt = 0
+
+    with requests_mock_module.Mocker() as mocker:
+        mocker.get(requests_mock_module.ANY, text="<response/>")
+        mocker.post(requests_mock_module.ANY, text="<response>OK</response>")
+        mocker.get("http://192.168.8.1/", text="")
+        mocker.get(
+            "http://192.168.8.1/api/webserver/token",
+            text="<response><token>t</token></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/webserver/SesTokInfo",
+            text="<response><SesInfo>s</SesInfo><TokInfo>t</TokInfo></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/user/state-login",
+            text="<response><State>0</State></response>",
+        )
+        mocker.get(
+            status_url,
+            [
+                {"status_code": 502, "text": "<response/>"},
+                {
+                    "status_code": 200,
+                    "text": "<response><ConnectionStatus>901</ConnectionStatus></response>",
+                },
+            ],
+        )
+        api = _make_api()
+        await api.login()
+        assert api._connection is not None
+        orig_get = api._connection.requests_session.get
+
+        def _drop_after_first_status(
+            url: str, *args: object, **kwargs: object
+        ) -> requests.Response:
+            nonlocal attempt
+            resp = orig_get(url, *args, **kwargs)
+            if url == status_url:
+                attempt += 1
+                if attempt == 1:
+                    raise requests.ConnectionError("Connection broken")
+            return resp
+
+        with patch.object(
+            api._connection.requests_session,
+            "get",
+            side_effect=_drop_after_first_status,
+        ):
+            data = await api.get_data()
+
+    assert attempt == 2
+    assert data["monitoring_status"]["ConnectionStatus"] == "901"
+    outcome = api.endpoint_outcomes["monitoring_status"]
+    assert outcome["outcome"] == "answered"
+    assert outcome["retried"] is True
+    assert outcome["http_statuses"] == [502, 200]
