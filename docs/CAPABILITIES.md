@@ -2,7 +2,7 @@
 
 An architectural reference and at-a-glance inventory of verified capabilities, interfaces, technical guarantees, and version lineage for `ha-huawei-router-5g-monitor`.
 
-**Current Through:** `v1.2.3` (covering `v1.0.1` to `v1.2.3`) · **Last Audited:** 2026-10-09 · **Status:** `Active`
+**Current Through:** `v1.2.4` (covering `v1.0.1` to `v1.2.4`) · **Last Audited:** 2026-11-16 · **Status:** `Active`
 
 ---
 
@@ -10,17 +10,21 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 
 ### Dual-Session Coexistence & Refusal Adjudication
 
-- **Purpose**: Authenticates against Huawei router web APIs and distinguishes unsupported endpoint refusals from expired sessions, preventing premature re-authentication errors.
-- **Entities & Interfaces**: Coordinator polling engine, `sensor.<name>_integration_health` (attribute `not_served`).
+- **Purpose**: Authenticates against Huawei router web APIs and distinguishes unsupported endpoint refusals from expired sessions, preventing premature re-authentication errors and unnecessary logins.
+- **Entities & Interfaces**: Coordinator polling engine (`api.py`, `coordinator.py`), `binary_sensor.<name>_integration_health` (attribute `not_served`).
 - **Technical Guarantees**:
-  - Distinguishes endpoint refusals (`100003`, `125002`, `125003`) from expired logins via an anonymous premise check on `device.information` (`PREMISE_TIMEOUT = 3s`).
-  - Adjudication loop bounded by `ADJUDICATION_BUDGET` to guarantee poll completion within `FETCH_TIMEOUT` (30s).
-  - Unanimously unsupported endpoints recorded under `not_served` without taking error strikes or degrading health severity.
+  - Pre-login `user/state-login` check detects active router lockouts (`108007`) and raises `HuaweiLockoutError` without sending a login attempt; invalid credentials (`108001`, `108002`, `108006`) raise `HuaweiAuthError`, and only `HuaweiSessionExpiredError` is retried within a poll.
+  - Distinguishes endpoint refusals (`100003`, `125002`, `125003`) from expired logins via an anonymous premise check on `device.information` (`PREMISE_TIMEOUT = 3s`), both inside polls and on standalone reads (`_read_refused_on_live_session`), without triggering extra logins on confirmed live sessions.
+  - Non-critical dropped requests (`requests.ConnectionError`, `requests.Timeout`) are retried once (`_call_once_more_if_dropped`) within `ADJUDICATION_BUDGET`, and session-refused writes in `RETRIED_ON_REFUSAL` are retried once after a fresh login (`_retry_once_on_refusal`).
+  - Live sessions are logged out via `_release_session` (`_RELEASE_TIMEOUT = 3s`) before idle or Reconnect resets.
+  - Where `device/information` has never answered or is refused on the first read after login, setup and polling fall back to `device/basic-information` for device naming and software version.
+  - Unanimously unsupported endpoints are recorded under `not_served` and persisted across restarts (`answered_endpoints`) without taking error strikes or degrading health severity.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Initial polling engine with basic exception handling.
   - `v1.1.1`: Automatic session re-login on expired mid-fetch calls.
   - `v1.2.0`: Timeout recovery closes underlying HTTP sockets and rebuilds fresh sessions.
   - `v1.2.3`: Full refusal adjudication introduced (`v123_dev16_plan.md`); added `not_served` attribute to prevent setup failure on partial firmware implementations.
+  - `v1.2.4`: Added pre-login lockout check, `device/basic-information` fallback, live-session standalone adjudication, dropped-read and refused-write single retries, `_release_session` logout, and persisted `answered_endpoints`.
 
 ### Single-Flight API Mutex Lock
 
@@ -40,10 +44,10 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 - **Entities & Interfaces**: `button.<name>_reconnect`.
 - **Technical Guarantees**:
   - Re-establishes WAN session via dual dial actions without dropping local LAN/Wi-Fi clients.
-  - Opens an expected-outage window: polls are skipped and other controls refused until the router answers, or for up to 20 s when it keeps answering, and a closing poll then refreshes the entities.
+  - Opens an expected-outage window: polls are skipped and other controls refused with localized countdowns (`router_reconnecting`) until the router answers, or for up to 20 s (`OUTAGE_HOLD`) when it keeps answering (capped at `OUTAGE_CAP_RECONNECT = 60s`), and a closing poll then refreshes the entities.
 - **Lifecycle Timeline**:
   - `v1.2.0`: Introduced Reconnect button with dual dial action sequence.
-  - `v1.2.4`: The follow-up refresh replaced by the expected-outage window.
+  - `v1.2.4`: Follow-up refresh replaced by the expected-outage window and localized refusal key.
 
 ### Device Reboot & Expected-Outage Window
 
@@ -51,12 +55,12 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 - **Entities & Interfaces**: `button.<name>_reboot`.
 - **Technical Guarantees**:
   - API errors during reboot submission are propagated directly to the UI rather than swallowed.
-  - Opens an expected-outage window once the router has stopped answering: polls are skipped and other controls refused with the seconds left, a check every 5 s closes it on the router's first answer through a closing poll, including when background polling is paused, and a router still silent at 240 s is reported.
+  - Opens an expected-outage window once `user/state-login` stops answering (`REBOOT_VERIFY_SECONDS = 20s`): polls are skipped and other controls refused with localized countdowns (`router_restarting`), a check every 5 s closes it on the router's first answer through a closing poll (including when background polling is paused), and a router still silent at 240 s (`OUTAGE_CAP_REBOOT`) is logged.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Basic reboot action added.
   - `v1.1.1`: Exception propagation hardened to surface API errors.
   - `v1.2.0`: Automated follow-up polling refresh scheduled upon reboot completion.
-  - `v1.2.4`: The follow-up refresh replaced by the expected-outage window.
+  - `v1.2.4`: Follow-up refresh replaced by the expected-outage window and localized refusal key.
 
 ### Configurable Polling Interval & Polling Suspension
 
@@ -68,16 +72,29 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 - **Technical Guarantees**:
   - Polling interval changes debounced for two seconds; pending values flushed on entity removal rather than discarded.
   - Pausing polling leaves entities in their last known valid state rather than setting them unavailable.
-  - Manual Refresh Now overrides the pause state to fetch current router status immediately.
+  - Manual Refresh Now overrides the pause state to fetch current router status immediately (and respects active outage windows).
 - **Lifecycle Timeline**:
   - `v1.0.1`: Initial polling interval slider and pause polling switch.
   - `v1.1.2`: Added Refresh Now button; debounced interval adjustments with safe removal flushing.
   - `v1.2.0`: Follow-up refresh actions after reboots and reconnects execute even while polling is paused.
-  - `v1.2.4`: The closing poll of a Reboot or Reconnect window runs even while polling is paused.
+  - `v1.2.4`: Closing poll of a Reboot or Reconnect window runs even while polling is paused.
 
 ---
 
 ## 2. Sensor Metrics, Data & Uptime Tracking
+
+### Firmware Update & Text Transition History
+
+- **Purpose**: Preserves firmware update history and key network state transitions across Home Assistant restarts so silent router updates and address changes are never lost.
+- **Entities & Interfaces**:
+  - `observations.py` (`huawei_router_5g_<entry_id>_history` and `_observed` stores)
+  - Unrecorded attributes `history`, `previous_version`, and `last_changed` on Software Version, WAN IP Address, APN, LTE Cell ID, Operator, Carrier Build, WAN IPv6 Address, and Primary DNS Server
+  - Eight `TOTAL_INCREASING` change-counter sensors (with `Software Version Changes` enabled by default)
+- **Technical Guarantees**:
+  - Retains the last 20 transitions per tracked sensor across Home Assistant restarts.
+  - Stores are cleanly deleted on integration removal (`async_remove_entry`).
+- **Lifecycle Timeline**:
+  - `v1.2.4`: Added 20-entry text transition history, `previous_version`/`last_changed` attributes, and eight change-counter sensors (`1.2.4-dev4`).
 
 ### Store-Backed Uptime & Reboot Latching
 
@@ -100,7 +117,7 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 ### Clock Drift Diagnostics & Calibration
 
 - **Purpose**: Measures and calibrates hardware clock drift against wall-clock time to ensure long-term counter accuracy.
-- **Entities & Interfaces**: `sensor.<name>_integration_health` (attributes `drift_rate_pct`, `drift_deficit_seconds`).
+- **Entities & Interfaces**: `binary_sensor.<name>_integration_health` (attributes `drift_rate_pct`, `drift_intervals`, `drift_measured_seconds`).
 - **Technical Guarantees**:
   - Duration-weighted accumulators track counter drift across consecutive polling cycles.
   - Drift rate applied to boot anchor calculation (`now - counter / (1 - rate)`) with a 30-day window cap.
@@ -109,16 +126,20 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 
 ### Signal Diagnostics & 3-Stage Best Connection Gate
 
-- **Purpose**: Monitors cellular radio metrics (RSRP, RSRQ, SINR, RSSI, Frequency, Band, Cell ID) and reports true 5G operational status.
+- **Purpose**: Monitors cellular radio metrics (RSRP, RSRQ, SINR, RSSI, Frequency, Band, Cell ID), mobile connection status, and operator/Wi-Fi metadata.
 - **Entities & Interfaces**:
   - `sensor.<name>_best_connection`
-  - Radio signal sensors (RSRP, RSRQ, SINR, RSSI, Frequency, Band, Cell ID).
+  - `binary_sensor.<name>_mobile_connection` (attribute `additional_state`)
+  - Radio signal, operator, and Wi-Fi sensors
 - **Technical Guarantees**:
   - 3-stage quality gate validates 5G NSA/SA operational readiness before asserting active 5G connectivity.
-  - Min/max guard bands clamp unparsable or out-of-range frequency and transmit power readings.
+  - Min/max guard bands clamp out-of-range frequency and transmit power readings; comparison-prefixed signal values (`>=-51dBm`, `&lt;-20dB`, `&gt;=30dB`) parse to their boundary value.
+  - No-SIM `net.current_plmn` string responses and non-list `Ssids.Ssid` payloads read safely as `unknown` without raising.
+  - `additional_state` reports non-connected `ConnectionStatusEnum` states (`900`, `902`–`906`) without altering binary sensor on/off state.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Introduced Best Connection sensor with 3-stage quality gate and signal scaling.
   - `v1.2.0`: Added guard bands for transmit power and multi-valued metric parsers.
+  - `v1.2.4`: Added comparison-prefix signal parsing, `additional_state`, and no-SIM/non-list `Ssid` guards.
 
 ### End-of-Cycle Bandwidth Usage Forecast
 
@@ -176,41 +197,46 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 - **Purpose**: Selects preferred cellular network technology (e.g. 5G Only, Auto, 4G Only) from options dynamically supported by router firmware.
 - **Entities & Interfaces**: `select.<name>_preferred_network_mode`.
 - **Technical Guarantees**:
-  - Option list queried directly from router hardware rather than offering hardcoded, unsupported modes.
+  - Option list queried directly from router hardware rather than offering hardcoded, unsupported modes; an active mode outside the router's list is still displayed and writes of that mode are rejected via localized `network_mode_not_listed` without sending a request.
   - State read-back executed outside locks to ensure radio re-registration settles without dropping cell band locking.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Basic static network mode select entity.
   - `v1.2.0`: Switched to dynamic router-queried option discovery; mapped 5G-only mode (`08`).
+  - `v1.2.4`: Added unlisted active mode display and localized `network_mode_not_listed` refusal.
 
-### SMS Inbox & Messaging Suite
+### SMS Inbox, Event Entity & Messaging Suite
 
-- **Purpose**: Provides full programmatic SMS management directly from Home Assistant automations and scripts.
+- **Purpose**: Provides full programmatic SMS management and reliable incoming-message automation triggers directly from Home Assistant.
 - **Entities & Interfaces**:
   - Actions: `huawei_router_5g.send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`.
-  - Sensors: `sensor.<name>_sms_unread`, `binary_sensor.<name>_sms_storage_full`.
+  - Entities: `event.<name>_incoming_sms` (`received` event), `sensor.<name>_sms_unread`, `binary_sensor.<name>_sms_storage_full`.
 - **Technical Guarantees**:
   - Message length validation supports up to 612 characters with automatic GSM-7 vs. Unicode segment calculation.
-  - Proactive session recovery re-authenticates before executing SMS actions if previous session expired.
-  - Storage full binary sensor enabled by default on new installations to prevent silent inbox dropouts.
+  - Incoming SMS detection uses storage index and content hash (`_sms_identity`) so daylight-saving clock changes never hide messages; HMAC-hashed identities (capped at 200) persist across restarts so messages arriving while Home Assistant was stopped are announced once on startup.
+  - `delete_sms` and paged `delete_all_sms` verify removal against the router's inbox before reporting success.
+  - Proactive session recovery re-authenticates before executing SMS actions if previous session expired; storage full binary sensor enabled by default on new installations.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Display Last SMS sensor introduced.
   - `v1.0.2`: Introduced SMS management services (`send_sms`, `delete_sms`, `delete_all_sms`, `get_sms_list`).
   - `v1.2.0`: Added encoding-aware length limits (up to 612 characters) and SMS Storage Full sensor.
   - `v1.2.2`: Enabled SMS Storage Full sensor by default on new setups.
+  - `v1.2.4`: Added `event.<name>_incoming_sms`, stopped-HA message announcement, DST-safe `_sms_identity`, and inbox-verified SMS deletes.
 
 ### Client Device Tracking & Registry Hygiene
 
-- **Purpose**: Monitors connected wired and wireless LAN clients and removes stale entries from the Home Assistant entity registry.
+- **Purpose**: Monitors connected wired and wireless LAN clients and manages enabled integration entities and stale registry entries.
 - **Entities & Interfaces**:
   - `device_tracker.<client_name>`
-  - Action: `huawei_router_5g.cleanup_unused_entities`.
+  - Actions: `huawei_router_5g.reset_entities`, `huawei_router_5g.cleanup_unused_entities`.
 - **Technical Guarantees**:
-  - Unique IDs scoped per configuration entry using device MAC addresses, preventing collisions on multi-router setups.
-  - Cleanup service defaults to dry-run preview mode before deleting orphaned guest client tracker entities.
+  - Unique IDs scoped per configuration entry using device MAC addresses, preventing collisions on multi-router setups; sub-device parent links use `DeviceInfo` dataclass initialization for Home Assistant `2026.11` compatibility.
+  - `reset_entities` provides 11-parameter bulk entity management defaulting to dry-run preview mode while leaving device trackers untouched.
+  - `cleanup_unused_entities` defaults to dry-run preview mode before deleting orphaned guest client tracker entities.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Basic IP-based client tracking.
   - `v1.1.0`: Migrated client tracker unique IDs to entry-scoped MAC addresses.
   - `v1.2.0`: Added `cleanup_unused_entities` maintenance action with dry-run support.
+  - `v1.2.4`: Added `reset_entities` bulk entity management action and HA `2026.11` `DeviceInfo` parent-link compatibility.
 
 ---
 
@@ -218,41 +244,42 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 
 ### Multi-Tier Integration Health Diagnostics
 
-- **Purpose**: Provides continuous monitoring of endpoint availability, firmware changes, and communication degradation.
+- **Purpose**: Provides continuous monitoring of endpoint availability, firmware changes, library state, and communication degradation.
 - **Entities & Interfaces**: `binary_sensor.<name>_integration_health`.
 - **Technical Guarantees**:
   - Standardized 5-state health severity classification (`ok`, `degraded`, `warning`, `error`, `unknown`).
-  - Tracks individual unpolled endpoints and surfaces newly refused endpoints under `not_served`.
+  - Tracks individual unpolled endpoints and surfaces newly refused endpoints under `not_served` (persisted across restarts), alongside `library_loaded`, `library_installed`, and `core_huawei_lte_configured` status attributes.
   - Distinguishes expected transient outages from systemic communication failures.
 - **Lifecycle Timeline**:
   - `v1.1.3`: Integration Health sensor introduced.
   - `v1.2.0`: Standardized 5-state severity enum and strike counters.
   - `v1.2.3`: Added `not_served` tracking for gracefully refused optional endpoints.
+  - `v1.2.4`: Persisted `answered_endpoints` / `not_served` across restarts and added library coexistence status attributes.
 
 ### Diagnostic Bundle Sanitization & Endpoint Probes
 
 - **Purpose**: Generates diagnostic exports for troubleshooting without leaking sensitive network credentials or private data.
 - **Entities & Interfaces**: Home Assistant Diagnostics platform (`async_get_config_entry_diagnostics`).
 - **Technical Guarantees**:
-  - Multi-pass sanitization redacts passwords, Wi-Fi keys, IP addresses, MAC addresses, and tokenizes phone numbers, including a value that is wholly a phone number under any key.
-  - Probes 65 diagnostic endpoints on demand, 18 of them router paths the library does not wrap, read by path and recorded by key name only, while enforcing internal session churn limits, and records the values of the capability probes: numbers as they are, text only under known keys.
+  - Multi-pass sanitization redacts passwords, Wi-Fi keys, IP addresses, MAC addresses, operator `ApnName` in `dial_up_profiles`, and tokenizes phone numbers matched by shape under any key.
+  - Probes 65 diagnostic endpoints on demand (including 18 unwrapped router paths read by path and recorded by key name only), records capability probe values safely, lists `unread_keys`, and records per-endpoint `http_statuses` via a passive post-login response hook.
 - **Lifecycle Timeline**:
   - `v1.0.3`: Diagnostics platform baseline.
   - `v1.2.0`: Added diagnostic tokenization and privacy filters for phone numbers.
   - `v1.2.3`: Widened diagnostic probe set to 46 endpoints and added endpoint classification reporting.
-  - `v1.2.4-dev1`: Phone numbers matched by value shape under any key; capability flag values recorded; probe set at 47 endpoints.
-  - `v1.2.4-dev4`: The 18 unwrapped paths answering on the H165-383 added to the probes, for 65; the download lists the payload keys no entity reads (`unread_keys`).
+  - `v1.2.4`: Expanded to 65 probes (18 unwrapped), shape-matched phone tokenization, `ApnName` redaction, `unread_keys`, and per-endpoint `http_statuses`.
 
 ### Dual-Platform Library Coexistence Guard
 
-- **Purpose**: Enables installation and operation alongside Home Assistant Core's built-in `huawei_lte` integration without dependency collisions.
-- **Entities & Interfaces**: `library_guard.py`, `repair.library_restart_required`.
+- **Purpose**: Enables installation and operation alongside Home Assistant Core's built-in `huawei_lte` integration without dependency collisions or restart prompts.
+- **Entities & Interfaces**: `library_guard.py`, `binary_sensor.<name>_integration_health` (`library_loaded`, `library_installed`, `core_huawei_lte_configured`).
 - **Technical Guarantees**:
   - Manifest specifies wide dependency range `>=1.11.0,<2.0.2` to prevent pip package conflicts.
-  - Background startup guard verifies core presence and automatically installs `2.0.1` when safe.
-  - Raises a fixable Home Assistant Repair issue notifying user when a restart is required.
+  - Background startup guard installs `2.0.1` silently when safe without raising a repair (and clears any leftover `library_restart_required` repair).
+  - `_call_added_endpoint` reads `voice/volte` and `monitoring/onekey_diag` directly through the library session when running alongside `1.11.0`.
 - **Lifecycle Timeline**:
   - `v1.2.3`: Introduced library coexistence guard, version range widening, and restart repair flow.
+  - `v1.2.4`: Removed restart repair flow in favor of silent `2.0.1` install and added direct `1.11.0` reads for `voice/volte` and `monitoring/onekey_diag`.
 
 ### Interactive Re-Authentication & Repairs Integration
 
@@ -285,48 +312,52 @@ An architectural reference and at-a-glance inventory of verified capabilities, i
 ### Comprehensive Unit & Regression Test Suite
 
 - **Purpose**: Verifies integration behavior, error handling, and platform contracts offline.
-- **Interfaces**: Pytest test suite (`tests/`).
+- **Interfaces**: Pytest test suite (`tests/`), `pytest-homeassistant` on Home Assistant `2026.11.1`.
 - **Technical Guarantees**:
-  - 1,312 automated tests achieving 100% statement and branch test coverage.
-  - Autouse conftest fixtures block unauthorized external network calls and catch unawaited async tasks.
+  - `1,580` automated tests achieving `100.00%` statement and branch test coverage.
+  - Autouse conftest fixtures block unauthorized external network calls, catch unawaited async tasks, pin `huawei-lte-api` empty-body `503` behavior (`test_library_contract.py`), and guard deprecated device-registry usage (`test_entity_hygiene.py`).
 - **Lifecycle Timeline**:
   - `v1.0.1`: Initial unit test suite.
   - `v1.1.1`: Achieved 100% statement test coverage baseline.
   - `v1.2.0`: Enforced 100% line and branch coverage threshold in test runners.
   - `v1.2.3`: Test surface expanded to 1,311+ tests covering refusal adjudication and coexistence.
+  - `v1.2.4`: Migrated harness to `pytest-homeassistant` on HA `2026.11.1`; expanded to `1,580` tests at `100.00%` coverage with `503` contract and registry-guard tests.
 
 ### Automated Mutation Testing Verification
 
 - **Purpose**: Proves that test assertions actively verify business logic by mutating production code and verifying test failures.
 - **Interfaces**: Mutation testing runner and mutation test proofs.
 - **Technical Guarantees**:
-  - 100% catch rate across write locks, parser branches, uptime reconciliation, and refusal checks.
+  - 100% catch rate across write locks, parser branches, uptime reconciliation, refusal adjudication, outage windows, and SMS identity checks.
 - **Lifecycle Timeline**:
   - `v1.2.0`: Mutation testing framework established across parsers and write methods.
   - `v1.2.3`: Mutation verification proofs applied to refusal adjudication and uptime store logic.
+  - `v1.2.4`: Extended mutation proofs to outage windows, session release, write retries, checked SMS deletes, and `503` contract tests.
 
 ### Stateful Mock Router Transport Harness
 
 - **Purpose**: Provides offline simulation of Huawei router firmware behaviors for repeatable testing.
 - **Interfaces**: `tests/transport.py`.
 - **Technical Guarantees**:
-  - Accurately models session cookies, token rotation, mid-fetch expirations, endpoint refusals, and worker-thread delays.
+  - Accurately models session cookies, token rotation, mid-fetch expirations, endpoint refusals, stateful SMS inboxes, and worker-thread delays.
 - **Lifecycle Timeline**:
   - `v1.0.1`: Basic static response mock transport.
   - `v1.2.0`: Added thread contention and concurrency delay simulation.
   - `v1.2.3`: Added session state, cookie jar modeling, and configurable endpoint refusal error codes.
+  - `v1.2.4`: Added stateful SMS inbox modeling (`inbox`, `kept_on_delete`, `fill_inbox`).
 
 ### Code Complexity & Architectural Governance
 
 - **Purpose**: Maintains strict software engineering standards and limits routine bloat.
-- **Interfaces**: `docs/project_complexity.md`, McCabe complexity checks (`ruff`).
+- **Interfaces**: `docs/project_complexity.md`, `manifest.json`, McCabe complexity checks, Ruff (`PLC0415` enforced outside `tests/`), strict Mypy.
 - **Technical Guarantees**:
-  - Maximum cyclomatic complexity $V(G)$ strictly capped below 20 (peak routine 18 in `get_data`).
-  - Strict MyPy type checking enforced across all 17 integration source files.
+  - Maximum cyclomatic complexity $V(G)$ strictly capped below 20 (peak routine `16` in `_fetch_one`).
+  - Strict Mypy type checking enforced across all `20` integration source files; HACS `categories` metadata validated.
 - **Lifecycle Timeline**:
-  - `v1.1.1`: Strict MyPy type checking adopted.
+  - `v1.1.1`: Strict Mypy type checking adopted.
   - `v1.2.3`: Coordinator complexity refactored from 25 to 16; complexity scorecard tracked in `docs/project_complexity.md`.
+  - `v1.2.4`: Enforced strict Mypy across `20` source files, Ruff `PLC0415` top-level imports, and HACS `categories` in `manifest.json`.
 
 ---
 
-*Capabilities dossier audited against codebase and changelogs up to `v1.2.3` on 2026-10-09. Maintained via `capabilities_build.md`.*
+*Capabilities dossier audited against codebase and changelogs up to `v1.2.4` on 2026-11-16. Maintained via `capabilities_build.md`.*

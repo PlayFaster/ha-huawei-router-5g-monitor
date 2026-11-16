@@ -41,8 +41,8 @@ A complete list of the static entities and service actions provided by the integ
 | Upload Rate | `current_upload_rate` | Sensor | B/s | - | **Disabled by default.** |
 | Data Allowance | `data_allowance` | Sensor | B | Diagnostic | - |
 | Day Connected Time | `day_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
-| Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** |
-| Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** |
+| Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** Data may not be available in all configurations. |
+| Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** Data may not be available in all configurations. |
 | Month Connected Time | `month_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Month Download | `month_download` | Sensor | B | - | LTS: `total_increasing` |
 | Month Download (GB) | `month_download_gb` | Sensor | GB | - | **Disabled by default.** |
@@ -162,7 +162,7 @@ A complete list of the static entities and service actions provided by the integ
 | APN | `apn` | Sensor | - | Diagnostic | - |
 | APN Changes | `apn_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | APN Profile | `apn_profile` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
+| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** Data may not be available in all configurations. |
 | Carrier Build | `carrier_build` | Sensor | - | Diagnostic | - |
 | Carrier Build Changes | `carrier_build_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | Cell Changes | `cell_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
@@ -216,6 +216,19 @@ A complete list of the static entities and service actions provided by the integ
 | Guest Network | `wifi_guest_network` | Switch | - | Config | - |
 
 <!-- GENERATED:end -->
+
+---
+
+## Services (6 Actions)
+
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Clean up unused entities | `cleanup_unused_entities` | Service | - | - | Dry-run preview by default; removes orphaned client tracker entities |
+| Delete All SMS | `delete_all_sms` | Service | - | - | Paged inbox deletion beyond `keep_last`; verified against inbox |
+| Delete SMS | `delete_sms` | Service | - | - | Deletes a message by index; verified against inbox |
+| Get SMS List | `get_sms_list` | Service | - | - | Returns SMS messages from the requested inbox/outbox/drafts bank |
+| Reset Entities | `reset_entities` | Service | - | - | Bulk-enable or disable entities (11 parameters; dry-run preview by default) |
+| Send SMS | `send_sms` | Service | - | - | Sends SMS up to 612 characters with GSM-7 / Unicode segment handling |
 
 ---
 

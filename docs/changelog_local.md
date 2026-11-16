@@ -17,6 +17,8 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev19\] - 2026-11-16 - Public Release Notes, Capabilities Dossier, and Sensor Review Reconciliation](#124-dev19---2026-11-16---public-release-notes-capabilities-dossier-and-sensor-review-reconciliation)
+  - [\[1.2.4-dev18\] - 2026-11-16 - Documentation: Marketplace README Structure and Verified 2026.11 Steps](#124-dev18---2026-11-16---documentation-marketplace-readme-structure-and-verified-202611-steps)
   - [\[1.2.4-dev17\] - 2026-11-16 - Update Shared CI](#124-dev17---2026-11-16---update-shared-ci)
   - [\[1.2.4-dev16\] - 2026-11-15 - Manifest, Lint \& Diagnostics: HACS Categories, Ruff PLC0415 Resolution, and Per-Endpoint HTTP Statuses](#124-dev16---2026-11-15---manifest-lint--diagnostics-hacs-categories-ruff-plc0415-resolution-and-per-endpoint-http-statuses)
   - [\[1.2.4-dev15\] - 2026-11-15 - Tooling \& Documentation: Ruff PLC0415 Sync, Schema Validation, and Marketplace README](#124-dev15---2026-11-15---tooling--documentation-ruff-plc0415-sync-schema-validation-and-marketplace-readme)
@@ -222,6 +224,35 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev19] - 2026-11-16 - Public Release Notes, Capabilities Dossier, and Sensor Review Reconciliation
+
+### Summary
+
+Prepared the `v1.2.4` public release documentation: collapsed `1.2.3-dev1` through `1.2.4-dev18` into `CHANGELOG.md`, updated `docs/CAPABILITIES.md` to `v1.2.4`, reconciled live `Huawei 5G` entities and services via `sensor_review.md`, and cleared `docs/ROADMAP.md` drift.
+
+### Documentation
+
+- **Public Changelog (`CHANGELOG.md`)**: Added the `[1.2.4]` user-facing release entry covering all `1.2.3` (pre-release) and `1.2.4-dev*` changes and synchronized the Table of Contents.
+- **Capabilities Dossier (`docs/CAPABILITIES.md`)**: Audited incrementally from `v1.2.3` to `v1.2.4` (`Current Through: v1.2.4`, `Status: Active`) and corrected four `sensor.<name>_integration_health` references to `binary_sensor.<name>_integration_health`.
+- **Entity & Service Inventory (`docs/all_sensors.md`, `README.md`)**: Added the `## Services (6 Actions)` table and three disabled-sensor unknown-state notes in `docs/all_sensors.md`; updated `README.md` `Actions` count (`5` → `6`) and removed the stale VoLTE/Router Diagnostics `unknown` coexistence note.
+- **Roadmap Parity (`docs/ROADMAP.md`)**: Regenerated `docs/ROADMAP.md` from task queues via `workbench/generate_roadmap.py`.
+
+### Verified
+
+- **Live Sensor Review (`ha_sensor_review_20261116_1857.md`)**: Audited `Huawei 5G` (`01KWM3HPXVACX3S0E4BNJZBGSR`) via `Via_HAB`: `172` live entities (`168` fixed + `4` `device_tracker`s), `6` services, `172/172` `about` notes matching `docs/about_attribute_list.md`, and `76/76` guard bands matching `docs/value_min_max.md`. `check_sensor_manifest.py` confirmed `[OK] No entity changes detected (Code and baseline in sync)`.
+
+## [1.2.4-dev18] - 2026-11-16 - Documentation: Marketplace README Structure and Verified 2026.11 Steps
+
+### Summary
+
+Refined the Home Assistant `2026.11` Marketplace sections in `README.md` (following `1.2.4-dev15`) after auditing against HA `2026.11.1` source and live Marketplace documentation, separating Marketplace (`2026.11+`) and HACS (`< 2026.11`) instructions into distinct sub-lists.
+
+### Documentation
+
+- **Marketplace Custom Badge Link**: Updated the `Marketplace Custom` shield badge in `README.md` to link to `https://www.home-assistant.io/integrations/marketplace/#custom-repositories` instead of the HACS custom-repositories FAQ.
+- **Split Marketplace and HACS Sub-Lists**: Replaced inline `(or HACS on HA < 2026.11)` phrasing in `README.md` Install, Updating, and Uninstall sections with separate `Marketplace (Home Assistant 2026.11+)` and `HACS (Home Assistant < 2026.11)` sub-lists under each shared section.
+- **Verified 2026.11+ UI and Lifecycle Steps**: Updated Marketplace steps in `README.md` to use **Add from link** (with GitHub device sign-in), **Install** (preserving the shortcut-badge install step), immediate setup or **Settings > System > Repairs** on fresh install, **Settings > Updates** with a 48-hour GitHub-connected check note, and **Uninstall** (including the configured-integration dialog), while keeping **Custom repositories**, **Download**, **Restart**, and **Remove** under HACS (`< 2026.11`).
 
 ## [1.2.4-dev17] - 2026-11-16 - Update Shared CI
 
