@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4\] - 2026-11-16 - Release: Firmware Update \& Network History, SMS Events, and Setup \& Reboot Resilience](#124---2026-11-16---release-firmware-update--network-history-sms-events-and-setup--reboot-resilience)
   - [\[1.2.4-dev19\] - 2026-11-16 - Public Release Notes, Capabilities Dossier, and Sensor Review Reconciliation](#124-dev19---2026-11-16---public-release-notes-capabilities-dossier-and-sensor-review-reconciliation)
   - [\[1.2.4-dev18\] - 2026-11-16 - Documentation: Marketplace README Structure and Verified 2026.11 Steps](#124-dev18---2026-11-16---documentation-marketplace-readme-structure-and-verified-202611-steps)
   - [\[1.2.4-dev17\] - 2026-11-16 - Update Shared CI](#124-dev17---2026-11-16---update-shared-ci)
@@ -224,6 +225,56 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4] - 2026-11-16 - Release: Firmware Update & Network History, SMS Events, and Setup & Reboot Resilience
+
+### Highlights
+
+- **Firmware Update & Network History**: Remember the last 20 firmware versions and key network changes across restarts.
+- **Incoming SMS Event Entity**: Trigger automations on new texts, even if Home Assistant was offline when they arrived.
+- **Resilient Setup & Reboots**: Tolerates restricted router models and pauses cleanly during router reboots.
+- **Bulk Entity Reset**: Enable or disable integration entities in bulk with a safe preview mode.
+
+### Summary
+
+- **Firmware & Network History**: Your router's software version, WAN IP, APN, Cell ID, and four other key values now keep a 20-entry history across restarts, so silent firmware updates and network changes are no longer lost.
+- **Reliable SMS Automations**: A new Incoming SMS event entity fires for every new message — including texts that arrived while Home Assistant was stopped — and SMS deletion now verifies the message was actually removed.
+- **Smoother Restarts & Router Reboots**: Uptime and reboot tracking survive Home Assistant restarts, Reboot and Reconnect buttons pause polling cleanly until the router comes back, and routers that block optional endpoints set up without errors.
+- **Bulk Entity Control**: A new entity-reset action lets you enable or disable integration entities in one call, with preview mode on by default.
+- **Minimum Version Update**: Now requires Home Assistant `2025.2.0` or newer (Python `3.13+`).
+
+### Breaking
+
+- **Minimum Home Assistant Version**: The minimum supported Home Assistant version is now `2025.2.0` (Python `3.13+`). Systems running earlier versions must update Home Assistant before installing this release.
+
+### Added
+
+- **Firmware Update & Network History**: The integration now saves the last 20 changes for Software Version (including `previous_version`, `last_changed`, and `history` attributes) along with WAN IP Address, APN, LTE Cell ID, Operator, Carrier Build, WAN IPv6 Address, and Primary DNS Server, plus a change-counter sensor for each (`Software Version Changes` enabled by default).
+- **Incoming SMS Event Entity** *(extends SMS Monitoring, introduced in 1.2.0)*: Added an Incoming SMS `event` entity on the SMS device (`received` event with `phone`, `content`, `date`, and `index`) that also announces messages received while Home Assistant was stopped once it starts up again.
+- **Bulk Entity Reset Action**: Added the `reset_entities` action so you can enable or disable integration entities in bulk, defaulting to preview mode before making changes (device trackers are left untouched).
+- **Graceful Reboot & Reconnect Windows**: Pressing Reboot or Reconnect now opens a temporary outage window that pauses polling and shows a clear countdown (`router_restarting`, `router_reconnecting`) on other controls until the router responds again.
+- **Fallback Setup for Restricted Routers**: Routers that refuse the primary device-info request now fall back automatically to basic device info during setup and polling so they still report their model and firmware version.
+- **Mobile Connection Detail**: Added an `additional_state` attribute to the Mobile Connection sensor explaining non-connected states (`900`, `902`–`906`).
+
+### Changed
+
+- **Coexistence with Built-In Huawei Integration** *(refines Library Dependency Pinning, introduced in 1.0.1, updated in 1.2.0)*: Runs smoothly alongside Home Assistant's built-in Huawei integration without package conflicts or extra restart prompts (`huawei-lte-api >=1.11.0,<2.0.2`), while still supporting newer VoLTE and router diagnostics on older library versions.
+- **Integration Health Diagnostics** *(enhances Integration Health Diagnostics, introduced in 1.2.0)*: `sensor.*_integration_health` now persists unsupported endpoints across restarts (`not_served`), tracks counter clock drift (`drift_rate_pct`, `drift_intervals`, `drift_measured_seconds`), and reports loaded library and coexistence status (`library_loaded`, `library_installed`, `core_huawei_lte_configured`).
+- **Richer, Privacy-Safe Diagnostic Downloads** *(enhances Diagnostic Downloads, introduced in 1.1.0)*: Diagnostic downloads now include capability flags, unused payload keys, and per-endpoint HTTP status codes, while redacting phone numbers by format and blanking the operator APN (`ApnName`).
+- **Home Assistant `2026.11` & HACS Metadata**: Updated sub-device linking for Home Assistant `2026.11` compatibility and added HACS category tags to `manifest.json`.
+
+### Fixed
+
+- **Uptime & Reboot Tracking Across Restarts** *(enhances Uptime & Reboot Tracking, introduced in 1.1.1, extended in 1.2.0)*: Persisted router uptime and connection timestamps across Home Assistant restarts so reboots occurring while Home Assistant is stopped are detected on startup.
+- **Refused Endpoints, Lockouts & Transient Drops**: Stopped treating normal endpoint refusals as expired logins, separated router login lockouts from bad-password errors, logged out cleanly before session resets, and added single retries for dropped reads and session-refused writes.
+- **DST-Safe SMS Detection & Verified Deletes**: Matched new SMS messages by index and content instead of local date strings (so daylight-saving clock changes never hide a message), and confirmed `delete_sms` / `delete_all_sms` against the inbox before reporting success.
+- **Signal, WiFi, SIM & Network Mode Edge Cases**: Parsed comparison-prefixed signal values (such as `>=-51dBm`) to their boundary value, prevented errors on unexpected WiFi SSID formats or routers without a SIM card, and displayed unlisted router network modes cleanly in the Network Mode selector (`network_mode_not_listed`).
+
+### Under the hood
+
+- **Test Suite & Coverage**: Expanded to `1,580` tests maintaining `100.00%` statement and branch coverage, running on `pytest-homeassistant` against Home Assistant `2026.11.1`.
+- **Static Quality & Complexity**: Enforced strict `Mypy` across all 20 source files, resolved all Ruff `PLC0415` top-level import rules, and kept McCabe complexity at or below `16`.
+- **Device & Documentation Alignment**: Recorded H165-383 web-interface mining in `docs/huawei_how_to_access.md`, created `docs/CAPABILITIES.md`, and updated `README.md` for Home Assistant `2026.11+` Marketplace installation.
 
 ## [1.2.4-dev19] - 2026-11-16 - Public Release Notes, Capabilities Dossier, and Sensor Review Reconciliation
 
@@ -948,7 +999,7 @@ The boot-time latches held a stale anchor indefinitely after a reboot Home Assis
 ### Fixed
 
 - **A reboot inside a Home Assistant gap is detected.** The shortfall test asks whether the counter continued across the gap at this device's own rate, with a margin of `max(300 s, 2% of the gap)`.
-- **An anchor that has _become_ wrong is corrected without a restart**, by a plausibility check on every poll against the counter's own measured rate.
+- **An anchor that has *become* wrong is corrected without a restart**, by a plausibility check on every poll against the counter's own measured rate.
 
 ### Tests
 
@@ -1097,7 +1148,7 @@ The unpolled-endpoint probe added in `[1.2.3-dev3]` called each endpoint through
 ### Added
 
 - **Five endpoints from the survey's `Readable, never reviewed` table**, which `docs/huawei_how_to_access.md` names as where the next person should start: `diagnosis.time_reboot`, `security.get_firewall_switch`, `led.appctrlled`, `online_update.status` and `sms.config`. The probe set is now 46.
-- **`PROBES_EXCLUDED`**, naming endpoints deliberately absent and why, so none is added back blind. Three entries: `system.onlinestate`, and the two `diagnosis` calls that make the router _perform_ a network operation rather than report one.
+- **`PROBES_EXCLUDED`**, naming endpoints deliberately absent and why, so none is added back blind. Three entries: `system.onlinestate`, and the two `diagnosis` calls that make the router *perform* a network operation rather than report one.
 - **Seven unit tests for `probe_diagnostic_endpoints`** — one login for the whole sweep, a refusal carrying the router's code, one failure never stopping the sweep, key names published without values, a scalar answer reporting its type, and both list invariants.
 
 ### Removed
@@ -1412,7 +1463,7 @@ Documentation only. No source code changes. Aligns the tracker naming architectu
   - **Design Justification**: Details the **Why** (clean `device_tracker.<hostname>` naming, parity with UniFi/FRITZ!Box, `dev_standards.md` §12 compliance), the **How** (`DeviceInfo` construction), and the **Consequences** (non-breaking entity registry behavior for existing users, UI presentation, multi-router disambiguation).
   - **Historical Context**: Preserves the full back-story and historical investigation notes.
 - **`tasks/device_tracker_naming.md` refocused into an actionable implementation task.**
-  - **Task Retitle**: Retitled: _Migrate Tracked Clients to Independent Devices via `via_device_id`_.
+  - **Task Retitle**: Retitled: *Migrate Tracked Clients to Independent Devices via `via_device_id`*.
   - **Implementation Plan**: Structured into a concrete 4-step implementation plan (coordinator router device ID exposure, tracker `DeviceInfo` update, primary entity naming properties, and "Clients" sub-device cleanup).
   - **Test Requirements**: Includes automated test requirements (`tests/test_device_tracker.py` and `tests/test_mutation_gaps.py`) and live verification checklists.
   - **Workflow Conformance**: Conforms strictly to the issue tracking workflow format in `issue_tracking_workflow.md`.
@@ -1488,7 +1539,7 @@ Merged duplicate task descriptions regarding tracker naming and documented unres
 
 ### Changed
 
-- **`tracker_entity_id_problem.md` merged into `tasks/device_tracker_naming.md`**, retitled _Create short device tracker names_. The merged file carries the back-story, the reverted attempt and its research, then states the two questions that are actually open: whether the long-form entity ID conflicts with Home Assistant guidance, and how a short form would be done if wanted. The second is recorded as having reference value either way.
+- **`tracker_entity_id_problem.md` merged into `tasks/device_tracker_naming.md`**, retitled *Create short device tracker names*. The merged file carries the back-story, the reverted attempt and its research, then states the two questions that are actually open: whether the long-form entity ID conflicts with Home Assistant guidance, and how a short form would be done if wanted. The second is recorded as having reference value either way.
 - **The old file moved to `tasks/closed/`** with a stamp saying it was superseded rather than resolved, its status corrected from `OPEN`, and its relative links re-based for the deeper folder.
 
 ### Fixed
@@ -1630,7 +1681,7 @@ Two defects found by the transport-seam work of `[1.2.1-dev6]` and recorded ther
 
 - **The "router is not responding" repair could not be raised by the most ordinary failure there is.** `conn_error` and the fault probe both sat on the `TimeoutError` branch, while a router that is powered off, unplugged or moved to a new address answers with a **refused connection** — which arrives as `HuaweiConnectionError` and took the general branch instead. That path could fail every poll indefinitely and never raise the card whose own text asks the user to check that the router is powered on and reachable. Both are now reached from either branch through `_async_report_unreachable()`, keyed on the failure count alone, which is how `zte_router_5g` has always done it. The strike limit is unchanged, so the card still waits out `REPAIR_CONN_STRIKE_LIMIT` consecutive failures — about half an hour at the default interval.
 - **The fault probe now runs for a refused connection too**, which is the case it is most useful in: it opens a fresh connection to separate "the router is down" from "our pooled session is wedged", and that distinction took an hour to establish by hand during the 2026-08-17 lockup.
-- **`"inf"` and `"nan"` reached entities as numbers.** `float()` accepts both, so `parse_signal_value` returned them unchanged: `_safe_int` then raised `OverflowError` or `ValueError` from inside a `value_fn` nothing catches, and `_safe_float` would have published infinity as a sensor state and carried it into long-term statistics, where it cannot be taken back. Non-finite results are now rejected at the parser — the single point every numeric value in the component passes through — and return `None`, so the entity goes _unknown_, which is what an unreadable value is. Not observed from a router; found while replacing a test that had patched the parser to reach the branch.
+- **`"inf"` and `"nan"` reached entities as numbers.** `float()` accepts both, so `parse_signal_value` returned them unchanged: `_safe_int` then raised `OverflowError` or `ValueError` from inside a `value_fn` nothing catches, and `_safe_float` would have published infinity as a sensor state and carried it into long-term statistics, where it cannot be taken back. Non-finite results are now rejected at the parser — the single point every numeric value in the component passes through — and return `None`, so the entity goes *unknown*, which is what an unreadable value is. Not observed from a router; found while replacing a test that had patched the parser to reach the branch.
 
 ### Changed
 
@@ -1842,7 +1893,7 @@ Raised by an external review of the README's privacy claim, and the claim was th
 ### Notes
 
 - **The asymmetry is what made this worth fixing rather than documenting.** `diagnostics.py` pseudonymizes both fields — a capture reads `"Phone": "phone-1"` and `"Content": "<Content: 7 chars>"`. The log path had no redaction layer at all, and it is the one users are told to paste into an issue report.
-- **The test now guards the property, not the string.** It asserted `"Raw SMS list" in caplog.text` — which passed _because_ the dump existed. It supplies a message with a real-looking number and body, asserts the shape is present, and asserts both values are **absent**. A second test asserts the `info` line carries no number while the event still does.
+- **The test now guards the property, not the string.** It asserted `"Raw SMS list" in caplog.text` — which passed *because* the dump existed. It supplies a message with a real-looking number and body, asserts the shape is present, and asserts both values are **absent**. A second test asserts the `info` line carries no number while the event still does.
 - **Payload Logging Audit**: Only that one line dumped a payload; every other `_LOGGER` call logs status, endpoint names or error text. Checked across the component.
 - **Shared Standards §20**: Shared: `dev_standards` **1.30.0** extends §20 from the diagnostics download to `_LOGGER` — never log a device payload verbatim, log its shape, and keep identifiers in the bus event rather than the line announcing it. The section's reasoning always applied; its scope had stopped at the surface that already had redaction.
 - **Suite Status**: Suite **863 passing**, coverage **100% line and branch**, ruff and mypy strict clean.
@@ -1936,14 +1987,14 @@ Two checks also turned out not to be running, and one long-standing statement ab
 - **A write-coverage table in the report**, built from `scripts/write_classification.py`, so "what was not checked" is answerable from the report rather than by reading the script.
 - **`ha_contention` — the reported failure, reproduced.** Every other check calls the API object directly: one caller, no coordinator, no contention. The `[1.2.0-dev56]` deadlock needed a write competing with a live poll, which exists only inside a running Home Assistant. The check changes Preferred Network Mode over the REST API, presses Refresh **immediately**, then asserts the entity is neither `unavailable` nor stale, and restores the mode. Against the pre-fix code it would have failed. The token is read from `.notes/ha_restart/token.txt`, never from `.storage/auth`, and never reaches either report.
 - **Home Assistant's error log is diffed across that check**, and the integration's own warnings and errors reported. Verifying against the device cannot see what the host logged. No debug level is required: the outcomes that matter are `WARNING` and `ERROR`.
-- **`net_mode` added to the read-back check.** Nothing had ever confirmed the router returns `NetworkMode` in the shape `confirm_write` compares — a renamed or missing key would have made every network-mode write report _unverified_ for ever, with nothing erroring. Confirmed present on 2026-08-19.
-- **Every check records its evidence**, including restores. Only _failed_ restores left a row before, so a report showing nothing meant either a clean restore or a check that never got that far.
+- **`net_mode` added to the read-back check.** Nothing had ever confirmed the router returns `NetworkMode` in the shape `confirm_write` compares — a renamed or missing key would have made every network-mode write report *unverified* for ever, with nothing erroring. Confirmed present on 2026-08-19.
+- **Every check records its evidence**, including restores. Only *failed* restores left a row before, so a report showing nothing meant either a clean restore or a check that never got that far.
 
 ### Changed
 
 - **The guest-WiFi check no longer skips itself.** It was gated on the WiFi radio being on, and the radio is normally off on the reference unit — so the one write touching an **open, unauthenticated** network was the least exercised in the set. It now turns the radio on, runs the toggle, and puts both back, each step its own row. Verified working the same day.
 - **The network mode is restored, and the restore is verified.** The check used to print "set it back yourself". The reasoning was that a mode the serving cell handles poorly might not come back on its own; that does not survive inspection, because the router is reached over the LAN and the LAN is not carried by the cellular mode. This was a breach of `dev_standards` §22's existing "restore in a `finally`" rule, not a gap in it.
-- **`--debug` is console noise only.** The write-confirmation outcome is now captured from the integration's own log records and reported as a check whether or not the flag is set. An opt-in flag that changed what got _verified_ made the default run the weaker one.
+- **`--debug` is console noise only.** The write-confirmation outcome is now captured from the integration's own log records and reported as a check whether or not the flag is set. An opt-in flag that changed what got *verified* made the default run the weaker one.
 
 ### Fixed
 
@@ -1965,7 +2016,7 @@ Closes cross-project chore **C-007**, which had sat outstanding in every column.
 
 ### Changed
 
-- **`fail_under = 100` added to the coverage configuration.** Until now the coverage task printed a percentage and **exited zero whatever that percentage was**, so the figure was trustworthy only while somebody read it every time. This project has already paid for that: `[1.2.0-dev47]` is titled _"Coverage Back to 100%; the New Code Was Untested"_ — two dev versions shipped largely untested code, coverage fell to 99%, and it was found later by a pass that went looking rather than at the moment of the drop. The threshold records the standing state rather than raising the bar.
+- **`fail_under = 100` added to the coverage configuration.** Until now the coverage task printed a percentage and **exited zero whatever that percentage was**, so the figure was trustworthy only while somebody read it every time. This project has already paid for that: `[1.2.0-dev47]` is titled *"Coverage Back to 100%; the New Code Was Untested"* — two dev versions shipped largely untested code, coverage fell to 99%, and it was found later by a pass that went looking rather than at the moment of the drop. The threshold records the standing state rather than raising the bar.
 - **Edited in `dev-workbench/workbench/python/pyproject.toml` and re-synced**, never in this repository: `pyproject.toml` and `setup.cfg` are synced files and carry a header saying so. `sync_shared_files.sh` was run for **this project only**.
 
 ### Notes
@@ -1988,7 +2039,7 @@ Plan and evidence: `.notes/issues/login_lockup_202608/`, §13.
 ### Added
 
 - **Write paths are bounded by `WRITE_TIMEOUT` (120 s).** The residual hole `dev56` left: no write had an outer timeout, and `asyncio.to_thread` cannot be cancelled, so a write whose worker never returned held the API lock with **nothing able to release it** — every other caller then failed at `LOCK_TIMEOUT` in turn while the integration stayed unusable until a reload. Cancelling the await unwinds through `_locked`, whose `finally` frees the lock, so the cost is one write rather than the session. **Expiry is reported as unverified, not failed**: the command reached the router and may well have applied, so `_write_deadline` logs and returns rather than raising — Section 22's third outcome, and the same reasoning `confirm_write` uses for `None`.
-- **The fetch enforces its own `FETCH_DEADLINE`, checked between endpoints.** `FETCH_TIMEOUT` is imposed from **outside** the work, so it can only abandon a poll — never stop it, never salvage it — and abandoning orphans the worker _and_ discards all 26 endpoints already collected. The fetch now returns what it has; `device_information` is fetched first, so the critical block is always present, and skipped endpoints flow into the existing degraded-capabilities machinery instead of being thrown away. **Neither timeout constant changed.** `FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT` makes the two coherent by construction — the deadline is checked between endpoints, so one request may still take its full timeout afterwards — and turns `asyncio.timeout(FETCH_TIMEOUT)` into a backstop that should never fire.
+- **The fetch enforces its own `FETCH_DEADLINE`, checked between endpoints.** `FETCH_TIMEOUT` is imposed from **outside** the work, so it can only abandon a poll — never stop it, never salvage it — and abandoning orphans the worker *and* discards all 26 endpoints already collected. The fetch now returns what it has; `device_information` is fetched first, so the critical block is always present, and skipped endpoints flow into the existing degraded-capabilities machinery instead of being thrown away. **Neither timeout constant changed.** `FETCH_DEADLINE = FETCH_TIMEOUT - REQUEST_TIMEOUT` makes the two coherent by construction — the deadline is checked between endpoints, so one request may still take its full timeout afterwards — and turns `asyncio.timeout(FETCH_TIMEOUT)` into a backstop that should never fire.
 - **`probe_liveness` has a third outcome.** A router that refuses a second session is answering — it has to be, to refuse — so returning `False` reported a live router as unreachable, inverting the verdict the probe exists to give. `None` now means undetermined; the connection is rebuilt anyway, because one we cannot vouch for is worth replacing, and Integration Health says the question is open rather than blaming either end. This hardware permits one login, so the case is real; a fresh login was nonetheless measured succeeding in 0.04 s during the lockup, so it remains the narrow path.
 - **`hardware_check.py` gained a per-check timeout and a `--debug` flag.** Against the `dev56` deadlock the script would have hung the run with **no report written at all** — the operator sees it stop and learns nothing, which is the worst outcome for the one tool that exists to catch exactly that. A stall is now a named failure; reboot keeps its own larger budget. `--debug` surfaces the integration's own logging, because the script verifies from the device and therefore passes whether the write confirmation returned `True` or `None` — correct for testing the router, but it left the confirmation path with no hardware verification at all.
 
@@ -2139,15 +2190,15 @@ Documentation only — no code change. The `setup_cleanup_options.md` porting gu
 
 ### Added
 
-- **`docs/ROADMAP.md`: _Opt out of client tracking at setup_** under Maybe, ⭐⭐. A single toggle that turns off the Clients group — no `device_tracker` entities, no Total/Wired/WiFi Connected sensors, and two fetches skipped.
+- **`docs/ROADMAP.md`: *Opt out of client tracking at setup*** under Maybe, ⭐⭐. A single toggle that turns off the Clients group — no `device_tracker` entities, no Total/Wired/WiFi Connected sensors, and two fetches skipped.
 - **The poll was measured rather than estimated**, because the guide's whole rationale for group toggles is that disabling one "skips the API calls that feed them". Three consecutive polls through `get_data()` on the reference H165-383: **26 endpoints, fetched sequentially, in 1.05 / 1.06 / 1.07 s — about 41 ms each, a ~0.6% duty cycle at the default 180-second interval.** Dropping a two-endpoint group therefore saves **~80 ms every three minutes**, 0.04% of the interval. **26 endpoints sounds alarming and is not**, and the entry says so explicitly so the number is never again used as an argument on its own.
 - **Privacy Surface Rationale**: The entry rests on the two things a toggle can serve and per-entity disabling cannot: Clients is the integration's **privacy surface** — a MAC, hostname and IP per client, created and populated whether or not the entity is enabled — and the **only group whose entity count is unbounded**. It records that neither reason is poll time, and that the entry would not exist if the endpoint saving were the case for it.
-- **Why SMS and WiFi are excluded** is stated rather than left implicit: HA's own per-device disable already hides them, `README.md` documents that under _Tailoring What's Monitored_, and their entity counts are fixed at 18 and 7. What remains is the 80 ms.
-- **Tracker Retirement Dependency**: Dependency recorded on _Retire long-unseen device trackers_ — both address the same entity sprawl from opposite ends, and shipping one without deciding the other risks two overlapping mechanisms.
+- **Why SMS and WiFi are excluded** is stated rather than left implicit: HA's own per-device disable already hides them, `README.md` documents that under *Tailoring What's Monitored*, and their entity counts are fixed at 18 and 7. What remains is the 80 ms.
+- **Tracker Retirement Dependency**: Dependency recorded on *Retire long-unseen device trackers* — both address the same entity sprawl from opposite ends, and shipping one without deciding the other risks two overlapping mechanisms.
 
 ### Fixed
 
-- **_Retire long-unseen device trackers_ still asserted that clients are retained "at least four months".** That figure came from the owner's observation, not from measurement here, and should not have been written as a project fact. It now reads "long after they have gone". One instance survives in the `v3.0.0` version-control row, left because rewriting a historical record to remove a claim is worse than the claim.
+- ***Retire long-unseen device trackers* still asserted that clients are retained "at least four months".** That figure came from the owner's observation, not from measurement here, and should not have been written as a project fact. It now reads "long after they have gone". One instance survives in the `v3.0.0` version-control row, left because rewriting a historical record to remove a claim is worse than the claim.
 
 ### Notes
 
@@ -2187,7 +2238,7 @@ Ordered supported network mode discovery prior to initial coordinator state publ
 ### Fixed
 
 - **The accepted-mode list was read after `coordinator.async_refresh()`, which is the call that makes every entity write its state.** So the first state write carried the fallback options, the correct list arrived a moment later, and nothing wrote again until the next scheduled poll — three minutes at the default interval. The read now happens **before** the refresh. It keeps its own `try`, because it must never be able to prevent a data fetch; an intermediate revision read it first with no guard and a failure took the whole initialization down.
-- **`README.md` listed Scan Interval and Pause Polling as Configure options.** `_edit_schema` in `config_flow.py` holds four fields — Name, Host, Username, Password. The two polling controls persist _into_ `entry.options` because their number and switch entities write there, which is what made them look like dialog fields. The table now matches the dialog, in the order it renders them, and the password row states that blank keeps the current value rather than clearing it.
+- **`README.md` listed Scan Interval and Pause Polling as Configure options.** `_edit_schema` in `config_flow.py` holds four fields — Name, Host, Username, Password. The two polling controls persist *into* `entry.options` because their number and switch entities write there, which is what made them look like dialog fields. The table now matches the dialog, in the order it renders them, and the password row states that blank keeps the current value rather than clearing it.
 
 ### Added
 
@@ -2197,7 +2248,7 @@ Ordered supported network mode discovery prior to initial coordinator state publ
 
 ### Notes
 
-- **Three attempts to get this right, each fixing a real defect introduced by the previous one**: read at setup (no client yet — platforms are forwarded before login), read before the refresh with no guard (a failure aborted initialization), read after the refresh (published too late). The common cause was reasoning about Home Assistant's entity lifecycle instead of reading it. The answer came from `SelectEntity`'s source: `options` is a `cached_property` but a plain property on the subclass overrides it, and `capability_attributes` is uncached — so the mechanism was always sound and the question was only ever _when state gets written_.
+- **Three attempts to get this right, each fixing a real defect introduced by the previous one**: read at setup (no client yet — platforms are forwarded before login), read before the refresh with no guard (a failure aborted initialization), read after the refresh (published too late). The common cause was reasoning about Home Assistant's entity lifecycle instead of reading it. The answer came from `SelectEntity`'s source: `options` is a `cached_property` but a plain property on the subclass overrides it, and `capability_attributes` is uncached — so the mechanism was always sound and the question was only ever *when state gets written*.
 - **What was ruled out first, by measurement rather than argument**: the loaded code was byte-identical to the workspace; `net_mode_list()` answered `["00", "08", "03"]` against the live router both before and after a full 26-endpoint fetch, so the documented session-degradation trap did not apply.
 - **Reload Self-Correction**: A failed read self-corrects on the next restart or reload — the fetch lives in `async_setup_entry`'s background task, and a reload builds a fresh coordinator. It does **not** self-correct on a poll.
 - **Suite Status**: Suite **816 → 818**, ruff and mypy clean.
@@ -2236,7 +2287,7 @@ Found by the owner setting **5G Only** in the router's web interface and watchin
 
 - **`08` — 5G Only — was missing from the mode table, so both entities read `unknown`.** The router reports `NetworkMode: '08'`; nothing mapped it. **The origin is `huawei-lte-api`'s `NetworkModeEnum`, which has no 5G member at all** — it ends at `MODE_4G_3G_AUTO` and predates 5G. This integration copied that vocabulary wholesale, which is how a 5G integration ended up unable to name the mode its own hardware was in. The library never constrained us: `set_net_mode` takes `networkmode` as a plain `str` and passes it through unvalidated, as its own docstring says.
 - **The same mapping existed twice, in two modules, and both were wrong.** `select.py` held one copy and the Preferred Network Mode sensor held another inline. One cause, two `unknown` entities. Now a single `NETWORK_MODE_LABELS` in `const.py`.
-- **The select offered eight modes, five of which this router rejects.** Options now come from **`net.net_mode_list()`**, read once at setup — the router publishes `AccessList.Access = ["00", "08", "03"]`, exactly the three its web interface offers. `docs/huawei_how_to_access.md` had listed this endpoint under "readable, never reviewed" with the note _"could validate the Network Mode select"_. That note was right and nothing had acted on it. A router that will not publish a list keeps a fallback set.
+- **The select offered eight modes, five of which this router rejects.** Options now come from **`net.net_mode_list()`**, read once at setup — the router publishes `AccessList.Access = ["00", "08", "03"]`, exactly the three its web interface offers. `docs/huawei_how_to_access.md` had listed this endpoint under "readable, never reviewed" with the note *"could validate the Network Mode select"*. That note was right and nothing had acted on it. A router that will not publish a list keeps a fallback set.
 - **An unmapped code now renders `Unknown (nn)` instead of vanishing.** `network_type` has always done this, and its `about` note explains why: an unfamiliar reading should be information, not a silent gap. Had the select done the same, `08` would have surfaced on day one instead of reading as a dead endpoint. The `Unknown (nn)` form round-trips, so such a mode stays selectable.
 - **A mode change no longer asserts band values from a library table.** `set_net_mode` sent `LTEBandEnum.ALL` and `NetworkBandEnum.ALL` on every write — constants never checked against the device. The reference H165-383 clamps them (after writing `ALL` it reports `LTEBand=7A0880800D5`, its own supported mask), so the assumption was invisible here; **a router that took the value literally would have had its band selection silently reset on every mode change.** The router's current bands are now read and handed straight back, asking it to keep what it has. The constants survive only as a fallback when that read fails.
 
@@ -2259,7 +2310,7 @@ The attended hardware tier was run against the live router by the owner — ever
 
 ### Fixed
 
-- **Changing the network mode reported an error for a change that worked.** The router applies the new mode, begins re-registering the radio, and answers the POST with `-1: Unknown` while doing so. `set_net_mode` treated that as a refusal and raised, so `async_select_option` raised, so Home Assistant showed an error — confirmed by the owner both from the script and from the HA UI, with the router's own web interface showing the new mode immediately afterwards. **The fact was already documented in the right place and the wrong conclusion drawn from it**: the `no_confirmation` reason on the select said a read-back would report a refused write, which is true of an _immediate_ read-back and false after the radio settles. `-1` is now treated as **applied, response unverifiable** — settle for `NET_MODE_SETTLE`, re-read `net_mode`, and let that decide. A genuine refusal also answers `-1`, and the read-back is the only thing that separates the two.
+- **Changing the network mode reported an error for a change that worked.** The router applies the new mode, begins re-registering the radio, and answers the POST with `-1: Unknown` while doing so. `set_net_mode` treated that as a refusal and raised, so `async_select_option` raised, so Home Assistant showed an error — confirmed by the owner both from the script and from the HA UI, with the router's own web interface showing the new mode immediately afterwards. **The fact was already documented in the right place and the wrong conclusion drawn from it**: the `no_confirmation` reason on the select said a read-back would report a refused write, which is true of an *immediate* read-back and false after the radio settles. `-1` is now treated as **applied, response unverifiable** — settle for `NET_MODE_SETTLE`, re-read `net_mode`, and let that decide. A genuine refusal also answers `-1`, and the read-back is the only thing that separates the two.
 - **`net_mode` added to `READ_BACK_ENDPOINTS`; `no_confirmation` removed from the network-mode select.** Three tests asserted the old belief structurally — that no reader may exist for a connection-affecting write — and are updated with the distinction that removed it: where the resulting state is readable once things settle, wait and read. Reconnect stays excluded, because nothing it reports afterwards separates a dial that worked from one that did not.
 - **The guest-WiFi check tested nothing when the radio was off.** The guest SSID is gated by the radio, and the radio is normally off on the reference unit — so the usual case, not an edge one. The check now reads `WifiStatus` first and skips loudly with the reason.
 - **`set_net_mode` wrote the mode the router was already in.** It targeted `00` unconditionally, so on a router already set to Auto it proved nothing either way — and produced the `-1` that started this. It now targets a mode that differs from current.
@@ -2404,7 +2455,7 @@ Two shared prompts run against the live integration: `sensor_review` (SCOPE=Full
 
 - **Findings that were checked and turned out to be nothing**, recorded because a future run will otherwise re-derive them: the 38 apparent unit mismatches are all either native-versus-displayed units (`suggested_unit_of_measurement`) or an artefact of the WiFi and Clients tables having no Unit column; `value_min_max.md` reconciles exactly, 70 keys both directions; and all 162 live entities publish an `about` note.
 - **The masked-errors audit found nothing in three of four classes, and that is the result rather than a failure to look.** Class B's required fix pattern is already implemented in both halves — a 100-second inactivity check before the request and expiry-code retry after it. Class C is covered by an assertion audit reporting 0 of 677. Class D's two `type: ignore` were verified by removing them and reading mypy's actual message; both are real and both carry accurate justifications in the allow-list.
-- **One "obvious fix" was tried and rejected.** Importing `ScannerEntity` from `homeassistant.components.device_tracker.entity` removes the `attr-defined` error entirely — and would be backwards: HA deprecated that submodule path in 2026.6 with removal in 2027.6, and `DEVELOPMENT.md` records the fix as moving _to_ the top-level import. The suppression covers a re-export gap, not a missing attribute.
+- **One "obvious fix" was tried and rejected.** Importing `ScannerEntity` from `homeassistant.components.device_tracker.entity` removes the `attr-defined` error entirely — and would be backwards: HA deprecated that submodule path in 2026.6 with removal in 2027.6, and `DEVELOPMENT.md` records the fix as moving *to* the top-level import. The suppression covers a re-export gap, not a missing attribute.
 - **Suite Status**: Suite **812 passing**, 100% line and branch coverage. Both shared prompts were updated from what the runs exposed; those changes are outside this repository.
 
 ## [1.2.0-dev31] - 2026-08-15 - Test Suite: Mutation Testing Triage and SMS Parser Fixes
@@ -2417,12 +2468,12 @@ Two runs and a triage — the documented cadence. **1633 mutants; survivors 356 
 
 ### Fixed
 
-- **`parse_sms_list` lost the entire inbox on one malformed message.** The comprehension admits any message whose `Index` **key** is present, and an empty `<Index/>` element arrives as `None`. A `.get` default only applies to a _missing_ key, so `int(None)` raised `TypeError` — and because the raise happens inside the comprehension, one bad message discarded every other message with it. Fixed with `int(msg.get("Index") or 0)`. Found by a test written against a surviving mutant.
+- **`parse_sms_list` lost the entire inbox on one malformed message.** The comprehension admits any message whose `Index` **key** is present, and an empty `<Index/>` element arrives as `None`. A `.get` default only applies to a *missing* key, so `int(None)` raised `TypeError` — and because the raise happens inside the comprehension, one bad message discarded every other message with it. Fixed with `int(msg.get("Index") or 0)`. Found by a test written against a surviving mutant.
 
 ### Added
 
-- **80 tests**, each written against a specific survivor. The largest groups: coordinator construction and its six `contextlib.suppress` latch-restore blocks (88 survivors — every prior test supplied _valid_ stored data, so the handler was never entered and narrowing what it suppressed changed nothing observable); the poll path's `update_health` flags, repair-issue arguments and strike boundary (~69); and the `parse_sms_list`, `_current_apn_profile` and `_parse_nr_band_from_band` value paths.
-- **`no_confirmation` on the button, select and switch entity descriptions** — Section 22's requirement that a write-confirmation exclusion be _declared on the entity_, not left as an unwritten rule two modules away. Network Mode and Reconnect carry it with their reason. Four sweeps hold it, including one asserting the declaration and the structural protection cannot drift apart. **§22 moves to DONE.**
+- **80 tests**, each written against a specific survivor. The largest groups: coordinator construction and its six `contextlib.suppress` latch-restore blocks (88 survivors — every prior test supplied *valid* stored data, so the handler was never entered and narrowing what it suppressed changed nothing observable); the poll path's `update_health` flags, repair-issue arguments and strike boundary (~69); and the `parse_sms_list`, `_current_apn_profile` and `_parse_nr_band_from_band` value paths.
+- **`no_confirmation` on the button, select and switch entity descriptions** — Section 22's requirement that a write-confirmation exclusion be *declared on the entity*, not left as an unwritten rule two modules away. Network Mode and Reconnect carry it with their reason. Four sweeps hold it, including one asserting the declaration and the structural protection cannot drift apart. **§22 moves to DONE.**
 
 ### Changed
 
@@ -2432,7 +2483,7 @@ Two runs and a triage — the documented cadence. **1633 mutants; survivors 356 
 
 - **The parked P-10 decision was based on a false premise and is withdrawn, not deferred.** `sensor.py` was expected to produce over a thousand survivors of `about`-note text, forcing a choice between moving the notes to their own module and a project-scoped `do_not_mutate_patterns`. It produced **53, and not one is a note**: `mutmut` mutates function bodies, and the notes live in a module-level tuple. Nothing needs moving.
 - **The 231 remaining survivors are triaged, not unknown**, and are predominantly equivalent mutants — falsy-default swaps, `cast()` annotation strings with no runtime effect, and the four `SUB_DEVICE_LABELS` keys above. The cadence is two runs and chasing a mutation score is explicitly warned against, so this is the end state.
-- **A triage error, recorded rather than smoothed over.** The first `helpers.py` / `sensor.py` batch killed 9 mutants against `coordinator.py`'s 111, because those tests were aimed at mutants that cannot be killed — classified from the _shape_ of the diff instead of from what the mutation would actually produce. A third batch closed the genuinely killable remainder in `device_tracker`, `_tracked_macs` and `build_device_info`.
+- **A triage error, recorded rather than smoothed over.** The first `helpers.py` / `sensor.py` batch killed 9 mutants against `coordinator.py`'s 111, because those tests were aimed at mutants that cannot be killed — classified from the *shape* of the diff instead of from what the mutation would actually produce. A third batch closed the genuinely killable remainder in `device_tracker`, `_tracked_macs` and `build_device_info`.
 
 ## [1.2.0-dev30] - 2026-08-15 - Verification Pass: Live Readback Validation and Timer Callback Tests
 
@@ -2444,13 +2495,13 @@ A pass over work that had been **verified and then invalidated by later changes*
 
 ### Fixed
 
-- **The follow-up refresh timers were never actually fired by any test.** Every case around `async_schedule_refresh` patched `async_call_later` and asserted it had been _called_ with the right delay. None ran the scheduled callback, so the mechanism could have scheduled a function that did nothing and the suite would have stayed green — and with polling paused that refresh is the only way a user ever sees the result of the button they pushed. Two tests added: one fires the callback and asserts the refresh happens, one asserts the pending handle is cleared so unload cannot invoke a spent cancel.
-- **`docs/huawei_how_to_access.md` had three stale claims.** "Fifteen read endpoints per cycle" — there are **26**; "Eight writes" — there are **ten**; and eight endpoints listed under _readable, not polled_ had been adopted in `[1.2.0-dev11]`. Corrected, and the survey section reframed as the record of a decision rather than a statement of current state.
+- **The follow-up refresh timers were never actually fired by any test.** Every case around `async_schedule_refresh` patched `async_call_later` and asserted it had been *called* with the right delay. None ran the scheduled callback, so the mechanism could have scheduled a function that did nothing and the suite would have stayed green — and with polling paused that refresh is the only way a user ever sees the result of the button they pushed. Two tests added: one fires the callback and asserts the refresh happens, one asserts the pending handle is cleared so unload cannot invoke a spent cancel.
+- **`docs/huawei_how_to_access.md` had three stale claims.** "Fifteen read endpoints per cycle" — there are **26**; "Eight writes" — there are **ten**; and eight endpoints listed under *readable, not polled* had been adopted in `[1.2.0-dev11]`. Corrected, and the survey section reframed as the record of a decision rather than a statement of current state.
 - **`AGENTS.md`'s sweep table was missing eleven entries** — every sweep added this session plus the whole write-classification family. 20 rows → 31.
 
 ### Added
 
-- **`check_read_back_endpoints` in `scripts/hardware_check.py`**, safe tier, read-only. The Section 22 confirmation compares one key out of one endpoint, and every unit test supplies that block itself — so the suite proves the comparison logic and nothing about whether the router answers in that shape. A wrong key would make every write report _unverified_ for ever, silently. **Run against the live router: all three pass** — `dataswitch`, `WifiStatus`, and the nested guest `WifiEnable`.
+- **`check_read_back_endpoints` in `scripts/hardware_check.py`**, safe tier, read-only. The Section 22 confirmation compares one key out of one endpoint, and every unit test supplies that block itself — so the suite proves the comparison logic and nothing about whether the router answers in that shape. A wrong key would make every write report *unverified* for ever, silently. **Run against the live router: all three pass** — `dataswitch`, `WifiStatus`, and the nested guest `WifiEnable`.
 - **Three success patterns in `docs/DEVELOPMENT.md`** — the radio-level master WiFi switch, the Section 22 write confirmation and its three outcomes, and the Section 9 options reload with its live-key allow-list.
 
 ### Notes
@@ -2527,7 +2578,7 @@ Tightened entity count thresholds in attribute sweeps and removed redundant full
 ### Notes
 
 - **Suite Status**: Suite **726 passing**, 100% line and branch coverage, 0 partial branches. Coverage held without new tests: the removed branch took its own partial with it.
-- **A third behavior change was added to the `[1.2.0-dev23]` entry rather than left unstated** — a _refused_ write now takes about two seconds to report, because `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice. A confirmed write is a single read and remains faster than what it replaced.
+- **A third behavior change was added to the `[1.2.0-dev23]` entry rather than left unstated** — a *refused* write now takes about two seconds to report, because `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice. A confirmed write is a single read and remains faster than what it replaced.
 
 ## [1.2.0-dev24] - 2026-08-15 - Test Quality: Regression Proofs for Rounding and Translation Sweeps
 
@@ -2540,7 +2591,7 @@ Verified rounding and per-platform translation resolution tests against real inj
 ### Added
 
 - **Rounding tests for §6.** `[1.2.0-dev23]` added rounding to `parse_signal_value` with no test covering it, so the tag could not honestly be claimed. Four tests: the rounding itself, that it reaches `_safe_float` (a refactor giving the wrapper its own conversion would leave the entities unrounded while the parse test still passed), that the None/empty/garbage guards are unweakened, and that whole numbers are untouched.
-- **§12's checks rewritten against LIVE entities.** The first version read source with a regex over `translation_key="..."`. The tag specifies _live entities_, and the difference is not cosmetic: source-reading cannot tell which platform an entity actually landed on. Both checks now iterate constructed entities and resolve **per platform**.
+- **§12's checks rewritten against LIVE entities.** The first version read source with a regex over `translation_key="..."`. The tag specifies *live entities*, and the difference is not cosmetic: source-reading cannot tell which platform an entity actually landed on. Both checks now iterate constructed entities and resolve **per platform**.
 
 ### Notes
 
@@ -2574,8 +2625,8 @@ Closes every finding from `dev_std_review` and `code_review` that the owner acce
 
 - **§3 (`format_mac()`) was declined by the owner, and the reasoning is recorded rather than the fix.** The standard does mandate it (`dev_standards.md:77`). This project canonicalizes to its own form — lowercase, colons stripped — consistently at the config flow, and that value is `entry.unique_id`, every sub-device identifier and every entity `unique_id`. Adopting `format_mac()` would change all of them, orphaning 166 entities and losing their history, in exchange for comparability with a hypothetical native integration claiming the same MAC. **`zte_router_5g` is not a counter-example**: it keys on IMEI and never touches a MAC, so §3's bullet never fires there. The two projects hit different branches of the same rule.
 - **§11 is not yet DONE**, and adding `sensor.py` to the mutation list is what closes it. Both siblings mutate `sensor.py`; Huawei is the only one that does not, because `[1.2.0-dev18]`'s 158 `about` notes generate over a thousand string-literal mutants. Carried as item 6 in `status_plan.md` with `coordinator.py`'s unrun mutants (P-11).
-- **The read-back map is an explicit allow-list**, so a write path cannot reach an arbitrary part of the router. Network mode and Reconnect have no reader by design — both re-establish the connection, so the router answers abnormally _while succeeding_ and a read-back would report a working command as failed. §22 asks for that exclusion to be visible in review rather than left as an unwritten rule; a test asserts no reader exists for either.
-- **Three behavior changes worth knowing about.** An Options edit now reloads the entry, which it never did. A write whose confirmation cannot be read no longer raises — it previously did, because the confirmation was a coordinator refresh whose exception propagated; under §22 that outcome is _unverified_ and is left to the next poll. And **a refused write now takes about two seconds to report the refusal** — `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice, because these routers commonly answer the first read after a write with the old value. A _confirmed_ write is a single read and is faster than the debounced refresh it replaced.
+- **The read-back map is an explicit allow-list**, so a write path cannot reach an arbitrary part of the router. Network mode and Reconnect have no reader by design — both re-establish the connection, so the router answers abnormally *while succeeding* and a read-back would report a working command as failed. §22 asks for that exclusion to be visible in review rather than left as an unwritten rule; a test asserts no reader exists for either.
+- **Three behavior changes worth knowing about.** An Options edit now reloads the entry, which it never did. A write whose confirmation cannot be read no longer raises — it previously did, because the confirmation was a coordinator refresh whose exception propagated; under §22 that outcome is *unverified* and is left to the next poll. And **a refused write now takes about two seconds to report the refusal** — `READ_BACK_RETRY_DELAY` is 1.0s and the read-back tries twice, because these routers commonly answer the first read after a write with the old value. A *confirmed* write is a single read and is faster than the debounced refresh it replaced.
 - **Helper Functions Relocation**: `_stale_tracker_entities` and `_tracked_macs` moved from `__init__.py` to `helpers.py`. They now have two callers, and a platform module importing from the package `__init__` would be a circular import.
 - **Suite Status**: Suite **683 → 720**, 100% line and branch coverage, 0 partial branches. `ruff`, `mypy custom_components/ --strict`, IQS static all clean.
 
@@ -2635,7 +2686,7 @@ Fixed firmware version redaction in diagnostic dumps and expanded unit tests for
 
 ### Notes
 
-- **Correction to `[1.2.0-dev19]`.** That entry called the diagnostics finding "the backstop has never been driven by a MAC or an IPv4 address", on the assumption that `re.sub` raises when its replacement function returns `None`. **It does not** — it treats `None` as an empty replacement and deletes the match, so the backstop _is_ reached and the mutants survived for a different reason: the tests could not tell tokenization from deletion. Verified by applying the mutation to a byte copy, running the suite against it (39 tests, all green) and restoring with a hash check. The finding is real and is fixed here; its mechanism and severity in that entry were wrong, and the report has been corrected in place.
+- **Correction to `[1.2.0-dev19]`.** That entry called the diagnostics finding "the backstop has never been driven by a MAC or an IPv4 address", on the assumption that `re.sub` raises when its replacement function returns `None`. **It does not** — it treats `None` as an empty replacement and deletes the match, so the backstop *is* reached and the mutants survived for a different reason: the tests could not tell tokenization from deletion. Verified by applying the mutation to a byte copy, running the suite against it (39 tests, all green) and restoring with a hash check. The finding is real and is fixed here; its mechanism and severity in that entry were wrong, and the report has been corrected in place.
 - **Suite 655 → 682**, 100% line and branch coverage, 0 partial branches, assertion audit PASSED, ruff and `mypy --strict` clean, IQS static PASSED.
 
 ---
@@ -2954,7 +3005,7 @@ Section §S of the August 2026 update plan — work raised by the `huawei-lte-ap
 
   Both were hidden by `# type: ignore[attr-defined]` — the suppression silenced precisely the check that would have caught them. `clear_traffic` was hidden twice over, because its test asserted `clear_traffic.assert_called_once()` against a bare `MagicMock`, which creates any attribute on demand. **The suite enforced the defect.**
 
-- **Device tracker unique IDs were not unique across config entries.** `ScannerEntity.unique_id` is a property returning the bare MAC address, and it wins over the `_attr_unique_id` this integration had been setting — so that line had been dead code all along, and the entity IDs were globally the client's MAC. Two Huawei routers seeing the same client mint the same id, and Home Assistant's response is to **refuse the second entity entirely** (`entity_platform`: _"does not generate unique IDs … ignoring"_). Not an `_2` suffix — that is entity-**id** behavior. The client would simply never appear under the second router.
+- **Device tracker unique IDs were not unique across config entries.** `ScannerEntity.unique_id` is a property returning the bare MAC address, and it wins over the `_attr_unique_id` this integration had been setting — so that line had been dead code all along, and the entity IDs were globally the client's MAC. Two Huawei routers seeing the same client mint the same id, and Home Assistant's response is to **refuse the second entity entirely** (`entity_platform`: *"does not generate unique IDs … ignoring"*). Not an `_2` suffix — that is entity-**id** behavior. The client would simply never appear under the second router.
 
   **Fixed without a breaking change.** The entity now scopes its own id, and a one-time `entity_registry.async_migrate_entries` in `async_setup_entry` rewrites the existing registry rows before any platform is forwarded. Because the row is rewritten rather than replaced, the **`entity_id`, name, area, enabled state and every customization are preserved** — automations and dashboards are unaffected. The migration is idempotent and scoped to `device_tracker`; every other platform has always built entry-scoped ids.
 
@@ -2964,7 +3015,7 @@ Section §S of the August 2026 update plan — work raised by the `huawei-lte-ap
 
 - **A suppression allow-list sweep.** Every `# type: ignore`, `# noqa` and `# pragma: no cover` must appear in `ALLOWED_SUPPRESSIONS` with a written reason; the sweep fails when the set grows, and a companion test fails on a dead entry or a token justification. Comments are found with `tokenize`, so directives quoted inside docstrings are not mistaken for live ones.
 
-  **Ruff and mypy cannot cover this.** `RUF100` and mypy's `warn_unused_ignores` report a suppression that is _unnecessary_; they are silent on one that is doing real work because the error is real. Both were clean while two calls to non-existent methods sat behind `type: ignore`.
+  **Ruff and mypy cannot cover this.** `RUF100` and mypy's `warn_unused_ignores` report a suppression that is *unnecessary*; they are silent on one that is doing real work because the error is real. Both were clean while two calls to non-existent methods sat behind `type: ignore`.
 
 - **A `cleanup_unused_entities` action.** A `device_tracker` entity is created for every client the router has ever reported and nothing removed it, so a guest's phone seen once left a permanent entity. With a second router configured that stops being cosmetic. Modelled on `unifi_network_monitor`'s.
 
@@ -2982,7 +3033,7 @@ Section §S of the August 2026 update plan — work raised by the `huawei-lte-ap
 
 - **The `huawei-lte-api` 2.0.0 bump is blocked: the release is not on PyPI.** The GitHub tag exists, but the newest published version is 1.11.0 — confirmed against both `pip index` and the PyPI JSON API. Home Assistant installs requirements from PyPI, so pinning `2.0.0` would break every install. The pin was raised, verified to be uninstallable, and reverted. **All the code changes it would have required are already made**, so the bump becomes a two-line change whenever the package is published.
 - **The six new 2.0.0 endpoints cannot be probed yet** — `onekey_diag`, `guesttime_setting`, `volte`, `acl`, `user.rule` and `wan_service_name` are all absent from 1.11.0. Blocked with the bump.
-- **The public `wlan.set_multi_basic_settings()` was deliberately _not_ adopted**, reversing the plan. An earlier comment claiming no public setter existed was false and has been corrected — but the public setter posts only `{'Ssids': …, 'WifiRestart': 1}` and discards every other top-level key. Probed against a live B535: the GET returns **`Ssids`, `DbhoEnable` and `modify_guest_ssid`**, so calling it would silently drop band-steering and guest-SSID state on every guest-WiFi toggle. Round-tripping the full response, as the existing code does, is the correct behavior; the `# noqa: SLF001` now says so and is on the reviewed allow-list.
+- **The public `wlan.set_multi_basic_settings()` was deliberately *not* adopted**, reversing the plan. An earlier comment claiming no public setter existed was false and has been corrected — but the public setter posts only `{'Ssids': …, 'WifiRestart': 1}` and discards every other top-level key. Probed against a live B535: the GET returns **`Ssids`, `DbhoEnable` and `modify_guest_ssid`**, so calling it would silently drop band-steering and guest-SSID state on every guest-WiFi toggle. Round-tripping the full response, as the existing code does, is the correct behavior; the `# noqa: SLF001` now says so and is on the reviewed allow-list.
 
 ### Recorded decisions
 
@@ -3045,7 +3096,7 @@ Phase 3 of the August 2026 update plan — all documentation and recorded decisi
 
 - **`docs/ROADMAP.md` reconciled against the code and against `roadmap_format.md`.** Two entries were stale: "Dynamic Polling Interval Slider" had **already shipped** as the `polling_interval` number entity, and "Static Test Sweeps Implementation" landed across this cycle. The **Done** group is removed per the format's direction not to backfill one from the changelog. Added the write-classification register, the first mutation run, per-endpoint strike budgets, the blocked diagnostics verification, the version-convention question, and the `FREQUENCY` unit-selector issue that had only ever been recorded in `AGENTS.md`. Asterisk bullets converted to dashes — the file had never passed `markdownlint`.
 
-- **`AGENTS.md` gains a "Tests that will stop you" table.** Sixteen rows covering every coverage sweep, what it guards and why it exists, with the standing direction: **if one of these fails it has found something — do not reach for the allow-list first.** These tests fail when a _set grows_, so the failure looks unrelated to whatever was just changed, and the reflex is to suppress it.
+- **`AGENTS.md` gains a "Tests that will stop you" table.** Sixteen rows covering every coverage sweep, what it guards and why it exists, with the standing direction: **if one of these fails it has found something — do not reach for the allow-list first.** These tests fail when a *set grows*, so the failure looks unrelated to whatever was just changed, and the reflex is to suppress it.
 
 - **`README.md`** documents the Integration Health sensor with its attribute table and an example automation (diffed against the implementation, not written from memory), records that **Refresh Now now works while Pause Polling is on**, and notes that a refused control change surfaces an error instead of silently reverting.
 
@@ -3069,7 +3120,7 @@ Added Integration Health sensor with drift detection and reconciled value min/ma
 
 ### Added
 
-- **Integration Health binary sensor (`dev_standards` Section 19).** A diagnostic `problem` sensor on the System sub-device, surfacing the failure Home Assistant does **not** catch: a poll that _succeeds_ while the data is wrong.
+- **Integration Health binary sensor (`dev_standards` Section 19).** A diagnostic `problem` sensor on the System sub-device, surfacing the failure Home Assistant does **not** catch: a poll that *succeeds* while the data is wrong.
 
   That failure mode is specific and real here. `api.get_data()` fetches fifteen endpoints and **silently omits any optional one that fails** — only `device_information` raises. So SMS, WiFi clients, monthly usage or the network operator can each disappear from the payload while the integration reports a clean update and the affected sensors simply go blank. Nothing anywhere said so.
 
@@ -3173,7 +3224,7 @@ Phase 2 (first part) of the August 2026 update plan — the standards defects th
 
   **Two false positives were caught by test, and are worth recording.** A first-draft sweep rewrote the firmware version `11.0.1.1(H192SP1C983)` as `ip-1(H192SP1C983)` — a four-part version parses as an IPv4 address — and the SMS timestamp `2026-08-14 10:00:00` as `2026-08-14 ip6-1`, because `10:00:00` reads as three hex groups. The rules were narrowed (octet bounds, and IPv6 now requires a `::` elision or the full eight-group form) and the genuinely ambiguous keys are named in `NEVER_SWEPT_KEYS`. An invented pattern that "usually" tells a version from an address would corrupt some other router's version string instead.
 
-- **The diagnostics tests now assert the output rather than the mechanism.** The previous suite mocked `async_redact_data` and asserted it had been _called_ with the right arguments — which is equally true of an implementation that redacts nothing useful, and is the exact shape that produced two false clean verdicts on UniFi. The replacement asserts the negative property structurally: fifteen distinctive identifiers, each checked against the **serialized** document so nested lists and dicts are covered, parametrized so a failure names the value that leaked.
+- **The diagnostics tests now assert the output rather than the mechanism.** The previous suite mocked `async_redact_data` and asserted it had been *called* with the right arguments — which is equally true of an implementation that redacts nothing useful, and is the exact shape that produced two false clean verdicts on UniFi. The replacement asserts the negative property structurally: fifteen distinctive identifiers, each checked against the **serialized** document so nested lists and dicts are covered, parametrized so a failure names the value that leaked.
 
 ### Verification
 
@@ -3613,7 +3664,7 @@ Realigned project MyPy configuration with Home Assistant internal flags and reso
      )
      ```
 
-     Verified in the devcontainer: running `ruff format` on this exact form returns "1 file already formatted" — ruff does not move a comment that is already on the `from (` line (it only moves comments to the member line when _expanding_ a single-line import). Running mypy against this form returns "no issues found" — the suppress comment is on the same line as the reported error.
+     Verified in the devcontainer: running `ruff format` on this exact form returns "1 file already formatted" — ruff does not move a comment that is already on the `from (` line (it only moves comments to the member line when *expanding* a single-line import). Running mypy against this form returns "no issues found" — the suppress comment is on the same line as the reported error.
 
   6. **`warn_unused_ignores = false` override removed**: The per-file override for `custom_components.huawei_router_5g.device_tracker` that disabled `warn_unused_ignores` was removed. It was only needed while basic and strict mypy disagreed on whether `[attr-defined]` fired. With `no_implicit_reexport = true` now applied consistently, both modes raise the error and the ignore is always used — the override served no further purpose.
 
@@ -4315,9 +4366,9 @@ Overhauled Best Connection sensor using 3-stage quality gate algorithm and enabl
   - **Stage 3 — 5G leg health**: `nr_rsrp > -105` OR `nr_sinr > 10` OR `nr_rsrq > -12` OR `5g_cqi >= 7` OR `bler < 10%`.
   - Promoted from `EntityCategory.DIAGNOSTIC` to primary entity (no category) — visible in the main entity list and usable in dashboards and automations.
 - **Enabled by default — 11 entities** previously disabled without data on the H165-383 but confirmed populated:
-  - _System timestamps_: Uptime, Connection Uptime, Total Uptime.
-  - _Signal diagnostics_: LTE Transmit Power, LTE Uplink MCS, LTE Downlink MCS, LTE EARFCN, 5G Uplink MCS, 5G Downlink MCS, 5G Transmit Power.
-  - _Binary sensor_: LTE Carrier Aggregation.
+  - *System timestamps*: Uptime, Connection Uptime, Total Uptime.
+  - *Signal diagnostics*: LTE Transmit Power, LTE Uplink MCS, LTE Downlink MCS, LTE EARFCN, 5G Uplink MCS, 5G Downlink MCS, 5G Transmit Power.
+  - *Binary sensor*: LTE Carrier Aggregation.
 
 ---
 

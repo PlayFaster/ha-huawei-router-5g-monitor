@@ -41,8 +41,8 @@ A complete list of the static entities and service actions provided by the integ
 | Upload Rate | `current_upload_rate` | Sensor | B/s | - | **Disabled by default.** |
 | Data Allowance | `data_allowance` | Sensor | B | Diagnostic | - |
 | Day Connected Time | `day_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
-| Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** Data may not be available in all configurations. |
-| Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** Data may not be available in all configurations. |
+| Max Download Rate | `max_download_rate` | Sensor | B/s | - | **Disabled by default.** |
+| Max Upload Rate | `max_upload_rate` | Sensor | B/s | - | **Disabled by default.** |
 | Month Connected Time | `month_connected_time` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Month Download | `month_download` | Sensor | B | - | LTS: `total_increasing` |
 | Month Download (GB) | `month_download_gb` | Sensor | GB | - | **Disabled by default.** |
@@ -162,7 +162,7 @@ A complete list of the static entities and service actions provided by the integ
 | APN | `apn` | Sensor | - | Diagnostic | - |
 | APN Changes | `apn_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | APN Profile | `apn_profile` | Sensor | - | Diagnostic | **Disabled by default.** |
-| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** Data may not be available in all configurations. |
+| Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
 | Carrier Build | `carrier_build` | Sensor | - | Diagnostic | - |
 | Carrier Build Changes | `carrier_build_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | Cell Changes | `cell_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |

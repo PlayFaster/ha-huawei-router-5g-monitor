@@ -1,5 +1,55 @@
 # Changelog
 
+## [1.2.4] - 2026-11-16 - Release: Firmware Update & Network History, SMS Events, and Setup & Reboot Resilience
+
+### Highlights
+
+- **Firmware Update & Network History**: Remember the last 20 firmware versions and key network changes across restarts.
+- **Incoming SMS Event Entity**: Trigger automations on new texts, even if Home Assistant was offline when they arrived.
+- **Resilient Setup & Reboots**: Tolerates restricted router models and pauses cleanly during router reboots.
+- **Bulk Entity Reset**: Enable or disable integration entities in bulk with a safe preview mode.
+
+### Summary
+
+- **Firmware & Network History**: Your router's software version, WAN IP, APN, Cell ID, and four other key values now keep a 20-entry history across restarts, so silent firmware updates and network changes are no longer lost.
+- **Reliable SMS Automations**: A new Incoming SMS event entity fires for every new message — including texts that arrived while Home Assistant was stopped — and SMS deletion now verifies the message was actually removed.
+- **Smoother Restarts & Router Reboots**: Uptime and reboot tracking survive Home Assistant restarts, Reboot and Reconnect buttons pause polling cleanly until the router comes back, and routers that block optional endpoints set up without errors.
+- **Bulk Entity Control**: A new entity-reset action lets you enable or disable integration entities in one call, with preview mode on by default.
+- **Minimum Version Update**: Now requires Home Assistant `2025.2.0` or newer (Python `3.13+`).
+
+### Breaking
+
+- **Minimum Home Assistant Version**: The minimum supported Home Assistant version is now `2025.2.0` (Python `3.13+`). Systems running earlier versions must update Home Assistant before installing this release.
+
+### Added
+
+- **Firmware Update & Network History**: The integration now saves the last 20 changes for Software Version (including `previous_version`, `last_changed`, and `history` attributes) along with WAN IP Address, APN, LTE Cell ID, Operator, Carrier Build, WAN IPv6 Address, and Primary DNS Server, plus a change-counter sensor for each (`Software Version Changes` enabled by default).
+- **Incoming SMS Event Entity** *(extends SMS Monitoring, introduced in 1.2.0)*: Added an Incoming SMS `event` entity on the SMS device (`received` event with `phone`, `content`, `date`, and `index`) that also announces messages received while Home Assistant was stopped once it starts up again.
+- **Bulk Entity Reset Action**: Added the `reset_entities` action so you can enable or disable integration entities in bulk, defaulting to preview mode before making changes (device trackers are left untouched).
+- **Graceful Reboot & Reconnect Windows**: Pressing Reboot or Reconnect now opens a temporary outage window that pauses polling and shows a clear countdown (`router_restarting`, `router_reconnecting`) on other controls until the router responds again.
+- **Fallback Setup for Restricted Routers**: Routers that refuse the primary device-info request now fall back automatically to basic device info during setup and polling so they still report their model and firmware version.
+- **Mobile Connection Detail**: Added an `additional_state` attribute to the Mobile Connection sensor explaining non-connected states (`900`, `902`–`906`).
+
+### Changed
+
+- **Coexistence with Built-In Huawei Integration** *(refines Library Dependency Pinning, introduced in 1.0.1, updated in 1.2.0)*: Runs smoothly alongside Home Assistant's built-in Huawei integration without package conflicts or extra restart prompts (`huawei-lte-api >=1.11.0,<2.0.2`), while still supporting newer VoLTE and router diagnostics on older library versions.
+- **Integration Health Diagnostics** *(enhances Integration Health Diagnostics, introduced in 1.2.0)*: `sensor.*_integration_health` now persists unsupported endpoints across restarts (`not_served`), tracks counter clock drift (`drift_rate_pct`, `drift_intervals`, `drift_measured_seconds`), and reports loaded library and coexistence status (`library_loaded`, `library_installed`, `core_huawei_lte_configured`).
+- **Richer, Privacy-Safe Diagnostic Downloads** *(enhances Diagnostic Downloads, introduced in 1.1.0)*: Diagnostic downloads now include capability flags, unused payload keys, and per-endpoint HTTP status codes, while redacting phone numbers by format and blanking the operator APN (`ApnName`).
+- **Home Assistant `2026.11` & HACS Metadata**: Updated sub-device linking for Home Assistant `2026.11` compatibility and added HACS category tags to `manifest.json`.
+
+### Fixed
+
+- **Uptime & Reboot Tracking Across Restarts** *(enhances Uptime & Reboot Tracking, introduced in 1.1.1, extended in 1.2.0)*: Persisted router uptime and connection timestamps across Home Assistant restarts so reboots occurring while Home Assistant is stopped are detected on startup.
+- **Refused Endpoints, Lockouts & Transient Drops**: Stopped treating normal endpoint refusals as expired logins, separated router login lockouts from bad-password errors, logged out cleanly before session resets, and added single retries for dropped reads and session-refused writes.
+- **DST-Safe SMS Detection & Verified Deletes**: Matched new SMS messages by index and content instead of local date strings (so daylight-saving clock changes never hide a message), and confirmed `delete_sms` / `delete_all_sms` against the inbox before reporting success.
+- **Signal, WiFi, SIM & Network Mode Edge Cases**: Parsed comparison-prefixed signal values (such as `>=-51dBm`) to their boundary value, prevented errors on unexpected WiFi SSID formats or routers without a SIM card, and displayed unlisted router network modes cleanly in the Network Mode selector (`network_mode_not_listed`).
+
+### Under the hood
+
+- **Test Suite & Coverage**: Expanded to `1,580` tests maintaining `100.00%` statement and branch coverage, running on `pytest-homeassistant` against Home Assistant `2026.11.1`.
+- **Static Quality & Complexity**: Enforced strict `Mypy` across all 20 source files, resolved all Ruff `PLC0415` top-level import rules, and kept McCabe complexity at or below `16`.
+- **Device & Documentation Alignment**: Recorded H165-383 web-interface mining in `docs/huawei_how_to_access.md`, created `docs/CAPABILITIES.md`, and updated `README.md` for Home Assistant `2026.11+` Marketplace installation.
+
 ## [1.2.3] - 2026-10-06 - Pre-Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence
 
 ### Highlights
@@ -236,6 +286,7 @@ Entry structure — headers, titles, category headings and the split between thi
 ---
 
 - [Changelog](#changelog)
+  - [\[1.2.4\] - 2026-11-16 - Release: Firmware Update \& Network History, SMS Events, and Setup \& Reboot Resilience](#124---2026-11-16---release-firmware-update--network-history-sms-events-and-setup--reboot-resilience)
   - [\[1.2.3\] - 2026-10-06 - Pre-Release: Refused Endpoint Setup Resilience, Uptime Reconciliation, and Core Coexistence](#123---2026-10-06---pre-release-refused-endpoint-setup-resilience-uptime-reconciliation-and-core-coexistence)
   - [\[1.2.2\] - 2026-08-26 - Release: Reauthentication Repair Flow and Default SMS Storage Monitoring](#122---2026-08-26---release-reauthentication-repair-flow-and-default-sms-storage-monitoring)
   - [\[1.2.1\] - 2026-08-24 - Release: Connection Loss Repair Triggering](#121---2026-08-24---release-connection-loss-repair-triggering)
