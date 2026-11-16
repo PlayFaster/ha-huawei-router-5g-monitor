@@ -1,10 +1,14 @@
 """DataUpdateCoordinator for Huawei Router 5G."""
 
 import asyncio
+from collections.abc import Callable
 import contextlib
 from dataclasses import dataclass
 from datetime import datetime, timedelta
+import hashlib
+import hmac
 import logging
+import secrets
 import time
 from typing import Any
 
@@ -17,10 +21,19 @@ from homeassistant.helpers.storage import Store
 from homeassistant.helpers.update_coordinator import DataUpdateCoordinator, UpdateFailed
 from homeassistant.util import dt as dt_util
 
-from .api import HuaweiAuthError, HuaweiRouter5GAPI
+from .api import (
+    LIBRARY_LOADED_VERSION,
+    ExpectedOutage,
+    HuaweiAuthError,
+    HuaweiExpectedUnavailableError,
+    HuaweiLockoutError,
+    HuaweiRouter5GAPI,
+    HuaweiSessionExpiredError,
+)
 from .const import (
     CONF_SCAN_INTERVAL,
     CONF_STOP_POLLING,
+    CORE_DOMAIN,
     CRITICAL_ENDPOINT,
     DEFAULT_SCAN_INTERVAL,
     DOMAIN,
@@ -28,13 +41,20 @@ from .const import (
     FETCH_STRIKE_LIMIT,
     FETCH_TIMEOUT,
     HEALTH_DRIFT_STRIKE_LIMIT,
+    OUTAGE_CHECK_INTERVAL,
+    OUTAGE_HOLD,
+    OUTAGE_PROBE_FAST,
+    OUTAGE_REASON_REBOOT,
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
     REPAIR_CONN_STRIKE_LIMIT,
     REPAIR_NAMES,
     SIGNAL_CONTRACT_KEYS,
+    SMS_SEEN_CAP,
 )
-from .helpers import get_router_model, parse_sms_list
+from .helpers import get_router_model, identity_from_basic_information, parse_sms_list
+from .library_guard import last_installed_version
+from .observations import ObservationRecorder
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -87,6 +107,11 @@ PLAUSIBILITY_TOLERANCE = 0.05
 UPTIME_STORAGE_VERSION = 1
 UPTIME_WRITE_INTERVAL = timedelta(minutes=20)
 UPTIME_SAVE_DELAY = 60
+
+# The key of the answered-endpoint set in the uptime store: the endpoint names
+# that have answered on this entry, kept across restarts and firmware changes.
+# A store written before 1.2.4-dev2 has none and starts empty.
+ANSWERED_STORE_KEY = "answered_endpoints"
 
 # Written by versions before the store existed and restored at construction,
 # which is the defect: `entry.data` is written only at a latch, so the counter
@@ -144,6 +169,14 @@ class _UptimeLatch:
     drift_rate_max: float | None = None
 
 
+def _safe_index(value: Any) -> int:
+    """Return an SMS index as an integer for ordering, or 0 when it is not one."""
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return 0
+
+
 class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
     """Class to manage fetching Huawei Router data with resilience and pausing."""
 
@@ -156,20 +189,37 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         """Initialize the coordinator."""
         self.api = api
         self.entry = entry
+        # Transition history and the populated set (1.2.4-dev4 I5), loaded in
+        # `async_setup_entry` and written after a successful poll.
+        self.observations = ObservationRecorder(hass, entry)
         self.consecutive_failures = 0
         self.last_update_success_time: datetime | None = None
         self.last_sms_timestamp: str | None = None
+        # The identities of every message seen, index and content hash, from
+        # the first poll's baseline on. `sms_baseline_taken` is set by the
+        # first poll that reads the list, which fires nothing.
         self.fired_sms_hashes: set[str] = set()
+        self.sms_baseline_taken = False
+        # Called with each new message after its bus event, in the same order;
+        # the incoming SMS event entity registers here (`event.py`).
+        self._sms_listeners: list[Callable[[dict[str, Any]], None]] = []
+        # The persisted SMS record (1.2.4-dev8 plan I7): the HMAC secret, the
+        # seen identities in fire order, and whether they changed this poll.
+        self._sms_secret: str | None = None
+        self._sms_seen_order: list[str] = []
+        self._sms_record_dirty = False
 
         # One-shot flag set by async_force_refresh so an explicit user action
         # fetches even while polling is paused (dev_standards Section 13).
         self._force_refresh_once = False
 
-        # Cancel handle for a follow-up refresh scheduled by a disruptive
-        # button. Held so a second press replaces the first rather than
-        # stacking, and so unload can cancel it - a timer that outlives the
-        # entry fires against a coordinator whose API is already logged out.
-        self._pending_refresh: CALLBACK_TYPE | None = None
+        # The expected-outage window's check timer, and its state. Held so
+        # unload can cancel it: a timer that outlives the entry fires against a
+        # coordinator whose API is already logged out.
+        self._outage_unsub: CALLBACK_TYPE | None = None
+        self._outage_awaiting_drop = False
+        self._outage_opened_mono = 0.0
+        self._outage_closing = False
 
         # Single-slot memo for the usage projection, held per entry.
         #
@@ -209,9 +259,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # Liveness-probe state. `_fault_is_local` is None until a probe has
         # run, True when a fresh connection succeeded while the pooled one kept
         # failing (our fault), False when both failed (the router's). The latch
-        # keeps the probe to once per exhausted strike budget — this router
-        # permits one login, so a probe per poll would cause outages rather
-        # than diagnose them.
+        # keeps the probe to once per exhausted strike budget — the router caps
+        # its open sessions (`docs/huawei_how_to_access.md`, "A login is
+        # required"), so a probe per poll would cause outages rather than
+        # diagnose them.
         # `True` the fault is ours, `False` the router is unreachable, and
         # `None` either not yet probed or the router refused a second session —
         # alive, but with nothing to say about which end is at fault.
@@ -260,6 +311,15 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         # Populated by `async_load_stored_uptime` during setup.
         self._store: Store[dict[str, Any]] | None = None
+        # Endpoints that have answered on this entry, restored from the store
+        # and kept apart from `api.answered_endpoints`. The health sensor reads
+        # the union, so a capability lost while Home Assistant was stopped
+        # still reads `degraded`. The refusal judgement in `api.py` reads only
+        # the set of the current run, so a restored name never turns a
+        # refusal into an expiry and a forced login. `_answered_saved` is the
+        # set last written, so a change to the set alone schedules a save.
+        self._answered_restored: frozenset[str] = frozenset()
+        self._answered_saved: frozenset[str] = frozenset()
 
         # The anchors are restored from `entry.data`, where they have always
         # lived and where the sensors' own restore path expects them. The
@@ -457,6 +517,46 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             snapshot["issues"] = ["health_verdict_unavailable"]
             self.health_snapshot = snapshot
 
+    @property
+    def library_state(self) -> dict[str, Any]:
+        """The `huawei-lte-api` state, for Integration Health (1.2.4-dev4 I7).
+
+        The library guard installs 2.0.1 with no repair, so these attributes
+        are where a user sees that an install is waiting for a restart. The
+        version on disk is the one the guard last read, in an executor job;
+        reading the package metadata here would be file I/O on the event loop.
+        It is None until the guard has run.
+        """
+        loaded = LIBRARY_LOADED_VERSION
+        installed = last_installed_version()
+        return {
+            "library_loaded": str(loaded) if loaded is not None else None,
+            "library_installed": str(installed) if installed is not None else None,
+            "library_restart_pending": (
+                loaded is not None and installed is not None and installed > loaded
+            ),
+            "core_huawei_lte_configured": bool(
+                self.hass.config_entries.async_entries(CORE_DOMAIN)
+            ),
+        }
+
+    def _login_lockout_issue(self) -> str | None:
+        """The router's lockout state as a finding, where a lockout runs.
+
+        Read without a session before the login that was withheld, so it
+        describes this cycle. ZTE also reports one attempt left before a
+        lockout; the H165-383 reports no attempt count, so that finding has no
+        Huawei equivalent.
+        """
+        guard = getattr(self.api, "login_guard", None)
+        if not isinstance(guard, dict) or guard.get("locked") is not True:
+            return None
+        seconds = guard.get("lock_seconds")
+        return (
+            "Login lockout in progress: the router refuses every login for "
+            f"{seconds} s more"
+        )
+
     def _compute_health(
         self, data: dict[str, Any] | None, *, failed: bool, cold_start: bool
     ) -> dict[str, Any]:
@@ -481,6 +581,13 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "consecutive attempts; the values shown are the last known "
                     "good ones."
                 ]
+
+            # Reported at once rather than after the strike budget, as in
+            # `zte_router_5g`: a lockout the router reports is certain, not a blip.
+            lockout = self._login_lockout_issue()
+            if lockout is not None:
+                snapshot["severity"] = "error"
+                snapshot["issues"].insert(0, lockout)
 
             # Name which end is at fault when the probe has an answer. Without
             # this the sensor says "no successful update" for both a wedged
@@ -512,17 +619,10 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
 
         # 1. Capability degradation — an endpoint `api.get_data` silently
         #    dropped. Strike-budgeted so a one-poll blip is not reported.
-        #    An endpoint the loaded library cannot serve is recorded
-        #    `unsupported` by `api.get_data` and is not a lost capability.
-        unsupported = {
-            key
-            for key, record in self.api.endpoint_outcomes.items()
-            if isinstance(record, dict) and record.get("outcome") == "unsupported"
-        }
         missing = [
             key
             for key in ENDPOINT_NAMES
-            if key != CRITICAL_ENDPOINT and key not in data and key not in unsupported
+            if key != CRITICAL_ENDPOINT and key not in data
         ]
         # **A standing refusal is not a lost capability.** An endpoint the
         # router refused with one of its own codes this poll, and that has never
@@ -536,7 +636,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             for key, record in self.api.endpoint_outcomes.items()
             if isinstance(record, dict) and record.get("outcome") == "refused"
         }
-        answered = self.api.answered_endpoints
+        answered = self.api.answered_endpoints | self._answered_restored
         not_served_keys = {
             key for key in missing if key in refused and key not in answered
         }
@@ -601,56 +701,104 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         for name in REPAIR_NAMES:
             ir.async_delete_issue(self.hass, DOMAIN, f"{name}_{self.entry.entry_id}")
 
+    # -- expected-outage window ------------------------------------------
+
+    @property
+    def outage_active(self) -> bool:
+        """Whether an expected-outage window is open and within its cap."""
+        outage = self.api.expected_outage
+        return isinstance(outage, ExpectedOutage) and not outage.expired
+
     @callback
-    def async_schedule_refresh(self, delay: float) -> None:
-        """Schedule one forced refresh `delay` seconds from now.
+    def async_start_outage_checks(self) -> None:
+        """Watch the window `reboot` or `reconnect` opened, until it closes.
 
-        For controls that take the router away and bring it back. The reading
-        immediately after such a write is stale by definition, so without this
-        the entities sit wrong until the next scheduled poll - twenty minutes
-        by default.
-
-        **A paused integration still gets the refresh**, and that is the point
-        rather than an oversight. Section 13 holds that an explicit user action
-        must not be swallowed by the pause, and the follow-up is part of the
-        press rather than background polling - with polling paused it is the
-        *only* way the user ever sees the result of the button they pushed.
-        Every other write path in this integration already forces through the
-        pause; this one was the exception until 2026-08-15. `unifi_network_monitor`
-        reached the same conclusion first.
-
-        The one case it declines is when a scheduled poll would arrive first
-        anyway - which can only happen while polling is running.
-
-        A second press replaces the pending refresh rather than queueing a
-        second one.
+        The mechanism of `zte_router_5g`. While the window is open, polls are
+        skipped and every other request is refused in the API. A window opened
+        on Reconnect first waits for the router to drop, probing every
+        `OUTAGE_PROBE_FAST` seconds, and closes through its closing poll at
+        `OUTAGE_HOLD` when it does not. The Reboot window opens only after the
+        router has been seen silent, so it starts in the second phase: a check
+        every `OUTAGE_CHECK_INTERVAL` seconds, closed by the first answer and
+        a closing poll. The cap closes it regardless, and a router silent at
+        the cap is reported.
         """
-        paused = bool(self.entry.options.get(CONF_STOP_POLLING, False))
-        interval = self.update_interval.total_seconds() if self.update_interval else 0
-        if not paused and interval and delay >= interval:
-            _LOGGER.debug(
-                "%s: Poll interval %ss is shorter than the %ss follow-up; "
-                "letting the scheduled poll cover it.",
+        outage = self.api.expected_outage
+        if not isinstance(outage, ExpectedOutage):
+            return
+        self._outage_awaiting_drop = outage.reason != OUTAGE_REASON_REBOOT
+        self._outage_opened_mono = time.monotonic()
+        self._schedule_outage_check()
+
+    def _schedule_outage_check(self) -> None:
+        """Arm the next check, replacing any already armed."""
+        self.async_cancel_outage_check()
+        interval = (
+            OUTAGE_PROBE_FAST if self._outage_awaiting_drop else OUTAGE_CHECK_INTERVAL
+        )
+        self._outage_unsub = async_call_later(
+            self.hass, interval, self._async_outage_check
+        )
+
+    @callback
+    def async_cancel_outage_check(self) -> None:
+        """Disarm the check timer, if armed. Called on unload."""
+        if self._outage_unsub is not None:
+            self._outage_unsub()
+            self._outage_unsub = None
+
+    async def _async_outage_check(self, _now: datetime | None = None) -> None:
+        """Check whether the router has dropped or is back, and close when done."""
+        self._outage_unsub = None
+        outage = self.api.expected_outage
+        if not isinstance(outage, ExpectedOutage):
+            return
+        if outage.expired:
+            _LOGGER.warning(
+                "%s: The router did not answer within %ss of the %s; "
+                "resuming normal polling.",
                 self.entry.title,
-                interval,
-                delay,
+                round(outage.deadline - self._outage_opened_mono),
+                outage.reason,
             )
+            self._close_expected_outage()
+            await self.async_request_refresh()
+            return
+        answered = await self.api.outage_probe()
+
+        if self._outage_awaiting_drop:
+            if not answered:
+                self._outage_awaiting_drop = False
+            elif (
+                time.monotonic() - self._outage_opened_mono >= OUTAGE_HOLD
+                and await self._async_closing_poll()
+            ):
+                self._close_expected_outage()
+                return
+            self._schedule_outage_check()
             return
 
-        self.async_cancel_scheduled_refresh()
+        if answered and await self._async_closing_poll():
+            self._close_expected_outage()
+            return
+        self._schedule_outage_check()
 
-        async def _fire(_now: datetime) -> None:
-            self._pending_refresh = None
-            await self.async_force_refresh()
+    async def _async_closing_poll(self) -> bool:
+        """Run the window's closing poll, and return whether it succeeded."""
+        before = self.last_update_success_time
+        self._outage_closing = True
+        try:
+            with self.api.outage_bypass():
+                await self.async_refresh()
+        finally:
+            self._outage_closing = False
+        return self.last_update_success_time != before
 
-        self._pending_refresh = async_call_later(self.hass, delay, _fire)
-
-    @callback
-    def async_cancel_scheduled_refresh(self) -> None:
-        """Cancel a pending follow-up refresh, if there is one."""
-        if self._pending_refresh is not None:
-            self._pending_refresh()
-            self._pending_refresh = None
+    def _close_expected_outage(self) -> None:
+        """Close the window and disarm its timer."""
+        self.async_cancel_outage_check()
+        self.api.close_expected_outage()
+        self._outage_awaiting_drop = False
 
     async def async_force_refresh(self) -> None:
         """Force an immediate fetch, even while polling is paused.
@@ -673,6 +821,137 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             self._force_refresh_once = False
             raise
 
+    async def _fetch_with_session_retry(self) -> dict[str, Any]:
+        """Fetch within `FETCH_TIMEOUT`, retrying once on an expired session."""
+        async with asyncio.timeout(FETCH_TIMEOUT):
+            try:
+                return await self.api.get_data()
+            # An expired session only. A rejected login cannot succeed on a
+            # second try, and each attempt counts toward the router's lockout,
+            # whose threshold is unmeasured.
+            except HuaweiSessionExpiredError:
+                _LOGGER.debug(
+                    "%s: Session expired mid-fetch, retrying once.",
+                    self.entry.title,
+                )
+                return await self.api.get_data()
+
+    async def _handle_auth_or_timeout(
+        self, err: TimeoutError | HuaweiAuthError
+    ) -> dict[str, Any]:
+        """Hold the last data within the strike budget, or raise for the failure."""
+        if self._outage_closing and self.data is not None:
+            # A router still starting answers badly; the window stays open.
+            return self.data
+        self.consecutive_failures += 1
+
+        if isinstance(err, TimeoutError):
+            # `asyncio.timeout` cancels the await from out here, so none of
+            # `api.py`'s own `except` blocks run and its client is never
+            # reset. Without this the next poll reuses the same wedged
+            # connection, for ever — the reason a single deadlock survived
+            # until Home Assistant was restarted.
+            await self.api.invalidate()
+        # `<=` against the same constant `_compute_health` uses `>=` on,
+        # so the two sit one poll apart on purpose: health reports `error`
+        # on the third failure, entities go unavailable on the fourth.
+        if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
+            _LOGGER.warning(
+                "%s: Fetch failed due to %s (failure %d/3), holding last known values.",
+                self.entry.title,
+                "session timeout" if isinstance(err, HuaweiAuthError) else "timeout",
+                self.consecutive_failures,
+            )
+            self.update_health(None, failed=True, cold_start=False)
+            return self.data
+
+        if isinstance(err, HuaweiAuthError):
+            ir.async_create_issue(
+                self.hass,
+                DOMAIN,
+                f"{REPAIR_AUTH_FAILED}_{self.entry.entry_id}",
+                is_fixable=True,
+                is_persistent=True,
+                severity=ir.IssueSeverity.ERROR,
+                translation_key="auth_failed",
+                translation_placeholders={"entry_title": self.entry.title},
+                data={"entry_id": self.entry.entry_id},
+            )
+            self.update_health(None, failed=True, cold_start=self.data is None)
+            raise ConfigEntryAuthFailed("Authentication failed") from err
+
+        await self._async_report_unreachable()
+
+        error_msg = "API request timed out"
+        _LOGGER.exception("%s: %s", self.entry.title, error_msg)
+        self.update_health(None, failed=True, cold_start=self.data is None)
+        raise UpdateFailed(error_msg) from err
+
+    def _handle_lockout(self, err: HuaweiLockoutError) -> dict[str, Any]:
+        """Hold the last data within the strike budget, or raise `UpdateFailed`."""
+        if self._outage_closing and self.data is not None:
+            # A router still starting answers badly; the window stays open.
+            return self.data
+        # The router refusing every login for a while, not an unreachable
+        # router and not wrong credentials: the strike rule of every other
+        # failure applies, but no connectivity repair and no reauth, because
+        # neither would describe it. The next poll makes one login attempt.
+        self.consecutive_failures += 1
+        if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
+            _LOGGER.warning(
+                "%s: Router login locked out (failure %d/3), "
+                "holding last known values: %s",
+                self.entry.title,
+                self.consecutive_failures,
+                err,
+            )
+            self.update_health(None, failed=True, cold_start=False)
+            return self.data
+        _LOGGER.error(
+            "%s: Router login locked out after repeated failed logins: %s",
+            self.entry.title,
+            err,
+        )
+        self.update_health(None, failed=True, cold_start=self.data is None)
+        raise UpdateFailed(f"Router login locked out: {err}") from err
+
+    async def _handle_fetch_failure(
+        self, err: Exception, *, is_paused: bool
+    ) -> dict[str, Any]:
+        """Hold the last data, start empty while paused, or raise `UpdateFailed`."""
+        if self._outage_closing and self.data is not None:
+            # A router still starting answers badly; the window stays open.
+            return self.data
+        self.consecutive_failures += 1
+        # `<=` against the same constant `_compute_health` uses `>=` on,
+        # so the two sit one poll apart on purpose: health reports `error`
+        # on the third failure, entities go unavailable on the fourth.
+        if self.data is not None and self.consecutive_failures <= FETCH_STRIKE_LIMIT:
+            _LOGGER.warning(
+                "%s: Fetch failed (failure %d/3), holding last known values: %s",
+                self.entry.title,
+                self.consecutive_failures,
+                err,
+            )
+            self.update_health(None, failed=True, cold_start=False)
+            return self.data
+
+        if is_paused:
+            _LOGGER.warning(
+                "%s: Initial fetch failed while paused. Starting with empty data.",
+                self.entry.title,
+            )
+            self.update_health(None, failed=True, cold_start=True)
+            return {}
+
+        await self._async_report_unreachable()
+
+        _LOGGER.exception(
+            "%s: Connection lost. Marking entities unavailable.", self.entry.title
+        )
+        self.update_health(None, failed=True, cold_start=self.data is None)
+        raise UpdateFailed(f"Communication error: {err}") from err
+
     async def _async_update_data(self) -> dict[str, Any]:
         """Fetch data from the API with resilience and pause support."""
         # Consume the one-shot force flag before anything can short-circuit.
@@ -682,9 +961,21 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         is_paused = self.entry.options.get(CONF_STOP_POLLING, False)
         is_first_run = self.data is None
 
-        if is_paused and not is_first_run and not forced:
+        # The closing poll of an expected-outage window runs even while paused:
+        # the window closes only on a real fetch.
+        if is_paused and not is_first_run and not forced and not self._outage_closing:
             _LOGGER.debug(
                 "%s: Polling is paused; returning cached data.", self.entry.title
+            )
+            return self.data
+
+        # The router accepted a command that takes it offline. Returning here
+        # skips everything a fetch drives: health, the failure count and the
+        # Last Updated timestamp.
+        if self.outage_active and not self._outage_closing and not is_first_run:
+            _LOGGER.debug(
+                "%s: Router expected to be offline; skipping this poll.",
+                self.entry.title,
             )
             return self.data
 
@@ -694,108 +985,33 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 self.entry.title,
             )
 
-        data = None
         try:
-            async with asyncio.timeout(FETCH_TIMEOUT):
-                try:
-                    data = await self.api.get_data()
-                except HuaweiAuthError:
-                    _LOGGER.debug(
-                        "%s: Session expired mid-fetch, retrying once.",
-                        self.entry.title,
-                    )
-                    data = await self.api.get_data()
-        except (TimeoutError, HuaweiAuthError) as err:
-            self.consecutive_failures += 1
-
-            if isinstance(err, TimeoutError):
-                # `asyncio.timeout` cancels the await from out here, so none of
-                # `api.py`'s own `except` blocks run and its client is never
-                # reset. Without this the next poll reuses the same wedged
-                # connection, for ever — the reason a single deadlock survived
-                # until Home Assistant was restarted.
-                await self.api.invalidate()
-            # `<=` against the same constant `_compute_health` uses `>=` on,
-            # so the two sit one poll apart on purpose: health reports `error`
-            # on the third failure, entities go unavailable on the fourth.
-            if (
-                self.data is not None
-                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
-            ):
-                _LOGGER.warning(
-                    "%s: Fetch failed due to %s (failure %d/3), "
-                    "holding last known values.",
-                    self.entry.title,
-                    "session timeout"
-                    if isinstance(err, HuaweiAuthError)
-                    else "timeout",
-                    self.consecutive_failures,
-                )
-                self.update_health(None, failed=True, cold_start=False)
-                return self.data
-
-            if isinstance(err, HuaweiAuthError):
-                ir.async_create_issue(
-                    self.hass,
-                    DOMAIN,
-                    f"{REPAIR_AUTH_FAILED}_{self.entry.entry_id}",
-                    is_fixable=True,
-                    is_persistent=True,
-                    severity=ir.IssueSeverity.ERROR,
-                    translation_key="auth_failed",
-                    translation_placeholders={"entry_title": self.entry.title},
-                    data={"entry_id": self.entry.entry_id},
-                )
-                self.update_health(None, failed=True, cold_start=self.data is None)
-                raise ConfigEntryAuthFailed("Authentication failed") from err
-
-            await self._async_report_unreachable()
-
-            error_msg = "API request timed out"
-            _LOGGER.exception("%s: %s", self.entry.title, error_msg)
-            self.update_health(None, failed=True, cold_start=self.data is None)
-            raise UpdateFailed(error_msg) from err
-
-        except Exception as err:
-            self.consecutive_failures += 1
-            # `<=` against the same constant `_compute_health` uses `>=` on,
-            # so the two sit one poll apart on purpose: health reports `error`
-            # on the third failure, entities go unavailable on the fourth.
-            if (
-                self.data is not None
-                and self.consecutive_failures <= FETCH_STRIKE_LIMIT
-            ):
-                _LOGGER.warning(
-                    "%s: Fetch failed (failure %d/3), holding last known values: %s",
-                    self.entry.title,
-                    self.consecutive_failures,
-                    err,
-                )
-                self.update_health(None, failed=True, cold_start=False)
-                return self.data
-
-            if is_paused:
-                _LOGGER.warning(
-                    "%s: Initial fetch failed while paused. Starting with empty data.",
-                    self.entry.title,
-                )
-                self.update_health(None, failed=True, cold_start=True)
-                return {}
-
-            await self._async_report_unreachable()
-
-            _LOGGER.exception(
-                "%s: Connection lost. Marking entities unavailable.", self.entry.title
+            data = await self._fetch_with_session_retry()
+        except HuaweiExpectedUnavailableError:
+            # A poll that passed the check above and then met a window opened
+            # while it waited for the lock. Skipped, as above.
+            _LOGGER.debug(
+                "%s: Router expected to be offline; skipping this poll.",
+                self.entry.title,
             )
-            self.update_health(None, failed=True, cold_start=self.data is None)
-            raise UpdateFailed(f"Communication error: {err}") from err
+            return self.data if self.data is not None else {}
+        except (TimeoutError, HuaweiAuthError) as err:
+            return await self._handle_auth_or_timeout(err)
+        except HuaweiLockoutError as err:
+            return self._handle_lockout(err)
+        except Exception as err:  # noqa: BLE001 - handled and raised there
+            return await self._handle_fetch_failure(err, is_paused=bool(is_paused))
 
         # Post-Fetch Processing & Validation (Outside the main try block)
-        if not data or "device_information" not in data:
+        if not data or (
+            "device_information" not in data and "device_basic_information" not in data
+        ):
             self.update_health(None, failed=True, cold_start=self.data is None)
             raise UpdateFailed("Critical data missing from fetch (e.g. device_info)")
 
-        dev_info = data.get("device_information") or {}
+        dev_info = data.get("device_information") or identity_from_basic_information(
+            data.get("device_basic_information")
+        )
         new_model = get_router_model(dev_info)
         new_sw = dev_info.get("SoftwareVersion")
         new_hw = dev_info.get("HardwareVersion")
@@ -847,6 +1063,7 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
         # Section 19: a success clears the verdict in the SAME cycle — never
         # leave it `on` until some later poll.
         self.update_health(data, failed=False, cold_start=False)
+        self._persist_answered()
 
         # SMS Event Logic
         if "sms_list" in data:
@@ -884,7 +1101,31 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                 self.entry, data={**kept, **entry_data_updates}
             )
 
+        await self._async_observe(data)
         return data
+
+    async def _async_observe(self, data: dict[str, Any]) -> None:
+        """Fold a successful poll into the transition and populated records.
+
+        Runs only on the success path, so a degraded or failed poll neither
+        records a transition nor forgets a populated entity. The write is
+        skipped when nothing changed, which is almost every poll. As in
+        `zte_router_5g`.
+        """
+        observed = self.observations.observe(data)
+        answered = self.observations.set_information_answered(
+            self.api.information_answered
+        )
+        # A poll that fired a message or took the baseline saves on that poll,
+        # or a restart before the next save would announce the message again.
+        sms = self._sms_record_dirty and self._sms_secret is not None
+        if sms:
+            self.observations.set_sms_record(
+                str(self._sms_secret), self._sms_seen_order
+            )
+            self._sms_record_dirty = False
+        if observed or answered or sms:
+            await self.observations.async_save()
 
     # ------------------------------------------------------------------
     # State views
@@ -1496,7 +1737,24 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             if latch.drift_rate_max is not None:
                 block["rate_max"] = round(latch.drift_rate_max, 6)
             record[latch.counter_key] = block
+        record[ANSWERED_STORE_KEY] = sorted(self._answered_saved)
         return record
+
+    def _persist_answered(self) -> None:
+        """Save the answered set when it has changed since the last write.
+
+        The set is the union of the restored set and the current run's. Saved
+        on its own change and not only when an uptime counter is written, so a
+        newly answering endpoint reaches the store within one save delay.
+        """
+        current = self._answered_restored | self.api.answered_endpoints
+        if current == self._answered_saved:
+            return
+        self._answered_saved = current
+        if self._store is None:
+            return
+        record = self._store_record()
+        self._store.async_delay_save(lambda: record, UPTIME_SAVE_DELAY)
 
     async def async_load_stored_uptime(self) -> None:
         """Load the persisted counters and accumulators. Never raises.
@@ -1533,6 +1791,12 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             block = stored.get(latch.counter_key)
             if isinstance(block, dict):
                 self._restore_latch(latch, block)
+        # Absent from a store written before 1.2.4-dev2, which then restores
+        # nothing and starts empty.
+        names = stored.get(ANSWERED_STORE_KEY)
+        if isinstance(names, list):
+            self._answered_restored = frozenset(str(name) for name in names)
+            self._answered_saved = self._answered_restored
 
     def _restore_latch(self, latch: _UptimeLatch, block: dict[str, Any]) -> None:
         """Read one latch's block back, treating anything unusable as absent."""
@@ -1661,38 +1925,116 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
             sorted(entries[0]) if entries else [],
         )
 
-    def _check_new_sms(self, data: dict[str, Any]) -> None:
-        """Check for new SMS messages and fire events."""
-        sms_list = parse_sms_list(data.get("sms_list"))
-        if not sms_list:
+    def _sms_identity(self, msg: dict[str, Any]) -> str:
+        """Return a message's identity: its index and a keyed hash of its content.
+
+        Not its `Date` string, which the H165-383 gives as local time with no
+        offset (2026-10-09): within a repeated hour the same time occurs twice,
+        and a clock change can order a later message before an earlier one.
+
+        Keyed by a random per-install secret (1.2.4-dev8 plan I7), because the
+        identities are persisted: an unsalted hash would let anyone holding the
+        store file confirm a guessed sender and text.
+        """
+        if self._sms_secret is None:
+            self._sms_secret = secrets.token_hex(32)
+        digest = hmac.new(
+            bytes.fromhex(self._sms_secret),
+            f"{msg['phone']}\x00{msg['content']}".encode(),
+            hashlib.sha256,
+        ).hexdigest()[:16]
+        return f"{msg['index']}_{digest}"
+
+    def restore_sms_record(self) -> None:
+        """Restore the persisted SMS record, if any, before the first poll.
+
+        With a record, the first poll after a start announces a message that
+        arrived while Home Assistant was stopped instead of taking a silent
+        baseline. Without one, which is a first install, an upgrade from
+        before 1.2.4-dev8 or an unreadable store, the baseline is taken as
+        before.
+        """
+        record = self.observations.sms_record()
+        if record is None:
             return
+        self._sms_secret, seen = record
+        self._sms_seen_order = list(seen)
+        self.fired_sms_hashes = set(seen)
+        self.sms_baseline_taken = True
 
-        # Sort by date ascending (oldest first) to ensure events fire in order
-        sms_list.sort(key=lambda x: x["date"])
+    def _remember_sms(self, identities: list[str], present: set[str]) -> None:
+        """Add identities to the ordered record and cap it at `SMS_SEEN_CAP`.
 
-        # On first run, just set the baseline timestamp and hashes
-        if self.last_sms_timestamp is None:
-            self.last_sms_timestamp = sms_list[-1]["date"]
-            self.fired_sms_hashes = {
-                f"{msg['index']}_{msg['date']}"
-                for msg in sms_list
-                if msg["date"] == self.last_sms_timestamp
-            }
+        Dropped from the oldest end, never an identity in the current read, so
+        a message still on the router is not forgotten and announced again.
+        """
+        order = [i for i in self._sms_seen_order if i not in identities]
+        order += [i for i in self.fired_sms_hashes if i not in order]
+        order = [i for i in order if i not in identities] + identities
+        excess = len(order) - SMS_SEEN_CAP
+        if excess > 0:
+            drop = [i for i in order if i not in present][:excess]
+            order = [i for i in order if i not in drop]
+        self._sms_seen_order = order
+        self.fired_sms_hashes = set(order)
+        self._sms_record_dirty = True
+
+    @callback
+    def add_sms_listener(
+        self, listener: Callable[[dict[str, Any]], None]
+    ) -> CALLBACK_TYPE:
+        """Call `listener` with each new message; return the function removing it."""
+        self._sms_listeners.append(listener)
+
+        @callback
+        def _remove() -> None:
+            self._sms_listeners.remove(listener)
+
+        return _remove
+
+    def _check_new_sms(self, data: dict[str, Any]) -> None:
+        """Fire an event for each message not seen before.
+
+        A message is new when its identity, index and content hash, has not
+        been seen. The first poll that reads the list takes the baseline and
+        fires nothing, so nothing already held is replayed. Seen identities
+        are kept, not pruned to the current list, so a message that leaves the
+        20 read and returns after a delete does not fire again.
+        """
+        if "sms_list" not in data:
+            return
+        sms_list = parse_sms_list(data.get("sms_list"))
+        identities = {self._sms_identity(msg): msg for msg in sms_list}
+
+        if not self.sms_baseline_taken:
+            self.sms_baseline_taken = True
+            self.fired_sms_hashes = set()
+            self._sms_seen_order = []
+            self._remember_sms(
+                [
+                    self._sms_identity(msg)
+                    for msg in sorted(sms_list, key=lambda m: _safe_index(m["index"]))
+                ],
+                set(identities),
+            )
+            if sms_list:
+                self.last_sms_timestamp = max(msg["date"] for msg in sms_list)
             _LOGGER.debug(
-                "%s: SMS tracking baseline established at %s",
+                "%s: SMS tracking baseline established with %d messages",
                 self.entry.title,
-                self.last_sms_timestamp,
+                len(identities),
             )
             return
 
-        new_messages = []
-        for msg in sms_list:
-            msg_hash = f"{msg['index']}_{msg['date']}"
-            if msg["date"] > self.last_sms_timestamp or (
-                msg["date"] == self.last_sms_timestamp
-                and msg_hash not in self.fired_sms_hashes
-            ):
-                new_messages.append(msg)
+        # Oldest first by index, which the router assigns in arrival order.
+        new_messages = sorted(
+            (
+                msg
+                for key, msg in identities.items()
+                if key not in self.fired_sms_hashes
+            ),
+            key=lambda msg: _safe_index(msg["index"]),
+        )
 
         for msg in new_messages:
             # **No sender number.** This is `info`, so it reaches every log on
@@ -1711,11 +2053,8 @@ class HuaweiRouter5GDataUpdateCoordinator(DataUpdateCoordinator):
                     "index": msg["index"],
                 },
             )
+            for listener in list(self._sms_listeners):
+                listener(msg)
 
-            # Update tracking state
-            msg_hash = f"{msg['index']}_{msg['date']}"
-            if msg["date"] > self.last_sms_timestamp:
-                self.last_sms_timestamp = msg["date"]
-                self.fired_sms_hashes = {msg_hash}
-            else:
-                self.fired_sms_hashes.add(msg_hash)
+            self._remember_sms([self._sms_identity(msg)], set(identities))
+            self.last_sms_timestamp = msg["date"]

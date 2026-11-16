@@ -3,42 +3,58 @@
 from __future__ import annotations
 
 import asyncio
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 import contextlib
 from contextlib import asynccontextmanager
-from dataclasses import dataclass
+from contextvars import ContextVar
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
+import functools
 import logging
+from math import ceil
 import time
 from typing import Any, cast
 from urllib.parse import urlparse, urlunparse
+from xml.parsers.expat import ExpatError
 
 import huawei_lte_api
 from huawei_lte_api.Client import Client
 from huawei_lte_api.Connection import Connection
 from huawei_lte_api.enums.device import ControlModeEnum
+from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
 from huawei_lte_api.enums.sms import BoxTypeEnum, SortTypeEnum
 from huawei_lte_api.exceptions import (
     LoginErrorAlreadyLoginException,
-    LoginErrorPasswordWrongException,
-    LoginErrorUsernameWrongException,
+    LoginErrorInvalidCredentialsException,
+    LoginErrorUsernamePasswordOverrunException,
     ResponseErrorException,
     ResponseErrorLoginRequiredException,
 )
 from packaging.version import InvalidVersion, Version
+import requests
+import xmltodict
 
 from .const import (
     ADJUDICATION_BUDGET,
+    CAPABILITY_BASIC_INFO_KEYS,
+    CAPABILITY_PROBES,
     FETCH_DEADLINE,
     LIBRARY_ADDED_ENDPOINTS,
     LOCK_TIMEOUT,
     NET_MODE_SETTLE,
+    OUTAGE_CAP_REBOOT,
+    OUTAGE_CAP_RECONNECT,
+    OUTAGE_CHECK_TIMEOUT,
+    OUTAGE_REASON_REBOOT,
+    OUTAGE_REASON_RECONNECT,
     PREMISE_TIMEOUT,
     PROBE_TIMEOUT,
+    REBOOT_VERIFY_INTERVAL,
+    REBOOT_VERIFY_SECONDS,
     REQUEST_TIMEOUT,
     WRITE_TIMEOUT,
 )
-from .helpers import _safe_int, confirm_write
+from .helpers import _safe_int, confirm_write, ssid_entries
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -59,6 +75,9 @@ def _read_library_version() -> Version | None:
 
 
 _LIBRARY_VERSION = _read_library_version()
+# Public name for the version the running process imported, for Integration
+# Health (1.2.4-dev4 I7).
+LIBRARY_LOADED_VERSION = _LIBRARY_VERSION
 
 
 def library_supports(first_version: str) -> bool:
@@ -70,16 +89,35 @@ def library_supports(first_version: str) -> bool:
     return _LIBRARY_VERSION is None or Version(first_version) <= _LIBRARY_VERSION
 
 
-def _call_added_endpoint(client: Client, key: str) -> Any:
-    """Call a library method listed in `LIBRARY_ADDED_ENDPOINTS` by its table row.
+def _read_path(path: str) -> Callable[[Client], Any]:
+    """A probe that reads one router path the library does not wrap.
 
-    Reached by name so that Mypy passes on a library that lacks the method and
-    on one that has it, without a `type: ignore` that is unused on the newer
-    one. The two calls are therefore not type-checked; `test_library_contract`
-    checks the table's names against the library instead.
+    Through the library session, as the library's own methods do, so the
+    login, the tokens and the error mapping are the library's.
     """
-    group, method, _ = LIBRARY_ADDED_ENDPOINTS[key]
-    return cast("Callable[[], Any]", getattr(getattr(client, group), method))()
+    return lambda c: c.device._session.get(path)  # noqa: SLF001 - unwrapped path
+
+
+def _call_added_endpoint(client: Client, key: str) -> Any:
+    """Read one of the two endpoints `huawei-lte-api` gained in 2.0.1.
+
+    **Read on any library version, by design.** Home Assistant's container image
+    ships 1.11.0, core `huawei_lte`'s pin, and replaces any newer copy at every
+    Home Assistant update, so 1.11.0 is what runs after each update until the
+    next restart. The 2.0.1 methods are plain reads of a router path,
+    `voice/volte` and `monitoring/onekey_diag`, so on 1.11.0 the same path is
+    read through the library session. VoLTE Status and Router Self-Diagnosis
+    therefore never read unknown for want of a restart.
+
+    On 2.0.1 or later the library's own method is called, reached by name so
+    that Mypy passes on a library that lacks it; `test_library_contract` checks
+    the table's names against the library.
+    """
+    group, method, first, path = LIBRARY_ADDED_ENDPOINTS[key]
+    endpoint = getattr(client, group)
+    if library_supports(first):
+        return cast("Callable[[], Any]", getattr(endpoint, method))()
+    return endpoint._session.get(path)  # noqa: SLF001 - the path the method reads
 
 
 def _normalize_router_url(host: str) -> str:
@@ -106,6 +144,84 @@ class HuaweiAuthError(Exception):
     """Raised when login credentials are rejected."""
 
 
+class HuaweiSessionExpiredError(HuaweiAuthError):
+    """Raised when a session the router had accepted has ended.
+
+    A subclass, so every handler of `HuaweiAuthError` still catches it. It
+    exists so the coordinator can retry an expired session, which a fresh login
+    repairs, without retrying a rejected login, which a second attempt cannot
+    repair and which counts toward the router's lockout.
+    """
+
+
+class HuaweiWriteRefusedError(HuaweiConnectionError):
+    """Raised when the router refuses a write with a session code.
+
+    100003, 125002 or 125003 in answer to a write means the command was not
+    carried out. A subclass of `HuaweiConnectionError`, so every existing
+    handler still catches it. It exists so `_retry_once_on_refusal` can tell a
+    refusal, which sent nothing, from a timeout or a transport error, after
+    which the write may have applied. The same rule as `zte_router_5g`'s
+    `ZTEWriteRefusedError`.
+    """
+
+
+class HuaweiExpectedUnavailableError(HuaweiConnectionError):
+    """Raised in place of a request while the router is known to be offline.
+
+    Reboot and Reconnect take the router away for a known reason. A request
+    sent in that window waits out its timeout and then fails, so it is refused
+    at once instead, with the reason and the seconds left. A subclass of
+    `HuaweiConnectionError`, so every caller that handles an unreachable router
+    handles this unchanged. The same class as `zte_router_5g`'s
+    `ZTERouterExpectedUnavailableError`.
+    """
+
+    def __init__(self, reason: str, seconds_remaining: int) -> None:
+        """Carry the reason and the time left, for the user-facing message."""
+        self.reason = reason
+        self.seconds_remaining = seconds_remaining
+        super().__init__(
+            f"Router expected to be unavailable ({reason}); "
+            f"about {seconds_remaining}s remaining"
+        )
+
+
+class HuaweiLockoutError(Exception):
+    """Raised when the router refuses a login after too many failed attempts.
+
+    Code 108007, `LoginErrorUsernamePasswordOverrunException`. Deliberately
+    **not** a `HuaweiAuthError`: the stored credentials may be right, and a
+    reauth flow would send the user to retype a password that was never the
+    problem. The lockout threshold and duration are unmeasured on any unit held.
+    """
+
+
+# Set while the expected-outage window's own check or closing poll runs, so
+# those requests pass the gate. A context variable rather than a flag on the
+# client: it follows the awaits of the task that set it and nothing else, so a
+# user action running concurrently is still refused. As in `zte_router_5g`.
+_OUTAGE_BYPASS: ContextVar[bool] = ContextVar("huawei_outage_bypass", default=False)
+
+
+@dataclass(frozen=True)
+class ExpectedOutage:
+    """One expected-outage window: why it opened, when, and when it gives up."""
+
+    reason: str
+    opened_at: datetime
+    deadline: float
+
+    @property
+    def expired(self) -> bool:
+        """Whether the window is past its cap."""
+        return time.monotonic() >= self.deadline
+
+    def seconds_remaining(self) -> int:
+        """Whole seconds until the cap, never negative."""
+        return max(0, ceil(self.deadline - time.monotonic()))
+
+
 @dataclass
 class _PollState:
     """What one `_fetch` run knows while it adjudicates session signals.
@@ -114,11 +230,63 @@ class _PollState:
     after a reset (by a worker thread the coordinator's timeout orphaned) can be
     told from one made by the live run. `reread_live` is set once the re-read of
     `device_information` has answered, so it is made at most once per poll.
+    `retried` names the endpoints sent a second time after a dropped
+    connection, for the endpoint outcomes of the download.
     """
 
     started: float
     generation: int
     reread_live: bool = False
+    retried: set[str] = field(default_factory=set)
+
+
+_SESSION_CODES = ("100003", "125002", "125003")
+
+# Seconds a logout before a reset may take. The reset goes ahead when it
+# passes, so a router that does not answer delays it by no more than this.
+_RELEASE_TIMEOUT = 3
+
+# A request the router dropped rather than answered: the TCP connection closed
+# without a response (`RemoteDisconnected`, raised as `ConnectionError`) or the
+# read timed out. On the H165-383 about one refusal in ten is followed by such a
+# drop, and the next request on the same session answers (2026-10-09).
+_DROPPED = (requests.ConnectionError, requests.Timeout)
+
+# The write methods `_retry_once_on_refusal` wraps, by name. Read by the tests
+# that assert `send_sms`, `delete_sms` and `reboot` are never among them.
+RETRIED_ON_REFUSAL: set[str] = set()
+
+
+def _retry_once_on_refusal[**P, T](
+    method: Callable[P, Awaitable[T]],
+) -> Callable[P, Awaitable[T]]:
+    """Run a write once more, rebuilt from scratch, when the router refuses it.
+
+    The rule of `zte_router_5g`'s decorator of the same name. Only an explicit
+    refusal, `HuaweiWriteRefusedError`, is retried: a timeout or a transport
+    error may mean the write landed. The second run logs in first, through
+    `_relogin_before_write`, and rebuilds the payload by running the whole
+    method again. Applied only to writes that set a complete state, so a
+    second send cannot do anything the first did not; `send_sms`,
+    `delete_sms`, `reboot` and `reconnect` are never wrapped.
+    """
+
+    @functools.wraps(method)
+    async def wrapper(*args: P.args, **kwargs: P.kwargs) -> T:
+        api = cast("HuaweiRouter5GAPI", args[0])
+        try:
+            return await method(*args, **kwargs)
+        except HuaweiWriteRefusedError as err:
+            _LOGGER.warning(
+                "%s refused; retrying once with a fresh login: %s",
+                method.__name__,
+                err,
+            )
+            api._relogin_before_write = True  # noqa: SLF001
+            return await method(*args, **kwargs)
+
+    RETRIED_ON_REFUSAL.add(method.__name__)
+    return wrapper
 
 
 READ_BACK_ENDPOINTS: dict[str, Callable[[Any], Any]] = {
@@ -179,6 +347,9 @@ class HuaweiRouter5GAPI:
         # response and this wrapper never sees a raw body.
         self.last_rejection: dict[str, Any] | None = None
         self.login_metadata: dict[str, Any] = {}
+        # The lockout state read before the most recent login, from
+        # `_read_login_guard_sync`; empty where the router did not report it.
+        self.login_guard: dict[str, Any] = {}
 
         # The outcome of every endpoint in the most recent poll, by name.
         #
@@ -196,7 +367,7 @@ class HuaweiRouter5GAPI:
         # unchanged. Written per poll, so it describes one pass rather than
         # accumulating across a session.
         self.endpoint_outcomes: dict[str, Any] = {}
-        self._unsupported_logged = False
+        self._poll_http_statuses: list[int] = []
 
         # **Refusal separated from expiry** (dev16 plan I1). 100003 is both what
         # a router answers to an endpoint it refuses and what it answers once a
@@ -219,34 +390,33 @@ class HuaweiRouter5GAPI:
         self._premise_cache: str | None = None
         self.premise_result: dict[str, Any] | None = None
         self._answered: set[str] = set()
+        # **The `device/basic-information` fallback** (1.2.4-dev8 plan I3).
+        # `information_answered` is whether `device_information` has ever
+        # answered on this entry; the coordinator seeds it from the observed
+        # store and persists it, so it survives a restart where `_answered`
+        # does not. While it is False, a refusal of `device_information` starts
+        # the fallback instead of failing the poll. `_unread_since_login` marks
+        # a session on which `device_information` has not yet been read: a
+        # refusal on that first read cannot be an expiry, so it starts the
+        # fallback even where the flag is set.
+        self.information_answered = False
+        self.fallback_active = False
+        self._unread_since_login = False
         self._generation = 0
         self._refusal_warned: set[tuple[str, str]] = set()
         # Sessions found lost during the last diagnostics sweep, for the download.
         self.sweep_sessions_lost = 0
+        # Set by `_retry_once_on_refusal` so the repeated write logs in first.
+        self._relogin_before_write = False
+        # The open expected-outage window, or `None`. Opened by `reboot` and
+        # `reconnect` before they release the lock, so a poll queued behind
+        # either is refused rather than sent to a router going away.
+        self.expected_outage: ExpectedOutage | None = None
 
     @property
     def answered_endpoints(self) -> frozenset[str]:
         """Names of the endpoints that have answered since this object began."""
         return frozenset(self._answered)
-
-    def _log_unsupported_once(self) -> None:
-        """Log, once per client, which endpoints the loaded library cannot serve."""
-        if self._unsupported_logged:
-            return
-        # Called only when an endpoint has just been skipped, so the list is
-        # never empty.
-        skipped = sorted(
-            key
-            for key, (_, _, first) in LIBRARY_ADDED_ENDPOINTS.items()
-            if not library_supports(first)
-        )
-        _LOGGER.info(
-            "huawei-lte-api %s predates %s; these endpoints are skipped "
-            "and read unknown until the library is 2.0.1 or later",
-            getattr(huawei_lte_api, "__version__", "unknown"),
-            ", ".join(skipped),
-        )
-        self._unsupported_logged = True
 
     @asynccontextmanager
     async def _write_deadline(self, operation: str) -> AsyncIterator[None]:
@@ -295,6 +465,10 @@ class HuaweiRouter5GAPI:
         deliberately an error and not a silent pass-through: this is a
         programming mistake, not a runtime condition.
 
+        **An expected outage.** While a Reboot or Reconnect window is open, the
+        request is refused before anything is sent, on entry and again once the
+        lock is held (`refuse_during_outage`).
+
         **Unbounded waiting.** Once one task was wedged, every later poll and
         button press queued behind it and died at the coordinator's timeout,
         each one reporting a router problem that did not exist. A bounded wait
@@ -302,6 +476,7 @@ class HuaweiRouter5GAPI:
         operation that could not get the lock. See `LOCK_TIMEOUT` for the
         arithmetic behind the bound.
         """
+        self.refuse_during_outage()
         if self._lock_owner is not None and self._lock_owner is asyncio.current_task():
             raise RuntimeError(
                 f"{operation}: the API lock is already held by this task. "
@@ -315,12 +490,69 @@ class HuaweiRouter5GAPI:
                 f"{operation}: timed out after {LOCK_TIMEOUT}s waiting for the "
                 "router API lock"
             ) from err
+        # Checked again once the lock is held: a window opened by the command
+        # that held it applies to every request queued behind that command.
+        try:
+            self.refuse_during_outage()
+        except HuaweiExpectedUnavailableError:
+            self._lock.release()
+            raise
         self._lock_owner = asyncio.current_task()
         try:
             yield
         finally:
             self._lock_owner = None
             self._lock.release()
+
+    def _read_login_guard_sync(self) -> dict[str, Any]:
+        """The router's lockout state, read without a session (blocking).
+
+        `user/state-login` answers without a login on the H165-383 and carries
+        `lockstatus`, 1 while a lockout runs and 0 otherwise, and
+        `remainwaittime`, the seconds left of it (measured 2026-10-10, three
+        wrong passwords locking logins for about 65 s). An empty result, from a
+        failed read or a router that reports neither field, lets the login
+        proceed as it did before the check existed.
+        """
+        try:
+            response = requests.get(
+                f"{self.url}/api/user/state-login", timeout=OUTAGE_CHECK_TIMEOUT
+            )
+            try:
+                parsed = xmltodict.parse(response.text)
+            finally:
+                response.close()
+        except (requests.RequestException, ExpatError):
+            return {}
+        payload = parsed.get("response") if isinstance(parsed, dict) else None
+        if not isinstance(payload, dict) or "lockstatus" not in payload:
+            return {}
+        return {
+            "locked": _safe_int(payload.get("lockstatus")) == 1,
+            "lock_seconds": _safe_int(payload.get("remainwaittime")),
+        }
+
+    def _check_login_guard_sync(self) -> None:
+        """Raise `HuaweiLockoutError` in place of a login during a lockout.
+
+        As in `zte_router_5g`, whose login reads the router's counters first: a
+        login sent while a lockout runs cannot succeed and may extend it. The
+        router reports no attempts remaining, so unlike ZTE nothing withholds a
+        login before the lockout starts.
+        """
+        self.login_guard = self._read_login_guard_sync()
+        if self.login_guard.get("locked"):
+            seconds = self.login_guard.get("lock_seconds")
+            raise HuaweiLockoutError(
+                f"Login withheld: the router reports a lockout, {seconds} s left"
+            )
+
+    def _record_response_status(
+        self, response: requests.Response, *_args: Any, **_kwargs: Any
+    ) -> requests.Response:
+        """Append the HTTP status code of a post-login response and pass it through."""
+        self._poll_http_statuses.append(int(response.status_code))
+        return response
 
     def _create_connection_sync(self) -> tuple[Connection, Client]:
         """Create a new Connection and Client (blocking, runs in thread).
@@ -330,27 +562,37 @@ class HuaweiRouter5GAPI:
         """
         if self.url is None:
             raise ValueError("Router URL is not initialized")
+        self._check_login_guard_sync()
         conn = Connection(
             self.url,
             username=self.username,
             password=self.password,
             timeout=REQUEST_TIMEOUT,
         )
+        conn.requests_session.hooks["response"].append(self._record_response_status)
         return conn, Client(conn)
 
     async def login(self) -> None:
         """Establish a fresh connection to the router."""
         async with self._locked("login"):
-            self._reset_client()
+            await self._release_session()
             try:
                 conn, client = await asyncio.to_thread(self._create_connection_sync)
                 self._connection = conn
                 self._client = client
                 self._last_activity = datetime.now(UTC)
-            except (
-                LoginErrorPasswordWrongException,
-                LoginErrorUsernameWrongException,
-            ) as err:
+                self._unread_since_login = True
+            except HuaweiLockoutError:
+                self._connection = None
+                self._client = None
+                raise
+            except LoginErrorUsernamePasswordOverrunException as err:
+                self._connection = None
+                self._client = None
+                raise HuaweiLockoutError(f"Login locked out: {err}") from err
+            # The parent class, so a wrong pair (108006) is a credentials
+            # failure as well as a wrong username (108001) or password (108002).
+            except LoginErrorInvalidCredentialsException as err:
                 self._connection = None
                 self._client = None
                 raise HuaweiAuthError(f"Authentication failed: {err}") from err
@@ -370,14 +612,22 @@ class HuaweiRouter5GAPI:
         concurrent-session limit is the reason this class holds a lock at all.
         The real method is `client.user.logout()`.
 
-        Deliberately **not** routed through `_execute_with_retry`: re-logging
-        in so a logout can be retried is self-defeating.
+        Deliberately **not** routed through `_execute_with_retry`: a logout
+        refused because the session has ended needs no retry, and logging in
+        so that a logout can be repeated is self-defeating.
 
         The broad `except` is kept on purpose — a failed logout during teardown
         is not worth propagating, and the connection is discarded either way.
+        It passes the expected-outage gate, so an unload during a window is
+        not refused; the client is already reset then, and nothing is sent.
         What stops that swallow hiding a wrong method name again is the library
         contract test, not a narrower catch here.
         """
+        with self.outage_bypass():
+            await self._logout_locked()
+
+    async def _logout_locked(self) -> None:
+        """Log out under the lock, passing the outage gate (see `logout`)."""
         async with self._locked("logout"):
             client = self._client
             if client is None:
@@ -416,6 +666,29 @@ class HuaweiRouter5GAPI:
             with contextlib.suppress(Exception):
                 connection.requests_session.close()
 
+    async def _release_session(self) -> None:
+        """Log the current session out, then reset the client.
+
+        For the resets that leave a live session: the idle reset in
+        `_ensure_client`, the reset after Reconnect, and a login over an
+        existing client. The H165-383 holds at most 10 sessions and keeps one
+        discarded without a logout for about 180 s (2026-10-09), so ten such
+        resets inside three minutes would lock out every login.
+
+        The logout runs in a worker thread and is bounded by
+        `_RELEASE_TIMEOUT`. Its failure is logged at debug level and never
+        stops the reset. A reset after an expiry, an unreachable router or a
+        Reboot calls `_reset_client` directly, with no logout.
+        """
+        client = self._client
+        if client is not None:
+            try:
+                async with asyncio.timeout(_RELEASE_TIMEOUT):
+                    await asyncio.to_thread(client.user.logout)
+            except Exception:
+                _LOGGER.debug("Logout before a reset failed", exc_info=True)
+        self._reset_client()
+
     async def invalidate(self) -> None:
         """Discard the current connection so the next call builds a fresh one.
 
@@ -441,8 +714,9 @@ class HuaweiRouter5GAPI:
         reported everything unavailable with nothing to say which end was at
         fault.
 
-        Three outcomes, and the third exists because this router permits one
-        login:
+        Three outcomes, and the third exists because the router caps the
+        sessions it holds open (`docs/huawei_how_to_access.md`, "A login is
+        required"):
 
         | Return | Meaning |
         | :-- | :-- |
@@ -458,8 +732,9 @@ class HuaweiRouter5GAPI:
 
         **Does not take the lock**, for the same reason as `invalidate`: the
         lock is one of the things being diagnosed. It logs out and closes the
-        session it opens, because this router permits one login and a probe
-        that leaked sessions would cause the outage it is investigating. Called
+        session it opens, because the router caps its open sessions (the same
+        section) and a probe that leaked sessions would cause the outage it is
+        investigating. Called
         once per exhausted strike budget, never per poll.
         """
 
@@ -480,6 +755,10 @@ class HuaweiRouter5GAPI:
             # A router with a session already open is answering, not down.
             _LOGGER.debug("Liveness probe refused: a session is already open")
             return None
+        except HuaweiLockoutError:
+            # A router reporting a lockout is answering, not down.
+            _LOGGER.debug("Liveness probe withheld: the router reports a lockout")
+            return None
         except Exception:
             _LOGGER.debug("Liveness probe failed", exc_info=True)
             return False
@@ -492,8 +771,8 @@ class HuaweiRouter5GAPI:
             self._client is not None
             and (now - self._last_activity).total_seconds() > 100
         ):
-            _LOGGER.debug("Session likely expired due to inactivity; resetting client")
-            self._reset_client()
+            _LOGGER.debug("Session idle past its reset time; releasing it")
+            await self._release_session()
 
         if self._client is None:
             await self._login_internal()
@@ -536,11 +815,19 @@ class HuaweiRouter5GAPI:
             self._connection = conn
             self._client = client
             self._last_activity = datetime.now(UTC)
+            self._unread_since_login = True
             self._record_login_metadata("ok")
-        except (
-            LoginErrorPasswordWrongException,
-            LoginErrorUsernameWrongException,
-        ) as err:
+        except HuaweiLockoutError as err:
+            self._connection = None
+            self._client = None
+            self._record_login_metadata("lockout", type(err).__name__)
+            raise
+        except LoginErrorUsernamePasswordOverrunException as err:
+            self._connection = None
+            self._client = None
+            self._record_login_metadata("lockout", type(err).__name__)
+            raise HuaweiLockoutError(f"Login locked out: {err}") from err
+        except LoginErrorInvalidCredentialsException as err:
             self._connection = None
             self._client = None
             self._record_login_metadata("auth_failed", type(err).__name__)
@@ -614,11 +901,15 @@ class HuaweiRouter5GAPI:
         payload block itself is published beside it in the download and carries
         both, sanitized.
         """
+        statuses = list(self._poll_http_statuses)
+        self._poll_http_statuses.clear()
         record: dict[str, Any] = {"outcome": outcome}
         if code is not None:
             record["code"] = code
         if elapsed_ms is not None:
             record["elapsed_ms"] = elapsed_ms
+        if statuses:
+            record["http_statuses"] = statuses
         if outcome == "answered":
             record["type"] = type(result).__name__
             if isinstance(result, dict):
@@ -682,7 +973,12 @@ class HuaweiRouter5GAPI:
         that has answered raises as an expiry, so setup is not left failing on a
         router where the premise cannot be checked.
         """
-        within_budget = time.monotonic() - poll.started <= ADJUDICATION_BUDGET
+        # In the `device/basic-information` fallback, `device_information`
+        # cannot be the re-read, so the history rule below decides.
+        within_budget = (
+            time.monotonic() - poll.started <= ADJUDICATION_BUDGET
+            and not self.fallback_active
+        )
         premise = self._premise_cache
         if premise is None and within_budget:
             premise = self._read_premise(poll.generation)
@@ -690,7 +986,9 @@ class HuaweiRouter5GAPI:
             if poll.reread_live:
                 return "live_session"
             try:
-                client.device.information()
+                self._call_once_more_if_dropped(
+                    client.device.information, poll, "device_information"
+                )
             except ResponseErrorException as err:
                 if isinstance(err, ResponseErrorLoginRequiredException) or str(
                     err.code
@@ -737,7 +1035,7 @@ class HuaweiRouter5GAPI:
             )
             self._record_verdict("expired", code=code, key=key, payload=data)
             self._record_endpoint(key, "expired", code)
-            raise HuaweiAuthError(f"Session expired: {err}") from err
+            raise HuaweiSessionExpiredError(f"Session expired: {err}") from err
         if (key, code) not in self._refusal_warned:
             self._refusal_warned.add((key, code))
             _LOGGER.warning(
@@ -749,36 +1047,82 @@ class HuaweiRouter5GAPI:
             )
         return judged
 
-    async def _execute_with_retry(self, func: Callable[[Client], Any]) -> Any:
-        """Execute operation on client, retrying once on session expiry."""
+    async def _read_refused_on_live_session(self, client: Client) -> bool:
+        """Say whether a session signal from a read came on a live session.
+
+        The fetch loop's adjudication, for a read made outside a poll. With the
+        premise confirmed, `device_information` is read again on the session;
+        an answer shows the session live, so the signal was a refusal. The
+        premise check and the re-read are bounded by `PREMISE_TIMEOUT`, since
+        the per-poll `ADJUDICATION_BUDGET` does not apply here. Any other
+        outcome is `False`, and the caller logs in once as for an expiry.
+        """
+        premise = self._premise_cache
+        try:
+            if premise is None:
+                async with asyncio.timeout(2 * PREMISE_TIMEOUT):
+                    premise = await asyncio.to_thread(
+                        self._read_premise, self._generation
+                    )
+            if premise != "refused":
+                return False
+            async with asyncio.timeout(PREMISE_TIMEOUT):
+                await asyncio.to_thread(client.device.information)
+        except Exception:
+            _LOGGER.debug("Session check after a refused read failed", exc_info=True)
+            return False
+        return True
+
+    async def _execute_with_retry(
+        self, func: Callable[[Client], Any], *, write: bool = False
+    ) -> Any:
+        """Run `func` on the client, logging in once more only for an expiry.
+
+        A 100003, 125002 or 125003 from a read is adjudicated as the fetch loop
+        does it: where the session is shown live, the router refuses that read,
+        and the error is raised with no login and no repeat. The H165-383
+        refuses 38 reads on a live session, and a fresh login changes none of
+        them (2026-10-09). Otherwise the session has ended, and one login and
+        one repeat follow.
+
+        The same codes from a write raise `HuaweiWriteRefusedError` with no
+        login here; `_retry_once_on_refusal` decides whether the write is sent
+        again. Every write path passes `write=True`.
+        """
+        if write and self._relogin_before_write:
+            self._relogin_before_write = False
+            self._reset_client()
         client = await self._ensure_client()
-        res = None
         try:
             res = await asyncio.to_thread(lambda: func(client))
-            self._last_activity = datetime.now(UTC)
-        except (ResponseErrorLoginRequiredException, ResponseErrorException) as err:
-            is_expired = isinstance(err, ResponseErrorLoginRequiredException)
-            code = str(err.code) if isinstance(err, ResponseErrorException) else None
-            if not is_expired and code is not None:
-                is_expired = code in ("125002", "125003", "100003")
-
+        except ResponseErrorException as err:
+            code = str(err.code)
+            is_signal = isinstance(err, ResponseErrorLoginRequiredException) or (
+                code in _SESSION_CODES
+            )
+            if not is_signal:
+                self._record_verdict("refused", code=code)
+                raise
+            if write:
+                self._record_verdict("refused", code=code)
+                raise HuaweiWriteRefusedError(
+                    f"Router refused the write with {code}"
+                ) from err
+            if await self._read_refused_on_live_session(client):
+                self._last_activity = datetime.now(UTC)
+                self._record_verdict("refused", code=code)
+                raise
             # Recorded at the point the verdict is drawn, not at the point of
-            # raising, so the expiry below — which is retried and often
-            # recovers — still leaves evidence behind. A later live poll
+            # raising, so the expiry below, which is retried and often
+            # recovers, still leaves evidence behind. A later live poll
             # clears it, so a rejection in the download is one the integration
             # had not yet recovered from.
-            self._record_verdict("expired" if is_expired else "refused", code=code)
-
-            if is_expired:
-                _LOGGER.debug(
-                    "Session expired during operation. Retrying after re-login."
-                )
-                self._reset_client()
-                client = await self._ensure_client()
-                res = await asyncio.to_thread(lambda: func(client))
-                self._last_activity = datetime.now(UTC)
-            else:
-                raise
+            self._record_verdict("expired", code=code)
+            _LOGGER.debug("Session expired during operation. Retrying after re-login.")
+            self._reset_client()
+            client = await self._ensure_client()
+            res = await asyncio.to_thread(lambda: func(client))
+        self._last_activity = datetime.now(UTC)
         return res
 
     # Endpoints this integration does **not** poll, probed once per diagnostics
@@ -814,6 +1158,7 @@ class HuaweiRouter5GAPI:
         ("security_feature_switch", lambda c: c.security.feature_switch()),
         ("dhcp_feature_switch", lambda c: c.dhcp.feature_switch()),
         ("cradle_feature_switch", lambda c: c.cradle.feature_switch()),
+        ("dial_up_feature_switch", lambda c: c.dial_up.dialup_feature_switch()),
         # --- Identity and firmware, where the polled reads are restricted ----
         ("device_basic_information", lambda c: c.device.basic_information()),
         ("device_vendorname", lambda c: c.device.vendorname()),
@@ -872,6 +1217,38 @@ class HuaweiRouter5GAPI:
         ("led_appctrlled", lambda c: c.led.appctrlled()),
         ("online_update_status", lambda c: c.online_update.status()),
         ("sms_config", lambda c: c.sms.config()),
+        # --- Not wrapped by the library, answering on the H165-383 -----------
+        #
+        # The 18 paths a GET-only sweep of the web interface's script found
+        # answering after a login on 2026-10-10 (`docs/huawei_how_to_access.md`,
+        # "Not wrapped by the library, and answering on the H165-383"). Read by
+        # path on the established session, names and counts only, and placed
+        # last so that a slow one cannot push an existing probe past the
+        # deadline.
+        ("path_device_nbrcellinfo", _read_path("device/nbrcellinfo")),
+        ("path_device_seccellinfo", _read_path("device/seccellinfo")),
+        ("path_device_ri", _read_path("device/ri")),
+        ("path_dialup_apn_retry", _read_path("dialup/apn-retry")),
+        (
+            "path_monitoring_best_position_status",
+            _read_path("monitoring/best-position-status"),
+        ),
+        (
+            "path_monitoring_best_position_result",
+            _read_path("monitoring/best-position-result"),
+        ),
+        ("path_ntwk_wlan_easymesh", _read_path("ntwk/wlan_easymesh")),
+        ("path_lan_switch_ipmode", _read_path("lan/switch-ipmode")),
+        ("path_webserver_accessibility", _read_path("webserver/accessibility")),
+        ("path_security_wan_ipv6_filter", _read_path("security/wan-ipv6-filter")),
+        ("path_dialup_iptvprofile", _read_path("dialup/IptvProfile")),
+        ("path_dialup_voice_profiles", _read_path("dialup/voice-profiles")),
+        ("path_ntwk_childframe", _read_path("ntwk/childFrame")),
+        ("path_ntwk_childapplist", _read_path("ntwk/childAppList")),
+        ("path_hilink_higame", _read_path("hilink/higame")),
+        ("path_prsite_homepage", _read_path("prsite/homepage")),
+        ("path_prsite_getrandurl", _read_path("prsite/getrandurl")),
+        ("path_appturbo_acc_list", _read_path("appturbo/acc-list")),
     )
 
     # Endpoints deliberately absent from `DIAGNOSTIC_PROBES`, so nobody adds
@@ -919,10 +1296,11 @@ class HuaweiRouter5GAPI:
         that would happen under a poll in flight. A poll waits for the sweep.
 
         **A refusal does not provoke a login.** The sweep is called directly on
-        one session and never through `_execute_with_retry`, which re-logs in on
-        `ResponseErrorLoginRequiredException`, raised for `100003` and for no
-        other code. Measured 2026-09-07: a `100003` costs two logins through the
-        wrapper against one for any other outcome, and a 42-endpoint sweep
+        one session and never through `_execute_with_retry`, which logs in again
+        on a `100003` unless it can show the session is live. Measured
+        2026-09-07, before that check existed: a `100003` cost two logins
+        through the wrapper against one for any other outcome, and a
+        42-endpoint sweep
         accumulated enough logout/login churn that the router began answering
         `LoginErrorAlreadyLoginException` and then refused connections, turning
         the rest of the sweep into artefacts. The same 42 calls on one session,
@@ -953,9 +1331,13 @@ class HuaweiRouter5GAPI:
             return await self._probe_sweep()
 
     async def _probe_one(
-        self, call: Callable[[Client], Any], client: Client
+        self, call: Callable[[Client], Any], client: Client, key: str = ""
     ) -> dict[str, Any]:
-        """Call one probe and describe the outcome. Never raises."""
+        """Call one probe and describe the outcome. Never raises.
+
+        For a capability probe the record also keeps the raw values, under
+        `values`; `diagnostics.py` decides what of them is published.
+        """
         started_at = time.monotonic()
         try:
             value = await asyncio.to_thread(call, client)
@@ -973,6 +1355,12 @@ class HuaweiRouter5GAPI:
             record["populated"] = sum(
                 1 for v in value.values() if v not in (None, "", {}, [])
             )
+            if key in CAPABILITY_PROBES:
+                record["values"] = dict(value)
+            elif key == "device_basic_information":
+                record["values"] = {
+                    k: value[k] for k in CAPABILITY_BASIC_INFO_KEYS if k in value
+                }
         return record
 
     async def _session_is_lost(self, client: Client) -> bool:
@@ -1035,7 +1423,7 @@ class HuaweiRouter5GAPI:
             if (reason := unusable()) is not None:
                 stop_at(index, reason)
                 break
-            record = await self._probe_one(call, client)
+            record = await self._probe_one(call, client, key)
             results[key] = record
             if record["outcome"] == "answered":
                 continue
@@ -1059,211 +1447,302 @@ class HuaweiRouter5GAPI:
             # Our own login replaced the client, so what counts as a reset
             # under the sweep starts from here.
             generation = self._generation
-            repeated = await self._probe_one(call, client)
+            repeated = await self._probe_one(call, client, key)
             repeated["session_lost"] = True
             results[key] = repeated
         return results
+
+    def _fetch_tasks(
+        self, client: Client, data: dict[str, Any]
+    ) -> list[tuple[str, Callable[[], Any]]]:
+        """Return the polled endpoints in order, each as a name and a reader.
+
+        `data` is the dict the poll is filling: the SMS list reader reads the
+        counts already collected to choose its box.
+        """
+        return [
+            ("device_information", lambda: client.device.information()),
+            ("device_signal", lambda: client.device.signal()),
+            ("monitoring_status", lambda: client.monitoring.status()),
+            (
+                "monitoring_check_notifications",
+                lambda: client.monitoring.check_notifications(),
+            ),
+            (
+                "traffic_statistics",
+                lambda: client.monitoring.traffic_statistics(),
+            ),
+            ("month_statistics", lambda: client.monitoring.month_statistics()),
+            ("current_plmn", lambda: client.net.current_plmn()),
+            ("net_mode", lambda: client.net.net_mode()),
+            ("sms_count", lambda: client.sms.sms_count()),
+            (
+                "sms_list",
+                lambda: client.sms.get_sms_list(
+                    page=1,
+                    box_type=(
+                        BoxTypeEnum.LOCAL_INBOX
+                        if (_safe_int(data.get("sms_count", {}).get("LocalInbox")) or 0)
+                        > 0
+                        or not _safe_int(data.get("sms_count", {}).get("SimInbox"))
+                        else BoxTypeEnum.SIM_INBOX
+                    ),
+                    read_count=20,
+                    sort_type=SortTypeEnum.DATE,
+                    ascending=False,
+                    unread_preferred=True,
+                ),
+            ),
+            ("mobile_dataswitch", lambda: client.dial_up.mobile_dataswitch()),
+            ("lan_host_info", lambda: client.lan.host_info()),
+            ("wlan_host_list", lambda: client.wlan.host_list()),
+            (
+                "wlan_wifi_feature_switch",
+                lambda: client.wlan.wifi_feature_switch(),
+            ),
+            (
+                "wlan_multi_basic_settings",
+                lambda: client.wlan.multi_basic_settings(),
+            ),
+            # --- Added 2026-08-15 (status_plan §T-4) ----------------
+            #
+            # Eight endpoints the integration had never called. Each
+            # is non-critical by the rule below: only
+            # `device_information` raises, so a block that fails
+            # leaves its own entities unknown and disturbs nothing
+            # else. That is the whole strike-budget answer for these
+            # — they degrade individually and need no per-entity
+            # `source` declaration.
+            #
+            # `monitoring.daily_data_limit` is deliberately absent:
+            # it answers `100002: No support` on the reference B535,
+            # so calling it would spend a round trip per poll to
+            # collect the same error forever.
+            ("start_date", lambda: client.monitoring.start_date()),
+            ("converged_status", lambda: client.monitoring.converged_status()),
+            ("dial_up_profiles", lambda: client.dial_up.profiles()),
+            ("dial_up_connection", lambda: client.dial_up.connection()),
+            ("antenna_type", lambda: client.device.antenna_type()),
+            ("csps_state", lambda: client.net.csps_state()),
+            ("security_sip", lambda: client.security.sip()),
+            ("security_upnp", lambda: client.security.upnp()),
+            # `voice_busy` returns a bare string ("Idle"), not a dict -
+            # the only block in this payload that does. Anything walking
+            # the payload must tolerate that.
+            ("voice_busy", lambda: client.voice.voicebusy()),
+            (
+                "voice_volte",
+                lambda: _call_added_endpoint(client, "voice_volte"),
+            ),
+            (
+                "onekey_diag",
+                lambda: _call_added_endpoint(client, "onekey_diag"),
+            ),
+        ]
+
+    def _call_once_more_if_dropped(
+        self, call: Callable[[], Any], poll: _PollState, key: str
+    ) -> Any:
+        """Run `call`, and run it once more if the router dropped the request.
+
+        Only a closed connection or a read timeout is repeated, and only while
+        the poll has used at most `ADJUDICATION_BUDGET`. The pool replaces a
+        connection the router closed, so the repeat goes out on a new one. A
+        refusal is never repeated: the router answered, and its answer is the
+        evidence. `key` is added to `poll.retried`.
+        """
+        try:
+            return call()
+        except _DROPPED as err:
+            if time.monotonic() - poll.started > ADJUDICATION_BUDGET:
+                raise
+            _LOGGER.debug(
+                "%s dropped by the router (%s); sending it once more",
+                key,
+                type(err).__name__,
+            )
+            poll.retried.add(key)
+            return call()
+
+    def _fetch_one(
+        self,
+        key: str,
+        fetcher: Callable[[], Any],
+        client: Client,
+        poll: _PollState,
+        data: dict[str, Any],
+    ) -> None:
+        """Read one endpoint into `data` and record its outcome.
+
+        Raises only for the critical endpoint and for an expired session; any
+        other failure is recorded and leaves the key out of `data`.
+
+        A refusal of `device_information` starts the `device/basic-information`
+        fallback instead of raising where `device_information` has never
+        answered on this entry, or where this is the first read since a login,
+        which cannot be an expiry. A working router's expiry therefore stays an
+        expiry, and a router whose firmware stops serving `device_information`
+        does not log in again on every poll.
+        """
+        first_since_login = False
+        if key == "device_information":
+            first_since_login = self._unread_since_login
+            self._unread_since_login = False
+        try:
+            started_at = time.monotonic()
+            data[key] = (
+                fetcher()
+                if key == "device_information"
+                else self._call_once_more_if_dropped(fetcher, poll, key)
+            )
+            if poll.generation == self._generation:
+                self._answered.add(key)
+            if key == "device_information":
+                self.information_answered = True
+                self.fallback_active = False
+            self._record_endpoint(
+                key,
+                "answered",
+                result=data[key],
+                elapsed_ms=int((time.monotonic() - started_at) * 1000),
+            )
+            if key in poll.retried:
+                self.endpoint_outcomes[key]["retried"] = True
+        except ResponseErrorException as err:
+            code = str(err.code)
+            # 125002 and 125003 are the session token failing, never a refusal
+            # of one endpoint, so they stay on the expiry path below.
+            if (
+                key == "device_information"
+                and code not in ("125002", "125003")
+                and (not self.information_answered or first_since_login)
+            ):
+                self._start_fallback(code, data)
+                return
+            judged: str | None = None
+            if isinstance(err, ResponseErrorLoginRequiredException) or code in (
+                "125002",
+                "125003",
+            ):
+                judged = self._judge_session_signal(key, err, code, client, poll, data)
+
+            # Every path below this line is a rejection, and two of
+            # the three swallow their own error — the endpoint goes
+            # missing from `data` and nothing is raised. Recording
+            # here rather than at the raise is what makes those two
+            # visible in the download at all.
+            self._record_verdict("refused", code=str(err.code), key=key, payload=data)
+            self._record_endpoint(key, "refused", str(err.code))
+            if judged is not None:
+                self.endpoint_outcomes[key]["judged"] = judged
+            if key in poll.retried:
+                self.endpoint_outcomes[key]["retried"] = True
+
+            if key == "device_information":
+                _LOGGER.warning("Critical fetch %s failed: %s", key, err)
+                raise HuaweiConnectionError(
+                    f"Critical data fetch failed: {err}"
+                ) from err
+
+            if key == "sms_list":
+                _LOGGER.warning("Failed to fetch %s: %s", key, err)
+            else:
+                _LOGGER.debug("Failed to fetch %s: %s", key, err)
+        except Exception as err:
+            # No error code to carry: the failure came from the
+            # transport or the library rather than from the router
+            # stating a refusal, so the verdict says only that the
+            # endpoint could not be read.
+            self._record_verdict(
+                "unavailable",
+                key=key,
+                error=type(err).__name__,
+                payload=data,
+            )
+            self._record_endpoint(key, "unavailable")
+            if key in poll.retried:
+                self.endpoint_outcomes[key]["retried"] = True
+
+            if key == "device_information":
+                _LOGGER.warning("Critical fetch %s failed: %s", key, err)
+                raise HuaweiConnectionError(
+                    f"Critical data fetch failed: {err}"
+                ) from err
+            if key == "sms_list":
+                _LOGGER.warning("Failed to fetch %s: %s", key, err)
+            else:
+                _LOGGER.debug("Failed to fetch %s: %s", key, err)
+
+    def _start_fallback(self, code: str, data: dict[str, Any]) -> None:
+        """Record a refusal of `device_information` and start the fallback.
+
+        `device_information` stays first in the poll and is read every time, so
+        the fallback ends on the first poll it answers. While the fallback is
+        active, `_judge_signal` decides session signals by the history rule,
+        since `device_information` cannot serve as the live-session re-read.
+        """
+        self._record_verdict(
+            "refused", code=code, key="device_information", payload=data
+        )
+        self._record_endpoint("device_information", "refused", code)
+        self.endpoint_outcomes["device_information"]["judged"] = "fallback"
+        self.information_answered = False
+        if not self.fallback_active:
+            _LOGGER.warning(
+                "The router refused device_information with %s; reading the "
+                "device name from device/basic-information instead",
+                code,
+            )
+        self.fallback_active = True
+
+    def _fetch_all(self) -> dict[str, Any]:
+        """Read every polled endpoint on the current client (blocking, in a thread)."""
+        data: dict[str, Any] = {}
+        client = self._client
+        if client is None:
+            raise HuaweiConnectionError("API client not established")
+        fetch_tasks = self._fetch_tasks(client, data)
+        self._poll_http_statuses.clear()
+        started = time.monotonic()
+        poll = _PollState(started=started, generation=self._generation)
+        for index, (key, fetcher) in enumerate(fetch_tasks):
+            # The deadline is checked between endpoints, never inside
+            # one: a request already in flight cannot be interrupted.
+            # `index` guards the first entry, so `device_information`
+            # is always attempted and the caller always has its
+            # critical block.
+            if index and time.monotonic() - started > FETCH_DEADLINE:
+                skipped = [name for name, _ in fetch_tasks[index:]]
+                for name in skipped:
+                    self._record_endpoint(name, "skipped")
+                _LOGGER.warning(
+                    "Fetch reached its %ss deadline after %d of %d "
+                    "endpoints; returning what was collected. "
+                    "Skipped: %s",
+                    FETCH_DEADLINE,
+                    index,
+                    len(fetch_tasks),
+                    ", ".join(skipped),
+                )
+                break
+
+            self._fetch_one(key, fetcher, client, poll, data)
+            if key == "device_information" and self.fallback_active:
+                self._fetch_one(
+                    "device_basic_information",
+                    lambda: client.device.basic_information(),
+                    client,
+                    poll,
+                    data,
+                )
+        return data
 
     async def get_data(self) -> dict[str, Any]:
         """Fetch all available data from the router."""
         async with self._locked("get_data"):
             await self._ensure_client()
-
-            def _fetch() -> dict[str, Any]:
-                data: dict[str, Any] = {}
-                client = self._client
-                if client is None:
-                    raise HuaweiConnectionError("API client not established")
-
-                fetch_tasks: list[tuple[str, Callable[[], Any]]] = [
-                    ("device_information", lambda: client.device.information()),
-                    ("device_signal", lambda: client.device.signal()),
-                    ("monitoring_status", lambda: client.monitoring.status()),
-                    (
-                        "monitoring_check_notifications",
-                        lambda: client.monitoring.check_notifications(),
-                    ),
-                    (
-                        "traffic_statistics",
-                        lambda: client.monitoring.traffic_statistics(),
-                    ),
-                    ("month_statistics", lambda: client.monitoring.month_statistics()),
-                    ("current_plmn", lambda: client.net.current_plmn()),
-                    ("net_mode", lambda: client.net.net_mode()),
-                    ("sms_count", lambda: client.sms.sms_count()),
-                    (
-                        "sms_list",
-                        lambda: client.sms.get_sms_list(
-                            page=1,
-                            box_type=(
-                                BoxTypeEnum.LOCAL_INBOX
-                                if (
-                                    _safe_int(
-                                        data.get("sms_count", {}).get("LocalInbox")
-                                    )
-                                    or 0
-                                )
-                                > 0
-                                or not _safe_int(
-                                    data.get("sms_count", {}).get("SimInbox")
-                                )
-                                else BoxTypeEnum.SIM_INBOX
-                            ),
-                            read_count=20,
-                            sort_type=SortTypeEnum.DATE,
-                            ascending=False,
-                            unread_preferred=True,
-                        ),
-                    ),
-                    ("mobile_dataswitch", lambda: client.dial_up.mobile_dataswitch()),
-                    ("lan_host_info", lambda: client.lan.host_info()),
-                    ("wlan_host_list", lambda: client.wlan.host_list()),
-                    (
-                        "wlan_wifi_feature_switch",
-                        lambda: client.wlan.wifi_feature_switch(),
-                    ),
-                    (
-                        "wlan_multi_basic_settings",
-                        lambda: client.wlan.multi_basic_settings(),
-                    ),
-                    # --- Added 2026-08-15 (status_plan §T-4) ----------------
-                    #
-                    # Eight endpoints the integration had never called. Each
-                    # is non-critical by the rule below: only
-                    # `device_information` raises, so a block that fails
-                    # leaves its own entities unknown and disturbs nothing
-                    # else. That is the whole strike-budget answer for these
-                    # — they degrade individually and need no per-entity
-                    # `source` declaration.
-                    #
-                    # `monitoring.daily_data_limit` is deliberately absent:
-                    # it answers `100002: No support` on the reference B535,
-                    # so calling it would spend a round trip per poll to
-                    # collect the same error forever.
-                    ("start_date", lambda: client.monitoring.start_date()),
-                    ("converged_status", lambda: client.monitoring.converged_status()),
-                    ("dial_up_profiles", lambda: client.dial_up.profiles()),
-                    ("dial_up_connection", lambda: client.dial_up.connection()),
-                    ("antenna_type", lambda: client.device.antenna_type()),
-                    ("csps_state", lambda: client.net.csps_state()),
-                    ("security_sip", lambda: client.security.sip()),
-                    ("security_upnp", lambda: client.security.upnp()),
-                    # `voice_busy` returns a bare string ("Idle"), not a dict -
-                    # the only block in this payload that does. Anything walking
-                    # the payload must tolerate that.
-                    ("voice_busy", lambda: client.voice.voicebusy()),
-                    (
-                        "voice_volte",
-                        lambda: _call_added_endpoint(client, "voice_volte"),
-                    ),
-                    (
-                        "onekey_diag",
-                        lambda: _call_added_endpoint(client, "onekey_diag"),
-                    ),
-                ]
-                started = time.monotonic()
-                poll = _PollState(started=started, generation=self._generation)
-                for index, (key, fetcher) in enumerate(fetch_tasks):
-                    # The deadline is checked between endpoints, never inside
-                    # one: a request already in flight cannot be interrupted.
-                    # `index` guards the first entry, so `device_information`
-                    # is always attempted and the caller always has its
-                    # critical block.
-                    if index and time.monotonic() - started > FETCH_DEADLINE:
-                        skipped = [name for name, _ in fetch_tasks[index:]]
-                        for name in skipped:
-                            self._record_endpoint(name, "skipped")
-                        _LOGGER.warning(
-                            "Fetch reached its %ss deadline after %d of %d "
-                            "endpoints; returning what was collected. "
-                            "Skipped: %s",
-                            FETCH_DEADLINE,
-                            index,
-                            len(fetch_tasks),
-                            ", ".join(skipped),
-                        )
-                        break
-
-                    added = LIBRARY_ADDED_ENDPOINTS.get(key)
-                    if added is not None and not library_supports(added[2]):
-                        # Not a fault: the loaded library predates the method.
-                        # Recorded apart from `unavailable`, with no rejection
-                        # and no entry in `data`, so health does not count it
-                        # as a lost capability.
-                        self._record_endpoint(key, "unsupported")
-                        self._log_unsupported_once()
-                        continue
-
-                    try:
-                        started_at = time.monotonic()
-                        data[key] = fetcher()
-                        if poll.generation == self._generation:
-                            self._answered.add(key)
-                        self._record_endpoint(
-                            key,
-                            "answered",
-                            result=data[key],
-                            elapsed_ms=int((time.monotonic() - started_at) * 1000),
-                        )
-                    except ResponseErrorException as err:
-                        code = str(err.code)
-                        judged: str | None = None
-                        if isinstance(
-                            err, ResponseErrorLoginRequiredException
-                        ) or code in ("125002", "125003"):
-                            judged = self._judge_session_signal(
-                                key, err, code, client, poll, data
-                            )
-
-                        # Every path below this line is a rejection, and two of
-                        # the three swallow their own error — the endpoint goes
-                        # missing from `data` and nothing is raised. Recording
-                        # here rather than at the raise is what makes those two
-                        # visible in the download at all.
-                        self._record_verdict(
-                            "refused", code=str(err.code), key=key, payload=data
-                        )
-                        self._record_endpoint(key, "refused", str(err.code))
-                        if judged is not None:
-                            self.endpoint_outcomes[key]["judged"] = judged
-
-                        if key == "device_information":
-                            _LOGGER.warning("Critical fetch %s failed: %s", key, err)
-                            raise HuaweiConnectionError(
-                                f"Critical data fetch failed: {err}"
-                            ) from err
-
-                        if key == "sms_list":
-                            _LOGGER.warning("Failed to fetch %s: %s", key, err)
-                        else:
-                            _LOGGER.debug("Failed to fetch %s: %s", key, err)
-                    except Exception as err:
-                        # No error code to carry: the failure came from the
-                        # transport or the library rather than from the router
-                        # stating a refusal, so the verdict says only that the
-                        # endpoint could not be read.
-                        self._record_verdict(
-                            "unavailable",
-                            key=key,
-                            error=type(err).__name__,
-                            payload=data,
-                        )
-                        self._record_endpoint(key, "unavailable")
-
-                        if key == "device_information":
-                            _LOGGER.warning("Critical fetch %s failed: %s", key, err)
-                            raise HuaweiConnectionError(
-                                f"Critical data fetch failed: {err}"
-                            ) from err
-                        if key == "sms_list":
-                            _LOGGER.warning("Failed to fetch %s: %s", key, err)
-                        else:
-                            _LOGGER.debug("Failed to fetch %s: %s", key, err)
-
-                return data
-
             res = None
-            # Cleared before the attempt, not after it. `_fetch` records its
+            # Cleared before the attempt, not after it. `_fetch_all` records its
             # own rejections as it goes and two of them do not raise, so
             # clearing on the way out would erase the evidence the poll had
             # just collected. A poll that records nothing therefore leaves this
@@ -1272,7 +1751,7 @@ class HuaweiRouter5GAPI:
             self._record_verdict("live")
             self.endpoint_outcomes = {}
             try:
-                res = await asyncio.to_thread(_fetch)
+                res = await asyncio.to_thread(self._fetch_all)
                 self._last_activity = datetime.now(UTC)
             except HuaweiAuthError:
                 self._reset_client()
@@ -1283,6 +1762,75 @@ class HuaweiRouter5GAPI:
                 raise HuaweiConnectionError(f"Data fetch failed: {err}") from err
             return res
 
+    # -- expected-outage window ------------------------------------------
+
+    def open_expected_outage(self, reason: str, cap_seconds: float) -> ExpectedOutage:
+        """Record that the router is expected to be offline, and until when."""
+        self.expected_outage = ExpectedOutage(
+            reason=reason,
+            opened_at=datetime.now(UTC),
+            deadline=time.monotonic() + cap_seconds,
+        )
+        return self.expected_outage
+
+    def close_expected_outage(self) -> None:
+        """Clear the window. Router requests are accepted again."""
+        self.expected_outage = None
+
+    @contextlib.contextmanager
+    def outage_bypass(self) -> Iterator[None]:
+        """Let the requests made inside this block through the gate."""
+        token = _OUTAGE_BYPASS.set(True)
+        try:
+            yield
+        finally:
+            _OUTAGE_BYPASS.reset(token)
+
+    def refuse_during_outage(self) -> None:
+        """Raise if a request would be sent while the router is known offline.
+
+        A window past its cap is treated as closed. The coordinator's timer
+        closes it properly; this keeps a lost timer from refusing requests
+        indefinitely.
+        """
+        outage = self.expected_outage
+        if outage is None or outage.expired or _OUTAGE_BYPASS.get():
+            return
+        raise HuaweiExpectedUnavailableError(outage.reason, outage.seconds_remaining())
+
+    def _router_answers(self) -> bool:
+        """Whether the router answers one request, with no session (blocking).
+
+        `user/state-login` answers without a login on the H165-383, so it works
+        after a reboot has ended the session. Any HTTP answer counts; the
+        closing poll decides whether the router is ready.
+        """
+        try:
+            requests.get(
+                f"{self.url}/api/user/state-login", timeout=OUTAGE_CHECK_TIMEOUT
+            ).close()
+        except requests.RequestException:
+            return False
+        return True
+
+    async def outage_probe(self) -> bool:
+        """Whether the router answers at all, for the window's check."""
+        return await asyncio.to_thread(self._router_answers)
+
+    async def _router_stopped_answering(self) -> bool:
+        """Whether the router stops answering within `REBOOT_VERIFY_SECONDS`.
+
+        The H165-383 still answered 5 to 7 s after the reboot command and was
+        silent by 10 to 12 s (2026-10-09), so the window opens only once the
+        silence is seen, as `zte_router_5g`'s `REBOOT_VERIFY_SECONDS` check does.
+        """
+        deadline = time.monotonic() + REBOOT_VERIFY_SECONDS
+        while time.monotonic() < deadline:
+            if not await asyncio.to_thread(self._router_answers):
+                return True
+            await asyncio.sleep(REBOOT_VERIFY_INTERVAL)
+        return False
+
     async def reboot(self) -> None:
         """Reboot the router.
 
@@ -1291,17 +1839,32 @@ class HuaweiRouter5GAPI:
         removes `reboot()` and `control()`**, keeping only `set_control`. So
         this spelling is correct on both versions and the library bump needs no
         code change here.
+
+        **The window opens only once the router is seen silent.** After the
+        command answers, `_router_stopped_answering` reads `user/state-login`
+        until it draws no answer, and only then is the reboot window opened.
+        A router still answering after `REBOOT_VERIFY_SECONDS` raises, because
+        it did not restart.
         """
         async with self._write_deadline("reboot"), self._locked("reboot"):
             try:
                 await self._execute_with_retry(
-                    lambda client: client.device.set_control(ControlModeEnum.REBOOT)
+                    lambda client: client.device.set_control(ControlModeEnum.REBOOT),
+                    write=True,
                 )
                 self._reset_client()
             except Exception:
                 _LOGGER.exception("Reboot failed")
                 self._reset_client()
                 raise
+            # Still under the lock, so a poll queued behind the command meets
+            # the window rather than a router that is going away.
+            if not await self._router_stopped_answering():
+                raise HuaweiConnectionError(
+                    "The router accepted the reboot command but was still "
+                    f"answering after {REBOOT_VERIFY_SECONDS:.0f} seconds"
+                )
+            self.open_expected_outage(OUTAGE_REASON_REBOOT, OUTAGE_CAP_REBOOT)
 
     async def reconnect(self) -> None:
         """Drop and re-establish the mobile data session.
@@ -1318,7 +1881,9 @@ class HuaweiRouter5GAPI:
 
         What the router does accept is `dialup/dial`, in two steps. Measured on
         the same device: `CurrentConnectTime` went 3893 -> 4 -> 10, so the
-        session genuinely cycles, and it was back inside five seconds.
+        session genuinely cycles. On the H165-383 on 2026-10-09 the data
+        connection was back in about 1.1 s, and the API session was held
+        throughout.
 
         `Action: 0` has no public wrapper - `DialUp.dial()` hardcodes
         `Action: 1` - so the disconnect reaches through `_session.post_set`
@@ -1330,15 +1895,25 @@ class HuaweiRouter5GAPI:
                 await self._execute_with_retry(
                     lambda client: client.dial_up._session.post_set(  # noqa: SLF001
                         "dialup/dial", {"Action": 0}
-                    )
+                    ),
+                    write=True,
                 )
-                await self._execute_with_retry(lambda client: client.dial_up.dial())
-                self._reset_client()
+                await self._execute_with_retry(
+                    lambda client: client.dial_up.dial(), write=True
+                )
+                # The session survives a Reconnect on the H165-383 (2026-10-09),
+                # so it is logged out rather than left to hold a place.
+                await self._release_session()
+                # Opened at once, before the lock is released. The window
+                # waits for the router to drop and closes at the hold when it
+                # does not; the H165-383 kept answering throughout.
+                self.open_expected_outage(OUTAGE_REASON_RECONNECT, OUTAGE_CAP_RECONNECT)
             except Exception:
                 _LOGGER.exception("Reconnect failed")
                 self._reset_client()
                 raise
 
+    @_retry_once_on_refusal
     async def clear_traffic_statistics(self) -> None:
         """Clear the traffic statistics counters.
 
@@ -1354,7 +1929,7 @@ class HuaweiRouter5GAPI:
         ):
             try:
                 await self._execute_with_retry(
-                    lambda client: client.monitoring.set_clear_traffic()
+                    lambda client: client.monitoring.set_clear_traffic(), write=True
                 )
             except Exception:
                 _LOGGER.exception("Clear traffic failed")
@@ -1393,6 +1968,7 @@ class HuaweiRouter5GAPI:
 
         return result if isinstance(result, dict) else None
 
+    @_retry_once_on_refusal
     async def set_mobile_data(self, enable: bool) -> None:
         """Enable or disable the mobile data connection."""
         async with (
@@ -1403,7 +1979,8 @@ class HuaweiRouter5GAPI:
                 await self._execute_with_retry(
                     lambda client: client.dial_up.set_mobile_dataswitch(
                         1 if enable else 0
-                    )
+                    ),
+                    write=True,
                 )
             except Exception:
                 _LOGGER.exception("Set mobile data failed")
@@ -1430,8 +2007,6 @@ class HuaweiRouter5GAPI:
         mode change that cannot name any band is worse than one using the old
         assumption.
         """
-        from huawei_lte_api.enums.net import LTEBandEnum, NetworkBandEnum
-
         fallback = (f"{LTEBandEnum.ALL.value:x}", f"{NetworkBandEnum.ALL.value:x}")
         try:
             current = await self._execute_with_retry(
@@ -1472,6 +2047,7 @@ class HuaweiRouter5GAPI:
             return None
         return [str(code) for code in access]
 
+    @_retry_once_on_refusal
     async def set_net_mode(self, mode: str) -> None:
         """Set the preferred network mode.
 
@@ -1512,7 +2088,8 @@ class HuaweiRouter5GAPI:
                             lteband=lteband,
                             networkband=networkband,
                             networkmode=mode,
-                        )
+                        ),
+                        write=True,
                     )
                 except ResponseErrorException as err:
                     if str(err.code) != "-1":
@@ -1551,6 +2128,7 @@ class HuaweiRouter5GAPI:
                     "not answer the read-back. The change may have applied."
                 )
 
+    @_retry_once_on_refusal
     async def set_wifi(self, enable: bool) -> None:
         """Turn the WiFi radios on or off.
 
@@ -1601,11 +2179,12 @@ class HuaweiRouter5GAPI:
 
             async with self._locked("set_wifi"):
                 try:
-                    await self._execute_with_retry(_write)
+                    await self._execute_with_retry(_write, write=True)
                 except Exception:
                     _LOGGER.exception("Set WiFi failed")
                     raise
 
+    @_retry_once_on_refusal
     async def set_guest_wifi(self, enable: bool) -> None:
         """Enable or disable the guest WiFi network."""
         async with (
@@ -1615,9 +2194,7 @@ class HuaweiRouter5GAPI:
 
             def _set(client: Client) -> None:
                 multi_settings = client.wlan.multi_basic_settings()
-                ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-                if isinstance(ssids, dict):
-                    ssids = [ssids]
+                ssids = ssid_entries(multi_settings)
 
                 found = False
                 for ssid in ssids:
@@ -1670,7 +2247,7 @@ class HuaweiRouter5GAPI:
                     ) from err
 
             try:
-                await self._execute_with_retry(_set)
+                await self._execute_with_retry(_set, write=True)
             except Exception:
                 _LOGGER.exception("Set guest WiFi failed")
                 raise
@@ -1683,7 +2260,8 @@ class HuaweiRouter5GAPI:
                     lambda client: client.sms.send_sms(
                         phone_numbers=phone_numbers,
                         message=message,
-                    )
+                    ),
+                    write=True,
                 )
             except Exception:
                 _LOGGER.exception("Send SMS failed")
@@ -1694,7 +2272,7 @@ class HuaweiRouter5GAPI:
         async with self._write_deadline("delete_sms"), self._locked("delete_sms"):
             try:
                 await self._execute_with_retry(
-                    lambda client: client.sms.delete_sms(sms_id=index)
+                    lambda client: client.sms.delete_sms(sms_id=index), write=True
                 )
             except Exception:
                 _LOGGER.exception("Delete SMS failed")

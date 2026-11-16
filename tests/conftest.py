@@ -6,8 +6,9 @@ import sys
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+from pytest_homeassistant.common import MockConfigEntry
 
+from custom_components.huawei_router_5g.api import HuaweiRouter5GAPI
 from custom_components.huawei_router_5g.const import DOMAIN
 from homeassistant.const import CONF_HOST, CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
@@ -108,6 +109,8 @@ def mock_coordinator(mock_config_entry):
     # are stubbed: a test asserting the wrong one would otherwise pass against
     # an auto-created MagicMock attribute and prove nothing.
     coordinator.async_force_refresh = AsyncMock()
+    # Not yet read, as on a real coordinator before the first login.
+    coordinator.supported_net_modes = None
     coordinator.model = "B535s-232"
     coordinator.sw_version = "11.0.1.1(H192SP1C983)"
     coordinator.hw_version = "Ver.A"
@@ -204,7 +207,7 @@ SAMPLE_ROUTER_DATA = {
     "current_plmn": {
         "FullName": "Three",
         "ShortName": "3",
-        "Numeric": "27205",
+        "Numeric": "00103",
     },
     "sms_count": {
         "LocalUnread": "2",
@@ -263,9 +266,9 @@ def router_transport_fixture():
 # already where the shared device-registry helpers sit.
 #
 # All four move together and none works without the others: the autouse
-# `_enable_custom_integrations` is what stops `async_setup` answering
-# "Integration not found", and `live_entry` carries the schema version HA
-# checks before it will load the entry.
+# `_enable_custom_integrations` gives every test a live `hass`, and
+# `live_entry` carries the schema version HA checks before it will load the
+# entry.
 # ---------------------------------------------------------------------------
 
 # A payload broad enough that most platforms produce a live entity with real
@@ -314,7 +317,7 @@ SWEEP_DATA: dict = {
         "DataLimit": "2000GB",
         "MonthThreshold": "80",
     },
-    "current_plmn": {"FullName": "Test Carrier", "Numeric": "27201"},
+    "current_plmn": {"FullName": "Test Carrier", "Numeric": "00101"},
     "net_mode": {"NetworkMode": "03", "NetworkBand": "3FFFFFFF"},
     "sms_count": {
         "LocalUnread": "1",
@@ -327,7 +330,7 @@ SWEEP_DATA: dict = {
             "Message": [
                 {
                     "Index": "1",
-                    "Phone": "+353871234567",
+                    "Phone": "+15555550123",
                     "Content": "hello",
                     "Date": "2026-08-15 10:00:00",
                     "Smstat": "0",
@@ -344,12 +347,37 @@ SWEEP_DATA: dict = {
 }
 
 
+def pytest_configure(config: pytest.Config) -> None:
+    """Register the marker that lets a test make the real lockout read."""
+    config.addinivalue_line(
+        "markers",
+        "login_guard_read: make the real `user/state-login` read before a login",
+    )
+
+
+@pytest.fixture(autouse=True)
+def _no_login_guard_read(request: pytest.FixtureRequest):
+    """Answer the pre-login lockout read with nothing reported.
+
+    `_create_connection_sync` reads `user/state-login` before every login
+    (1.2.4-dev4 I2). A test that patches `Connection` would otherwise send that
+    read to the network. The lockout tests carry `login_guard_read` and make
+    the real read against the fake transport.
+    """
+    if request.node.get_closest_marker("login_guard_read"):
+        yield
+        return
+    with patch.object(HuaweiRouter5GAPI, "_read_login_guard_sync", return_value={}):
+        yield
+
+
 @pytest.fixture(autouse=True)
 def _enable_custom_integrations(enable_custom_integrations):
-    """Make the custom component importable by the real `hass` fixture.
+    """Request `enable_custom_integrations`, which gives every test a live `hass`.
 
-    Without it `async_setup` answers "Integration not found" and the sweep
-    fails at setup rather than finding anything.
+    The `pytest-homeassistant` `hass` fixture already enables custom
+    integrations; the wrapper stays because the fixture it requests starts
+    `hass`, and tests rely on that instance being live.
     """
     return
 

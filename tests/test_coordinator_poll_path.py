@@ -29,7 +29,10 @@ from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest
 
-from custom_components.huawei_router_5g.api import HuaweiAuthError
+from custom_components.huawei_router_5g.api import (
+    HuaweiAuthError,
+    HuaweiSessionExpiredError,
+)
 from custom_components.huawei_router_5g.const import (
     REPAIR_AUTH_FAILED,
     REPAIR_CONN_ERROR,
@@ -156,6 +159,27 @@ async def test_a_payload_missing_device_information_is_a_failure(hass_stub) -> N
         await coordinator._async_update_data()
 
     health.assert_called_once_with(None, failed=True, cold_start=True)
+
+
+@pytest.mark.asyncio
+async def test_a_payload_with_only_the_basic_block_names_the_device(
+    hass_stub,
+) -> None:
+    """In the `device/basic-information` fallback the poll succeeds (I3).
+
+    The device name comes from `devicename`; the software version reads
+    unknown where the block carries none, as on the H165-383.
+    """
+    coordinator = _coordinator(hass_stub)
+    coordinator.api.get_data.return_value = {
+        "device_basic_information": {"devicename": "H312-371"}
+    }
+
+    with patch.object(coordinator, "update_health"):
+        await coordinator._async_update_data()
+
+    assert coordinator.model == "H312-371"
+    assert coordinator.sw_version is None
 
 
 # ---------------------------------------------------------------------------
@@ -354,7 +378,9 @@ async def test_a_session_expiry_is_retried_once_before_counting(hass_stub) -> No
     """
     coordinator = _coordinator(hass_stub)
     coordinator.data = GOOD
-    coordinator.api.get_data.side_effect = [HuaweiAuthError("expired"), GOOD]
+    # Updated for 1.2.4-dev1: only an expired session is retried, so the
+    # first answer is the subclass `api.py` raises for one (plan I2, D17).
+    coordinator.api.get_data.side_effect = [HuaweiSessionExpiredError("expired"), GOOD]
 
     assert await coordinator._async_update_data() == GOOD
     assert coordinator.api.get_data.await_count == 2

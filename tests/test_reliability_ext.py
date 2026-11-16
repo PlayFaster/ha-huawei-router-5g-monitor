@@ -12,6 +12,7 @@ from custom_components.huawei_router_5g.api import (
     HuaweiAuthError,
     HuaweiConnectionError,
     HuaweiRouter5GAPI,
+    HuaweiSessionExpiredError,
 )
 from custom_components.huawei_router_5g.coordinator import (
     HuaweiRouter5GDataUpdateCoordinator,
@@ -76,6 +77,8 @@ async def test_get_data_mid_fetch_login_required():
     api = HuaweiRouter5GAPI("http://192.168.8.1", "admin", "password")
     api._client = MagicMock()
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     api._client.device.information.side_effect = ResponseErrorLoginRequiredException(
         message="login required", code=100002
@@ -148,7 +151,11 @@ async def test_coordinator_critical_data_guard():
 
 @pytest.mark.asyncio
 async def test_coordinator_seamless_retry():
-    """Test that coordinator retries once on HuaweiAuthError."""
+    """Test that coordinator retries once on an expired session.
+
+    Updated for 1.2.4-dev1: only `HuaweiSessionExpiredError`, the expired-session
+    subclass, is retried; a rejected login is not (plan v124_dev1_plan.md, D17).
+    """
     mock_entry = MagicMock()
     mock_entry.data = {"model": "Huawei", "mac": "AA:BB:CC"}
     mock_entry.options = {"scan_interval": 30}
@@ -157,7 +164,7 @@ async def test_coordinator_seamless_retry():
     # Fail first, succeed second
     mock_api.get_data = AsyncMock(
         side_effect=[
-            HuaweiAuthError("Expired"),
+            HuaweiSessionExpiredError("Expired"),
             {"device_information": {"DeviceName": "Huawei"}},
         ]
     )

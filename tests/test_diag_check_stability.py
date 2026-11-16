@@ -21,6 +21,7 @@ case names where the case exists in both projects.
 from __future__ import annotations
 
 from datetime import UTC, datetime
+import json
 from pathlib import Path
 import sys
 from typing import Any
@@ -54,6 +55,8 @@ from scripts.diag_check import (
     check_sabotage,
     check_shape,
     check_stability,
+    identifying_values,
+    leak_hits,
 )
 
 
@@ -224,7 +227,7 @@ def test_a_leaked_credential_is_found_anywhere_in_the_document() -> None:
     artefact = _artefact({"some_future_block": {"note": "host is router-secret-1"}})
 
     report = Report()
-    check_redaction(artefact, ["router-secret-1"], report, "1")
+    check_redaction(artefact, {"host": {"router-secret-1"}}, report, "1")
 
     assert not _passed(report, "no live identifier survived")
 
@@ -237,14 +240,14 @@ def test_a_document_with_no_redaction_marker_is_a_failure() -> None:
     this fixture to find.
     """
     report = Report()
-    check_redaction(_artefact(), [], report, "1")
+    check_redaction(_artefact(), {}, report, "1")
 
     assert not _passed(report, "redaction marker")
 
 
 def test_a_short_credential_is_not_searched_for() -> None:
-    """A two-character value matches by coincidence and proves nothing."""
-    assert _secrets({"password": "abc", "username": "ad"}, {}) == []
+    """A value under four characters matches by coincidence and proves nothing."""
+    assert _secrets({"password": "abc", "username": "ad"}, {}) == {}
 
 
 def test_the_live_identifiers_are_drawn_from_the_entry() -> None:
@@ -258,11 +261,16 @@ def test_the_live_identifiers_are_drawn_from_the_entry() -> None:
         {"mac": "DC:71:96:11:22:33"},
     )
 
-    assert set(secrets) == {
-        "hunter2secret",
-        "192.168.8.1",
-        "administrator",
-        "DC:71:96:11:22:33",
+    assert secrets == {
+        "password": {"hunter2secret"},
+        "host": {"192.168.8.1"},
+        "username": {"administrator"},
+        # The MAC is also searched in the forms a download could publish it in.
+        "mac": {
+            "DC:71:96:11:22:33",
+            "DC-71-96-11-22-33",
+            "DC7196112233",
+        },
     }
 
 
@@ -404,7 +412,7 @@ def test_the_redaction_check_survives_a_datetime() -> None:
     artefact["entry"]["data"]["conn_start_time"] = datetime(2026, 8, 23, tzinfo=UTC)
 
     report = Report()
-    check_redaction(artefact, ["nothing-to-find"], report, "1")
+    check_redaction(artefact, {"host": {"nothing-to-find"}}, report, "1")
 
     assert _passed(report, "no live identifier survived")
 
@@ -486,15 +494,17 @@ def test_a_setting_is_not_allowed_to_move(block: str, field: str) -> None:
 # ---------------------------------------------------------------------------
 
 
-def test_a_map_matching_the_payload_passes(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_map_matching_the_payload_passes() -> None:
     """Every block came from an endpoint that answered, and vice versa."""
-    # These maps carry no `voice_volte` or `onekey_diag`, which a library
-    # that has them must answer; the case is about payload accounting.
-    _old_library(monkeypatch, supports=False)
     report = Report()
-    check_endpoints(_artefact({"device_signal": {"rsrp": "1"}}), report, "1")
+    check_endpoints(
+        _artefact(
+            {"device_signal": {"rsrp": "1"}, **ADDED_BLOCKS},
+            endpoints={"device_signal": {"outcome": "answered"}, **ADDED_ANSWERED},
+        ),
+        report,
+        "1",
+    )
 
     assert report.failed == 0
 
@@ -532,20 +542,16 @@ def test_an_endpoint_that_answered_nothing_is_a_failure() -> None:
     assert not _passed(report, "accounts for the payload")
 
 
-def test_a_refused_endpoint_explains_its_own_absence(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_a_refused_endpoint_explains_its_own_absence() -> None:
     """The point of the map: absent from `data`, accounted for here."""
-    # These maps carry no `voice_volte` or `onekey_diag`, which a library
-    # that has them must answer; the case is about payload accounting.
-    _old_library(monkeypatch, supports=False)
     report = Report()
     check_endpoints(
         _artefact(
-            {"device_signal": {"rsrp": "1"}},
+            {"device_signal": {"rsrp": "1"}, **ADDED_BLOCKS},
             endpoints={
                 "device_signal": {"outcome": "answered"},
                 "security_sip": {"outcome": "refused", "code": "100002"},
+                **ADDED_ANSWERED,
             },
         ),
         report,
@@ -573,63 +579,22 @@ def test_an_unknown_outcome_is_a_failure() -> None:
     assert not _passed(report, "known verdicts")
 
 
-def _old_library(monkeypatch: pytest.MonkeyPatch, *, supports: bool) -> None:
-    """Make the script believe the loaded library has, or lacks, the added methods."""
-    monkeypatch.setattr("scripts.diag_check.library_supports", lambda _first: supports)
+# From 1.2.4-dev4 (plan I7) the two endpoints `huawei-lte-api` gained in 2.0.1
+# are read by path on an older library, so both must answer on any version and
+# `unsupported` is no longer a known verdict.
+ADDED_BLOCKS = {"voice_volte": {"VolteStatus": "1"}, "onekey_diag": {"x": "2"}}
+ADDED_ANSWERED = {
+    "voice_volte": {"outcome": "answered"},
+    "onekey_diag": {"outcome": "answered"},
+}
 
 
-def test_unsupported_is_a_known_verdict_for_an_added_endpoint_on_an_old_library(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """Below the first version the two added endpoints may read `unsupported`."""
-    _old_library(monkeypatch, supports=False)
+def test_unsupported_is_no_longer_a_known_verdict() -> None:
+    """An added endpoint recorded `unsupported` would mean the path read regressed."""
     report = Report()
     check_endpoints(
         _artefact(
-            {"device_signal": {"rsrp": "1"}},
-            endpoints={
-                "device_signal": {"outcome": "answered"},
-                "voice_volte": {"outcome": "unsupported"},
-                "onekey_diag": {"outcome": "unsupported"},
-            },
-        ),
-        report,
-        "1",
-    )
-
-    assert _passed(report, "known verdicts")
-
-
-def test_unsupported_on_any_other_endpoint_is_a_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`unsupported` must not become a way for an ordinary endpoint to pass."""
-    _old_library(monkeypatch, supports=False)
-    report = Report()
-    check_endpoints(
-        _artefact(
-            {"device_signal": {"rsrp": "1"}},
-            endpoints={
-                "device_signal": {"outcome": "answered"},
-                "security_sip": {"outcome": "unsupported"},
-            },
-        ),
-        report,
-        "1",
-    )
-
-    assert not _passed(report, "known verdicts")
-
-
-def test_unsupported_on_a_library_that_has_the_method_is_a_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """At or above the first version the two endpoints must answer."""
-    _old_library(monkeypatch, supports=True)
-    report = Report()
-    check_endpoints(
-        _artefact(
-            {"device_signal": {"rsrp": "1"}},
+            {"device_signal": {"rsrp": "1"}, "onekey_diag": {"x": "2"}},
             endpoints={
                 "device_signal": {"outcome": "answered"},
                 "voice_volte": {"outcome": "unsupported"},
@@ -641,8 +606,8 @@ def test_unsupported_on_a_library_that_has_the_method_is_a_failure(
     )
 
     assert not _passed(report, "known verdicts")
-    assert not _passed(report, "voice_volte answered on a library that has it")
-    assert _passed(report, "onekey_diag answered on a library that has it")
+    assert not _passed(report, "voice_volte answered, on any library version")
+    assert _passed(report, "onekey_diag answered, on any library version")
 
 
 def test_an_empty_map_is_a_failure() -> None:
@@ -705,33 +670,6 @@ def test_a_sabotage_that_did_not_land_is_a_failure() -> None:
         _artefact(
             rejection={"verdict": "expired", "code": "125002"},
             endpoints={"device_signal": {"outcome": "answered"}},
-        ),
-        report,
-        "1",
-    )
-
-    assert not _passed(report, "names what the lost session cost")
-
-
-def test_a_sabotage_run_where_every_endpoint_is_answered_or_unsupported_is_a_failure(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """On an old library the two skipped endpoints must not fake a disturbance.
-
-    The check passes when any endpoint is not `answered`. On 1.11.0 the two
-    `unsupported` endpoints would satisfy it on every run, so a sabotage that
-    never took effect would still pass.
-    """
-    _old_library(monkeypatch, supports=False)
-    report = Report()
-    check_sabotage(
-        _artefact(
-            rejection={"verdict": "expired", "code": "125002"},
-            endpoints={
-                "device_signal": {"outcome": "answered"},
-                "voice_volte": {"outcome": "unsupported"},
-                "onekey_diag": {"outcome": "unsupported"},
-            },
         ),
         report,
         "1",
@@ -994,9 +932,9 @@ def test_the_redaction_secrets_come_from_the_chosen_entry(
     secrets = _secrets(options, data)
 
     assert entry_id == "bbb222"
-    assert "b315-secret-pw" in secrets
-    assert "h165-secret-pw" not in secrets
-    assert "aa:bb:cc:00:00:02" in secrets
+    assert "b315-secret-pw" in secrets["password"]
+    assert "h165-secret-pw" not in secrets["password"]
+    assert "aa:bb:cc:00:00:02" in secrets["mac"]
 
 
 async def test_the_entry_option_reaches_both_produce_and_main(
@@ -1231,3 +1169,75 @@ def test_the_health_timestamp_changing_is_not_instability() -> None:
     report = Report()
     check_stability(first, second, report)
     assert not _passed(report, "no stable value changed")
+
+
+# ---------------------------------------------------------------------------
+# The leak scan (1.2.4-dev8 plan I9), ported from unifi_network_monitor
+# ---------------------------------------------------------------------------
+
+
+def test_leak_scan_finds_an_identifier_used_as_a_key() -> None:
+    """An identifying value seeded as a dictionary key fails the check.
+
+    The value list holds the router's identifiers as well as the entry's four
+    credentials and MAC, so an IMSI used as a key is found.
+    """
+    artefact = _artefact({"some_future_block": {"001019876543210": "signal"}})
+    secrets = identifying_values({"device_information": {"Imsi": "001019876543210"}})
+
+    report = Report()
+    check_redaction(artefact, secrets, report, "1")
+
+    assert not _passed(report, "no live identifier survived")
+
+
+def test_a_leak_report_names_the_category_and_never_the_value() -> None:
+    """The report carries the category and a masked path, not the value."""
+    artefact = _artefact({"block": {"note": "imei 490154203237518 seen"}})
+    secrets = {"imei": {"490154203237518"}}
+
+    report = Report()
+    check_redaction(artefact, secrets, report, "1")
+
+    text = json.dumps([list(check) for check in report.checks])
+    assert "490154203237518" not in text
+    assert "imei" in text
+
+
+def test_a_mac_is_found_in_another_case_and_separator() -> None:
+    """A MAC stored lower-case with colons is found upper-case with dashes."""
+    secrets = _secrets({}, {"mac": "dc:71:96:11:22:33"})
+
+    assert leak_hits({"x": "DC-71-96-11-22-33"}, secrets) == {"mac": ["x"]}
+
+
+def test_a_four_character_value_is_found_as_a_word_only() -> None:
+    """A short value matches as a whole word, not inside a longer number."""
+    secrets = {"cell_id": {"4321"}}
+
+    assert leak_hits({"a": "cell 4321"}, secrets) == {"cell_id": ["a"]}
+    assert leak_hits({"b": "1043210"}, secrets) == {}
+
+
+def test_a_path_holding_the_value_is_masked() -> None:
+    """A key can be the identifier found, so the printed path is masked."""
+    secrets = {"ssid": {"Home.Net"}}
+
+    hits = leak_hits({"wifi": {"Home.Net": "on"}}, secrets)
+
+    assert hits == {"ssid": ["wifi.<value> (key)"]}
+
+
+def test_identifying_values_reads_nested_profiles_and_ssids() -> None:
+    """APN names and SSIDs are read at any depth of their blocks."""
+    data = {
+        "dial_up_profiles": {"Profiles": {"Profile": [{"ApnName": "apn.example"}]}},
+        "wlan_multi_basic_settings": {
+            "Ssids": {"Ssid": [{"WifiSsid": "Example-WiFi"}]}
+        },
+        "device_information": {"Imei": "abc"},
+    }
+
+    found = identifying_values(data)
+
+    assert found == {"wan_apn": {"apn.example"}, "ssid": {"Example-WiFi"}}

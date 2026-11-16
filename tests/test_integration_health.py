@@ -596,6 +596,12 @@ def hass_less_sensor_attributes_fixture(mock_config_entry):
         "last_good_update": None,
     }
     coordinator.uptime_diagnostics = {}
+    coordinator.library_state = {
+        "library_loaded": "2.0.1",
+        "library_installed": "2.0.1",
+        "library_restart_pending": False,
+        "core_huawei_lte_configured": False,
+    }
     sensor = HuaweiIntegrationHealthSensor(
         coordinator, mock_config_entry, INTEGRATION_HEALTH_DESCRIPTION
     )

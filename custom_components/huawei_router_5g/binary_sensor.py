@@ -23,6 +23,7 @@ from .helpers import (
     HuaweiDeviceEntity,
     is_ssid_on,
     parse_signal_value,
+    ssid_entries,
 )
 
 # Section 22. `0` (unlimited) — this platform is read-only. Entities are
@@ -582,10 +583,7 @@ class HuaweiWifi24GStatusSensor(HuaweiBinarySensor):
         data = self.coordinator.data
         if not data:
             return None
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
+        ssids = ssid_entries(data.get("wlan_multi_basic_settings"))
 
         # Priority 1: ID path (Dynamic mapping)
         res = is_ssid_on(ssids, "Radio.1.Ssid.1")
@@ -611,10 +609,7 @@ class HuaweiWifi5GStatusSensor(HuaweiBinarySensor):
         data = self.coordinator.data
         if not data:
             return None
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
+        ssids = ssid_entries(data.get("wlan_multi_basic_settings"))
 
         # Priority 0: ID path (Dynamic mapping)
         res = is_ssid_on(ssids, "Radio.2.Ssid.1")
@@ -739,8 +734,36 @@ class HuaweiSimStatusSensor(HuaweiBinarySensor):
         return str(sim_status) != "1"
 
 
+# The states between connected and disconnected, named for the attribute below.
+# The wording is core's `huawei_lte` for 900, 903, 904, 905 and 906; core names no
+# state for 902, and `Disconnected` is added here. 901, connected, has none.
+CONNECTION_STATE_TEXT: Final[dict[str, str]] = {
+    "900": "Connecting",
+    "902": "Disconnected",
+    "903": "Disconnecting",
+    "904": "Connect failed",
+    "905": "Status not available",
+    "906": "Status error",
+}
+
+
 class HuaweiMobileConnectionSensor(HuaweiBinarySensor):
-    """Binary sensor that is True when mobile connection is active."""
+    """Binary sensor that is True when mobile connection is active.
+
+    The on and off state is unchanged by the attribute: only 901 is on, and
+    `assumed_state` is not set, because changing the state would change what
+    existing automations see (plan `v124_dev1_plan.md`, D10).
+    """
+
+    _unrecorded_attributes = ABOUT_UNRECORDED | frozenset({"additional_state"})
+
+    @property
+    def extra_state_attributes(self) -> dict[str, Any] | None:
+        """Name the intermediate connection state, through `_with_about`."""
+        data = self.coordinator.data or {}
+        value = (data.get("monitoring_status") or {}).get("ConnectionStatus")
+        text = CONNECTION_STATE_TEXT.get(str(value)) if value is not None else None
+        return self._with_about({"additional_state": text} if text else None)
 
     @property
     def is_on(self) -> bool | None:
@@ -800,6 +823,11 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
             "drift_intervals",
             "drift_measured_seconds",
             "drift_deficit_seconds",
+            # The library state (1.2.4-dev4 I7).
+            "library_loaded",
+            "library_installed",
+            "library_restart_pending",
+            "core_huawei_lte_configured",
         }
     )
 
@@ -850,6 +878,7 @@ class HuaweiIntegrationHealthSensor(HuaweiBinarySensor):
                     # is the Section 19 list of data-drift findings, and the
                     # two have never been related.
                     **self.coordinator.uptime_diagnostics,
+                    **self.coordinator.library_state,
                 }
             )
             or {}

@@ -45,6 +45,38 @@ def test_parse_signal_value_various_units():
     assert parse_signal_value("-80dBm") == -80.0
 
 
+@pytest.mark.parametrize(
+    ("raw", "expected"),
+    [
+        (">=-51dBm", -51.0),
+        ("&lt;-20dB", -20.0),
+        ("&gt;=30dB", 30.0),
+        (">= -51dBm", -51.0),
+        (">=-51 dBm", -51.0),
+        (">=-51DBM", -51.0),
+    ],
+)
+def test_parse_signal_value_reads_a_prefixed_signal_as_its_edge(
+    raw: str, expected: float
+) -> None:
+    """A comparison prefix before a dB or dBm unit reads as the range edge.
+
+    The three core `huawei_lte` values of issue #110042 and
+    `test_format_default`, and the spacing and unit case core's pattern allows.
+    """
+    assert parse_signal_value(raw) == expected
+
+
+@pytest.mark.parametrize("raw", [">5", "<1s", ">=0b", "<abc", ">"])
+def test_parse_signal_value_keeps_other_prefixed_values_unknown(raw: str) -> None:
+    """A prefix before anything but a dB or dBm unit still reads unknown.
+
+    `parse_signal_value` parses every numeric value in the component, so a
+    range marker on a counter or duration must not become a plausible number.
+    """
+    assert parse_signal_value(raw) is None
+
+
 def test_parse_signal_value_whitespace():
     """Values with leading/trailing whitespace are handled."""
     assert parse_signal_value("  -95dBm  ") == -95.0
@@ -147,10 +179,10 @@ def test_sensor_month_upload_gb(mock_coordinator, mock_config_entry):
 
 def test_sensor_plmn(mock_coordinator, mock_config_entry):
     """Test PLMN numeric code is returned."""
-    mock_coordinator.data = {"current_plmn": {"Numeric": "27205"}}
+    mock_coordinator.data = {"current_plmn": {"Numeric": "00103"}}
     desc = next(d for d in SENSOR_TYPES if d.key == "plmn")
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc)
-    assert sensor.native_value == "27205"
+    assert sensor.native_value == "00103"
 
 
 def test_sensor_operator_missing(mock_coordinator, mock_config_entry):

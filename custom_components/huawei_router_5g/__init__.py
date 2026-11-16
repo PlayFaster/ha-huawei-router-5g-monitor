@@ -1,6 +1,8 @@
 """The Huawei Router 5G Monitor integration."""
 
+import asyncio
 from collections.abc import Mapping
+import contextlib
 import logging
 from typing import Any, cast
 
@@ -17,6 +19,7 @@ from homeassistant.helpers import (
     entity_registry as er,
     issue_registry as ir,
 )
+from homeassistant.helpers.storage import Store
 from homeassistant.helpers.typing import ConfigType
 
 from ._compat import via_device_link
@@ -27,6 +30,9 @@ from .const import (
     DOMAIN,
     REPAIR_NAMES,
     SERVICE_CLEANUP,
+    SMS_DELETE_VERIFY_INTERVAL,
+    SMS_DELETE_VERIFY_SECONDS,
+    SMS_LIST_PAGE_SIZE,
     SMS_MAX_CHARS_GSM7,
     SMS_MAX_CHARS_UNICODE,
     SMS_SEGMENTS_MAX,
@@ -34,10 +40,37 @@ from .const import (
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import _stale_tracker_entities, is_gsm7, parse_sms_list
 from .library_guard import async_ensure_library, clear_restart_issue
+from .observations import HISTORY_STORAGE_VERSION, OBSERVED_STORAGE_VERSION
+from .reset_entities import async_reset_entities
 
 _LOGGER = logging.getLogger(__name__)
 
 CONFIG_SCHEMA = cv.config_entry_only_config_schema(DOMAIN)
+
+SERVICE_RESET_ENTITIES_SCHEMA = vol.Schema(
+    {
+        vol.Optional("entry_id"): str,
+        # Every default is the cautious one. `dry_run` in particular: this
+        # action can disable dozens of entities in a call, and a user reading
+        # the list first is the whole safety model.
+        vol.Optional("dry_run", default=True): bool,
+        # False, so that pressing Perform Action with nothing chosen plans
+        # nothing. A default of true meant an untouched form ran a real
+        # operation, and the dry-run default then protected a choice the user
+        # had not made.
+        vol.Optional("reset_to_default", default=False): bool,
+        vol.Optional("enable_populated", default=False): bool,
+        vol.Optional("disable_unavailable", default=False): bool,
+        vol.Optional("disable_unknown", default=False): bool,
+        vol.Optional("include_ever_populated", default=False): bool,
+        vol.Optional("preserve_user_customized", default=False): bool,
+        vol.Optional("exclude_entities", default=list): vol.All(
+            cv.ensure_list, [cv.entity_id]
+        ),
+        vol.Optional("save_snapshot", default=False): bool,
+        vol.Optional("restore_snapshot", default=False): bool,
+    }
+)
 
 SERVICE_SEND_SMS_SCHEMA = vol.Schema(
     {
@@ -94,6 +127,7 @@ PLATFORMS = [
     Platform.SELECT,
     Platform.DEVICE_TRACKER,
     Platform.NUMBER,
+    Platform.EVENT,
 ]
 
 
@@ -166,36 +200,112 @@ async def async_send_sms(hass: HomeAssistant, call: ServiceCall) -> None:
         raise HomeAssistantError(f"Failed to send SMS: {err}") from err
 
 
+async def _inbox_page(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, page: int
+) -> list[dict[str, Any]]:
+    """Read one page of the local inbox, newest first."""
+    response = await coordinator.api.get_sms_list(
+        page=page, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=SMS_LIST_PAGE_SIZE
+    )
+    return parse_sms_list(response)
+
+
+async def _local_inbox(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator,
+) -> list[dict[str, Any]]:
+    """Read the whole local inbox, page by page, newest first.
+
+    Stops at a short page, and at a page that brings no index not already read,
+    so a router that ignores the page number cannot hold the loop.
+    """
+    messages: list[dict[str, Any]] = []
+    seen: set[int] = set()
+    page = 1
+    while True:
+        batch = await _inbox_page(coordinator, page)
+        fresh = [m for m in batch if m["index"] not in seen]
+        messages.extend(fresh)
+        seen.update(m["index"] for m in fresh)
+        if len(batch) < SMS_LIST_PAGE_SIZE or not fresh:
+            return messages
+        page += 1
+
+
+async def _confirm_deleted(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, index: int
+) -> None:
+    """Raise when `index` is still on the first page of the local inbox.
+
+    Read at once and then every `SMS_DELETE_VERIFY_INTERVAL` seconds until
+    `SMS_DELETE_VERIFY_SECONDS` have been waited.
+    """
+    waited = 0
+    while True:
+        if all(m["index"] != index for m in await _inbox_page(coordinator, 1)):
+            return
+        if waited + SMS_DELETE_VERIFY_INTERVAL > SMS_DELETE_VERIFY_SECONDS:
+            break
+        await asyncio.sleep(SMS_DELETE_VERIFY_INTERVAL)
+        waited += SMS_DELETE_VERIFY_INTERVAL
+    raise HomeAssistantError(
+        f"SMS {index} is still listed after the router accepted the delete"
+    )
+
+
+async def _delete_beyond(
+    coordinator: HuaweiRouter5GDataUpdateCoordinator, keep_last: int
+) -> None:
+    """Delete the local inbox beyond its newest `keep_last`, pass by pass.
+
+    A pass that leaves no fewer messages than it started with raises, so the
+    loop cannot run more passes than there are messages to delete.
+    """
+    messages = await _local_inbox(coordinator)
+    while len(messages) > keep_last:
+        for msg in messages[keep_last:]:
+            await coordinator.api.delete_sms(msg["index"])
+        remaining = await _local_inbox(coordinator)
+        if len(remaining) >= len(messages):
+            raise HomeAssistantError(
+                f"{len(remaining) - keep_last} SMS still listed after the "
+                "router accepted the deletes"
+            )
+        messages = remaining
+
+
 async def async_delete_sms(hass: HomeAssistant, call: ServiceCall) -> None:
-    """Service to delete an SMS."""
+    """Service to delete an SMS, and check that it went.
+
+    A success reply did not prove a delete on `zte_router_5g`. The first page of
+    the local inbox is read again for up to `SMS_DELETE_VERIFY_SECONDS`, and a
+    message still listed is reported. A message beyond the first page, or in
+    another box, is not seen by the check; that limit is in `docs/DEVELOPMENT.md`.
+    """
     coordinator = _get_coordinator(hass, call.data)
     index = call.data["index"]
 
     try:
         await coordinator.api.delete_sms(index)
+        await _confirm_deleted(coordinator, index)
         await coordinator.async_force_refresh()
     except Exception as err:
         raise HomeAssistantError(f"Failed to delete SMS: {err}") from err
 
 
 async def async_delete_all_sms(hass: HomeAssistant, call: ServiceCall) -> None:
-    """Service to delete all SMS messages."""
+    """Service to delete the local inbox, keeping the newest `keep_last`.
+
+    Reads the whole inbox, deletes the messages beyond `keep_last`, and reads
+    again until only the kept messages remain. A pass that leaves no fewer
+    messages than it started with stops the loop and raises, so a router that
+    answers success and keeps its messages cannot hold it. The SIM inbox, the
+    outbox and the drafts are not covered.
+    """
     coordinator = _get_coordinator(hass, call.data)
     keep_last = call.data.get("keep_last", 0)
 
     try:
-        # Fetch current list to identify messages to delete
-        response = await coordinator.api.get_sms_list(
-            page=1, box_type=BoxTypeEnum.LOCAL_INBOX, read_count=50
-        )
-        messages = parse_sms_list(response)
-
-        # Skip the most recent 'keep_last' messages
-        to_delete = messages[keep_last:] if keep_last > 0 else messages
-
-        for msg in to_delete:
-            await coordinator.api.delete_sms(msg["index"])
-
+        await _delete_beyond(coordinator, keep_last)
         await coordinator.async_force_refresh()
     except Exception as err:
         raise HomeAssistantError(f"Failed to delete all SMS: {err}") from err
@@ -231,6 +341,11 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
 
     async def _handle_get_sms_list(call: ServiceCall) -> dict[str, Any]:
         return await async_get_sms_list(hass, call)
+
+    async def _handle_reset_entities(call: ServiceCall) -> dict[str, Any]:
+        return await async_reset_entities(
+            hass, _get_coordinator(hass, call.data), dict(call.data)
+        )
 
     async def _handle_cleanup(call: ServiceCall) -> dict[str, Any]:
         """Report or remove client trackers the router no longer lists."""
@@ -291,6 +406,17 @@ async def async_setup(hass: HomeAssistant, config: ConfigType) -> bool:
         SERVICE_CLEANUP,
         _handle_cleanup,
         schema=SERVICE_CLEANUP_SCHEMA,
+        supports_response=SupportsResponse.OPTIONAL,
+    )
+
+    hass.services.async_register(
+        DOMAIN,
+        "reset_entities",
+        _handle_reset_entities,
+        schema=SERVICE_RESET_ENTITIES_SCHEMA,
+        # OPTIONAL rather than ONLY, as in `zte_router_5g`: a user who has read
+        # a dry run wants to apply it from an automation without handling a
+        # response.
         supports_response=SupportsResponse.OPTIONAL,
     )
 
@@ -416,6 +542,11 @@ async def async_setup_entry(
     # reconciles against them. Never raises: an unreadable store resolves to
     # "nothing learned", which routes to the cold-start path.
     await coordinator.async_load_stored_uptime()
+    await coordinator.observations.async_load()
+    # Before the first poll, so a 100003 on it is judged against what this
+    # device has answered before a restart, not against an empty record.
+    api.information_answered = coordinator.observations.information_answered()
+    coordinator.restore_sms_record()
 
     # Register the root System device early to prevent via_device warnings in platforms.
     device_registry = dr.async_get(hass)
@@ -499,13 +630,11 @@ async def async_unload_entry(
     hass: HomeAssistant, entry: ConfigEntry[HuaweiRouter5GDataUpdateCoordinator]
 ) -> bool:
     """Unload a config entry and release resources."""
-    import contextlib
-
     coordinator = entry.runtime_data
 
-    # Before the logout: a pending follow-up refresh would otherwise fire
+    # Before the logout: an expected-outage check would otherwise fire
     # against a coordinator whose session has just been closed.
-    coordinator.async_cancel_scheduled_refresh()
+    coordinator.async_cancel_outage_check()
 
     with contextlib.suppress(Exception):
         await coordinator.api.logout()
@@ -534,6 +663,14 @@ async def async_remove_entry(hass: HomeAssistant, entry: ConfigEntry) -> None:
     """
     for name in REPAIR_NAMES:
         ir.async_delete_issue(hass, DOMAIN, f"{name}_{entry.entry_id}")
+
+    # The transition history and the populated set (1.2.4-dev4 I5). Built from
+    # `entry.entry_id` rather than from the coordinator, which is gone by now.
+    for version, suffix in (
+        (HISTORY_STORAGE_VERSION, "history"),
+        (OBSERVED_STORAGE_VERSION, "observed"),
+    ):
+        await Store(hass, version, f"{DOMAIN}_{entry.entry_id}_{suffix}").async_remove()
 
     # The library repair is domain-level. Once the last entry is gone the
     # integration is no longer set up on later starts, so nothing else would

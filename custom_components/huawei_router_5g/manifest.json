@@ -1,6 +1,11 @@
 {
   "domain": "huawei_router_5g",
   "name": "Huawei Router 5G Monitor",
+  "categories": [
+    "computers_network.routers_network",
+    "presence_location.network_presence",
+    "messaging_notifications.email_sms_calls"
+  ],
   "codeowners": ["@PlayFaster"],
   "config_flow": true,
   "documentation": "https://github.com/PlayFaster/ha-huawei-router-5g-monitor",
@@ -8,5 +13,5 @@
   "iot_class": "local_polling",
   "issue_tracker": "https://github.com/PlayFaster/ha-huawei-router-5g-monitor/issues",
   "requirements": ["huawei-lte-api>=1.11.0,<2.0.2"],
-  "version": "1.2.3"
+  "version": "1.2.4"
 }

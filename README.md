@@ -2,7 +2,7 @@
 
 # Huawei Router 5G Monitor for Home Assistant
 
-[![HACS Integration](https://img.shields.io/badge/HACS-Integration-orange.svg)](https://hacs.xyz/) [![HACS Custom](https://img.shields.io/badge/HACS-Custom-41BDF5?logo=homeassistant&logoColor=white)](https://hacs.xyz/docs/faq/custom_repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-huawei-router-5g-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/b5cb47f2b37e140da07eefd17ac19721/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-huawei-router-5g-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/commits/main)
+[![Marketplace Integration](https://img.shields.io/badge/Marketplace-Integration-orange.svg)](https://hacs.xyz/) [![Marketplace Custom](https://img.shields.io/badge/Marketplace-Custom-41BDF5?logo=home-assistant&logoColor=white)](https://www.home-assistant.io/integrations/marketplace/#custom-repositories) [![Latest Release](https://img.shields.io/github/v/release/PlayFaster/ha-huawei-router-5g-monitor?label=Release&logo=github)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/releases) [![License: Apache 2.0](https://img.shields.io/badge/License-Apache_2.0-blue.svg)](https://opensource.org/licenses/Apache-2.0) [![Validate](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml/badge.svg)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/actions/workflows/validate.yaml) ![Coverage](https://img.shields.io/endpoint?url=https://gist.githubusercontent.com/PlayFaster/b5cb47f2b37e140da07eefd17ac19721/raw/coverage.json) [![Last Commit](https://img.shields.io/github/last-commit/PlayFaster/ha-huawei-router-5g-monitor?label=Last%20commit)](https://github.com/PlayFaster/ha-huawei-router-5g-monitor/commits/main)
 
 ---
 
@@ -35,6 +35,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
   - [🔍 What You Get](#-what-you-get)
   - [🔘 Controls \& Settings](#-controls--settings)
   - [💬 SMS Actions](#-sms-actions)
+  - [🧹 Reset Entities Action](#-reset-entities-action)
   - [💡 Example Automations](#-example-automations)
   - [📥 Installation](#-installation)
   - [📋 Configuration](#-configuration)
@@ -52,7 +53,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 **📟 Router Hardware:**
 
 - **Fully Tested**:
-  - **Huawei 5G CPE Pro 6 (H165-383)** — tested firmware: `4.4.0.1(H1600SP2Cxxxx)`
+  - **Huawei 5G CPE Pro 6 (H165-383)** — tested firmware: `4.4.0.1(H1600SP2xxxx)`
   - _This is currently the primary model verified on live hardware._
 
 - **Expected Compatible (Huawei HiLink XML API Family)**:
@@ -88,8 +89,7 @@ A Home Assistant integration for **Huawei 5G/LTE Routers** providing Signal Stat
 
 **🤝 Alongside Home Assistant's Huawei LTE Integration:**
 
-- Runs side by side with Home Assistant's built-in **Huawei LTE** integration. While both are installed:
-  - the **VoLTE** and **Router Diagnostics** sensors read unknown.
+- Runs side by side with Home Assistant's built-in **Huawei LTE** integration. Every sensor works on either library version; while both are installed:
   - Emoji in SMS messages can arrive or send garbled. Send and receive is otherwise correct, some complex emoji will render blank or as an empty block.
   - See [running alongside core](#-running-alongside-home-assistants-huawei-lte-integration) for more information.
 
@@ -420,6 +420,39 @@ This integration features **dynamic polling**, the ability to pause polling comp
 
 <br>
 
+### 🕓 Change History
+
+Eight values keep their own record of what they changed from and when: software version, WAN IP, APN, cell ID, operator, carrier build, WAN IPv6 and primary DNS server.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+Home Assistant forgets a text value after ten days. These eight keep their history, so you can still see a software change your operator made months ago.
+
+| Sensor | Counter | Counter default |
+| :-- | :-- | :-- |
+| `Software Version` | `Software Version Changes` | **Enabled** |
+| `WAN IP Address` | `WAN IP Changes` | Disabled |
+| `APN` | `APN Changes` | Disabled |
+| `LTE Cell ID` | `Cell Changes` | Disabled |
+| `Operator` | `Operator Changes` | Disabled |
+| `Carrier Build` | `Carrier Build Changes` | Disabled |
+| `WAN IPv6 Address` | `WAN IPv6 Changes` | Disabled |
+| `Primary DNS Server` | `Primary DNS Changes` | Disabled |
+
+Each sensor on the left carries **`history`**, **`previous_version`** and **`last_changed`** attributes. Click the entity → **⋮ menu → Details** to read them.
+
+The counters put the same changes on a graph, and they reach [long-term statistics](#-long-term-statistics-lts).
+
+---
+
+</details>
+
+<br>
+
 ### 💬 SMS Management Actions
 
 With SMS count and text sensors, plus monitoring and control via events and actions, you can **send, read and delete** Router SMS messages.
@@ -428,7 +461,7 @@ With SMS count and text sensors, plus monitoring and control via events and acti
 
 ## 🔍 What You Get
 
-This integration provides **159 entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client.
+This integration provides **168 entities** (depending on your firmware) organized into six logical devices: **System**, **Signal**, **Data**, **SMS**, **WiFi**, and **Clients** — plus one `device_tracker` per discovered client.
 
 <details>
 
@@ -438,13 +471,13 @@ This integration provides **159 entities** (depending on your firmware) organize
 
 | Sub-Device | Entities | Entity Types | Key Metrics | Disabled by Default |
 | :-- | --: | :-- | :-- | :-- |
-| ⚙️ **System** | 48 | 33 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
+| ⚙️ **System** | 56 | 41 Sensors, 8 Binary Sensors, 3 Buttons, 2 Switches, 1 Select, 1 Number | Firmware, identity, WAN/LAN IPs, DNS servers, uptime timestamps, SIM and VoIP status, Refresh Now, Reboot, Reconnect, Mobile Data, Pause Polling, Network Mode, Polling Interval | 22, mostly identifiers (IMEI, IMSI, ICCID) and duration counters |
 | 📶 **Signal** | 58 | 48 Sensors, 10 Binary Sensors | LTE RSRP/RSRQ/RSSI/SINR, 5G RSRP/RSRQ/SINR, CQI, MCS, bands, frequencies, cell IDs, carrier aggregation | 4 |
 | 📈 **Data** | 24 | 22 Sensors, 1 Binary Sensor, 1 Button | Monthly usage, projected usage, data rates, connection usage, daily usage, data plan | 8, incl. Download/Upload Rate, Max Download/Upload Rate and the GB duplicates |
-| 💬 **SMS** | 18 | 17 Sensors, 1 Binary Sensor | Unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
+| 💬 **SMS** | 19 | 17 Sensors, 1 Binary Sensor, 1 Event | Incoming SMS event, unread count, inbox/outbox/drafts per storage bank, last message content and attributes | 1 |
 | 🛜 **WiFi** | 7 | 4 Binary Sensors, 2 Switches, 1 Sensor | Radio status per band, single-SSID mode, user capacity, master WiFi and guest network toggles | 1 |
 | 👥 **Clients** | 4 | 3 Sensors, 1 Button | Total Connected, Wired Connected, WiFi Connected, entity cleanup — **plus one `device_tracker` per discovered client** | 1 |
-| 🛠️ **Actions** | 5 | — | Send, delete, bulk-delete and list SMS; clean up unused tracker entities | — |
+| 🛠️ **Actions** | 6 | — | Send, delete, bulk-delete and list SMS; bulk-enable or disable entities; clean up unused tracker entities | — |
 
 ---
 
@@ -459,6 +492,8 @@ This integration provides **159 entities** (depending on your firmware) organize
 > ![About Attribute Example](.github/images/huawei_5g_about_attribute.png)
 >
 > That is where the acronyms are decoded: **RSRP**, **RSRQ**, **SINR**, **PCI**, **eNodeB**, **ENDC**, **APN** and the rest each explain themselves in place, so you do not have to look them up to read your own dashboard.
+>
+> The **Mobile Connection** binary sensor also carries an **`additional_state`** attribute while the router is between states: `Connecting`, `Disconnected`, `Disconnecting`, `Connect failed`, `Status not available` or `Status error`. It is absent while connected, and the sensor's on and off state is unchanged by it.
 >
 > These **About** notes — and all other attributes this integration publishes — are set **unrecorded**. Home Assistant still shows them live in the entity's details, but **never writes them to the history/recorder database**. That keeps bulky or purely-informational values from bloating your database, while maintaining visibility to the current information.
 
@@ -603,8 +638,8 @@ Several settings are exposed as control entities so you can drive them from dash
 - **Pause Polling** (`switch.huawei_5g_system_pause_polling`): Halt all polling when you need exclusive access to the router's web UI.
 - **Polling Interval** (`number.huawei_5g_system_polling_interval`): Adjust the scan interval slider (30s to 1 hour, default `180` seconds).
 - **Refresh Now** (`button.huawei_5g_system_refresh_now`): Trigger an immediate refresh (data fetch). **This works even while Pause Polling is on** — an explicit action always fetches, while scheduled polls stay paused.
-- **Reboot Router** (`button.huawei_5g_system_reboot`): Reboot the router on demand.
-- **Reconnect Cellular** (`button.huawei_5g_system_reconnect`): Re-establish the cellular data connection on demand.
+- **Reboot Router** (`button.huawei_5g_system_reboot`): Reboot the router on demand. The router is unreachable for a minute or two, and other controls show an error until it answers again. See [that error](#-the-router-is-restarting-or-the-router-is-reconnecting-its-data-connection-error).
+- **Reconnect Cellular** (`button.huawei_5g_system_reconnect`): Re-establish the cellular data connection on demand. Other controls show an error for up to twenty seconds while it completes. See [that error](#-the-router-is-restarting-or-the-router-is-reconnecting-its-data-connection-error).
 - **Mobile Data Switch** (`switch.huawei_5g_system_mobile_data`): Enable or disable the router's mobile data connection.
 
 > [!NOTE]
@@ -629,7 +664,7 @@ Several settings are exposed as control entities so you can drive them from dash
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware.
+- **Preferred Network Mode** (`select.huawei_5g_system_preferred_network_mode`): Select between Auto, 4G Only, 5G Only, and other modes supported by your firmware. See [a mode the router does not list](#-not-in-the-routers-list-of-network-modes-error).
 
 ![System Config with Dropdown](.github/images/huawei_5g_system_config_dropdown.png)
 
@@ -731,7 +766,8 @@ There is also an SMS received event and four SMS actions to **send, read and del
 
 - The `Last Msg` sensor displays the most recent message received **OR** _sent_.
 - In addition to the sensor entities, there is:
-  - A `huawei_router_5g_sms_received` event for automation triggers ([example](#-alert-on-incoming-sms))
+  - An **Incoming SMS** event entity on the SMS device, selectable as an automation trigger in the editor ([example](#-alert-on-incoming-sms))
+  - The `huawei_router_5g_sms_received` bus event, kept for existing automations, with the same data
   - Four service actions for full programmatic control ([inbox cleanup](#-automated-inbox-maintenance) and [on-demand query](#-fetch-and-process-inbox-via-automation) examples).
 - In the action examples below, the `entry_id:` of your router, where required, is drop-down menu selectable from the editor GUI.
 - See [SMS Examples](#-sms-examples) for additional automation options.
@@ -833,6 +869,8 @@ response_variable: inbox
 
 Delete a single SMS by its storage index. Use the `index` field from `get_sms_list` or from the `huawei_router_5g_sms_received` event.
 
+The action checks that the message has gone: it reads the first page of the local inbox again, up to three times two seconds apart, and fails with an error naming the index if the message is still listed. A message beyond the first page, or in another box, is not seen by the check.
+
 | Parameter | Required | Description |
 | :-- | :-- | :-- |
 | `entry_id` | No | The router to use. Defaults to your only router; required if more than one is configured. |
@@ -861,6 +899,8 @@ data:
 </summary><br>
 
 > The `delete_all_sms` service action below provides programmatic cleanup of your inbox, and accepts a `keep_last` parameter to preserve recent messages.
+>
+> It reads the whole local inbox page by page, deletes everything beyond the newest `keep_last`, and reads again until only those remain. If a pass leaves as many messages as it started with, it stops and fails with an error, rather than reporting success. Only the local inbox is covered; the SIM inbox, the outbox and the drafts are not.
 
 | Parameter | Required | Default | Range | Description |
 | :-- | :-- | :-- | :-- | :-- |
@@ -889,17 +929,33 @@ data:
 &nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Detail:
 </summary><br>
 
-Fires automatically when a new incoming SMS is detected. Use as an automation trigger.
+Fires automatically when a new incoming SMS is detected. Use as an automation trigger. A message is new when its storage index and content have not been seen, so a clock change cannot hide one. A message that arrives while Home Assistant is stopped is announced once after it starts. On the first start after installing, messages already on the router are not announced.
 
 | Field | Type | Description |
 | :-- | :-- | :-- |
 | `entry_id` | Text | Config entry ID of the router that received the message. |
 | `phone` | Text | Sender's phone number. |
 | `content` | Text | Message body. |
-| `date` | Text | Date/time of the message. |
+| `date` | Text | Date/time of the message, in the router's local time with no offset. |
 | `index` | Integer | Storage index — pass directly to `delete_sms` to delete after processing. |
 
 See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
+
+</details>
+
+<br>
+
+### Incoming SMS Event Entity
+
+<details>
+
+<summary> &nbsp; &nbsp; An event entity on the SMS device that fires for each new message.<br>
+&nbsp; &nbsp; &nbsp; &nbsp; ➕ &nbsp; Click to Expand for Detail:
+</summary><br>
+
+The **Incoming SMS** entity, on the router's SMS device, fires once for each new message, at the same moment and with the same `phone`, `content`, `date` and `index` as the `huawei_router_5g_sms_received` event, which still fires. You can choose it in the automation editor's entity trigger instead of typing the event name, and each message appears in the logbook and on the device page. Its event type is `received`.
+
+The sender and the message text are not written to the recorder, so the logbook and history show that a message arrived, not who sent it or what it said. Use the event data in an automation to act on them.
 
 </details>
 
@@ -908,6 +964,84 @@ See [Alert on incoming SMS](#-alert-on-incoming-sms) example.
 </details>
 
 <br>
+
+## 🧹 Reset Entities Action
+
+`huawei_router_5g.reset_entities` manages which entities are enabled, in bulk. It exists because exploring an integration means enabling everything, and getting back to a useful set otherwise means clicking through dozens of entities or deleting and re-adding the config entry — which destroys custom names, dashboard bindings and long-term statistics.
+
+**It previews by default and changes nothing until you say so.** Every run returns what it would do; only `dry_run: false` applies it.
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+### What each option does
+
+| Option | Default | Effect |
+| :-- | :-- | :-- |
+| `dry_run` | `true` | Report what would change and change nothing |
+| `reset_to_default` | `false` | Return every entity to the state this integration ships |
+| `enable_populated` | `false` | Turn on every entity your router currently supplies a value for |
+| `disable_unavailable` | `false` | Turn off entities showing Unavailable |
+| `disable_unknown` | `false` | Turn off entities showing Unknown |
+| `include_ever_populated` | `false` | Let the two Disable options also act on entities that have reported a value before |
+| `preserve_user_customized` | `false` | Leave alone any entity **you** switched off |
+| `exclude_entities` | empty | Entities to leave exactly as they are, whatever else runs |
+| `save_snapshot` | `false` | Record which entities are enabled now, as your own set |
+| `restore_snapshot` | `false` | Return to the set you saved earlier |
+
+Nothing happens with every option at its default — a choice has to be made deliberately.
+
+### The usual sequence
+
+Enable everything from the device page to see what your router offers, then:
+
+```yaml
+# 1. See what going back to the defaults would do.
+action: huawei_router_5g.reset_entities
+data:
+  reset_to_default: true
+```
+
+Read `changes.to_disable` in the response. If two of them are worth keeping, carry them through:
+
+```yaml
+# 2. Apply it, keeping the two you want.
+action: huawei_router_5g.reset_entities
+data:
+  reset_to_default: true
+  dry_run: false
+  exclude_entities:
+    - sensor.huawei_5g_system_uptime_duration
+    - sensor.huawei_5g_system_battery
+```
+
+Or, once your set is how you want it, save it and return to it whenever:
+
+```yaml
+action: huawei_router_5g.reset_entities
+data:
+  save_snapshot: true
+  dry_run: false
+```
+
+### Two protections worth knowing about
+
+**Entities that have reported a value before are not disabled** by `disable_unavailable` or `disable_unknown`. Your 5G sensors are Unavailable whenever the router drops to 4G, and turning them off then is almost never what you meant — nothing turns them back on when 5G returns. Set `include_ever_populated: true` if you genuinely want them gone.
+
+**Controls are never disabled by those options either.** A button's state is the time it was last pressed, so one you have never pressed reads Unknown — without this, `disable_unknown` would switch off Refresh Now, Reboot Router and Reconnect, including the button you would reach for to undo it.
+
+**Device trackers are never touched.** They belong to `huawei_router_5g.cleanup_unused_entities`, which removes trackers for clients the router no longer reports.
+
+### What it refuses
+
+The action stops with an error rather than guessing when the request has no single meaning: `reset_to_default` and `restore_snapshot` together, since each sets a different starting point; `save_snapshot` alongside anything that changes things, since a snapshot records what you have rather than what a call is about to make of it; `restore_snapshot` with nothing saved; and any run while the router is unreachable, since what each entity is reporting cannot be judged during an outage.
+
+</details>
+
+---
 
 ## 💡 Example Automations
 
@@ -966,27 +1100,33 @@ description: "Forwards the content of any newly received SMS to a notification"
 mode: queued
 max: 10
 triggers:
-  - trigger: event
-    event_type: huawei_router_5g_sms_received
+  - trigger: state
+    entity_id: event.huawei_5g_sms_incoming_sms
+    not_from:
+      - unavailable
+      - unknown
     note: |
-      Fires once per genuinely new message. Messages already on the
-      router when Home Assistant starts are recorded silently as a
-      baseline, so a restart never replays your whole inbox into this
-      automation.
+      The Incoming SMS entity of your router; pick it in the editor, as
+      its ID follows your router's name. Fires once per new message,
+      including one that arrived while Home Assistant was stopped. On
+      the first start after installing, messages already on the router
+      are recorded silently, so they are never replayed.
 actions:
   - action: notify.persistent_notification
     data:
-      title: "New SMS from {{ trigger.event.data.phone }}"
-      message: "{{ trigger.event.data.content }}"
+      title: "New SMS from {{ trigger.to_state.attributes.phone }}"
+      message: "{{ trigger.to_state.attributes.content }}"
     note: |
-      The event payload carries phone, content, date and index. Use
-      index with the delete_sms action if you want to remove the
-      message after handling it.
+      The entity carries phone, content, date and index. Use index with
+      the delete_sms action if you want to remove the message after
+      handling it.
 ```
 
 > [!NOTE]
 >
-> `mode: queued` — several messages can arrive in one poll cycle, and the default `single` mode could silently drop all but the first.
+> `mode: queued` — several messages can arrive in one poll cycle, and the default `single` mode could silently drop all but the first. `not_from` stops the automation firing when the entity's last state is restored at startup.
+
+An automation written for the `huawei_router_5g_sms_received` bus event keeps working: use `trigger: event` with that `event_type`, and read `trigger.event.data.phone` and `trigger.event.data.content`.
 
 ---
 
@@ -1724,19 +1864,18 @@ actions:
 
 ## 📥 Installation
 
-### ✨ HACS (Recommended)
+### ✨ Marketplace / HACS (Recommended)
 
-[![Open your Home Assistant instance and open a repository inside the Home Assistant Community Store.](https://my.home-assistant.io/badges/hacs_repository.svg)](https://my.home-assistant.io/redirect/hacs_repository/?owner=PlayFaster&repository=ha-huawei-router-5g-monitor&category=integration)
+[![Open your Home Assistant instance and open a repository inside the Home Assistant Marketplace.](https://my.home-assistant.io/badges/marketplace_repository.svg)](https://my.home-assistant.io/redirect/marketplace_repository/?owner=PlayFaster&repository=ha-huawei-router-5g-monitor&category=integration)
 
-Use the **shortcut badge** above, then proceed to Step 3 - or just …
-
-1. Add this [repository](https://github.com/PlayFaster/ha-huawei-router-5g-monitor) as a **Custom Repository** in HACS:
-   - Open HACS in Home Assistant
-   - Click **Custom repositories** (⋮ menu)
-   - Add repository URL and Type: `Integration`
-2. Search for "Huawei Router 5G Monitor" and click **Download**
-3. Restart Home Assistant
-4. Go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor"
+- **Marketplace (Home Assistant 2026.11+):**
+  1. In **Settings > Marketplace**, select **Add from link** in the upper-right corner, enter `https://github.com/PlayFaster/ha-huawei-router-5g-monitor`, and click **Add** (prompts for GitHub device sign-in).
+  2. Click **Install** (or use the **shortcut badge** above, then click **Install**).
+  3. Add the integration when prompted (or restart if a repair appears under **Settings > System > Repairs**).
+- **HACS (Home Assistant < 2026.11):**
+  1. In **HACS**, open the `⋮` menu -> **Custom repositories**, and add `https://github.com/PlayFaster/ha-huawei-router-5g-monitor` with Type `Integration`.
+  2. Search for "Huawei Router 5G Monitor" and click **Download** (or use the **shortcut badge** above, then click **Download**).
+  3. Restart Home Assistant, then go to **Settings > Devices & Services > Add Integration** and search for "Huawei Router 5G Monitor".
 
 ### 💾 Manual Installation
 
@@ -1759,7 +1898,7 @@ Use the **shortcut badge** above, then proceed to Step 3 - or just …
 
 ### 🔄 Updating
 
-Standard HACS custom-repository integration update behavior:
+Standard Marketplace / HACS custom-repository integration update behavior:
 
 <details>
 
@@ -1767,7 +1906,8 @@ Standard HACS custom-repository integration update behavior:
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-- New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
+- **Marketplace (Home Assistant 2026.11+):** New releases appear under **Settings > Updates** (checked every 48 hours when GitHub is connected; not checked automatically without it). Update there, then restart Home Assistant.
+- **HACS (Home Assistant < 2026.11):** New releases show up in **HACS** as normal. Update there, then restart Home Assistant.
 - For manual installs: replace the `custom_components/huawei_router_5g` folder and restart.
 - Your settings and entity customizations carry over - Configure options, connection details, renamed entities, enabled/disabled choices, and dashboards.
 - Any new entities in a release appear on the first restart after updating.
@@ -1890,7 +2030,7 @@ It is deliberately **available at all times**, including when every other entity
 
 ### 🔨 Repairs
 
-Three conditions raise a card in Home Assistant's **Repairs** panel: the router **refusing the stored credentials**, the router **not responding** over a sustained period, and a router-library upgrade that is **waiting for a restart**. The first two need you to act before they clear. The library card clears itself at the next restart, or when you click **Fix**.
+Two conditions raise a card in Home Assistant's **Repairs** panel: the router **refusing the stored credentials**, and the router **not responding** over a sustained period. Both need you to act before they clear. A router-library upgrade waiting for a restart raises no card; Integration Health's `library_restart_pending` attribute shows it.
 
 <details>
 
@@ -1902,13 +2042,13 @@ Three conditions raise a card in Home Assistant's **Repairs** panel: the router 
 | :-- | :-- | :-- | :-- |
 | **Authentication Failed** | Router rejects stored credentials | **Repairs card** (`auth_failed`) & Integration Health (`error`) | Click **Fix** to re-enter username/password |
 | **Sustained Outage** | 10 consecutive failed polls | **Repairs card** (`conn_error`) & Integration Health (`error`) | Check power, network path, or configured IP address |
-| **Library Upgrade Pending** | The router API library has an update. The new version loads after a restart | **Repairs card** | Click **Fix** to restart Home Assistant, or leave it until your next restart. See [Running Alongside Home Assistant's Huawei LTE Integration](#-running-alongside-home-assistants-huawei-lte-integration) |
+| **Login Locked Out** | The router refuses every login after too many failed attempts (code 108007) | Integration Health (`error` after 3 held polls, or at once when the router reports the lock before a login, with the seconds left); the setup and reauth dialogs say the router has locked logins | Wait for the router's lock to expire. While the router reports a lock, the integration sends no login, so it does not extend the lock. No Repairs card is raised, because the router is reachable and the credentials may be right |
 | **Transient Glitch / Reboot** | 1–3 failed poll cycles | Integration Health (`error` during outage) | None (auto-clears on next successful poll) |
 | **Firmware Schema Change** | Unrecognized or missing API fields | Integration Health (`severity: warning`, `drift` attr) | Check for integration updates or report issue |
 
 - **Actionable Issues (Repairs)**: A Repair issue is raised only when a condition persists across multiple polls and requires user intervention to resolve (such as updating credentials or checking physical router power). Non-actionable anomalies (such as API drift) report on the Integration Health sensor attributes instead.
 
-**The authentication and outage Repairs also turn the Integration Health sensor on**, so an automation watching that sensor sees these two as well, without watching the panel. The library upgrade card does not. See [Self-Diagnosis](#-self-diagnosis).
+**Both Repairs also turn the Integration Health sensor on**, so an automation watching that sensor sees them without watching the panel. See [Self-Diagnosis](#-self-diagnosis).
 
 > [!NOTE]
 >
@@ -1930,17 +2070,16 @@ You can run this integration and Home Assistant's built-in **Huawei LTE** integr
 
 | Your setup | What you will see |
 | :-- | :-- |
-| Both integrations installed | The library stays at 1.11.0, which curtails two sensors and emoji in SMS (see below). |
-| Only this integration | Nothing changes, and nothing is curtailed. If you used the core **Huawei LTE** integration before and removed it, the library it left behind is upgraded to 2.0.1 at the next start, and a **Repairs** card asks you to restart Home Assistant so the new version loads. |
+| Both integrations installed | The library stays at 1.11.0, which curtails emoji in SMS (see below). |
+| Only this integration | Nothing changes, and nothing is curtailed. If you used the core **Huawei LTE** integration before and removed it, the library it left behind is upgraded to 2.0.1 at the next start, and loads at your next restart. Nothing asks you to restart. |
 
 **What is curtailed while both are installed:**
 
-- The **VoLTE** and **Router Diagnostics** sensors show as unknown, because they need the newer library.
 - SMS messages containing emoji can arrive or send garbled. Everything else in SMS works as before.
 
-Both limits lift once the core **Huawei LTE** integration is removed: at the next start this integration upgrades the library, and the newer library handles both.
+The limit lifts once the core **Huawei LTE** integration is removed: at the next start this integration upgrades the library, and the newer library loads at your next restart. Every sensor, **VoLTE** and **Router Diagnostics** included, works on either version.
 
-**Why am I seeing a repair about a library upgrade?** The integration upgraded the router library it uses, and Home Assistant loads a new library only after a restart. Nothing is wrong. Click **Fix** to restart now, or leave the card and the upgrade takes effect the next time Home Assistant restarts. Until then the two entities above show as unknown.
+**Why does the library change after a Home Assistant update?** Each Home Assistant update ships the library at core's version, 1.11.0. This integration upgrades it again at the first start and logs one line; the upgrade loads at your next restart. Integration Health's `library_restart_pending` attribute is `true` in between. Nothing is wrong and nothing needs doing.
 
 **There is no action required here.** This integration will work, with or without the core HA Huawei LTE integration, with the API library version managed automatically. Alongside core Huawei LTE, this integration pins to the same API library version to avoid the potential for API library swapping between the two versions at restarts, with resultant log errors.
 
@@ -2007,6 +2146,8 @@ If you log into the router's web interface, you can pause polling with the **Pau
 - Confirm the username and password are correct. The username is optional and varies by model and firmware.
   - The username and password are the same as you use to log in to the router via its web UI.
   - Username can be changed in the web UI, as well as password, so ensure you are using the current version of both.
+  - A wrong username, a wrong password and a wrong pair all show **Invalid credentials**.
+- If the dialog says the router **has locked logins after too many failed attempts**, wait for the lock to expire before trying again. Each further attempt may count toward the lock.
 - Ensure the router is powered on and reachable from your Home Assistant instance.
 
 ---
@@ -2024,6 +2165,40 @@ If you log into the router's web interface, you can pause polling with the **Pau
 - Huawei routers are generally tolerant of concurrent sessions, but some firmware models restrict simultaneous authenticated web sessions.
 - Use the **Pause Polling** switch in Home Assistant to halt background polling and free up the session.
 - Resume polling when you are done with the web UI.
+
+---
+
+</details>
+
+#### ⏳ **"The router is restarting" or "The router is reconnecting its data connection" Error**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+You see one of these messages when you use a router control while the router is briefly offline:
+
+- `The router is restarting. Try again in about N seconds.` You pressed **Reboot**. The router is unreachable for one to two minutes.
+- `The router is reconnecting its data connection. Try again in about N seconds.` You pressed **Reconnect**. The router keeps answering, and the controls are held for up to twenty seconds while the connection settles.
+
+Until the router answers again, its controls, the SMS actions and **Refresh Now** are unavailable. Sensors keep their last values. Nothing needs fixing: everything works again as soon as the router is back.
+
+---
+
+</details>
+
+#### 📶 **"Not in the router's list of network modes" Error**
+
+<details>
+
+<summary>
+&nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
+</summary><br>
+
+- The **Preferred Network Mode** list shows the modes your router accepts, read from the router. A mode in force that the router's own list does not include is still shown, so the select never reads Unknown.
+- Choosing that mode is refused with this error, which names the router's list, because the router refuses such a change. Choose one of the listed modes instead.
 
 ---
 
@@ -2048,13 +2223,17 @@ It exists because the router can answer a poll _successfully_ while a whole capa
 | `severity` | `ok` · `degraded` (a capability was lost) · `warning` (the data may be wrong) · `error` (unreachable) · `unknown` (nothing fetched yet). **Never blank** — see below |
 | `issues` | Plain-language descriptions of what is wrong; empty when healthy |
 | `degraded_capabilities` | Which parts of the router stopped answering, by name |
-| `not_served` | Which parts of the router it refuses with its own error code and has never answered since Home Assistant started, by name. These are not counted as a problem, because there was nothing to lose |
+| `not_served` | Which parts of the router it refuses with its own error code and has never answered on this integration entry, by name, including across restarts. These are not counted as a problem, because there was nothing to lose |
 | `drift` | Set when the router's firmware appears to have renamed the fields this integration reads |
 | `last_good_update` | When the last fully successful poll completed |
+| `library_loaded` | The `huawei-lte-api` version Home Assistant is running |
+| `library_installed` | The version on disk. Newer than `library_loaded` after the integration upgraded the library, until your next restart |
+| `library_restart_pending` | `true` when a newer library is installed and waits for your next restart. Nothing is broken meanwhile: every sensor works on either version |
+| `core_huawei_lte_configured` | `true` when Home Assistant's own Huawei LTE integration is set up, in which case this integration leaves the library at core's version |
 
 - **`severity` always has a value.** The list attributes are legitimately empty when everything is fine.
 - **Always Available**: Unlike hardware entities that drop during an outage, this sensor stays active to report the cause.
-- **Persistent Faults Only**: Flags after three consecutive failed poll cycles (or immediately on an uninitialized cold start) to avoid alerting on temporary blips.
+- **Persistent Faults Only**: Flags after three consecutive failed poll cycles (or immediately on an uninitialized cold start) to avoid alerting on temporary blips. A router that reports a login lockout is flagged at once.
 
 ---
 
@@ -2247,7 +2426,7 @@ To remove the integration from Home Assistant:
 
 <br>
 
-To fully uninstall (HACS):
+To fully uninstall (Marketplace / HACS):
 
 <details>
 
@@ -2255,10 +2434,11 @@ To fully uninstall (HACS):
 &nbsp; &nbsp; ➕ &nbsp; &nbsp; Click to Expand for Details:
 </summary><br>
 
-1. Go to **HACS**.
-2. Find **Huawei Router 5G Monitor** and click into it.
-3. Click the **three dots** (⋮) at the top right and select **Remove**.
-4. **Restart** Home Assistant.
+- **Marketplace (Home Assistant 2026.11+):**
+  1. Go to **Settings > Marketplace**, open **Huawei Router 5G Monitor**, click the **three dots** (⋮) at the top right, and select **Uninstall** (if the integration is still configured, choose **View integration** or **Delete and uninstall**).
+- **HACS (Home Assistant < 2026.11):**
+  1. Go to **HACS**, open **Huawei Router 5G Monitor**, click the **three dots** (⋮) at the top right, and select **Remove**.
+  2. **Restart** Home Assistant.
 
 ---
 

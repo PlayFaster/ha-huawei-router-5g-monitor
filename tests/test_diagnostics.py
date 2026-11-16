@@ -17,8 +17,13 @@ from unittest.mock import MagicMock
 
 import pytest
 
+from custom_components.huawei_router_5g.const import KEYS_READ_OUTSIDE_DESCRIPTIONS
 from custom_components.huawei_router_5g.diagnostics import (
     REDACTED,
+    _sanitize,
+    _sweep,
+    _Tokenizer,
+    _unread_keys,
     async_get_config_entry_diagnostics,
 )
 from homeassistant.config_entries import ConfigEntry
@@ -43,14 +48,14 @@ SECRETS = [
     "2001:db8::1",
     "+441234567890",  # an SMS sender — a third party
     "Your verification code is 998877",  # an SMS body
-    "Three",  # carrier
+    "ExampleTel",  # carrier
     # --- added after the 2026-08-14 live-capture audit (§P-2) ----------------
     # Every one of these was published in full, or was covered only under a key
     # name the router never sends. None was caught by reading the module.
-    "27203",  # Mccmnc — the operator, reached by a second key name
-    "3 Ireland",  # Spn — the list said lowercase `spn`; the router sends `Spn`
-    "40122",  # tac — serving tracking area, a metro-sized region
-    "36199",  # scc_pci — secondary-carrier cell identifier
+    "00102",  # Mccmnc — the operator, reached by a second key name
+    "ExampleTel Spn",  # Spn — the list said lowercase `spn`; the router sends `Spn`
+    "11111",  # tac — serving tracking area, a metro-sized region
+    "22222",  # scc_pci — secondary-carrier cell identifier
     "31337",  # sc — UMTS scrambling code, null on an LTE attach
     "hunter2WifiKey",  # WifiWpapsk — the household's WiFi password
     "wep0011223344",  # WifiWepKey1
@@ -69,7 +74,7 @@ def _payload() -> dict:
             "WanIPAddress": "10.1.2.3",
             "WanIPv6Address": "2001:db8::1",
             "uptime": "123456",
-            "Mccmnc": "27203",
+            "Mccmnc": "00102",
         },
         "monitoring_status": {
             "ConnectionStatus": "901",
@@ -82,16 +87,16 @@ def _payload() -> dict:
             "sinr": "6dB",
             "cell_id": "5A6B3",
             # Populated on the live B535 and published in full.
-            "tac": "40122",
-            "scc_pci": "36199",
+            "tac": "11111",
+            "scc_pci": "22222",
             # Null on an LTE/NR attach, populated on a 3G or GSM fallback.
             "sc": "31337",
         },
         "current_plmn": {
-            "FullName": "Three",
-            "ShortName": "3",
-            "Numeric": "27205",
-            "Spn": "3 Ireland",
+            "FullName": "ExampleTel",
+            "ShortName": "ET",
+            "Numeric": "00103",
+            "Spn": "ExampleTel Spn",
         },
         # The device_tracker surface — no sibling project has this.
         "lan_host_info": {
@@ -681,3 +686,178 @@ async def test_the_download_says_when_no_premise_was_needed(entry):
 
     assert result["premise"] == {"outcome": "not_made", "code": None}
     assert result["probe_sessions_lost"] == 0
+
+
+# ---------------------------------------------------------------------------
+# Phone numbers under a key the lists do not name (plan v124_dev1_plan.md, I6)
+# ---------------------------------------------------------------------------
+
+
+def _swept(payload: dict) -> dict:
+    """Run a payload through the sanitizer with one tokenizer."""
+    return _sanitize(payload, _Tokenizer())
+
+
+def test_a_phone_number_under_a_made_up_key_is_tokenized() -> None:
+    """The gap ZTE published a number through: no key list names this one."""
+    result = _swept(
+        {
+            "a_future_block": {
+                "forwarding_target": "+447911123456",
+                "note": "07911123456",
+            }
+        }
+    )
+    block = result["a_future_block"]
+    assert block["forwarding_target"].startswith("phone-")
+    assert block["note"].startswith("phone-")
+    assert "+447911123456" not in str(result)
+    assert "07911123456" not in str(result)
+
+
+def test_the_same_number_gets_the_same_token() -> None:
+    """Tokens stay stable within one download, so a reader can follow a number."""
+    result = _swept({"a": "+447911123456", "b": "+447911123456", "c": "+447911123457"})
+    assert result["a"] == result["b"]
+    assert result["a"] != result["c"]
+
+
+def test_values_of_other_kinds_are_left_as_the_other_sweeps_leave_them() -> None:
+    """IMEI-shaped, serial, port, version and timestamp values are not phone numbers."""
+    payload = {
+        "x_ipv4": "10.1.2.3",
+        "x_ipv6": "2001:db8::1",
+        "x_mac": "AA:BB:CC:DD:EE:01",
+        "SoftwareVersion": "11.0.1.1(H192SP1C983)",
+        "Date": "2026-08-09 10:00:00",
+        "x_imei_shape": "860123456789012",
+        "x_serial": "SN0123ABCD4567",
+        "x_port": "8080",
+        "x_counter": "1234567890123",
+    }
+    result = _swept(payload)
+    assert result["SoftwareVersion"] == "11.0.1.1(H192SP1C983)"
+    assert result["Date"] == "2026-08-09 10:00:00"
+    for key in ("x_imei_shape", "x_serial", "x_port", "x_counter"):
+        assert result[key] == payload[key]
+    for key in ("x_ipv4", "x_ipv6", "x_mac"):
+        assert not result[key].startswith("phone-")
+
+
+@pytest.mark.parametrize(
+    ("value", "tokenized"),
+    [
+        ("+1234567", False),  # `+` and 7 digits
+        ("+1234567890123456", False),  # `+` and 16 digits
+        ("012345678", False),  # 9 digits starting with 0
+        ("012345678901", False),  # 12 digits starting with 0
+        ("+12345678", True),  # `+` and 8 digits
+        ("+123456789012345", True),  # `+` and 15 digits
+        ("0123456789", True),  # 10 digits starting with 0
+        ("01234567890", True),  # 11 digits starting with 0
+        ("call 07911123456 today", False),  # not wholly a number
+    ],
+)
+def test_the_shape_matches_at_its_edges_and_not_beyond(value, tokenized) -> None:
+    """Near misses stay as they are; the values at the edges are tokenized."""
+    assert _swept({"unnamed": value})["unnamed"].startswith("phone-") is tokenized
+
+
+# ---------------------------------------------------------------------------
+# Payload keys no entity reads (1.2.4-dev4 I3)
+# ---------------------------------------------------------------------------
+
+
+def test_a_key_no_entity_reads_is_listed() -> None:
+    """An unknown key in a polled block is listed; a key a description reads is not."""
+    out = _unread_keys(
+        {"device_signal": {"rsrp": "-90dBm", "nei_cellid": "x", "zz_new": "1"}}
+    )
+    assert out["device_signal"] == ["nei_cellid", "zz_new"]
+
+
+def test_a_key_read_by_a_declared_reader_is_not_listed() -> None:
+    """`ConnectionStatus` is read by a class-built binary sensor, not a description."""
+    assert "ConnectionStatus" in KEYS_READ_OUTSIDE_DESCRIPTIONS["monitoring_status"]
+    out = _unread_keys({"monitoring_status": {"ConnectionStatus": "901", "zz": "1"}})
+    assert out["monitoring_status"] == ["zz"]
+
+
+def test_the_unread_key_list_carries_names_and_never_values() -> None:
+    """Only key names are published; a value never appears."""
+    out = _unread_keys({"device_signal": {"zz_new": "SECRET-VALUE-123"}})
+    assert "SECRET-VALUE-123" not in json.dumps(out)
+    assert out == {"device_signal": ["zz_new"]}
+
+
+def test_a_block_that_is_not_a_mapping_is_not_listed() -> None:
+    """A list block, such as a client list, has no keys to report."""
+    assert _unread_keys({"lan_host_info": [{"MacAddress": "x"}]}) == {}
+
+
+@pytest.mark.asyncio
+async def test_the_download_carries_the_unread_key_list(entry) -> None:
+    """The download publishes `unread_keys` beside `entity_resolution`."""
+    result, _ = await _dump(entry)
+    assert isinstance(result["unread_keys"], dict)
+
+
+def test_the_key_recorder_records_every_form_of_read() -> None:
+    """`[]`, `get` and `in` each record the key; a non-string `in` is ignored."""
+    from custom_components.huawei_router_5g.diagnostics import _KeyRecorder
+
+    seen: set[str] = set()
+    block = _KeyRecorder({"a": 1, "b": 2, "c": 3}, seen)
+    assert block["a"] == 1
+    assert block.get("b") == 2
+    assert "c" in block
+    assert 5 not in block
+    assert seen == {"a", "b", "c"}
+
+
+def test_a_description_without_a_value_function_is_skipped(monkeypatch) -> None:
+    """A binary description may carry no `value_fn`; the recorder skips it."""
+    from custom_components.huawei_router_5g import binary_sensor
+
+    blank = binary_sensor.HuaweiBinarySensorEntityDescription(key="blank")
+    monkeypatch.setattr(
+        binary_sensor,
+        "VALUE_BINARY_SENSORS",
+        (*binary_sensor.VALUE_BINARY_SENSORS, blank),
+    )
+    assert _unread_keys({"device_signal": {"zz": "1"}}) == {"device_signal": ["zz"]}
+
+
+def test_an_address_ending_a_sentence_is_tokenized() -> None:
+    """`203.0.113.7.` is an address; `11.0.1.1(H192)` and `1.2.3.4a` are not.
+
+    The lookahead rejects a full stop only where a word character follows it,
+    as `unifi_network_monitor` corrected it (1.2.4-dev8 plan I9).
+    """
+    swept = _sweep("Gateway is 203.0.113.7.", _Tokenizer())
+    assert "203.0.113.7" not in swept
+    assert swept.endswith(".")
+    assert _sweep("firmware 11.0.1.1(H192SP1)", _Tokenizer()) == (
+        "firmware 11.0.1.1(H192SP1)"
+    )
+    assert _sweep("build 1.2.3.4a", _Tokenizer()) == "build 1.2.3.4a"
+    assert _sweep("v1.2.3.4.5", _Tokenizer()) == "v1.2.3.4.5"
+
+
+def test_an_apn_name_is_redacted_at_any_depth() -> None:
+    """The operator's APN names the provider, so `ApnName` is blanked.
+
+    Found published in full by the extended leak check on the H165-383
+    (1.2.4-dev8 plan I9), in `dial_up_profiles.Profiles.Profile[]`.
+    """
+    payload = {
+        "dial_up_profiles": {
+            "Profiles": {"Profile": [{"Index": "1", "ApnName": "apn.example"}]}
+        }
+    }
+
+    swept = _sanitize(payload, _Tokenizer())
+
+    profile = swept["dial_up_profiles"]["Profiles"]["Profile"][0]
+    assert profile["ApnName"] == REDACTED
+    assert profile["Index"] == "1"

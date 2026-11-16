@@ -557,6 +557,9 @@ def test_sensor_guard_band_error(mock_coordinator, mock_config_entry):
     desc_mock.min_limit = -150
     desc_mock.max_limit = -30
     desc_mock.value_fn = lambda data: "not_a_float"
+    # The spec gained `counts_changes_of` in 1.2.4-dev4; a MagicMock attribute
+    # would read as a change counter.
+    desc_mock.counts_changes_of = None
     sensor = HuaweiRouterSensor(mock_coordinator, mock_config_entry, desc_mock)
     assert sensor.native_value == "not_a_float"
 

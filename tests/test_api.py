@@ -491,6 +491,8 @@ async def test_get_data_response_error_login_required():
     mock_client = MagicMock()
     api._client = mock_client
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     mock_client.device.information.side_effect = ResponseErrorLoginRequiredException(
         "Login required", "100001"
@@ -509,6 +511,8 @@ async def test_get_data_response_error_codes():
     api = _make_api()
     mock_client = MagicMock()
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     # Note: 100002 is removed as it's used for "Not Supported"
     for error_code in ("125002", "125003"):
@@ -615,6 +619,8 @@ async def test_get_data_response_error_non_session():
     mock_client = MagicMock()
     api._client = mock_client
     api._connection = MagicMock()
+    # A router that has answered `device_information` before (plan I3).
+    api.information_answered = True
 
     mock_client.device.information.side_effect = ResponseErrorException(
         "Other error", "1"
@@ -771,8 +777,12 @@ async def test_reboot_success():
     api._client = mock_client
     api._connection = MagicMock()
 
-    with patch(
-        "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+    with (
+        patch(
+            "asyncio.to_thread",
+            new=AsyncMock(side_effect=lambda fn, *args: fn(*args)),
+        ),
+        patch.object(api, "_router_stopped_answering", AsyncMock(return_value=True)),
     ):
         await api.reboot()
 
@@ -1232,6 +1242,26 @@ async def test_set_guest_wifi_dict_ssids():
         await api.set_guest_wifi(True)
 
     api._client.wlan._session.post_set.assert_called_once()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("ssid", ["guest", None])
+async def test_set_guest_wifi_with_a_non_list_ssid_finds_no_guest(ssid):
+    """A string or `None` `Ssid` gives the no-guest error, not a `TypeError`."""
+    api = _make_api()
+    api._client = MagicMock()
+    api._connection = MagicMock()
+    api._client.wlan.multi_basic_settings.return_value = {"Ssids": {"Ssid": ssid}}
+
+    with (
+        patch(
+            "asyncio.to_thread", new=AsyncMock(side_effect=lambda fn, *args: fn(*args))
+        ),
+        pytest.raises(RuntimeError, match="No guest SSID found in router response"),
+    ):
+        await api.set_guest_wifi(True)
+
+    api._client.wlan._session.post_set.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -2270,3 +2300,523 @@ async def test_probe_liveness_calls_a_refused_second_session_inconclusive():
 
     # The session it opened is still released.
     conn.requests_session.close.assert_called_once_with()
+
+
+# ---------------------------------------------------------------------------
+# A refused read outside a poll costs no login (dev2 plan I4)
+# ---------------------------------------------------------------------------
+
+
+@pytest.fixture(name="router")
+def router_fixture():
+    """Serve the fake router of `transport.py`."""
+    import requests_mock as requests_mock_module
+
+    from .transport import RouterTransport
+
+    with requests_mock_module.Mocker() as mocker:
+        yield RouterTransport(mocker)
+
+
+async def test_a_read_refused_on_a_live_session_makes_no_login(router) -> None:
+    """A 100003 on a live session is a refusal: no login and no repeat.
+
+    The H165-383 refuses 38 reads on a live session and a fresh login changes
+    none of them, so the login the wrapper used to make was wasted.
+    """
+    router.refuse("net/net-mode")
+    api = _make_api()
+
+    assert await api.read_back("net_mode") is None
+
+    assert router.logins == 1
+    assert router.authenticated_info_reads == 1
+    assert api.last_rejection == {"verdict": "refused", "code": "100003"}
+
+
+async def test_an_expired_session_on_a_read_logs_in_once_and_repeats(router) -> None:
+    """A 100003 on an ended session is an expiry: one login and one repeat."""
+    api = _make_api()
+    await api.login()
+    router.log_out()
+
+    result = await api.read_back("net_mode")
+
+    assert result is not None
+    assert router.logins == 2
+    assert api.last_rejection == {"verdict": "expired", "code": "100003"}
+
+
+# ---------------------------------------------------------------------------
+# One retry of a dropped request (dev2 plan I5)
+# ---------------------------------------------------------------------------
+
+
+async def test_a_dropped_request_is_sent_once_more_and_recorded(router) -> None:
+    """A connection the router closed is retried once, and the retry is visible."""
+    router.arm("unreachable", endpoint="monitoring/status", answers=1)
+    api = _make_api()
+
+    data = await api.get_data()
+
+    assert router.faults_served == 1
+    assert "monitoring_status" in data
+    assert api.endpoint_outcomes["monitoring_status"]["outcome"] == "answered"
+    assert api.endpoint_outcomes["monitoring_status"]["retried"] is True
+
+
+async def test_a_refusal_is_not_retried(router) -> None:
+    """A router refusal is an answer, so it is never sent again."""
+    router.arm("endpoint_error", endpoint="monitoring/status")
+    api = _make_api()
+
+    data = await api.get_data()
+
+    assert router.faults_served == 1
+    assert "monitoring_status" not in data
+    assert "retried" not in api.endpoint_outcomes["monitoring_status"]
+
+
+async def test_a_drop_after_a_refusal_is_not_a_lost_session(router) -> None:
+    """The re-read after a refusal is retried once when the router drops it.
+
+    About one refusal in ten is followed by the router closing the connection
+    (H165-383, 2026-10-09). Without the retry the re-read fails and the whole
+    poll fails with it.
+    """
+    import requests
+
+    router.refuse("net/net-mode")
+    info_reads: list[str] = []
+
+    # The poll's read, the anonymous premise check, then the re-read.
+    def _drop_the_reread(endpoint: str) -> None:
+        if endpoint == "device/information":
+            info_reads.append(endpoint)
+            if len(info_reads) == 3:
+                raise requests.ConnectionError("Remote end closed connection")
+
+    router.on_request = _drop_the_reread
+    api = _make_api()
+
+    data = await api.get_data()
+
+    assert "net_mode" not in data
+    assert api.endpoint_outcomes["net_mode"]["judged"] == "live_session"
+    assert len(info_reads) == 4
+
+
+# ---------------------------------------------------------------------------
+# A live session logged out before it is discarded (dev2 plan I6)
+# ---------------------------------------------------------------------------
+
+
+def _count_logouts(router) -> list[str]:
+    """Record every logout request the fake router receives."""
+    logouts: list[str] = []
+    router.on_request = lambda endpoint: (
+        logouts.append(endpoint) if endpoint == "user/logout" else None
+    )
+    return logouts
+
+
+async def test_the_idle_reset_logs_the_session_out(router) -> None:
+    """A session reset for idleness is still live, so it is logged out."""
+    logouts = _count_logouts(router)
+    api = _make_api()
+    await api.login()
+    api._last_activity = datetime.now(UTC) - timedelta(seconds=101)
+
+    await api.read_back("net_mode")
+
+    assert logouts == ["user/logout"]
+    assert router.logins == 2
+
+
+async def test_the_reset_after_reconnect_logs_the_session_out(router) -> None:
+    """The session survives a Reconnect, so the reset after it logs it out."""
+    logouts = _count_logouts(router)
+    router.payloads["dialup/dial"] = "OK"
+    api = _make_api()
+
+    await api.reconnect()
+
+    assert logouts == ["user/logout"]
+    assert api._client is None
+
+
+async def test_an_expired_session_is_reset_without_a_logout(router) -> None:
+    """A session that has ended has nothing to log out."""
+    logouts = _count_logouts(router)
+    api = _make_api()
+    await api.login()
+    router.log_out()
+
+    await api.read_back("net_mode")
+
+    assert logouts == []
+
+
+async def test_the_reset_after_reboot_makes_no_logout(router) -> None:
+    """The router ends the session itself when it restarts."""
+    logouts = _count_logouts(router)
+    router.payloads["device/control"] = "OK"
+    api = _make_api()
+
+    with patch.object(api, "_router_stopped_answering", AsyncMock(return_value=True)):
+        await api.reboot()
+
+    assert logouts == []
+
+
+async def test_a_logout_that_hangs_does_not_delay_the_reset(router) -> None:
+    """The logout is bounded; the reset goes ahead when the bound passes."""
+    import time
+
+    router.on_request = lambda endpoint: (
+        time.sleep(1.0) if endpoint == "user/logout" else None
+    )
+    api = _make_api()
+    await api.login()
+    started = time.monotonic()
+
+    with patch("custom_components.huawei_router_5g.api._RELEASE_TIMEOUT", 0.1):
+        await api._release_session()
+
+    assert time.monotonic() - started < 0.8
+    assert api._client is None
+
+
+# ---------------------------------------------------------------------------
+# Expected-outage window in the API (dev2 plan I7)
+# ---------------------------------------------------------------------------
+
+
+async def test_no_reboot_window_before_the_router_is_seen_silent(router) -> None:
+    """A router still answering after the verify time did not restart."""
+    router.payloads["device/control"] = "OK"
+    api = _make_api()
+
+    with (
+        patch.object(api, "_router_stopped_answering", AsyncMock(return_value=False)),
+        pytest.raises(HuaweiConnectionError, match="still answering"),
+    ):
+        await api.reboot()
+
+    assert api.expected_outage is None
+
+
+async def test_the_reboot_window_opens_once_the_router_is_silent(router) -> None:
+    """The silence is watched through `user/state-login`, with no session."""
+    import requests
+
+    router.payloads["device/control"] = "OK"
+    api = _make_api()
+    probes: list[str] = []
+
+    def _silent_after_two(endpoint: str) -> None:
+        if endpoint == "user/state-login":
+            probes.append(endpoint)
+            if len(probes) > 2:
+                raise requests.ConnectionError("router restarting")
+
+    router.on_request = _silent_after_two
+    with patch("custom_components.huawei_router_5g.api.REBOOT_VERIFY_INTERVAL", 0):
+        await api.reboot()
+
+    assert api.expected_outage is not None
+    assert api.expected_outage.reason == "reboot"
+
+
+async def test_reconnect_opens_its_window_at_once(router) -> None:
+    """A Reconnect window opens when the command returns without error."""
+    router.payloads["dialup/dial"] = "OK"
+    api = _make_api()
+
+    await api.reconnect()
+
+    assert api.expected_outage is not None
+    assert api.expected_outage.reason == "reconnect"
+
+
+async def test_every_request_inside_the_window_is_refused_before_it_is_sent(
+    router,
+) -> None:
+    """A poll or a write is refused with the reason and the seconds left."""
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+
+    api = _make_api()
+    api.open_expected_outage("reboot", 240.0)
+    sent_before = router.request_count
+
+    with pytest.raises(HuaweiExpectedUnavailableError) as poll:
+        await api.get_data()
+    with pytest.raises(HuaweiExpectedUnavailableError):
+        await api.set_mobile_data(True)
+
+    assert router.request_count == sent_before
+    assert poll.value.reason == "reboot"
+    assert 0 < poll.value.seconds_remaining <= 240
+
+
+async def test_the_bypass_lets_the_closing_poll_through(router) -> None:
+    """The window's own closing poll passes the gate."""
+    api = _make_api()
+    api.open_expected_outage("reboot", 240.0)
+
+    with api.outage_bypass():
+        data = await api.get_data()
+
+    assert "device_information" in data
+
+
+async def test_logout_is_never_refused_by_the_window(router) -> None:
+    """An unload during a window must not be refused."""
+    api = _make_api()
+    await api.login()
+    api.open_expected_outage("reboot", 240.0)
+
+    await api.logout()
+
+    assert api._client is None
+
+
+async def test_a_window_opened_while_a_request_waited_refuses_it(router) -> None:
+    """The gate is checked again once the lock is held, and the lock is freed."""
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+
+    api = _make_api()
+    await api._lock.acquire()
+    waiting = asyncio.create_task(api.get_data())
+    await asyncio.sleep(0)
+    api.open_expected_outage("reboot", 240.0)
+    api._lock.release()
+
+    with pytest.raises(HuaweiExpectedUnavailableError):
+        await waiting
+    assert not api._lock.locked()
+
+
+def test_a_drop_past_the_budget_is_not_retried() -> None:
+    """A dropped request is sent again only within `ADJUDICATION_BUDGET`."""
+    import requests
+
+    from custom_components.huawei_router_5g.api import _PollState
+
+    api = _make_api()
+    poll = _PollState(started=-1e9, generation=0)
+    calls: list[int] = []
+
+    def _drop():
+        calls.append(1)
+        raise requests.ConnectionError("Remote end closed connection")
+
+    with pytest.raises(requests.ConnectionError):
+        api._call_once_more_if_dropped(_drop, poll, "monitoring_status")
+
+    assert calls == [1]
+    assert poll.retried == set()
+
+
+@pytest.mark.parametrize(
+    ("second", "outcome"),
+    [
+        (ResponseErrorException("No support", "100002"), "refused"),
+        (OSError("still down"), "unavailable"),
+    ],
+)
+def test_a_retried_endpoint_that_still_fails_is_recorded_retried(
+    second, outcome
+) -> None:
+    """The retry is visible in the outcome however the second try ends."""
+    import requests
+
+    from custom_components.huawei_router_5g.api import _PollState
+
+    api = _make_api()
+    poll = _PollState(started=time_monotonic(), generation=0)
+    answers = [requests.ConnectionError("dropped"), second]
+
+    def _fetch():
+        raise answers.pop(0)
+
+    api._fetch_one("monitoring_status", _fetch, MagicMock(), poll, {})
+
+    assert api.endpoint_outcomes["monitoring_status"]["outcome"] == outcome
+    assert api.endpoint_outcomes["monitoring_status"]["retried"] is True
+
+
+def time_monotonic() -> float:
+    """The current monotonic time, for a poll started now."""
+    import time
+
+    return time.monotonic()
+
+
+async def test_the_outage_probe_reports_an_answering_router(router) -> None:
+    """Any answer to `user/state-login` counts."""
+    api = _make_api()
+
+    assert await api.outage_probe() is True
+
+
+async def test_a_router_that_keeps_answering_never_reads_as_stopped(router) -> None:
+    """The silence check gives up at `REBOOT_VERIFY_SECONDS`."""
+    api = _make_api()
+
+    with (
+        patch("custom_components.huawei_router_5g.api.REBOOT_VERIFY_SECONDS", 0.05),
+        patch("custom_components.huawei_router_5g.api.REBOOT_VERIFY_INTERVAL", 0.01),
+    ):
+        assert await api._router_stopped_answering() is False
+
+
+# ---------------------------------------------------------------------------
+# Per-endpoint http_statuses in diagnostics (v1.2.4-dev16 I4)
+# ---------------------------------------------------------------------------
+
+
+async def test_http_statuses_records_503_empty_body_as_answered_and_empty() -> None:
+    """An HTTP 503 with an empty body is recorded as answered, empty, with [503]."""
+    import requests_mock as requests_mock_module
+
+    with requests_mock_module.Mocker() as mocker:
+        mocker.get(requests_mock_module.ANY, text="<response/>")
+        mocker.post(requests_mock_module.ANY, text="<response>OK</response>")
+        mocker.get("http://192.168.8.1/", text="")
+        mocker.get(
+            "http://192.168.8.1/api/webserver/token",
+            text="<response><token>t</token></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/webserver/SesTokInfo",
+            text="<response><SesInfo>s</SesInfo><TokInfo>t</TokInfo></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/user/state-login",
+            text="<response><State>0</State></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/device/information",
+            status_code=503,
+            text="",
+        )
+        api = _make_api()
+        data = await api.get_data()
+
+    assert data.get("device_information") == {}
+    outcome = api.endpoint_outcomes["device_information"]
+    assert outcome["outcome"] == "answered"
+    assert outcome["keys"] == 0
+    assert outcome["http_statuses"] == [503]
+
+
+async def test_http_statuses_stays_attached_after_reset_client_and_preserves_session(
+    router,
+) -> None:
+    """The response hook re-attaches after _reset_client and preserves session attrs."""
+    api = _make_api()
+    await api.login()
+    assert api._connection is not None
+    session_before = api._connection.requests_session
+    trust_env_before = session_before.trust_env
+    adapters_before = list(session_before.adapters.keys())
+
+    api._reset_client()
+    await api.get_data()
+
+    assert api._connection is not None
+    session_after = api._connection.requests_session
+    assert session_after.trust_env == trust_env_before
+    assert list(session_after.adapters.keys()) == adapters_before
+    assert api.endpoint_outcomes["device_information"]["http_statuses"] == [200]
+
+
+async def test_http_statuses_ignores_read_premise_and_skipped_endpoints(router) -> None:
+    """_read_premise never pollutes http_statuses, and skipped endpoints inherit nothing."""
+    router.refuse("net/net-mode")
+    api = _make_api()
+    await api.login()
+
+    # Force FETCH_DEADLINE=0 so endpoints after device_information are skipped.
+    with patch("custom_components.huawei_router_5g.api.FETCH_DEADLINE", 0.0):
+        await api.get_data()
+
+    assert api.endpoint_outcomes["device_information"]["http_statuses"] == [200]
+    skipped_outcomes = [
+        v for v in api.endpoint_outcomes.values() if v.get("outcome") == "skipped"
+    ]
+    assert skipped_outcomes
+    assert all("http_statuses" not in v for v in skipped_outcomes)
+
+    # Trigger _read_premise via a refused endpoint: 200 (refused) + 200 (live-session
+    # device_information re-read), without _read_premise's unhooked Connection status.
+    await api.get_data()
+    assert api.premise_result is not None
+    assert api.endpoint_outcomes["net_mode"]["outcome"] == "refused"
+    assert api.endpoint_outcomes["net_mode"]["http_statuses"] == [200, 200]
+
+
+async def test_http_statuses_records_retry_statuses_in_order() -> None:
+    """A dropped read retried by _call_once_more_if_dropped records all statuses in order."""
+    import requests
+    import requests_mock as requests_mock_module
+
+    status_url = "http://192.168.8.1/api/monitoring/status"
+    attempt = 0
+
+    with requests_mock_module.Mocker() as mocker:
+        mocker.get(requests_mock_module.ANY, text="<response/>")
+        mocker.post(requests_mock_module.ANY, text="<response>OK</response>")
+        mocker.get("http://192.168.8.1/", text="")
+        mocker.get(
+            "http://192.168.8.1/api/webserver/token",
+            text="<response><token>t</token></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/webserver/SesTokInfo",
+            text="<response><SesInfo>s</SesInfo><TokInfo>t</TokInfo></response>",
+        )
+        mocker.get(
+            "http://192.168.8.1/api/user/state-login",
+            text="<response><State>0</State></response>",
+        )
+        mocker.get(
+            status_url,
+            [
+                {"status_code": 502, "text": "<response/>"},
+                {
+                    "status_code": 200,
+                    "text": "<response><ConnectionStatus>901</ConnectionStatus></response>",
+                },
+            ],
+        )
+        api = _make_api()
+        await api.login()
+        assert api._connection is not None
+        orig_get = api._connection.requests_session.get
+
+        def _drop_after_first_status(
+            url: str, *args: object, **kwargs: object
+        ) -> requests.Response:
+            nonlocal attempt
+            resp = orig_get(url, *args, **kwargs)
+            if url == status_url:
+                attempt += 1
+                if attempt == 1:
+                    raise requests.ConnectionError("Connection broken")
+            return resp
+
+        with patch.object(
+            api._connection.requests_session,
+            "get",
+            side_effect=_drop_after_first_status,
+        ):
+            data = await api.get_data()
+
+    assert attempt == 2
+    assert data["monitoring_status"]["ConnectionStatus"] == "901"
+    outcome = api.endpoint_outcomes["monitoring_status"]
+    assert outcome["outcome"] == "answered"
+    assert outcome["retried"] is True
+    assert outcome["http_statuses"] == [502, 200]

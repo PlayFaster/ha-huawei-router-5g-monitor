@@ -101,6 +101,35 @@ async def test_validate_credentials_success():
 
 
 @pytest.mark.asyncio
+async def test_validate_credentials_names_a_refusing_router_from_the_basic_block():
+    """A router refusing `device/information` is named from `devicename` (I3).
+
+    It has no MAC in the basic block, so the entry is keyed by host.
+    """
+    with patch(
+        "custom_components.huawei_router_5g.config_flow.HuaweiRouter5GAPI"
+    ) as mock_api_class:
+        mock_api = mock_api_class.return_value
+        mock_api.login = AsyncMock()
+        mock_api.get_data = AsyncMock(
+            return_value={"device_basic_information": {"devicename": "H312-371"}}
+        )
+        mock_api.logout = AsyncMock()
+
+        result = await _validate_credentials(
+            {
+                CONF_HOST: "http://192.168.8.1",
+                CONF_USERNAME: "admin",
+                CONF_PASSWORD: "password",
+            }
+        )
+
+    assert result["model"] == "H312-371"
+    assert result["sw_version"] is None
+    assert result["mac"] is None
+
+
+@pytest.mark.asyncio
 async def test_validate_credentials_calls_logout_on_error():
     """Test that logout is called even when get_data raises."""
     with patch(

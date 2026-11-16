@@ -13,6 +13,7 @@ from homeassistant.exceptions import HomeAssistantError
 from homeassistant.helpers.entity_platform import AddEntitiesCallback
 from homeassistant.helpers.update_coordinator import CoordinatorEntity
 
+from .api import HuaweiExpectedUnavailableError
 from .const import CONF_STOP_POLLING, DOMAIN
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 from .helpers import (
@@ -20,6 +21,8 @@ from .helpers import (
     HuaweiAboutEntity,
     HuaweiDeviceEntity,
     confirm_write,
+    expected_outage_error,
+    ssid_entries,
 )
 
 _LOGGER = logging.getLogger(__name__)
@@ -284,10 +287,7 @@ def _guest_enable_flag(block: dict[str, Any]) -> Any:
     an order — the same lesson the APN profile lookup learned when it came
     back 1, 3, 2.
     """
-    ssids = (block.get("Ssids") or {}).get("Ssid", [])
-    if isinstance(ssids, dict):
-        ssids = [ssids]
-    for ssid in ssids:
+    for ssid in ssid_entries(block):
         if str(ssid.get("wifiisguestnetwork")) == "1":
             return ssid.get("WifiEnable")
     return None
@@ -367,6 +367,11 @@ class HuaweiMobileDataSwitch(HuaweiSwitch):
         action = "Enable" if enable else "Disable"
         try:
             await self.coordinator.api.set_mobile_data(enable)
+        except HuaweiExpectedUnavailableError as err:
+            _LOGGER.warning(
+                "%s: %s mobile data refused: %s", self._entry.title, action, err
+            )
+            raise expected_outage_error(err) from err
         except Exception as err:
             _LOGGER.exception("%s: %s mobile data failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} mobile data failed: {err}") from err
@@ -418,6 +423,9 @@ class HuaweiWifiSwitch(HuaweiSwitch):
         action = "Enable" if enable else "Disable"
         try:
             await self.coordinator.api.set_wifi(enable)
+        except HuaweiExpectedUnavailableError as err:
+            _LOGGER.warning("%s: %s WiFi refused: %s", self._entry.title, action, err)
+            raise expected_outage_error(err) from err
         except Exception as err:
             _LOGGER.exception("%s: %s WiFi failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} WiFi failed: {err}") from err
@@ -445,12 +453,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         data = self.coordinator.data
         if not data:
             return None
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
-
-        for ssid in ssids:
+        for ssid in ssid_entries(data.get("wlan_multi_basic_settings")):
             if str(ssid.get("wifiisguestnetwork")) == "1":
                 return str(ssid.get("WifiEnable")) == "1"
         return None
@@ -473,6 +476,11 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         action = "Enable" if enable else "Disable"
         try:
             await self.coordinator.api.set_guest_wifi(enable)
+        except HuaweiExpectedUnavailableError as err:
+            _LOGGER.warning(
+                "%s: %s guest WiFi refused: %s", self._entry.title, action, err
+            )
+            raise expected_outage_error(err) from err
         except Exception as err:
             _LOGGER.exception("%s: %s guest WiFi failed", self._entry.title, action)
             raise HomeAssistantError(f"{action} guest WiFi failed: {err}") from err
@@ -494,12 +502,7 @@ class HuaweiGuestWifiSwitch(HuaweiSwitch):
         data = self.coordinator.data
         if not data:
             return self._with_about(None) or {}
-        multi_settings = data.get("wlan_multi_basic_settings") or {}
-        ssids = multi_settings.get("Ssids", {}).get("Ssid", [])
-        if isinstance(ssids, dict):
-            ssids = [ssids]
-
-        for ssid in ssids:
+        for ssid in ssid_entries(data.get("wlan_multi_basic_settings")):
             if str(ssid.get("wifiisguestnetwork")) == "1":
                 return self._with_about({"ssid": ssid.get("WifiSsid")}) or {}
         return self._with_about(None) or {}

@@ -41,7 +41,7 @@ coordinator.py (HuaweiRouter5GDataUpdateCoordinator)
   → calls api.get_data() on each poll interval
   → 3-strike resilience: holds last-known-good data for up to 3 consecutive failures
   → immediate retry on HuaweiAuthError (session TTL expiry masking)
-  → fires huawei_router_5g_sms_received events; uses timestamp+hash deduplication
+  → fires huawei_router_5g_sms_received events and triggers the Incoming SMS event entity; a message's identity is its index and an HMAC of its content under a per-install secret, persisted in the observed store, so a message received while HA was stopped fires once after the start
   → stored in entry.runtime_data (ConfigEntry.runtime_data pattern, no hass.data dict)
 
 platform files (sensor.py, binary_sensor.py, switch.py, etc.)
@@ -55,6 +55,19 @@ platform files (sensor.py, binary_sensor.py, switch.py, etc.)
 ### Declarative Entity Pattern
 
 All sensors are defined as `EntityDescription` dataclasses with a `value_fn: Callable[[dict], Any]` callback. No business logic lives in the entity class itself — adding a new sensor is a single-line entry in the descriptions list. Guard bands (e.g. RSRP range -150 to -30 dBm) are applied inside `value_fn` before the value is returned. The bands are listed per key in [`docs/value_min_max.md`](docs/value_min_max.md), which a test reconciles against the code in both directions.
+
+### Adding entities
+
+Every new, changed, moved or removed entity follows `.shared/dev_std/adding_entities.md`, which lists each step and the standard that holds its rule. This project's specifics:
+
+| Item | This project |
+| :-- | :-- |
+| Description classes | `HuaweiSensorEntityDescription`, `HuaweiBinarySensorEntityDescription`, `HuaweiSwitchEntityDescription`, `HuaweiSelectEntityDescription`, `HuaweiNumberEntityDescription`, `HuaweiButtonEntityDescription`, `HuaweiEventEntityDescription`; device trackers have none |
+| Data access | `value_fn` receives the coordinator's whole payload; read a polled block with `_block(data, block, key)` and `device_information` with `_info(data, key)` in `sensor.py` |
+| Device link | `HuaweiDeviceEntity` in `helpers.py` from the description's `group`; never a `device_info` on the entity |
+| Reference implementations | Sensor `model_name` in `sensor.py`; binary sensor `best_connection` in `binary_sensor.py`; switch `pause_polling` in `switch.py`; select `network_mode` in `select.py`; number `polling_interval` in `number.py`; button `refresh` in `button.py`; event `incoming_sms` in `event.py`; device tracker `HuaweiRouterDeviceTracker` in `device_tracker.py` |
+| Generated documents | "Check Sensor Manifest" regenerates `docs/all_sensors.md`, `docs/about_attribute_list.md` and `docs/value_min_max.md` |
+| Mutation scope | `.validate/mutmut_modules.txt` (see "Mutation testing" below) |
 
 ### Sub-Device Organization
 
@@ -73,6 +86,7 @@ Device identifiers use the MAC address as the stable prefix (`{mac}_{group}`), f
 | `button`, `switch`, `select` | **1** | Issue commands with a real-world effect. `api.py` serializes every call behind an `asyncio.Lock` because concurrent calls answer "Busy" / `110001`; the lock is the real safety mechanism and `1` states the same intent at the platform boundary. |
 | `number` | **0** | Deliberately unlike `zte_router_5g`, which sets `1` on every writable platform. The only number entity writes `ConfigEntry.options`, which HA owns — no session to tear down, no command to duplicate. |
 | `sensor`, `binary_sensor`, `device_tracker` | **0** | Read-only, coordinator-driven; nothing to serialize. |
+| `event` | **0** | The Incoming SMS entity is pushed by the coordinator and makes no request. |
 
 The table is pinned in `EXPECTED_PARALLEL_UPDATES` in `tests/test_entity_hygiene.py`, with a companion test that fails if a new platform appears the table does not cover. Change the constant and the test together.
 
@@ -149,11 +163,12 @@ New checks must record evidence, not just a verdict, and must restore what they 
 
 It exists because the unit suite asserts on what the API client holds while the user receives what `diagnostics.py` publishes. `zte_router_5g` shipped a field that five green tests asserted and no download ever carried.
 
-Three things to know before editing it or anything it exercises:
+Five things to know before editing it or anything it exercises:
 
-- **Never sweep endpoints through `_execute_with_retry`.** `huawei-lte-api` raises `ResponseErrorLoginRequiredException` for `100003` and for no other code, and `100003` is a refusal on this firmware rather than an expiry — so that wrapper re-logs in on every refusal. Measured 2026-09-07: two logins per `100003` against one for any other outcome, and a 46-endpoint sweep through it left the router answering `LoginErrorAlreadyLoginException` and then refusing connections, turning the rest of the run into artefacts. `api.probe_diagnostic_endpoints` calls directly on one established session for this reason. `docs/huawei_how_to_access.md` carries the mechanism and had already warned that bulk sweeps produce false `100003` results — twice before this.
+- **Never sweep endpoints through `_execute_with_retry`.** Each refusal costs that wrapper a premise check and a re-read of `device_information`, and a write refused with `100003` is sent again after a fresh login. Measured 2026-09-07, when the wrapper logged in again on every `100003`: two logins per `100003` against one for any other outcome, and a 46-endpoint sweep through it left the router answering `LoginErrorAlreadyLoginException` and then refusing connections, turning the rest of the run into artefacts. `api.probe_diagnostic_endpoints` calls directly on one established session for this reason. `docs/huawei_how_to_access.md` carries the mechanism and had already warned that bulk sweeps produce false `100003` results — twice before this.
 - **A `100003`, `125002` or `125003` from a non-critical endpoint is not an expiry on that signal alone.** The fetch loop in `api.py` tells a refusal from an expiry with an anonymous premise check, a re-read of `device_information` and the history of the run, and the diagnostics sweep reads `device_information` after any probe that does not answer. Do not restore an unconditional raise on those codes. The rule, its bounds and its known limits are in `docs/huawei_how_to_access.md` under "Telling a refusal from an expiry", and the plan is `v123_dev16_plan.md`.
-- **A probe publishes key names and counts, never values.** A value from an endpoint nobody here has seen has no entry in `diagnostics.py`'s key lists and would be published intact by a sanitizer that matches on exact key names.
+- **A probe publishes key names and counts, and values only for the capability probes.** Those values go through `_publish_probes`: a number as it is, text only under `CAPABILITY_TEXT_KEYS`, other text as a type marker. Any other probe publishes no values. A value from an endpoint nobody here has seen has no entry in `diagnostics.py`'s key lists and would be published intact by a sanitizer that matches on exact key names.
+- **A script that opens sessions logs every one of them out.** The H165-383 holds at most 10 sessions, answers `108003` to the 11th login, and keeps a session dropped without a logout until it has been idle about 180 s (measured 2026-10-09, `docs/huawei_how_to_access.md`). A `ConnectionError` (`RemoteDisconnected`) after a read is the router closing the TCP connection, not the session: read once more before treating the session as lost, and wrap `Connection.close()`, which raises on a dropped connection.
 - **An endpoint left out of the probe set says why**, in `api.PROBES_EXCLUDED`, so nobody adds it back blind. `system.onlinestate` is there because the endpoint returns a list and the library calls `.get()` on it; the two `diagnosis` calls are there because they make the router _perform_ a network operation rather than report one.
 
 The stability comparison in the script tolerates values the device changes on its own — radio measurements, counters, timings, populated counts. **Widening that tolerance is a change to what the check can still catch**, so a new entry needs its reason beside it.
@@ -167,7 +182,7 @@ Four questions, because the first six of the ten analysis categories are each sc
 - **Can the outcome actually happen?** Every declared finding, repair key and severity value needs one test producing it end to end, driven through a real poll with the transport faked rather than the API object replaced. `Tests: Depth Check` sweeps this.
 - **Is the value published?** Assert the string a user template compares against — `"ok"`, `"degraded"` — and prove its translation exists, not just the internal constant.
 
-**Faking the transport here means `requests_mock`, not `aioclient_mock`.** This project reaches the network through `huawei-lte-api`, which holds its own `requests.Session`, so `async_get_clientsession` is never involved. The fake router is [`tests/transport.py`](tests/transport.py) and the worked examples are in [`tests/test_transport_seam.py`](tests/test_transport_seam.py); the design record is `.shared/issues/x_project/fault_injection_options.md` §3.
+**Faking the transport here means `requests_mock`, not `aioclient_mock`.** This project reaches the network through `huawei-lte-api`, which holds its own `requests.Session`, so `async_get_clientsession` is never involved. The fake router is [`tests/transport.py`](tests/transport.py) and the worked examples are in [`tests/test_transport_seam.py`](tests/test_transport_seam.py); the design record is `.shared/issues/x_project/closed/fault_injection_options.md` §3.
 
 Long form, all ten categories: `.shared/dev_std/testing_when_writing.md` — these four are **SEQ / LIFE / REACH / PUB**.
 
@@ -207,6 +222,7 @@ These are **coverage sweeps**, not mechanism tests. Each asserts that every memb
 | A device-registry test | `assert_links_to_parent()` / `assert_is_root()` | Use these helpers; never assert `info["via_device"]` directly. |
 | A `# type: ignore`, `# noqa` or `# pragma: no cover` | `test_every_suppression_is_on_the_reviewed_allow_list`, `test_every_allowed_suppression_states_a_reason` | Add it to the reviewed allow-list with a reason. |
 | A sensor disabled by default by decision | `test_sensors_disabled_by_decision_are_still_disabled`, `test_every_disabled_by_decision_entry_carries_a_reason` | Change the register, with a reason, in the same change. |
+| A device-registry lookup | `test_deprecated_device_registry_surfaces_only_in_compat` | Go through `_compat.device_by_identifier()`, `owning_entry_ids()` or `via_device_link()`; never `async_get_device(`, `DeviceEntry.config_entries` or `via_device` directly. |
 
 When you add a guard test, add its row here and its rationale to [`docs/test_guards.md`](docs/test_guards.md).
 

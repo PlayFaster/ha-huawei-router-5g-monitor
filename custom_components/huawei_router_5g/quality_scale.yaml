@@ -80,7 +80,14 @@ rules:
   entity-disabled-by-default: done
   entity-translations: done
   exception-translations: done
-  icon-translations: done
+  icon-translations:
+    status: todo
+    comment: |
+      Five entities have neither an icons.json entry nor a device_class
+      (data_allowance, day_connected_time, month_connected_time,
+      projected_usage, voice_service); four binary sensors without icons.json
+      entries have device_class defaults (data_service, integration_health,
+      poor_signal, router_diagnostics).
   reconfiguration-flow: done
   repair-issues: done
   stale-devices:

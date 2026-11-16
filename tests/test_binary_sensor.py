@@ -46,7 +46,7 @@ def test_best_connection_5g_active(mock_coordinator, mock_config_entry):
     """Return True when NSA 5G is present and health gates pass."""
     mock_coordinator.data = {
         "device_signal": {
-            "band": "20MHz@500(B1) + 10MHz@152690(N28)",
+            "band": "20MHz@1300(B3) + 100MHz@636666(N78)",
             "rsrp": "-90dBm",
             "nrrsrp": "-95dBm",
         }
@@ -62,7 +62,7 @@ def test_best_connection_5g_inactive_no_nr_band(mock_coordinator, mock_config_en
     """Return False when NR band label is missing from band string."""
     mock_coordinator.data = {
         "device_signal": {
-            "band": "20MHz@500(B1)",
+            "band": "20MHz@1300(B3)",
             "rsrp": "-90dBm",
         }
     }
@@ -77,7 +77,7 @@ def test_best_connection_lte_unhealthy(mock_coordinator, mock_config_entry):
     """Return False when LTE anchor health gate fails."""
     mock_coordinator.data = {
         "device_signal": {
-            "band": "20MHz@500(B1) + 10MHz@152690(N28)",
+            "band": "20MHz@1300(B3) + 100MHz@636666(N78)",
             "rsrp": "-110dBm",  # Below -100 threshold
             "sinr": "10dB",  # Below 15 threshold
             "rsrq": "-15dB",  # Below -12 threshold
@@ -248,6 +248,22 @@ def test_wifi_status_no_data(mock_coordinator, mock_config_entry):
 # ---------------------------------------------------------------------------
 # HuaweiWifi24GStatusSensor
 # ---------------------------------------------------------------------------
+
+
+@pytest.mark.parametrize("ssid", ["main", None])
+@pytest.mark.parametrize(
+    ("cls", "description"),
+    [
+        (HuaweiWifi24GStatusSensor, WIFI_24G_STATUS_DESCRIPTION),
+        (HuaweiWifi5GStatusSensor, WIFI_5G_STATUS_DESCRIPTION),
+    ],
+)
+def test_wifi_band_status_reads_unknown_for_a_non_list_ssid(
+    mock_coordinator, mock_config_entry, cls, description, ssid
+):
+    """A string or `None` `Ssid` reads unknown instead of raising (#76244)."""
+    mock_coordinator.data = {"wlan_multi_basic_settings": {"Ssids": {"Ssid": ssid}}}
+    assert cls(mock_coordinator, mock_config_entry, description).is_on is None
 
 
 def test_wifi_24g_status_on(mock_coordinator, mock_config_entry):
@@ -642,6 +658,51 @@ def test_mobile_connection_no_data(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
     )
     assert sensor.is_on is None
+
+
+@pytest.mark.parametrize(
+    ("status", "text"),
+    [
+        ("900", "Connecting"),
+        ("901", None),
+        ("902", "Disconnected"),
+        ("903", "Disconnecting"),
+        ("904", "Connect failed"),
+        ("905", "Status not available"),
+        ("906", "Status error"),
+    ],
+)
+def test_mobile_connection_names_the_intermediate_state(
+    mock_coordinator, mock_config_entry, status, text
+):
+    """The attribute names the state; the on and off state does not change.
+
+    Plan `v124_dev1_plan.md` item I9: 901 alone is on, `assumed_state` stays
+    false, and the `about` note survives the entity's own attributes.
+    """
+    mock_coordinator.data = {"monitoring_status": {"ConnectionStatus": status}}
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    attrs = sensor.extra_state_attributes or {}
+    assert attrs.get("additional_state") == text
+    assert ("additional_state" in attrs) is (text is not None)
+    assert attrs.get("about") == MOBILE_CONN_DESCRIPTION.about
+    assert sensor.is_on is (status == "901")
+    assert sensor.assumed_state is False
+    assert "additional_state" in sensor._unrecorded_attributes
+
+
+def test_mobile_connection_has_no_state_attribute_without_data(
+    mock_coordinator, mock_config_entry
+):
+    """No payload, or no status, gives no `additional_state`."""
+    sensor = HuaweiMobileConnectionSensor(
+        mock_coordinator, mock_config_entry, MOBILE_CONN_DESCRIPTION
+    )
+    for data in (None, {"monitoring_status": {}}, {"monitoring_status": None}):
+        mock_coordinator.data = data
+        assert "additional_state" not in (sensor.extra_state_attributes or {})
 
 
 # ---------------------------------------------------------------------------

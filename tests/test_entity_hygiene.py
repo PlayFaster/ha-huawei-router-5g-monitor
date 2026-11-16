@@ -12,7 +12,11 @@ changed, because the trigger is the set growing rather than the code path
 running.
 """
 
-from pytest_homeassistant_custom_component.common import MockConfigEntry
+import ast
+import pathlib
+
+import pytest
+from pytest_homeassistant.common import MockConfigEntry
 
 from custom_components.huawei_router_5g.sensor import SENSOR_TYPES
 from homeassistant.components.sensor import SensorStateClass
@@ -345,6 +349,7 @@ EXPECTED_PARALLEL_UPDATES = {
     "sensor": 0,  # read-only
     "binary_sensor": 0,  # read-only
     "device_tracker": 0,  # read-only
+    "event": 0,  # incoming SMS — pushed by the coordinator, no request
 }
 
 
@@ -677,6 +682,22 @@ def test_integration_health_attributes_are_all_unrecorded() -> None:
 # Keyed on (file, code) rather than line number, so ordinary edits do not
 # churn it.
 ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
+    ("observations.py", "noqa: BLE001, S112"): (
+        "Ported from `zte_router_5g`. Runs on every successful poll only to "
+        "note which entities reported a value and which tracked values "
+        "changed; a description that raises is surfaced by its own entity, and "
+        "logging here would repeat the message every poll."
+    ),
+    ("observations.py", "noqa: BLE001"): (
+        "Ported from `zte_router_5g`. The history and populated stores are "
+        "advisory: no storage fault may fail entry setup or a poll. A read "
+        "fault is counted and logged at warning and published in the download."
+    ),
+    ("observations.py", "noqa: PLC0415"): (
+        "Platform modules (`sensor`, `binary_sensor`) import `coordinator`, "
+        "which imports `observations`; importing `SENSOR_TYPES` and "
+        "`VALUE_BINARY_SENSORS` at module scope would create a circular import."
+    ),
     ("api.py", "noqa: SLF001"): (
         "Reaches wlan._session.post_set directly for wlan/multi-basic-settings. "
         "A public set_multi_basic_settings() exists, but it posts only "
@@ -688,7 +709,10 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "Second use, added 2026-08-15: reconnect posts dialup/dial Action 0. "
         "net/reconnect is refused by this hardware with -1: Unknown despite "
         "the library exposing it, and DialUp.dial() hardcodes Action 1, so "
-        "there is no public wrapper for the disconnect half."
+        "there is no public wrapper for the disconnect half. "
+        "Third use, added 1.2.4-dev4: `_read_path` reads the router paths the "
+        "library does not wrap, for the diagnostics probes, through the same "
+        "session the library's own methods use."
     ),
     ("api.py", "noqa: BLE001"): (
         "`probe_diagnostic_endpoints` sweeps endpoints this integration does "
@@ -697,11 +721,6 @@ ALLOWED_SUPPRESSIONS: dict[tuple[str, str], str] = {
         "naming exception types would decide in advance what an unfamiliar "
         "firmware is allowed to do. Nothing is swallowed: the class name is "
         "published in the download beside the endpoint that produced it."
-    ),
-    ("device_tracker.py", "type: ignore[attr-defined]"): (
-        "ScannerEntity is re-exported from homeassistant.components.device_tracker "
-        "but is absent from its __all__, so mypy reports an implicit re-export. "
-        "The component root is the conventional import path for HA platforms."
     ),
     ("device_tracker.py", "type: ignore[misc]"): (
         "ScannerEntity.device_info is decorated @final and returns None. This "
@@ -1373,14 +1392,11 @@ def test_every_disabled_by_decision_entry_carries_a_reason() -> None:
 
 def _declared_repair_keys() -> set[str]:
     """Return every repair key the code can raise, read from `const.py`."""
-    from custom_components.huawei_router_5g.const import (
-        REPAIR_LIBRARY_RESTART,
-        REPAIR_NAMES,
-    )
+    from custom_components.huawei_router_5g.const import REPAIR_NAMES
 
-    # The library restart repair is domain-level and deliberately not in
-    # `REPAIR_NAMES`, which names the per-entry issues.
-    return {*REPAIR_NAMES, REPAIR_LIBRARY_RESTART}
+    # The library restart repair is no longer raised from 1.2.4-dev4 (plan I7);
+    # its id is kept only so a repair from an earlier version is deleted.
+    return set(REPAIR_NAMES)
 
 
 def test_every_repair_issue_has_title_and_rendered_text() -> None:
@@ -1434,14 +1450,11 @@ def test_the_fixable_repair_is_the_one_with_a_fix_flow() -> None:
     button dismisses the card without acting on it. Both fail silently, which
     is why the pairing is asserted rather than assumed.
     """
-    from custom_components.huawei_router_5g.const import (
-        REPAIR_AUTH_FAILED,
-        REPAIR_LIBRARY_RESTART,
-    )
+    from custom_components.huawei_router_5g.const import REPAIR_AUTH_FAILED
 
     issues = _translation_file("strings.json")["issues"]
     with_flow = {key for key, entry in issues.items() if entry.get("fix_flow")}
-    fixable = {REPAIR_AUTH_FAILED, REPAIR_LIBRARY_RESTART}
+    fixable = {REPAIR_AUTH_FAILED}
 
     assert with_flow == fixable, (
         f"expected only {sorted(fixable)} to carry a fix_flow, got {with_flow}"
@@ -1597,3 +1610,105 @@ def test_device_info_is_declared_once() -> None:
         + ", ".join(sorted(declaring))
         + ". Inherit `helpers.HuaweiDeviceEntity` instead."
     )
+
+
+# ---------------------------------------------------------------------------
+# Device registry — deprecated surfaces only through _compat (C-038)
+# ---------------------------------------------------------------------------
+
+COMPONENT = pathlib.Path(__file__).resolve().parent.parent / (
+    "custom_components/huawei_router_5g"
+)
+
+
+def _hass_owned(node: ast.expr) -> bool:
+    """`hass` or `<x>.hass`, whose `config_entries` is the manager, not a device's."""
+    return (isinstance(node, ast.Name) and node.id == "hass") or (
+        isinstance(node, ast.Attribute) and node.attr == "hass"
+    )
+
+
+def _deprecated_registry_uses(tree: ast.AST) -> list[tuple[int, str]]:
+    """Return `(line, surface)` for each deprecated device-registry use in `tree`.
+
+    Three surfaces, all deprecated in HA 2026.8: `async_get_device(...)`
+    (removed 2027.8), `DeviceEntry.config_entries` (removed 2027.10), and the
+    `via_device` identifier tuple (removed 2027.8). Read from the syntax tree,
+    so a comment naming a surface does not count, and `hass.config_entries`,
+    the config-entry manager, is not a device attribute. Ported from
+    `zte_router_5g` `3.4.6-dev2`, the reference for chore C-038.
+    """
+    found: list[tuple[int, str]] = []
+    for node in ast.walk(tree):
+        if (
+            isinstance(node, ast.Call)
+            and isinstance(node.func, ast.Attribute)
+            and node.func.attr == "async_get_device"
+        ):
+            found.append((node.lineno, "async_get_device()"))
+        elif (
+            isinstance(node, ast.Attribute)
+            and node.attr == "config_entries"
+            and not _hass_owned(node.value)
+        ):
+            found.append((node.lineno, "DeviceEntry.config_entries"))
+        elif isinstance(node, ast.keyword) and node.arg == "via_device":
+            found.append((node.lineno, "via_device="))
+        elif isinstance(node, ast.Dict):
+            found.extend(
+                (key.lineno, "'via_device' key")
+                for key in node.keys
+                if isinstance(key, ast.Constant) and key.value == "via_device"
+            )
+    return found
+
+
+def test_deprecated_device_registry_surfaces_only_in_compat() -> None:
+    """Deprecated device-registry surfaces are reached only through `_compat`.
+
+    `_compat.device_by_identifier()` and `_compat.via_device_link()`
+    feature-detect the 2026.8 replacements. A direct call elsewhere works on
+    today's Home Assistant and breaks on removal, which is how
+    `unifi_network_monitor` 1.1.0-dev12 shipped one in `identity.py`.
+    """
+    offenders = [
+        f"{path.relative_to(COMPONENT)}:{line}  {surface}"
+        for path in sorted(COMPONENT.rglob("*.py"))
+        if path.name != "_compat.py"
+        for line, surface in _deprecated_registry_uses(
+            ast.parse(path.read_text(encoding="utf-8"))
+        )
+    ]
+    assert not offenders, (
+        "deprecated device-registry surfaces outside _compat.py:\n"
+        + "\n".join(offenders)
+        + "\nRoute the lookup through a `_compat` shim."
+    )
+
+
+@pytest.mark.parametrize(
+    ("source", "surface"),
+    [
+        ("dev_reg.async_get_device(identifiers={('d', 'x')})", "async_get_device()"),
+        ("ids = device.config_entries", "DeviceEntry.config_entries"),
+        ("DeviceInfo(via_device=('d', 'x'))", "via_device="),
+        ("info = {'via_device': ('d', 'x')}", "'via_device' key"),
+    ],
+)
+def test_registry_guard_detects_each_surface(source: str, surface: str) -> None:
+    """The guard above reports each surface it names."""
+    assert [s for _, s in _deprecated_registry_uses(ast.parse(source))] == [surface]
+
+
+@pytest.mark.parametrize(
+    "source",
+    [
+        "entry = hass.config_entries.async_get_entry(entry_id)",
+        "self.hass.config_entries.async_update_entry(entry)",
+        "# async_get_device(identifiers=...) is deprecated",
+        "link = via_device_link(hass, 'd', 'x', entry_id)",
+    ],
+)
+def test_registry_guard_ignores_manager_and_comments(source: str) -> None:
+    """The config-entry manager, comments and the shims do not count."""
+    assert _deprecated_registry_uses(ast.parse(source)) == []

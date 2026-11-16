@@ -14,6 +14,7 @@ from custom_components.huawei_router_5g.switch import (
     HuaweiMobileDataSwitch,
     HuaweiPausePollingSwitch,
     HuaweiWifiSwitch,
+    _guest_enable_flag,
     async_setup_entry,
 )
 from homeassistant.exceptions import HomeAssistantError
@@ -241,6 +242,25 @@ def test_guest_wifi_is_on(mock_coordinator, mock_config_entry):
         mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
     )
     assert switch.is_on is True
+
+
+@pytest.mark.parametrize("ssid", ["guest", None])
+def test_guest_wifi_reads_unknown_for_a_non_list_ssid(
+    mock_coordinator, mock_config_entry, ssid
+):
+    """A string or `None` `Ssid` reads unknown instead of raising.
+
+    Core `huawei_lte` issue #76244 records the H312-371, E5372 and E8372
+    returning `Ssids.Ssid` in these shapes. Iterated as it came, the string
+    gave characters with no `.get` and `None` raised `TypeError`.
+    """
+    mock_coordinator.data = {"wlan_multi_basic_settings": {"Ssids": {"Ssid": ssid}}}
+    switch = HuaweiGuestWifiSwitch(
+        mock_coordinator, mock_config_entry, GUEST_WIFI_DESCRIPTION
+    )
+    assert switch.is_on is None
+    assert without_about(switch.extra_state_attributes) == {}
+    assert _guest_enable_flag({"Ssids": {"Ssid": ssid}}) is None
 
 
 def test_guest_wifi_is_none_no_data(mock_coordinator, mock_config_entry):
@@ -715,3 +735,40 @@ async def test_a_poll_missing_the_key_holds_the_last_position(
     mock_coordinator.data = {}
     switch._handle_coordinator_update()
     assert switch.is_on is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("switch_class", "description", "method"),
+    [
+        (HuaweiMobileDataSwitch, MOBILE_DATA_DESCRIPTION, "set_mobile_data"),
+        (HuaweiWifiSwitch, WIFI_DESCRIPTION, "set_wifi"),
+        (HuaweiGuestWifiSwitch, GUEST_WIFI_DESCRIPTION, "set_guest_wifi"),
+    ],
+)
+async def test_a_switch_inside_a_window_is_refused_with_a_warning(
+    mock_coordinator, mock_config_entry, switch_class, description, method
+):
+    """The gate's refusal is logged as a warning, without a traceback."""
+    from unittest.mock import patch
+
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+
+    setattr(
+        mock_coordinator.api,
+        method,
+        AsyncMock(side_effect=HuaweiExpectedUnavailableError("reboot", 42)),
+    )
+    switch = switch_class(mock_coordinator, mock_config_entry, description)
+    switch.hass = MagicMock()
+
+    with (
+        patch("custom_components.huawei_router_5g.switch._LOGGER") as logger,
+        pytest.raises(HomeAssistantError) as caught,
+    ):
+        await switch.async_turn_on()
+
+    assert caught.value.translation_key == "router_restarting"
+
+    logger.warning.assert_called_once()
+    logger.exception.assert_not_called()

@@ -167,9 +167,47 @@ ENDPOINT_NAMES: dict[str, str] = {
 # was written to catch. Below the first version the endpoint is skipped and
 # recorded `unsupported`; at or above it the call is made and any failure is an
 # ordinary `unavailable`.
-LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str]] = {
-    "voice_volte": ("voice", "volte", "2.0.1"),
-    "onekey_diag": ("monitoring", "onekey_diag", "2.0.1"),
+# --- Capability flag values in the diagnostics download ----------------------
+#
+# The download probes these endpoints and, for these alone, keeps the values as
+# well as the key names: they are the router stating what it supports, which a
+# download from a model nobody here holds is the only source of. Their meaning
+# is inferred from the key names and one router (H165-383, probe of 2026-05-10).
+# `sms_config` (the service-centre number) and `system_deviceinfoex` (the serial
+# number) are probed and are not here, so they stay key names only.
+CAPABILITY_PROBES: frozenset[str] = frozenset(
+    {
+        "global_module_switch",
+        "system_devcapacity",
+        "device_feature_switch",
+        "net_feature_switch",
+        "monitoring_statistic_feature_switch",
+        "sms_feature_switch",
+        "voice_featureswitch",
+        "security_feature_switch",
+        "dhcp_feature_switch",
+        "cradle_feature_switch",
+        "dial_up_feature_switch",
+    }
+)
+# From `device_basic_information` only these two keys are kept; the rest of that
+# block carries the device name.
+CAPABILITY_BASIC_INFO_KEYS: tuple[str, ...] = ("classify", "multimode")
+# A capability value is published as it is when it is a number. Text is
+# published only under these keys, after the sanitizer, and any other text is
+# replaced by a marker naming its type: the sanitizer matches shapes, and a text
+# value on an unseen model could be a name. Four of the endpoints above have
+# never answered with a value on any router held.
+CAPABILITY_TEXT_KEYS: frozenset[str] = frozenset({"classify"})
+
+# The two reads `huawei-lte-api` gained in 2.0.1: group, method, the first
+# version that has the method, and the router path the method reads. On an older
+# library the path is read directly, so the VoLTE Status and Router
+# Self-Diagnosis sensors work on either version and never wait for a restart
+# after the library guard upgrades the library (see `_call_added_endpoint`).
+LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str, str]] = {
+    "voice_volte": ("voice", "volte", "2.0.1", "voice/volte"),
+    "onekey_diag": ("monitoring", "onekey_diag", "2.0.1", "monitoring/onekey_diag"),
 }
 
 # --- Startup library guard ------------------------------------------------------
@@ -178,6 +216,9 @@ LIBRARY_ADDED_ENDPOINTS: dict[str, tuple[str, str, str]] = {
 # exists and the installed version is older (see `library_guard.py`). Core pins
 # 1.11.0 for its own integration, so while a core entry exists the guard leaves
 # the library alone. The requirement string stays inside the manifest's range.
+# The install takes effect at the next restart the user makes; nothing asks for
+# one, because every sensor works on 1.11.0. `REPAIR_LIBRARY_RESTART` is kept only
+# so a repair raised by an earlier version is deleted at startup.
 LIBRARY_PACKAGE = "huawei-lte-api"
 LIBRARY_PREFERRED_VERSION = "2.0.1"
 LIBRARY_REQUIREMENT = f"{LIBRARY_PACKAGE}>={LIBRARY_PREFERRED_VERSION},<2.0.2"
@@ -253,18 +294,35 @@ REPAIR_CONN_STRIKE_LIMIT = 10
 # `HEALTH_STRIKE_LIMIT` doing both jobs until 2026-08-17.
 HEALTH_DRIFT_STRIKE_LIMIT = 3
 
-# Seconds to wait before the follow-up refresh a disruptive button schedules.
+# --- Expected-outage window --------------------------------------------------
 #
-# Both controls take the router away and bring it back, so the reading straight
-# afterwards is stale by definition and the entities would sit wrong until the
-# next scheduled poll - twenty minutes by default. These are measured, not
-# guessed: a reconnect was back inside five seconds on the reference B535, and
-# a reboot takes well under a minute to start answering again. Both carry
-# headroom.
+# Reboot and Reconnect take the router away for a known reason. While the
+# window is open, polls are skipped and every other router request is refused
+# at once with the reason and the seconds left. The mechanism and its values
+# follow `zte_router_5g` (`const.py` there); the H165-383 timings that bear on
+# them were measured on 2026-10-09.
 #
-# Both fire even while polling is paused - the follow-up is part of the button
-# press, not background polling (Section 13). Neither fires when it would land
-# after the next scheduled poll anyway - see `async_schedule_refresh`.
+# The check reads `user/state-login`, which the H165-383 answers without a
+# session, every `OUTAGE_CHECK_INTERVAL` seconds with a short timeout, and the
+# first answer runs the closing poll. A Reconnect window first waits for the
+# router to drop, probing every `OUTAGE_PROBE_FAST` seconds, and closes at
+# `OUTAGE_HOLD` when it does not: the H165-383 kept answering through a
+# Reconnect, its data back in about 1.1 s. The Reboot window opens only once
+# the router has been seen silent, checked every `REBOOT_VERIFY_INTERVAL`
+# seconds for up to `REBOOT_VERIFY_SECONDS`: the H165-383 still answered 5 to
+# 7 s after the command and was silent by 10 to 12 s, so the verify time is
+# margin over that. It answered again at 68.5 to 72.6 s; the caps are ZTE's.
+OUTAGE_CHECK_INTERVAL = 5.0
+OUTAGE_CHECK_TIMEOUT = 2
+OUTAGE_PROBE_FAST = 1.0
+OUTAGE_HOLD = 20.0
+OUTAGE_CAP_REBOOT = 240.0
+OUTAGE_CAP_RECONNECT = 60.0
+OUTAGE_REASON_REBOOT = "reboot"
+OUTAGE_REASON_RECONNECT = "reconnect"
+REBOOT_VERIFY_SECONDS = 20.0
+REBOOT_VERIFY_INTERVAL = 1.0
+
 # --- Network mode -----------------------------------------------------------
 #
 # Code to label for `net_mode.NetworkMode`. **One table, used by both the select
@@ -335,8 +393,6 @@ def network_mode_label(code: str | None) -> str | None:
 # used for the reconnect path, which exercises the same re-registration.
 NET_MODE_SETTLE = 15
 
-RECONNECT_REFRESH_DELAY = 20
-REBOOT_REFRESH_DELAY = 60
 
 # --- Data-usage projection tuning (status_plan §T-2) -------------------------
 #
@@ -386,8 +442,76 @@ SMS_SEGMENTS_MAX = 4
 SMS_MAX_CHARS_GSM7 = 612
 SMS_MAX_CHARS_UNICODE = 268
 
+# --- Persisted SMS record -----------------------------------------------------
+#
+# The number of seen message identities kept in the observed store, so a
+# message received while Home Assistant was stopped is announced after the
+# start. The poll reads the 20 newest; an identity still in the read is never
+# dropped, whatever the cap.
+SMS_SEEN_CAP = 200
+
+# --- SMS delete check ---------------------------------------------------------
+#
+# A success reply did not prove a delete on `zte_router_5g`, so a delete is
+# checked by reading the local inbox again: at once, and then every
+# `SMS_DELETE_VERIFY_INTERVAL` seconds until `SMS_DELETE_VERIFY_SECONDS` have
+# been waited, which is three reads 2 s apart. The form is ZTE's, a total wait
+# and an interval. Measured on the H165-383 on 2026-10-09: in 8 inbox and 10
+# sent-box deletes the message was gone at the first read, within 30 ms of the
+# reply, so the wait is spent only on a slower model. ZTE's 15 s was measured
+# on the MC7010.
+SMS_DELETE_VERIFY_SECONDS = 4
+SMS_DELETE_VERIFY_INTERVAL = 2
+
+# Messages per page when the local inbox is read in full. The router serves the
+# list in pages, and delete all read one page of this size before 1.2.4-dev1.
+SMS_LIST_PAGE_SIZE = 50
+
 # The one action that removes entities rather than commanding the router.
 # Defaults to a dry run: a client that is merely powered off is still usually
 # in the router's host list, but a router that has aged it out is
 # indistinguishable from one that never saw it, so removal is always explicit.
 SERVICE_CLEANUP = "cleanup_unused_entities"
+
+
+# --- Payload keys read outside entity descriptions --------------------------
+#
+# Polled block -> key names read by code that is not an entity description's
+# `value_fn`: the uptime latches, Integration Health, the device trackers, the
+# client counts and the write read-backs. The diagnostics download's
+# `unread_keys` treats these as read, and the planned recording of what an
+# enabled entity reads (`poll_only_what_an_enabled_entity_reads.md`) reuses the
+# list. A key added to one of those readers is added here.
+KEYS_READ_OUTSIDE_DESCRIPTIONS: dict[str, frozenset[str]] = {
+    # Hardware metadata (`coordinator.py`) and the entry's identity at setup
+    # (`config_flow.py`).
+    "device_information": frozenset({"HardwareVersion", "MacAddress1"}),
+    # The class-built binary sensors in `binary_sensor.py` and the WiFi switch.
+    "monitoring_status": frozenset(
+        {
+            "ConnectionStatus",
+            "EndcStatus",
+            "RoamingStatus",
+            "SimStatus",
+            "WifiStatus",
+            "endcRestrictedStatus",
+        }
+    ),
+    "monitoring_check_notifications": frozenset({"SmsStorageFull"}),
+    # The write read-back of the network mode (`api.py`).
+    "net_mode": frozenset({"LTEBand", "NetworkBand"}),
+    # The SMS event and inbox handling (`coordinator.py`, `helpers.py`).
+    "sms_list": frozenset({"Messages"}),
+    "mobile_dataswitch": frozenset({"dataswitch"}),
+    # The device trackers and the client counts.
+    "wlan_host_list": frozenset({"Hosts"}),
+    "wlan_wifi_feature_switch": frozenset({"wifi_dbdc_enable"}),
+    # The WiFi switches and binary sensors, and their write read-backs.
+    "wlan_multi_basic_settings": frozenset({"DbhoEnable", "Ssids"}),
+    # Router Self-Diagnosis: the verdict and its nine reasons.
+    "onekey_diag": frozenset({DIAG_VERDICT_KEY, *DIAG_REASONS}),
+}
+
+# Polled block -> key names the integration deliberately does not read, so the
+# download does not list them as unread.
+KEYS_DELIBERATELY_UNREAD: dict[str, frozenset[str]] = {}

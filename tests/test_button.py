@@ -63,6 +63,9 @@ async def test_reboot_button_press(mock_coordinator, mock_config_entry):
     await button.async_press()
 
     mock_api.reboot.assert_called_once()
+    # The window is watched only after `reboot()` returned, which it does once
+    # the router has been seen silent.
+    mock_coordinator.async_start_outage_checks.assert_called_once_with()
 
 
 @pytest.mark.asyncio
@@ -183,6 +186,29 @@ async def test_reconnect_button_calls_the_api() -> None:
 
     coordinator.api.reconnect.assert_awaited_once()
     coordinator.api.reboot.assert_not_called()
+    coordinator.async_start_outage_checks.assert_called_once_with()
+
+
+@pytest.mark.asyncio
+async def test_a_press_inside_the_window_is_refused_with_the_seconds_left() -> None:
+    """Refresh Now during a window is refused, not silently skipped."""
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+    from custom_components.huawei_router_5g.button import HuaweiRefreshButton
+
+    coordinator = MagicMock()
+    coordinator.api.refuse_during_outage = MagicMock(
+        side_effect=HuaweiExpectedUnavailableError("reboot", 42)
+    )
+    coordinator.async_force_refresh = AsyncMock()
+    entry = MagicMock()
+    entry.unique_id = "abc"
+
+    button = HuaweiRefreshButton(coordinator, entry, RECONNECT_DESCRIPTION)
+    with pytest.raises(HomeAssistantError) as caught:
+        await button.async_press()
+    assert caught.value.translation_key == "router_restarting"
+    assert caught.value.translation_placeholders == {"seconds": "42"}
+    coordinator.async_force_refresh.assert_not_called()
 
 
 @pytest.mark.asyncio
@@ -206,3 +232,63 @@ def test_reconnect_is_not_declared_as_a_restart() -> None:
     """Reboot owns `RESTART`; sharing it makes the two read as duplicates."""
     assert RECONNECT_DESCRIPTION.device_class is None
     assert REBOOT_DESCRIPTION.device_class is ButtonDeviceClass.RESTART
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    ("button_class", "method"),
+    [
+        ("HuaweiRebootButton", "reboot"),
+        ("HuaweiReconnectButton", "reconnect"),
+        ("HuaweiClearTrafficButton", "clear_traffic_statistics"),
+    ],
+)
+async def test_a_command_refused_inside_a_window_names_the_seconds_left(
+    button_class: str, method: str
+) -> None:
+    """A command met by the outage gate reports the gate's message."""
+    from custom_components.huawei_router_5g import button as button_module
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+
+    coordinator = MagicMock()
+    setattr(
+        coordinator.api,
+        method,
+        AsyncMock(side_effect=HuaweiExpectedUnavailableError("reboot", 42)),
+    )
+    entry = MagicMock()
+    entry.unique_id = "abc"
+
+    button = getattr(button_module, button_class)(
+        coordinator, entry, RECONNECT_DESCRIPTION
+    )
+    with pytest.raises(HomeAssistantError) as caught:
+        await button.async_press()
+    assert caught.value.translation_key == "router_restarting"
+    assert caught.value.translation_placeholders == {"seconds": "42"}
+    coordinator.async_start_outage_checks.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    ("reason", "key"),
+    [("reboot", "router_restarting"), ("reconnect", "router_reconnecting")],
+)
+def test_each_window_reason_has_its_own_translated_message(reason, key) -> None:
+    """The refusal is a translation key per reason, with the seconds left."""
+    import json
+    import pathlib
+
+    from custom_components.huawei_router_5g.api import HuaweiExpectedUnavailableError
+    from custom_components.huawei_router_5g.helpers import expected_outage_error
+
+    err = expected_outage_error(HuaweiExpectedUnavailableError(reason, 7))
+
+    assert err.translation_key == key
+    assert err.translation_placeholders == {"seconds": "7"}
+    for name in ("strings.json", "translations/en.json"):
+        strings = json.loads(
+            pathlib.Path("custom_components/huawei_router_5g", name).read_text(
+                encoding="utf-8"
+            )
+        )
+        assert "{seconds}" in strings["exceptions"][key]["message"]

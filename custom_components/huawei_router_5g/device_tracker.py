@@ -3,9 +3,7 @@
 import logging
 from typing import Any
 
-from homeassistant.components.device_tracker import (  # type: ignore[attr-defined]
-    ScannerEntity,
-)
+from homeassistant.components.device_tracker import ScannerEntity
 from homeassistant.config_entries import ConfigEntry
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddEntitiesCallback

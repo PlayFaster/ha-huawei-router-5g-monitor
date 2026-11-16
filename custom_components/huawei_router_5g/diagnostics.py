@@ -65,6 +65,7 @@ sweep, not this key list, is what covers the rest.
 
 from __future__ import annotations
 
+import contextlib
 from copy import deepcopy
 import re
 from typing import Any
@@ -73,6 +74,12 @@ from homeassistant.config_entries import ConfigEntry
 from homeassistant.const import CONF_PASSWORD, CONF_USERNAME
 from homeassistant.core import HomeAssistant
 
+from . import binary_sensor, sensor
+from .const import (
+    CAPABILITY_TEXT_KEYS,
+    KEYS_DELIBERATELY_UNREAD,
+    KEYS_READ_OUTSIDE_DESCRIPTIONS,
+)
 from .coordinator import HuaweiRouter5GDataUpdateCoordinator
 
 REDACTED = "**REDACTED**"
@@ -115,7 +122,18 @@ TO_REDACT = {
 # `Mccmnc` is the same value as `current_plmn.Numeric` reached by another key,
 # and was published in full while `Numeric` beside it was redacted. `Spn` was
 # listed as lowercase `spn`, which the router never sends — a silent miss.
-CARRIER_KEYS = {"FullName", "ShortName", "Numeric", "Rat", "Spn", "spn", "Mccmnc"}
+# `ApnName` in `dial_up_profiles` is the operator's APN, which names the
+# provider; the extended leak check found it published in full (1.2.4-dev8 I9).
+CARRIER_KEYS = {
+    "FullName",
+    "ShortName",
+    "Numeric",
+    "Rat",
+    "Spn",
+    "spn",
+    "Mccmnc",
+    "ApnName",
+}
 
 # Tokenized rather than blanked — seeing that two fields hold the same address
 # is diagnostic, seeing the address itself is not.
@@ -204,11 +222,14 @@ NEVER_SWEPT_KEYS = {
     "hw_version",
 }
 
-# Each octet bounded to 0-255, and not adjacent to a word character, `.` or `(`
-# — so a dotted version string carrying a suffix is not mistaken for an address.
+# Each octet bounded to 0-255, not preceded by a word character or `.`, and
+# not followed by a word character, `(`, or a `.` that a word character follows
+# — so a dotted version string carrying a suffix is not mistaken for an
+# address, while an address ending a sentence, such as `203.0.113.7.`, is. The
+# lookahead is `unifi_network_monitor`'s (`diagnostics.py:91`).
 _OCTET = r"(?:25[0-5]|2[0-4]\d|1\d\d|[1-9]?\d)"
 _IPV4_RE = re.compile(
-    rf"(?<![\w.])(?:{_OCTET}\.){{3}}{_OCTET}(?![\w.(])",
+    rf"(?<![\w.])(?:{_OCTET}\.){{3}}{_OCTET}(?![\w(]|\.\w)",
 )
 _MAC_RE = re.compile(r"\b(?:[0-9A-Fa-f]{2}[:-]){5}[0-9A-Fa-f]{2}\b")
 # Requires either a `::` elision or the full eight-group form. Anything looser
@@ -217,6 +238,15 @@ _IPV6_RE = re.compile(
     r"\b(?:[0-9A-Fa-f]{1,4}:){1,7}:(?:[0-9A-Fa-f]{1,4}(?::[0-9A-Fa-f]{1,4})*)?"
     r"|\b(?:[0-9A-Fa-f]{1,4}:){7}[0-9A-Fa-f]{1,4}\b"
 )
+
+# A phone number has no delimiter to anchor on inside free text, so only a value
+# that is wholly one is matched: an international number (`+` and 8 to 15
+# digits) or a national one (10 or 11 digits starting with `0`), the rule
+# `zte_router_5g` adopted after publishing a number for three releases. A byte
+# counter or a band mask is a run of digits too, and none seen in the held
+# downloads starts with `0`; a field of another kind that does is the known
+# limit, recorded in `docs/DEVELOPMENT.md`.
+_PHONE_RE = re.compile(r"\+\d{8,15}|0\d{9,10}")
 
 
 class _Tokenizer:
@@ -250,8 +280,12 @@ def _sweep(value: str, tokenizer: _Tokenizer) -> str:
     against a list of real values: that would put PII in the source tree and
     would not work for anybody else's router.
 
-    MACs are swept before IPv6 because the two shapes overlap.
+    MACs are swept before IPv6 because the two shapes overlap. A value that is
+    wholly a phone number is tokenized whatever its key, so one under a key the
+    lists do not name is not published.
     """
+    if _PHONE_RE.fullmatch(value):
+        return tokenizer.token("phone", value)
     value = _MAC_RE.sub(lambda m: tokenizer.token("mac", m.group(0)), value)
     value = _IPV4_RE.sub(lambda m: tokenizer.token("ip", m.group(0)), value)
     return _IPV6_RE.sub(lambda m: tokenizer.token("ip6", m.group(0)), value)
@@ -355,15 +389,9 @@ def _entity_resolution(payload: dict[str, Any]) -> dict[str, Any]:
     produce. Nothing leaks by doing so: only description keys and counts are
     recorded, never a value.
     """
-    # Imported here rather than at module scope: `diagnostics` is loaded on
-    # demand for a download, and pulling in every platform module at import
-    # time would make a rarely-used path a startup cost.
-    from .binary_sensor import VALUE_BINARY_SENSORS
-    from .sensor import SENSOR_TYPES
-
     tables: tuple[tuple[str, Any], ...] = (
-        ("sensor", SENSOR_TYPES),
-        ("binary_sensor", VALUE_BINARY_SENSORS),
+        ("sensor", sensor.SENSOR_TYPES),
+        ("binary_sensor", binary_sensor.VALUE_BINARY_SENSORS),
     )
 
     out: dict[str, Any] = {}
@@ -388,6 +416,117 @@ def _entity_resolution(payload: dict[str, Any]) -> dict[str, Any]:
             "no_value": sorted(no_value),
             "raised": raised,
         }
+    return out
+
+
+class _KeyRecorder(dict[str, Any]):
+    """A payload block that records which of its keys are read.
+
+    A `dict` subclass, so `isinstance` checks and `.get` chains in the
+    descriptions behave as on the real payload. Only the block's own keys are
+    recorded; a nested block is returned as it is.
+    """
+
+    def __init__(self, block: dict[str, Any], seen: set[str]) -> None:
+        """Copy `block` and record reads into `seen`."""
+        super().__init__(block)
+        self._seen = seen
+
+    def __getitem__(self, key: str) -> Any:
+        """Record the key, then read it."""
+        self._seen.add(key)
+        return super().__getitem__(key)
+
+    def get(self, key: str, default: Any = None) -> Any:
+        """Record the key, then read it."""
+        self._seen.add(key)
+        return super().get(key, default)
+
+    def __contains__(self, key: object) -> bool:
+        """Record the key, then test it."""
+        if isinstance(key, str):
+            self._seen.add(key)
+        return super().__contains__(key)
+
+
+def _unread_keys(payload: dict[str, Any]) -> dict[str, list[str]]:
+    """List, per polled block, the key names no entity description reads.
+
+    The reverse of `_entity_resolution`: which keys the router sent that
+    nothing in this integration reads. Each description's `value_fn` runs
+    against the payload with every block wrapped in `_KeyRecorder`; the keys
+    read by code outside the descriptions are declared in
+    `KEYS_READ_OUTSIDE_DESCRIPTIONS`, and keys deliberately left unread in
+    `KEYS_DELIBERATELY_UNREAD`. **Names only, never a value.** A block that is
+    not a mapping, such as a client list, is not listed.
+    """
+    seen: dict[str, set[str]] = {
+        block: set() for block, value in payload.items() if isinstance(value, dict)
+    }
+    wrapped = {
+        block: (_KeyRecorder(value, seen[block]) if block in seen else value)
+        for block, value in payload.items()
+    }
+    for descriptions in (sensor.SENSOR_TYPES, binary_sensor.VALUE_BINARY_SENSORS):
+        for description in descriptions:
+            value_fn = getattr(description, "value_fn", None)
+            if value_fn is None:
+                continue
+            with contextlib.suppress(Exception):
+                value_fn(wrapped)
+
+    out: dict[str, list[str]] = {}
+    for block, read in seen.items():
+        known = (
+            read
+            | KEYS_READ_OUTSIDE_DESCRIPTIONS.get(block, frozenset())
+            | KEYS_DELIBERATELY_UNREAD.get(block, frozenset())
+        )
+        unread = sorted(str(key) for key in payload[block] if key not in known)
+        if unread:
+            out[block] = unread
+    return out
+
+
+_NUMBER_RE = re.compile(r"-?\d+(?:\.\d+)?")
+
+
+def _capability_value(key: str, value: Any, tokenizer: _Tokenizer) -> Any:
+    """Publish one capability value: a number as it is, other text masked.
+
+    The value goes through the sanitizer first, so an address or a phone number
+    under a known text key is tokenized. A number, an empty value or a text value
+    under a key in `CAPABILITY_TEXT_KEYS` is then published; anything else is
+    replaced by a marker naming its type, because a text value on an unseen
+    model could be a name the shape sweep does not recognize.
+    """
+    clean = _sanitize(value, tokenizer, key)
+    if clean in (None, ""):
+        return clean
+    if isinstance(clean, (int, float)) and not isinstance(clean, bool):
+        return clean
+    if isinstance(clean, str) and (
+        _NUMBER_RE.fullmatch(clean) or key in CAPABILITY_TEXT_KEYS
+    ):
+        return clean
+    return f"<{type(clean).__name__}>"
+
+
+def _publish_probes(probes: Any, tokenizer: _Tokenizer) -> Any:
+    """Return the probe records with any capability values made publishable."""
+    if not isinstance(probes, dict):
+        return probes
+    out: dict[str, Any] = {}
+    for name, record in probes.items():
+        if isinstance(record, dict) and isinstance(record.get("values"), dict):
+            record = {
+                **record,
+                "values": {
+                    k: _capability_value(str(k), v, tokenizer)
+                    for k, v in record["values"].items()
+                },
+            }
+        out[name] = record
     return out
 
 
@@ -468,8 +607,9 @@ async def async_get_config_entry_diagnostics(
         # download. An entry reading `refused` with a code is the router
         # stating it does not serve that endpoint; `answered` with key names
         # is a capability this device has and the integration does not read.
-        # Names and counts only — see `api.probe_diagnostic_endpoints`.
-        "probes": probes,
+        # Names and counts, and for the capability probes alone their values,
+        # published by `_capability_value` — see `api.probe_diagnostic_endpoints`.
+        "probes": _publish_probes(probes, tokenizer),
         # How the refusal-or-expiry question was settled on this router
         # (dev16 plan I1): whether it refuses `device_information` without a
         # login, which is what lets a 100003 from an optional endpoint be read as
@@ -492,6 +632,9 @@ async def async_get_config_entry_diagnostics(
         # populates. The endpoint map says what the router served; this says
         # what that means for the entities a reporter is looking at.
         "entity_resolution": _entity_resolution(raw),
+        # The reverse question: key names the router sent in a polled block
+        # that no description and no declared reader reads. Names only.
+        "unread_keys": _unread_keys(raw),
         "endpoints": (
             deepcopy(coordinator.api.endpoint_outcomes)
             if isinstance(coordinator.api.endpoint_outcomes, dict)

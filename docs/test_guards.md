@@ -275,3 +275,7 @@ A register naming a sensor that no longer exists checks nothing.
 ### `test_every_disabled_by_decision_entry_carries_a_reason`
 
 A register entry with no reason is indistinguishable from a guess.
+
+### `test_deprecated_device_registry_surfaces_only_in_compat`
+
+Deprecated device-registry surfaces (`async_get_device(`, `DeviceEntry.config_entries`, `via_device`) are reached only through `_compat`. A direct call elsewhere works on today's Home Assistant and breaks on removal in 2027.8+.

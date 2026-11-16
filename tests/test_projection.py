@@ -31,7 +31,7 @@ from custom_components.huawei_router_5g.sensor import (
     _projected_bytes,
 )
 
-TZ = ZoneInfo("Europe/Dublin")
+TZ = ZoneInfo("WET")
 GB = 1024**3
 
 

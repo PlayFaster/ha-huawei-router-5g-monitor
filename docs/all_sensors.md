@@ -6,15 +6,15 @@ A complete list of the static entities and service actions provided by the integ
 
 ## Summary
 
-| Sub-Device  | Entity Count | Description            |
-| :---------- | :----------- | :--------------------- |
-| **Clients** | 4            | Clients entities.      |
-| **Data**    | 24           | Data entities.         |
-| **SMS**     | 18           | SMS entities.          |
-| **Signal**  | 58           | Signal entities.       |
-| **System**  | 49           | System entities.       |
-| **WiFi**    | 7            | WiFi entities.         |
-| **Total**   | **160**      | Total static entities. |
+| Sub-Device | Entity Count | Description |
+| :-- | :-- | :-- |
+| **Clients** | 4 | Clients entities. |
+| **Data** | 24 | Data entities. |
+| **SMS** | 19 | SMS entities. |
+| **Signal** | 58 | Signal entities. |
+| **System** | 57 | System entities. |
+| **WiFi** | 7 | WiFi entities. |
+| **Total** | **169** | Total static entities. |
 
 ## Clients Sub-Device (4 Entities)
 
@@ -54,11 +54,12 @@ A complete list of the static entities and service actions provided by the integ
 | Total Download | `total_download` | Sensor | B | - | LTS: `total_increasing` |
 | Total Upload | `total_upload` | Sensor | B | - | LTS: `total_increasing` |
 
-## SMS Sub-Device (18 Entities)
+## SMS Sub-Device (19 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
 | SMS Storage Full | `sms_storage_full` | Binary Sensor | - | Diagnostic | - |
+| Incoming SMS | `incoming_sms` | Event | - | - | - |
 | Last Msg | `last_sms` | Sensor | - | - | - |
 | Capacity (Device) | `sms_capacity_device` | Sensor | - | Diagnostic | - |
 | Capacity (SIM) | `sms_capacity_sim` | Sensor | - | Diagnostic | - |
@@ -140,7 +141,7 @@ A complete list of the static entities and service actions provided by the integ
 | LTE Transmit Power | `transmit_power` | Sensor | - | Diagnostic | - |
 | LTE Uplink MCS | `uplink_mcs` | Sensor | - | Diagnostic | - |
 
-## System Sub-Device (49 Entities)
+## System Sub-Device (57 Entities)
 
 | Name | Key | Type | Unit | Category | Notes |
 | :-- | :-- | :-- | :-- | :-- | :-- |
@@ -159,9 +160,12 @@ A complete list of the static entities and service actions provided by the integ
 | Polling Interval | `polling_interval` | Number | s | Config | - |
 | Preferred Network Mode | `network_mode` | Select | - | Config | - |
 | APN | `apn` | Sensor | - | Diagnostic | - |
+| APN Changes | `apn_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | APN Profile | `apn_profile` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Battery | `battery` | Sensor | % | Diagnostic | **Disabled by default.** |
 | Carrier Build | `carrier_build` | Sensor | - | Diagnostic | - |
+| Carrier Build Changes | `carrier_build_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
+| Cell Changes | `cell_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | Country Code | `country_code` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Connection Duration | `current_connection_duration` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Connection Uptime | `current_connection_timestamp` | Sensor | - | - | - |
@@ -173,7 +177,9 @@ A complete list of the static entities and service actions provided by the integ
 | MCC MNC | `mcc_mnc` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Model Name | `model_name` | Sensor | - | Diagnostic | - |
 | MTU | `mtu` | Sensor | - | Diagnostic | **Disabled by default.** |
+| Operator Changes | `operator_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | Primary DNS Server | `primary_dns` | Sensor | - | Diagnostic | - |
+| Primary DNS Changes | `primary_dns_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | Primary IPv6 DNS Server | `primary_ipv6_dns` | Sensor | - | Diagnostic | - |
 | Product Name | `product_name` | Sensor | - | Diagnostic | - |
 | Secondary DNS Server | `secondary_dns` | Sensor | - | Diagnostic | - |
@@ -182,6 +188,7 @@ A complete list of the static entities and service actions provided by the integ
 | SIM Number | `sim_number` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Supported Modes | `supported_modes` | Sensor | - | Diagnostic | **Disabled by default.** |
 | Software Version | `sw_version` | Sensor | - | Diagnostic | - |
+| Software Version Changes | `sw_version_changes` | Sensor | - | Diagnostic | LTS: `total_increasing` |
 | Total Duration | `total_connection_time` | Sensor | s | Diagnostic | **Disabled by default.** |
 | Total Uptime | `total_connection_timestamp` | Sensor | - | Diagnostic | - |
 | Uptime Duration | `uptime` | Sensor | s | Diagnostic | **Disabled by default.** |
@@ -189,7 +196,9 @@ A complete list of the static entities and service actions provided by the integ
 | WAN DNS | `wan_dns` | Sensor | - | Diagnostic | **Disabled by default.** |
 | WAN DNS IPv6 | `wan_dns_ipv6` | Sensor | - | Diagnostic | **Disabled by default.** |
 | WAN IP Address | `wan_ip` | Sensor | - | Diagnostic | - |
+| WAN IP Changes | `wan_ip_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | WAN IPv6 Address | `wan_ipv6` | Sensor | - | Diagnostic | - |
+| WAN IPv6 Changes | `wan_ipv6_changes` | Sensor | - | Diagnostic | **Disabled by default.** LTS: `total_increasing` |
 | Web UI Version | `web_ui_version` | Sensor | - | Diagnostic | - |
 | Mobile Data | `mobile_data` | Switch | - | Config | - |
 | Pause Polling | `pause_polling` | Switch | - | Config | - |
@@ -207,6 +216,19 @@ A complete list of the static entities and service actions provided by the integ
 | Guest Network | `wifi_guest_network` | Switch | - | Config | - |
 
 <!-- GENERATED:end -->
+
+---
+
+## Services (6 Actions)
+
+| Name | Key | Type | Unit | Category | Notes |
+| :-- | :-- | :-- | :-- | :-- | :-- |
+| Clean up unused entities | `cleanup_unused_entities` | Service | - | - | Dry-run preview by default; removes orphaned client tracker entities |
+| Delete All SMS | `delete_all_sms` | Service | - | - | Paged inbox deletion beyond `keep_last`; verified against inbox |
+| Delete SMS | `delete_sms` | Service | - | - | Deletes a message by index; verified against inbox |
+| Get SMS List | `get_sms_list` | Service | - | - | Returns SMS messages from the requested inbox/outbox/drafts bank |
+| Reset Entities | `reset_entities` | Service | - | - | Bulk-enable or disable entities (11 parameters; dry-run preview by default) |
+| Send SMS | `send_sms` | Service | - | - | Sends SMS up to 612 characters with GSM-7 / Unicode segment handling |
 
 ---
 

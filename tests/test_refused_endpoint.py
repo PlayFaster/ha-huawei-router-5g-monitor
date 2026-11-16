@@ -170,6 +170,10 @@ async def test_device_information_raising_a_signal_is_an_expiry_with_no_premise(
     """The critical read is never adjudicated: no premise check, no re-read."""
     transport.refuse("device/information", code)
     api = await _api()
+    # A router that has answered before, on a session already read once: the
+    # first read after a login is a refusal, not an expiry (plan I3, D19).
+    api.information_answered = True
+    api._unread_since_login = False
 
     with pytest.raises(HuaweiAuthError):
         await api.get_data()
@@ -474,3 +478,118 @@ async def test_a_re_read_that_cannot_reach_the_router_fails_the_poll(transport):
 
     with pytest.raises(HuaweiConnectionError):
         await api.get_data()
+
+
+# --------------------------------------------------------------------------
+# The `device/basic-information` fallback (1.2.4-dev8 plan I3)
+# --------------------------------------------------------------------------
+
+BASIC = {"devicename": "H312-371", "classify": "cpe", "multimode": "0"}
+
+
+@pytest.fixture(name="refusing")
+def refusing_fixture(transport):
+    """A router that refuses `device/information` and serves the basic block."""
+    transport.payloads["device/basic_information"] = BASIC
+    transport.refuse("device/information")
+    return transport
+
+
+@pytest.mark.asyncio
+async def test_a_router_refusing_device_information_polls_the_basic_block(refusing):
+    """Setup and polling continue on the basic block, with no re-login."""
+    api = await _api()
+
+    first = await api.get_data()
+    second = await api.get_data()
+
+    assert "device_information" not in first
+    assert first["device_basic_information"]["devicename"] == "H312-371"
+    assert second["device_basic_information"]["devicename"] == "H312-371"
+    assert api.fallback_active is True
+    assert api.information_answered is False
+    assert _outcome(api, "device_information")["judged"] == "fallback"
+    assert refusing.logins == 1
+
+
+@pytest.mark.asyncio
+async def test_a_router_answering_device_information_never_reads_the_basic_block(
+    transport,
+):
+    """On a router that answers, behavior is unchanged."""
+    api = await _api()
+
+    data = await api.get_data()
+
+    assert "device_basic_information" not in data
+    assert api.fallback_active is False
+    assert api.information_answered is True
+
+
+@pytest.mark.asyncio
+async def test_in_the_fallback_the_history_rule_judges_other_endpoints(refusing):
+    """A never-answered endpoint is a refusal; one that answered is an expiry."""
+    refusing.refuse(NON_CRITICAL["device_signal"])
+    api = await _api()
+
+    data = await api.get_data()
+
+    assert "device_signal" not in data
+    assert _outcome(api, "device_signal")["judged"] == "history"
+    assert refusing.anonymous_info_reads == 0
+
+    del refusing.refused["device/signal"]
+    await api.get_data()
+    refusing.refuse(NON_CRITICAL["device_signal"])
+    with pytest.raises(HuaweiAuthError):
+        await api.get_data()
+
+
+@pytest.mark.asyncio
+async def test_a_refusal_on_the_first_read_after_a_login_starts_the_fallback(
+    refusing,
+):
+    """With the flag set, a refusal right after a login is still a refusal (D19)."""
+    api = await _api()
+    api.information_answered = True
+
+    data = await api.get_data()
+
+    assert data["device_basic_information"]["devicename"] == "H312-371"
+    assert api.information_answered is False
+    assert api.fallback_active is True
+    assert refusing.logins == 1
+
+
+@pytest.mark.asyncio
+async def test_the_fallback_ends_on_the_first_poll_device_information_answers(
+    refusing,
+):
+    """A router that starts answering `device_information` leaves the fallback.
+
+    `device_information` is read on every poll, so it leaves at once.
+    """
+    api = await _api()
+    await api.get_data()
+    assert api.fallback_active is True
+
+    del refusing.refused["device/information"]
+    data = await api.get_data()
+
+    assert data["device_information"]["DeviceName"] == "B535-232"
+    assert "device_basic_information" not in data
+    assert api.fallback_active is False
+    assert api.information_answered is True
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("code", [ERROR_SYSTEM_CSRF, ERROR_WRONG_SESSION_TOKEN])
+async def test_a_session_token_error_never_starts_the_fallback(transport, code):
+    """125002 and 125003 are the session failing, not a refused endpoint."""
+    transport.refuse("device/information", code)
+    api = await _api()
+
+    with pytest.raises(HuaweiAuthError):
+        await api.get_data()
+
+    assert api.fallback_active is False
