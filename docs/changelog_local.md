@@ -17,6 +17,7 @@ All changes to this project will be documented in this file. This is the detaile
 ---
 
 - [Internal Detailed Changelog: Huawei Router 5G Monitor](#internal-detailed-changelog-huawei-router-5g-monitor)
+  - [\[1.2.4-dev17\] - 2026-11-16 - Update Shared CI](#124-dev17---2026-11-16---update-shared-ci)
   - [\[1.2.4-dev16\] - 2026-11-15 - Manifest, Lint \& Diagnostics: HACS Categories, Ruff PLC0415 Resolution, and Per-Endpoint HTTP Statuses](#124-dev16---2026-11-15---manifest-lint--diagnostics-hacs-categories-ruff-plc0415-resolution-and-per-endpoint-http-statuses)
   - [\[1.2.4-dev15\] - 2026-11-15 - Tooling \& Documentation: Ruff PLC0415 Sync, Schema Validation, and Marketplace README](#124-dev15---2026-11-15---tooling--documentation-ruff-plc0415-sync-schema-validation-and-marketplace-readme)
   - [\[1.2.4-dev14\] - 2026-11-13 - Tooling \& CI: Ruff Bump and Validation Suite Task Alignment](#124-dev14---2026-11-13---tooling--ci-ruff-bump-and-validation-suite-task-alignment)
@@ -221,6 +222,13 @@ All changes to this project will be documented in this file. This is the detaile
   - [Document Audit Status](#document-audit-status)
 
 ---
+
+## [1.2.4-dev17] - 2026-11-16 - Update Shared CI
+
+### Bumps
+
+- **Shared CI**: Bump `.github` Shared CI Validation via SHA from v2.0.18 to v2.0.19
+  - Updates `zizmor`, `ruff`, `codeql` and ruff config
 
 ## [1.2.4-dev16] - 2026-11-15 - Manifest, Lint & Diagnostics: HACS Categories, Ruff PLC0415 Resolution, and Per-Endpoint HTTP Statuses
 
